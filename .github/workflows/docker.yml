@@ -1,0 +1,20 @@
+name: 构建镜像
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: 构建并冒烟测试
+        run: |
+          docker build -t stock-agent .
+          docker run -d --name sa --read-only --tmpfs /tmp --cap-drop ALL -e ALLOW_CODE=1 -p 8080:8080 stock-agent
+          for i in $(seq 1 20); do curl -sf localhost:8080/health && break; sleep 2; done
+          curl -sf localhost:8080/health
+          docker exec sa python -m stock_agent --no-llm --stdout --no-news | head -20
+          docker logs sa
