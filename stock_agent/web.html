@@ -29,9 +29,9 @@
   body{margin:0;background:repeating-linear-gradient(0deg,rgba(24,23,21,.022) 0 1px,transparent 1px 3px),repeating-linear-gradient(90deg,rgba(24,23,21,.022) 0 1px,transparent 1px 3px),var(--marble) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='600' height='600'%3E%3Cfilter id='a' x='0' y='0' width='100%25' height='100%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.0065 .0085' numOctaves='7' seed='9' stitchTiles='stitch'/%3E%3CfeDiffuseLighting lighting-color='%23F4F3F0' surfaceScale='4.5' diffuseConstant='1.04'%3E%3CfeDistantLight azimuth='225' elevation='48'/%3E%3C/feDiffuseLighting%3E%3C/filter%3E%3Cfilter id='g' x='0' y='0' width='100%25' height='100%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.055' numOctaves='3' seed='2' stitchTiles='stitch'/%3E%3CfeDiffuseLighting lighting-color='%23F8F7F4' surfaceScale='1.4' diffuseConstant='1.02'%3E%3CfeDistantLight azimuth='225' elevation='60'/%3E%3C/feDiffuseLighting%3E%3C/filter%3E%3Cfilter id='m' x='0' y='0' width='100%25' height='100%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.004' numOctaves='3' seed='5' stitchTiles='stitch'/%3E%3CfeColorMatrix type='matrix' values='0 0 0 0 .60  0 0 0 0 .59  0 0 0 0 .55  1.8 0 0 0 -.75'/%3E%3C/filter%3E%3Cfilter id='p' x='0' y='0' width='100%25' height='100%25'%3E%3CfeTurbulence type='turbulence' baseFrequency='.07 .11' numOctaves='2' seed='13' stitchTiles='stitch'/%3E%3CfeColorMatrix type='matrix' values='0 0 0 0 .36  0 0 0 0 .31  0 0 0 0 .25  -3.6 0 0 0 .78'/%3E%3CfeComponentTransfer%3E%3CfeFuncA type='discrete' tableValues='0 0 0 0 0 0 0 .5 .85'/%3E%3C/feComponentTransfer%3E%3C/filter%3E%3Crect width='100%25' height='100%25' fill='%23ECEAE5'/%3E%3Crect width='100%25' height='100%25' filter='url(%23m)' opacity='.45'/%3E%3Crect width='100%25' height='100%25' filter='url(%23a)' opacity='.48' style='mix-blend-mode:multiply'/%3E%3Crect width='100%25' height='100%25' filter='url(%23g)' opacity='.35' style='mix-blend-mode:multiply'/%3E%3Crect width='100%25' height='100%25' filter='url(%23p)' opacity='.6'/%3E%3C/svg%3E") 0 0/600px 600px;background-size:auto,auto,600px 600px;color:var(--ink);font:400 14.5px/1.75 var(--sans);overflow:hidden;-webkit-font-smoothing:antialiased;font-synthesis:none}
   /* 印刷感：网点 + 暗角（参考雕版/海报） */
   body::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:49;
-    background:radial-gradient(ellipse at 50% 45%,transparent 55%,rgba(24,23,21,.16) 100%),radial-gradient(rgba(24,23,21,.07) .6px,transparent .9px) 0 0/4px 4px;mix-blend-mode:multiply}
+    background:radial-gradient(ellipse at 50% 45%,transparent 55%,rgba(24,23,21,.08) 100%),radial-gradient(rgba(24,23,21,.035) .6px,transparent .9px) 0 0/4px 4px;mix-blend-mode:multiply}
   /* 石膏 / 羊皮纸噪点 */
-  body::after{content:"";position:fixed;inset:0;pointer-events:none;z-index:50;opacity:.075;
+  body::after{content:"";position:fixed;inset:0;pointer-events:none;z-index:50;opacity:.045;
     background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")}
   .num{font-variant-numeric:tabular-nums lining-nums}
   .up{color:var(--up)}.down{color:var(--down)}
@@ -48,7 +48,7 @@
   .ticker:hover .ticker-track{animation-play-state:paused}
   @keyframes marquee{to{transform:translateX(-50%)}}
   .tk{display:inline-flex;align-items:baseline;gap:10px;cursor:pointer;padding:0 26px;font:500 10.5px var(--sans);letter-spacing:.12em;text-transform:uppercase}
-  .tk::after{content:"✦";color:var(--ink);font-size:8px;margin-left:26px;opacity:.85;align-self:center}
+  .tk::after{content:"";width:1px;height:10px;background:var(--rule-2);margin-left:26px;align-self:center}
   .tk b{font:500 12px var(--cn);letter-spacing:.08em;text-transform:none}
   .tk .p{font:500 15px var(--serif);letter-spacing:0;color:var(--ink)}
   .tk .c{letter-spacing:.04em}
@@ -86,17 +86,13 @@
   @keyframes d3{0%,60%{opacity:0}80%{opacity:1}100%{opacity:0}}
 
   /* ---- 空状态：拱门 + 建议（Suggestions） ---- */
-  .empty{min-height:100%;display:grid;grid-template-columns:auto 1fr;gap:56px;align-items:center;padding:8px 0 24px}
+  .empty{min-height:100%;display:grid;grid-template-columns:auto 1fr;gap:72px;align-items:center;padding:8px 0 24px}
   .fig{position:relative;padding:14px;margin-top:64px}
-  .fig::before{content:"";position:absolute;inset:0 0 -26px;border:1px solid rgba(24,23,21,.55);border-radius:999px;pointer-events:none}
+  .fig::before{content:"";position:absolute;inset:0;border:1px solid var(--rule-2);border-radius:999px 999px 0 0;pointer-events:none}
   .arch{width:200px;aspect-ratio:1/1.618;border-radius:999px 999px 0 0;overflow:hidden;background:var(--slate);border:1px solid var(--ink);position:relative;animation:rise .8s var(--ease) both;box-shadow:0 18px 40px -24px rgba(0,0,0,.55)}
   .burst{position:absolute;left:50%;top:-92px;width:132px;transform:translateX(-50%);z-index:2;animation:spin 120s linear infinite}
   @keyframes spin{to{transform:translateX(-50%) rotate(360deg)}}
   .stem{position:absolute;left:50%;top:-26px;height:42px;border-left:1px solid var(--ink);z-index:1}
-  .spark{position:absolute;width:26px;z-index:2}.spark.a{left:-34px;top:38%}.spark.b{right:-30px;bottom:22%;width:20px}
-  .tf{position:absolute;left:calc(50% + 30px);bottom:-30px;font:600 7.5px var(--sans);letter-spacing:.12em;display:flex;flex-direction:column;gap:3px;white-space:nowrap}
-  .tf i{display:block;width:76px;height:5px;background:var(--ink)}
-  .ring{position:absolute;left:50%;bottom:-40px;width:34px;height:34px;border:1px solid var(--ink);border-radius:50%;transform:translateX(-50%)}
   @font-face{font-family:"Archeologicaps";src:url(/assets/archeologicaps.woff2) format("woff2");font-display:swap}
   .poster{font:400 82px/.92 "Archeologicaps",var(--poster);letter-spacing:.02em;margin:12px 0 18px;color:var(--ink);white-space:nowrap}
   .poster em{font:italic 400 .5em/1 var(--poster);letter-spacing:-.01em;vertical-align:.92em;margin-right:.12em}
@@ -104,7 +100,7 @@
   .arch::after{content:"";position:absolute;left:0;right:0;bottom:0;height:30%;z-index:1;pointer-events:none;background:linear-gradient(rgba(240,238,233,0),rgba(240,238,233,.55) 45%,#F0EEE9 92%)}
   .arch canvas{opacity:0;transition:opacity 1.2s var(--ease);cursor:grab}.arch canvas.on{opacity:1}
   figure{margin:0}
-  figcaption{margin-top:50px;max-width:228px;text-align:center}
+  figcaption{margin-top:22px;max-width:228px;text-align:center}
   .empty h2{font:500 26px/1.3 var(--cn);margin:6px 0 4px;letter-spacing:.04em}
   .empty .lead{font:italic 400 19px/1.5 var(--serif);color:var(--mute);margin:0 0 22px}
   .chips{display:grid;grid-template-columns:1fr 1fr;border-top:1px solid var(--rule)}
@@ -138,13 +134,6 @@
   .pill i{font:500 10px var(--display);font-style:normal;color:var(--ink-2);margin-right:6px}
   .pill:hover{color:var(--ink);border-color:var(--ink)}
   .disclaim{display:flex;justify-content:center;align-items:center;gap:14px;margin-top:10px;font-size:9px}
-  /* 海报符号：☒ 方框、斜线刻度、星芒 */
-  .xg{display:inline-flex;gap:4px}.xg i{width:11px;height:11px;border:1.4px solid var(--ink);position:relative;display:block}
-  .xg i::before,.xg i::after{content:"";position:absolute;left:50%;top:-2px;bottom:-2px;width:1.4px;background:var(--ink);transform:translateX(-50%) rotate(45deg)}
-  .xg i::after{transform:translateX(-50%) rotate(-45deg)}
-  .ticks{font:400 10px/1 var(--sans);letter-spacing:.5px;color:var(--ink);opacity:.75;white-space:nowrap;overflow:hidden}
-  header .xg.l{position:absolute;left:0;top:30px}header .ticks.r{position:absolute;right:0;top:30px;max-width:200px}
-  .disclaim .ticks{max-width:80px}.disclaim .xg i{width:8px;height:8px;border-width:1px}.disclaim .xg i::before,.disclaim .xg i::after{width:1px}
 
   /* ---- 右侧柱廊 ---- */
   aside{width:384px;border-left:1px solid var(--rule-2);padding:0 26px 26px;overflow:auto;flex:none;scrollbar-width:thin;scrollbar-color:var(--rule-2) transparent;position:relative}
@@ -164,7 +153,7 @@
   /* ---- 指数石碑（Market Snapshot） ---- */
   .snap{border:1px solid var(--ink);background:rgba(246,244,239,.86);box-shadow:5px 5px 0 -1px rgba(246,244,239,.9),5px 5px 0 0 var(--ink);position:relative}
   .snap::before{content:"";position:absolute;inset:3px;border:1px solid var(--rule);pointer-events:none}
-  .snap::after{content:"PLATE · " attr(data-n);position:absolute;right:-1px;top:-1px;background:var(--ink);color:var(--chalk);font:600 7.5px/1 var(--sans);letter-spacing:.16em;padding:4px 7px}
+  .snap::after{content:"INV. " attr(data-n);position:absolute;right:-1px;top:-1px;background:var(--ink);color:var(--chalk);font:600 7.5px/1 var(--sans);letter-spacing:.16em;padding:4px 7px}
   .snap-h{display:flex;justify-content:space-between;align-items:flex-start;padding:22px 18px 2px}
   .snap-h small{font:500 13px var(--cn);letter-spacing:.1em}
   .price{display:flex;align-items:baseline;gap:10px;margin-top:2px;flex-wrap:wrap}
@@ -185,14 +174,25 @@
   .snap-f{display:flex;justify-content:space-between;padding:10px 18px 14px}
   .snap-f span{font:500 9px var(--sans);letter-spacing:.16em;text-transform:uppercase;color:var(--mute)}
 
-  /* ---- 指数列表（Sparkline） ---- */
-  .list{margin-top:8px}
-  .li{display:grid;grid-template-columns:1fr 64px 84px;align-items:center;gap:12px;padding:10px 4px;border-bottom:1px solid var(--rule);cursor:pointer;transition:background .25s,padding .4s var(--ease)}
-  .li:hover,.li.on{background:var(--marble-2);padding-left:10px}
-  .li.on{box-shadow:inset 3px 0 0 var(--ink)}
-  .li .n{font:500 13px/1.3 var(--cn);letter-spacing:.06em}.li .n small{display:block;font:500 9px var(--sans);letter-spacing:.14em;color:var(--mute);margin-top:3px}
-  .li .r{text-align:right;font:500 16px/1.2 var(--serif)}.li .r small{display:block;font:500 10px var(--sans);letter-spacing:.04em;margin-top:2px}
-  .li svg{width:64px;height:24px}
+  /* 藏品标签：编号 / 出处 / 计价 / 入藏 */
+  .tag{display:grid;grid-template-columns:1fr 1fr;margin:10px 14px 0;border-top:1px solid var(--ink);border-bottom:1px solid var(--rule)}
+  .tag div{padding:7px 0 8px;border-bottom:1px solid var(--rule)}.tag div:nth-last-child(-n+2){border-bottom:0}
+  .tag div:nth-child(odd){border-right:1px solid var(--rule);padding-right:10px}.tag div:nth-child(even){padding-left:12px}
+  .tag dt{font:500 7.5px/1.2 var(--sans);letter-spacing:.2em;text-transform:uppercase;color:var(--mute)}
+  .tag dd{margin:3px 0 0;font:500 12px/1.3 var(--cn);letter-spacing:.04em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .tag dd.num{font:500 13px/1.3 var(--serif);font-variant-numeric:lining-nums tabular-nums}
+  /* ---- 指数列表：档案索引表（参考 Museum Department · Index） ---- */
+  .list{margin-top:22px}
+  .lh,.li{display:grid;grid-template-columns:22px 1fr 44px 70px 56px;align-items:center;gap:8px}
+  .lh{padding:0 2px 6px;border-bottom:1px solid var(--ink);font:500 7.5px/1 var(--sans);letter-spacing:.2em;text-transform:uppercase;color:var(--mute)}
+  .lh span:nth-child(n+4){text-align:right}
+  .li{padding:7px 2px;border-bottom:1px solid var(--rule);cursor:pointer;transition:background .2s}
+  .li:hover{background:rgba(24,23,21,.035)}
+  .li.on{background:var(--ink);color:var(--chalk)}.li.on .no,.li.on .n small{color:rgba(233,230,223,.6)}.li.on .up{color:#E08A6E}.li.on .down{color:#A9BC9C}
+  .li .no{font:500 9px var(--sans);letter-spacing:.08em;color:var(--mute)}
+  .li .n{font:500 12px/1.25 var(--cn);letter-spacing:.04em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.li .n small{display:block;font:500 8px var(--sans);letter-spacing:.14em;color:var(--mute);margin-top:2px}
+  .li .r,.li .pc{text-align:right;font:500 13px/1 var(--serif)}.li .pc{font:500 10px var(--sans);letter-spacing:.02em}
+  .li svg{width:44px;height:16px}
 
   .sec ul{margin:0;padding:0;list-style:none}
   .sec li{font-size:12.5px;line-height:1.6;padding:8px 0 8px 18px;border-bottom:1px solid var(--rule);position:relative}
@@ -203,7 +203,7 @@
   .muted{color:var(--mute);font:italic 15px var(--serif)}
   .note{margin-top:26px;padding-top:14px;border-top:1px solid var(--rule);line-height:1.8}
   @media(max-width:1020px){aside{display:none}.empty{grid-template-columns:1fr;gap:28px}.fig{margin:96px auto 0;width:max-content}.arch{width:150px}figcaption{margin:48px auto 0}.poster{font-size:72px;text-align:center}.empty>div:last-child{text-align:left}}
-  @media(max-width:560px){header .xg.l,header .ticks.r,.disclaim .ticks,.disclaim .xg{display:none}.arch{width:118px}.fig{margin-top:66px;padding:10px}.burst{width:96px;top:-66px}.stem{top:-18px;height:30px}.spark.a{left:-28px}.spark.b{right:-26px}.tf{display:none}figcaption{margin-top:44px}.poster{font-size:46px}}
+  @media(max-width:560px){.arch{width:118px}.fig{margin-top:66px;padding:10px}.burst{width:96px;top:-66px}.stem{top:-18px;height:30px}figcaption{margin-top:20px}.poster{font-size:46px}}
   @media(max-width:560px){.temple{inset:6px}.chips{grid-template-columns:1fr}.chip:nth-child(odd){border-right:0}.chip:nth-child(even){padding-left:2px}h1{font-size:22px}}
   @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 </style>
@@ -215,7 +215,6 @@
 <div class="wrap">
 <main><div class="inner">
   <header>
-    <span class="xg l" aria-hidden="true"><i></i><i></i><i></i><i></i></span><span class="ticks r" aria-hidden="true">\\\\\\\\\\\\\\\\\\\\\\\\</span>
     <span class="label">Agora · 上海 · 香港 · 纽约 · Est. MMXXVI</span>
     <h1>Stoa · 股市</h1>
     <em>A market oracle that remembers.</em>
@@ -231,7 +230,7 @@
       </div>
       <div class="tools" id="tools"></div>
     </form>
-    <div class="label disclaim"><span class="ticks">\\\\\\\\\\\\</span>仅供参考 · 不构成投资建议 · Non consilium, sed observatio<span class="xg" aria-hidden="true"><i></i><i></i><i></i></span></div>
+    <div class="label disclaim">仅供参考 · 不构成投资建议 · Non consilium, sed observatio</div>
   </div>
 </div></main>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
@@ -243,10 +242,11 @@
 <aside>
   <div class="sh"><span class="rn">I</span><h3>Indices<span>指数</span></h3><span class="label" id="upd2"></span></div>
   <div class="seg" id="seg"><span class="thumb" id="thumb"></span></div>
-  <div class="snap" id="snap" data-n="I">
+  <div class="snap" id="snap" data-n="I.I">
     <div class="snap-h"><div><small id="sn">—</small><div class="price num"><span class="big" id="sp">—</span><span class="d" id="sd"></span></div></div><span class="sym" id="ss"></span></div>
     <div class="chart" id="chart"><svg id="svg" viewBox="0 0 320 150" role="img"></svg><div class="tip num" id="tip" hidden></div></div>
     <div class="periods" id="periods"><span class="bar" id="bar"></span></div>
+    <dl class="tag" id="tag"></dl>
     <div class="snap-f num"><span id="upd">—</span><span id="mk">—</span></div>
   </div>
   <div class="list" id="list"></div>
@@ -292,7 +292,7 @@ const SUGGEST = ['今天 A 股怎么样', '港股科技股还能追吗', '美股
 const log = $('log');
 function md(s){ return esc(s).replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>').replace(/^#+\s*(.+)$/gm,'<strong>$1</strong>'); }
 function empty(){
-  log.innerHTML = `<div class="empty"><figure><div class="fig">${BURST}<span class="stem"></span><svg class="spark a" viewBox="0 0 20 20"><path d="M10 0C10.6 6.5 13.5 9.4 20 10 13.5 10.6 10.6 13.5 10 20 9.4 13.5 6.5 10.6 0 10 6.5 9.4 9.4 6.5 10 0Z" fill="#181715"/></svg><svg class="spark b" viewBox="0 0 20 20"><path d="M10 0C10.6 6.5 13.5 9.4 20 10 13.5 10.6 10.6 13.5 10 20 9.4 13.5 6.5 10.6 0 10 6.5 9.4 9.4 6.5 10 0Z" fill="#181715"/></svg><span class="tf"><i></i>TF : 0438.BC · ORACVLVM</span><div class="arch">${TEMPLE}</div><span class="ring"></span></div><figcaption class="label">Fig. I — 大理石胸像 · 实时点阵渲染<br>Poly Haven · CC0</figcaption></figure>
+  log.innerHTML = `<div class="empty"><figure><div class="fig">${BURST}<span class="stem"></span><div class="arch">${TEMPLE}</div></div><figcaption class="label">Fig. I — 大理石胸像 · 实时点阵渲染<br>Poly Haven · CC0</figcaption></figure>
     <div><span class="label">Oraculum · 今日之问</span><div class="poster"><em>the</em>ORACLE</div><h2>今天想看什么？</h2><p class="lead">它记得你的持仓与偏好；每一次判断都刻进账本，到期自行复盘。</p><div class="chips">${
     SUGGEST.map((s,i)=>`<button class="chip" style="animation-delay:${120+i*60}ms" data-q="${esc(s)}"><i>${roman(i+1)}</i><span>${esc(s)}</span></button>`).join('')}</div></div></div>`;
   log.querySelectorAll('.chip').forEach(c => c.onclick = () => send(c.dataset.q));
@@ -529,9 +529,10 @@ function seg(){
   requestAnimationFrame(() => { const on = s.querySelector('.on'); if (on) Object.assign($('thumb').style, {left: on.offsetLeft+'px', width: on.offsetWidth+'px'}); });
 }
 function list(){
-  $('list').innerHTML = items.filter(x => x.market === market).map(x => `<div class="li num ${cur && x.symbol===cur.symbol?'on':''}" data-s="${esc(x.symbol)}">
-    <div class="n">${esc(x.name)}<small>${esc(x.symbol)}</small></div>${spark(x.closes)}
-    <div class="r">${fmt(x.last)}<small class="${cls(x.pct)}">${sign(x.pct)}${fmt(x.pct)}%</small></div></div>`).join('');
+  const rows = items.filter(x => x.market === market).slice().sort((a,b) => a.symbol.localeCompare(b.symbol));
+  $('list').innerHTML = `<div class="lh"><span>No.</span><span>Objectum · 标的</span><span></span><span>Pretium</span><span>Δ%</span></div>` + rows.map((x,i) => `<div class="li num ${cur && x.symbol===cur.symbol?'on':''}" data-s="${esc(x.symbol)}">
+    <span class="no">${String(i+1).padStart(2,'0')}</span><div class="n">${esc(x.name)}<small>${esc(x.symbol)}</small></div>${spark(x.closes)}
+    <span class="r">${fmt(x.last)}</span><span class="pc ${cls(x.pct)}">${sign(x.pct)}${fmt(x.pct)}%</span></div>`).join('');
   $('list').querySelectorAll('.li').forEach(l => l.onclick = () => select(items.find(x => x.symbol === l.dataset.s)));
 }
 function periods(){
@@ -576,6 +577,12 @@ function select(x){
   if (!x) return; cur = x;
   const k = items.filter(i => i.market === x.market).findIndex(i => i.symbol === x.symbol);
   $('sn').textContent = x.name; $('ss').textContent = x.symbol; $('mk').textContent = `Fig. ${roman(MARKETS.indexOf(x.market)+1)}.${roman(k+1)} — ${x.market}`;
+  $('snap').dataset.n = `${roman(MARKETS.indexOf(x.market)+1)}.${roman(k+1)}`;
+  const sym = x.symbol, locus = /\.SS$/.test(sym) ? '上海' : /\.SZ$/.test(sym) ? '深圳' : (/\.HK$/.test(sym) || x.market === '港股') ? '香港' : x.market === 'A股' ? '上海 · 深圳' : '纽约';
+  const medium = locus === '香港' ? '港元 · HKD' : locus === '纽约' ? '美元 · USD' : '人民币 · CNY';
+  const datum = (x.dates && x.dates[x.dates.length-1]) || updated || '—';
+  $('tag').innerHTML = [['Inv. No.', 'MMXXVI · ' + esc(sym), 1], ['Provenance · 出处', locus], ['Medium · 计价', medium], ['Acquired · 入藏', esc(datum), 1]]
+    .map(([t,v,n]) => `<div><dt>${t}</dt><dd${n?' class="num"':''}>${v}</dd></div>`).join('');
   seg(); list(); chart();
 }
 async function loadIndices(){
