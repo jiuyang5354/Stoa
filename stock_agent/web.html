@@ -83,10 +83,11 @@
 
   /* ---- 空状态：拱门 + 建议（Suggestions） ---- */
   .empty{min-height:100%;display:grid;grid-template-columns:auto 1fr;gap:44px;align-items:center;padding:8px 0 24px}
-  .arch{width:190px;aspect-ratio:1/1.618;border-radius:999px 999px 0 0;overflow:hidden;background:var(--travertine);border:1px solid var(--rule-2);position:relative;animation:rise .8s var(--ease) both}
-  .arch svg{position:absolute;inset:0;width:100%;height:100%}
+  .arch{width:220px;aspect-ratio:1/1.618;border-radius:999px 999px 0 0;overflow:hidden;background:var(--travertine);border:1px solid var(--rule-2);position:relative;animation:rise .8s var(--ease) both}
+  .arch svg,.arch canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+  .arch canvas{opacity:0;transition:opacity 1.2s var(--ease);cursor:grab}.arch canvas.on{opacity:1}
   figure{margin:0}
-  figcaption{margin-top:12px;max-width:190px}
+  figcaption{margin-top:12px;max-width:220px}
   .empty h2{font:500 34px/1.2 var(--cn);margin:6px 0 4px;letter-spacing:.04em}
   .empty .lead{font:italic 400 19px/1.5 var(--serif);color:var(--mute);margin:0 0 22px}
   .chips{display:grid;grid-template-columns:1fr 1fr;border-top:1px solid var(--rule)}
@@ -255,10 +256,11 @@ const SUGGEST = ['今天 A 股怎么样', '港股科技股还能追吗', '美股
 const log = $('log');
 function md(s){ return esc(s).replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>').replace(/^#+\s*(.+)$/gm,'<strong>$1</strong>'); }
 function empty(){
-  log.innerHTML = `<div class="empty"><figure><div class="arch">${TEMPLE}</div><figcaption class="label">Fig. I — 神庙立面<br>Pentelic marble, 438 BC</figcaption></figure>
+  log.innerHTML = `<div class="empty"><figure><div class="arch">${TEMPLE}</div><figcaption class="label">Fig. I — 帕特农式神庙 · 实时渲染<br>Pentelic marble, 438 BC</figcaption></figure>
     <div><span class="label">Oraculum · 今日之问</span><h2>今天想看什么？</h2><p class="lead">它记得你的持仓与偏好；每一次判断都刻进账本，到期自行复盘。</p><div class="chips">${
     SUGGEST.map((s,i)=>`<button class="chip" style="animation-delay:${120+i*60}ms" data-q="${esc(s)}"><i>${roman(i+1)}</i><span>${esc(s)}</span></button>`).join('')}</div></div></div>`;
   log.querySelectorAll('.chip').forEach(c => c.onclick = () => send(c.dataset.q));
+  temple3d(log.querySelector('.arch'));
 }
 let turn = 0;
 function add(role, html){
@@ -279,6 +281,100 @@ async function send(text){
     const j = await r.json(); out.innerHTML = md(j.reply || j.error || '（空回复）');
   } catch (e) { out.textContent = '请求失败：' + e; }
   busy = false; sync(); log.scrollTop = 1e9; loadMemory();
+}
+
+/* ---------- 拱门里的 three.js 神庙（无构建：运行时从 CDN 动态 import；失败则保留 SVG 线稿） ---------- */
+const THREE_URL = 'https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js';
+async function temple3d(host){
+  let T; try { T = await import(THREE_URL); } catch (e) { return; }
+  if (!host.isConnected) return;
+  const cv = document.createElement('canvas'); cv.className = 'gl';
+  let R; try { R = new T.WebGLRenderer({canvas: cv, antialias: true, powerPreference: 'low-power'}); } catch (e) { return; }
+  host.append(cv);
+  R.setPixelRatio(Math.min(devicePixelRatio, 2)); R.shadowMap.enabled = true; R.shadowMap.type = T.PCFSoftShadowMap;
+  R.outputColorSpace = T.SRGBColorSpace; R.toneMapping = T.ACESFilmicToneMapping; R.toneMappingExposure = 1.3;
+  const S = new T.Scene();
+  // 天空：风化大理石到石灰华的竖向渐变，带赤陶色落日
+  const sky = document.createElement('canvas'); sky.width = 4; sky.height = 256;
+  const g = sky.getContext('2d'), gr = g.createLinearGradient(0,0,0,256);
+  gr.addColorStop(0,'#EFEAE0'); gr.addColorStop(.62,'#E9E2D4'); gr.addColorStop(1,'#DCD3C2'); g.fillStyle = gr; g.fillRect(0,0,4,256);
+  const skyT = new T.CanvasTexture(sky); skyT.colorSpace = T.SRGBColorSpace; S.background = skyT;
+  S.fog = new T.Fog(0xE6DFD2, 34, 80);
+  // 大理石纹理：噪点 + 几道淡灰脉络
+  const mc = document.createElement('canvas'); mc.width = mc.height = 512; const m = mc.getContext('2d');
+  m.fillStyle = '#EEE8DD'; m.fillRect(0,0,512,512);
+  const id = m.getImageData(0,0,512,512); for (let i = 0; i < id.data.length; i += 4) { const n = (Math.random()-.5)*14; id.data[i]+=n; id.data[i+1]+=n; id.data[i+2]+=n; } m.putImageData(id,0,0);
+  m.globalAlpha = .18; m.strokeStyle = '#8f877a';
+  for (let k = 0; k < 7; k++) { m.lineWidth = .6 + Math.random()*1.4; m.beginPath(); let x = Math.random()*512, y = 0; m.moveTo(x,y);
+    while (y < 512) { y += 8; x += Math.sin(y*.03 + k)*6 + (Math.random()-.5)*5; m.lineTo(x,y); } m.stroke(); }
+  const mt = new T.CanvasTexture(mc); mt.colorSpace = T.SRGBColorSpace; mt.wrapS = mt.wrapT = T.RepeatWrapping;
+  const marble = new T.MeshStandardMaterial({map: mt, color: 0xFAF6EE, roughness: .6, metalness: 0});
+  const stone = new T.MeshStandardMaterial({map: mt, color: 0xECE4D5, roughness: .8});
+  const add = (geo, mat, x, y, z) => { const o = new T.Mesh(geo, mat); o.position.set(x, y, z); o.castShadow = o.receiveShadow = true; S.add(o); return o; };
+  const temple = new T.Group(); S.add(temple);
+  const put = (geo, mat, x, y, z) => { const o = add(geo, mat, x, y, z); temple.add(o); return o; };
+  // 台基三级
+  const W = 7.2, D = 4.4;
+  [[0,.18,1.2],[.36,.18,.6],[.54,.18,0]].forEach(([y,h,p]) => put(new T.BoxGeometry(W+p, h, D+p), marble, 0, y+h/2, 0));
+  // 凹槽柱身：20 道凹槽，顶部收分
+  const H = 3.1, r = .26;
+  const shaft = new T.CylinderGeometry(r*.82, r, H, 120, 12, false);
+  const pos = shaft.attributes.position;
+  for (let i = 0; i < pos.count; i++) { const x = pos.getX(i), z = pos.getZ(i), a = Math.atan2(z, x), f = 1 - .055*Math.pow(Math.max(0, Math.cos(a*20)), .6);
+    pos.setX(i, x*f); pos.setZ(i, z*f); }
+  shaft.computeVertexNormals();
+  const echinus = new T.CylinderGeometry(r*1.25, r*.84, .16, 48), abacus = new T.BoxGeometry(r*2.7, .09, r*2.7);
+  const base = .72, cols = [];
+  const nx = 6, nz = 4, sx = (W-1.1)/(nx-1), sz = (D-1.1)/(nz-1);
+  for (let i = 0; i < nx; i++) for (let j = 0; j < nz; j++) {
+    if (j > 0 && j < nz-1 && i > 0 && i < nx-1) continue;
+    const x = -((W-1.1)/2) + i*sx, z = -((D-1.1)/2) + j*sz;
+    cols.push(put(shaft, marble, x, base + H/2, z)); put(echinus, marble, x, base+H+.08, z); put(abacus, marble, x, base+H+.205, z);
+  }
+  // 檐部：额枋、带三陇板的檐壁、檐口
+  const top = base + H + .25;
+  put(new T.BoxGeometry(W-.6, .38, D-.6), marble, 0, top+.19, 0);
+  put(new T.BoxGeometry(W-.62, .36, D-.62), stone, 0, top+.56, 0);
+  for (let i = 0; i < 13; i++) { const x = -(W-.9)/2 + i*(W-.9)/12; put(new T.BoxGeometry(.14, .36, .06), marble, x, top+.56, (D-.6)/2); put(new T.BoxGeometry(.14,.36,.06), marble, x, top+.56, -(D-.6)/2); }
+  put(new T.BoxGeometry(W-.3, .14, D-.3), marble, 0, top+.81, 0);
+  // 山花（前后两面三角形挤出）
+  const tri = new T.Shape(); tri.moveTo(-(W-.3)/2, 0); tri.lineTo((W-.3)/2, 0); tri.lineTo(0, .95); tri.closePath();
+  const ped = new T.ExtrudeGeometry(tri, {depth: D-.3, bevelEnabled: false}); ped.translate(0, 0, -(D-.3)/2);
+  put(ped, marble, 0, top+.88, 0);
+  // 地面
+  const ground = add(new T.PlaneGeometry(80, 80), new T.MeshStandardMaterial({color: 0xE3DACA, roughness: 1}), 0, 0, 0);
+  ground.rotation.x = -Math.PI/2; ground.castShadow = false;
+  // 光：暖色夕照 + 天光
+  S.add(new T.HemisphereLight(0xFFF8EE, 0xCFC2AA, 1.7));
+  const sun = new T.DirectionalLight(0xFFDDB8, 2.1); sun.position.set(-9, 11, 7); sun.castShadow = true;
+  sun.shadow.mapSize.set(1024, 1024); Object.assign(sun.shadow.camera, {left:-8,right:8,top:8,bottom:-8,near:1,far:40}); sun.shadow.bias = -.0005; sun.shadow.radius = 4;
+  S.add(sun);
+  // 赤陶色落日
+  const disc = new T.Mesh(new T.CircleGeometry(2.4, 64), new T.MeshBasicMaterial({color: 0xB3543A, transparent: true, opacity: .2, fog: false}));
+  disc.renderOrder = -1; disc.material.depthWrite = false;
+  // 浮尘
+  const N = 140, dp = new Float32Array(N*3); for (let i = 0; i < N; i++) { dp[i*3] = (Math.random()-.5)*12; dp[i*3+1] = Math.random()*8; dp[i*3+2] = (Math.random()-.5)*8 + 2; }
+  const dg = new T.BufferGeometry(); dg.setAttribute('position', new T.BufferAttribute(dp, 3));
+  const dust = new T.Points(dg, new T.PointsMaterial({color: 0x9E7B56, size: .045, transparent: true, opacity: .55, depthWrite: false})); S.add(dust);
+  const cam = new T.PerspectiveCamera(30, 1, .1, 120); S.add(cam); cam.add(disc); disc.position.set(3.4, 8.6, -62);
+  let mx = 0, my = 0; host.onpointermove = e => { const b = host.getBoundingClientRect(); mx = (e.clientX-b.left)/b.width - .5; my = (e.clientY-b.top)/b.height - .5; };
+  host.onpointerleave = () => { mx = my = 0; };
+  const still = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  let cx = 0, cy = 0, t0 = performance.now(), alive = true;
+  function size(){ const w = host.clientWidth, h = host.clientHeight; R.setSize(w, h, false); cam.aspect = w/h; cam.updateProjectionMatrix(); }
+  new ResizeObserver(size).observe(host); size();
+  function frame(now){
+    if (!host.isConnected) { alive = false; R.dispose(); return; }
+    const t = (now - t0)/1000;
+    cx += (mx - cx)*.05; cy += (my - cy)*.05;
+    const a = .62 + (still ? 0 : Math.sin(t*.12)*.28) + cx*.35, d = 33;
+    cam.position.set(Math.sin(a)*d, 4.4 - cy*2, Math.cos(a)*d); cam.lookAt(0, 4.6, 0);
+    if (!still) { for (let i = 0; i < N; i++) { dp[i*3+1] += .004 + (i%5)*.0008; dp[i*3] += Math.sin(t*.5 + i)*.002; if (dp[i*3+1] > 8) dp[i*3+1] = 0; } dg.attributes.position.needsUpdate = true; }
+    R.render(S, cam);
+    if (!still) requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+  requestAnimationFrame(() => cv.classList.add('on'));
 }
 
 /* ---------- 输入框（AI Chat Input） ---------- */
