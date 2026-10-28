@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>股市 Agent</title>
+<style>
+  :root{--bg:#f4f1ea;--ink:#1d1d1b;--mute:#8a857b;--line:#d9d3c7;--accent:#c8102e}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.65 -apple-system,"PingFang SC","Noto Sans SC",sans-serif;display:flex;height:100vh}
+  main{flex:1;display:flex;flex-direction:column;max-width:820px;margin:0 auto;padding:0 24px}
+  header{padding:28px 0 16px;border-bottom:1px solid var(--line);display:flex;align-items:baseline;justify-content:space-between}
+  h1{font:600 26px/1 "Songti SC","Noto Serif SC",serif;margin:0;letter-spacing:.02em}
+  .tag{font:11px ui-monospace,Menlo,monospace;color:var(--mute);letter-spacing:.12em}
+  #log{flex:1;overflow:auto;padding:24px 0}
+  .m{margin:0 0 20px;white-space:pre-wrap}
+  .m .who{font:11px ui-monospace,Menlo,monospace;letter-spacing:.12em;color:var(--mute);display:block;margin-bottom:4px}
+  .m.u .who{color:var(--accent)}
+  form{display:flex;gap:10px;padding:16px 0 28px;border-top:1px solid var(--line)}
+  textarea{flex:1;resize:none;height:52px;border:1px solid var(--line);background:#fff;padding:12px 14px;font:inherit;border-radius:2px}
+  button{border:0;background:var(--ink);color:var(--bg);padding:0 22px;font:12px ui-monospace,Menlo,monospace;letter-spacing:.12em;cursor:pointer}
+  button:disabled{opacity:.4}
+  aside{width:300px;border-left:1px solid var(--line);padding:28px 22px;overflow:auto;font-size:13px}
+  aside h2{font:11px ui-monospace,Menlo,monospace;letter-spacing:.12em;color:var(--mute);margin:20px 0 8px}
+  aside li{margin-bottom:6px}
+  @media(max-width:900px){aside{display:none}}
+</style>
+</head>
+<body>
+<main>
+  <header><h1>股市 Agent</h1><span class="tag">A股 · 港股 · 美股 · 有记忆</span></header>
+  <div id="log"><div class="m"><span class="who">AGENT</span>你好，我记得你说过的持仓和偏好。问我行情、个股，或者让我帮你复盘。输入 /memory 看我记住了什么，/new 开始新对话。</div></div>
+  <form id="f"><textarea id="t" placeholder="比如：我持有腾讯，成本 400，帮我看看现在怎么样"></textarea><button id="b">发送</button></form>
+</main>
+<aside><h2>关于你</h2><ul id="user"></ul><h2>我的笔记</h2><ul id="mem"></ul><h2>判断账本</h2><div id="calls"></div></aside>
+<script>
+const token = new URLSearchParams(location.search).get('token') || localStorage.token || '';
+if (token) localStorage.token = token;
+const H = {'Content-Type':'application/json','X-Token':token};
+const sid = localStorage.sid || (localStorage.sid = Math.random().toString(36).slice(2));
+const log = document.getElementById('log');
+function add(who, text){const d=document.createElement('div');d.className='m '+(who==='你'?'u':'');d.innerHTML='<span class="who"></span>';d.firstChild.textContent=who==='你'?'YOU':'AGENT';d.append(text);log.append(d);log.scrollTop=1e9;return d}
+async function mem(){try{const r=await (await fetch('/api/memory',{headers:H})).json();
+  const fill=(id,a)=>{const u=document.getElementById(id);u.innerHTML='';(a.length?a:['（空）']).forEach(x=>{const l=document.createElement('li');l.textContent=x;u.append(l)})};
+  fill('user',r.user);fill('mem',r.memory);document.getElementById('calls').textContent=JSON.stringify(r.calls)}catch(e){}}
+document.getElementById('f').onsubmit=async e=>{e.preventDefault();const t=document.getElementById('t'),b=document.getElementById('b');
+  const text=t.value.trim();if(!text)return;t.value='';add('你',text);b.disabled=true;const p=add('Agent','思考中…');
+  try{const r=await fetch('/api/chat',{method:'POST',headers:H,body:JSON.stringify({text,session:sid})});const j=await r.json();p.lastChild.textContent=j.reply||j.error}
+  catch(err){p.lastChild.textContent='请求失败：'+err}b.disabled=false;mem()};
+document.getElementById('t').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();document.getElementById('f').requestSubmit()}});
+mem();
+</script>
+</body>
+</html>

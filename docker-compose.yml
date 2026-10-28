@@ -1,0 +1,22 @@
+# docker compose up -d   然后打开 http://localhost:8080
+services:
+  stock-agent:
+    build: .
+    image: stock-agent:latest
+    container_name: stock-agent
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - "127.0.0.1:8080:8080"     # 只监听本机；放到服务器上请配合 WEB_TOKEN 或反向代理
+    volumes:
+      - ./agent-data:/data         # 记忆、对话库、配置、报告、沙箱工作区都在这里
+    # ---- 沙箱加固 ----
+    read_only: true                # 根文件系统只读，只有 /data 和 /tmp 可写
+    tmpfs:
+      - /tmp:size=256m
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 256
+    mem_limit: 1536m
+    cpus: 1.5

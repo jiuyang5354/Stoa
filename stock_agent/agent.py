@@ -7,7 +7,8 @@ import requests
 import yaml
 
 from . import data, indicators
-from .memory import ROOT, Memory, now
+from . import sandbox
+from .memory import Memory, config_path, now
 
 NUDGE_EVERY = 6  # 每隔几轮提醒自己是否该存记忆
 
@@ -50,16 +51,18 @@ TOOLS = [
                                                      "view": {"type": "string", "enum": ["看涨", "看跌", "震荡"]},
                                                      "horizon_days": {"type": "integer"}, "reason": {"type": "string"}},
                     "required": ["symbol", "view", "horizon_days", "reason"]}},
+    {"name": "run_python", "description": "在隔离沙箱里运行一段 Python 做自定义分析（已装 pandas、yfinance、numpy）。用 print 输出结果；可以在当前目录读写文件，文件会保留。超时 60 秒。",
+     "parameters": {"type": "object", "properties": {"code": {"type": "string"}}, "required": ["code"]}},
     {"name": "call_stats", "description": "查看历史判断的胜率统计。", "parameters": {"type": "object", "properties": {}}},
 ]
 
 
 def load_cfg() -> dict:
-    return yaml.safe_load((ROOT / "config.yaml").read_text(encoding="utf-8"))
+    return yaml.safe_load(config_path().read_text(encoding="utf-8"))
 
 
 def save_watchlist(wl: list[dict]):
-    p = ROOT / "config.yaml"
+    p = config_path()
     text = p.read_text(encoding="utf-8")
     head, _, rest = text.partition("\nwatchlist:")
     # 保留 watchlist 之后的其它配置块
@@ -91,13 +94,14 @@ def review_due(mem: Memory) -> list[str]:
 
 
 class Agent:
-    def __init__(self, mem: Memory | None = None):
+    def __init__(self, mem: Memory | None = None, channel: str = "cli"):
         self.mem = mem or Memory()
         cfg = load_cfg().get("llm", {})
         self.key = os.getenv("LLM_API_KEY")
         self.base = os.getenv("LLM_BASE_URL", cfg.get("base_url", "https://api.openai.com/v1")).rstrip("/")
         self.model = os.getenv("LLM_MODEL", cfg.get("model", "gpt-4o-mini"))
-        self.session = now().replace(" ", "_") + "-" + uuid.uuid4().hex[:4]
+        self.session = f"{channel}-" + now().replace(" ", "_") + "-" + uuid.uuid4().hex[:4]
+        self.tools = [t for t in TOOLS if t["name"] != "run_python" or sandbox.enabled()]
         self.turns = 0
         self.messages = [{"role": "system", "content": self._system()}]
 
@@ -149,6 +153,8 @@ class Agent:
             return f"已记账 #{cid}：{args['view']}，基准价 {q['close']}，{args['horizon_days']} 天后复盘。"
         if name == "call_stats":
             return m.call_stats()
+        if name == "run_python":
+            return sandbox.run_python(args["code"])
         return f"未知工具 {name}"
 
     # ----- 模型调用 -----
@@ -157,7 +163,7 @@ class Agent:
             f"{self.base}/chat/completions",
             headers={"Authorization": f"Bearer {self.key}"},
             json={"model": self.model, "temperature": 0.3, "messages": messages,
-                  "tools": [{"type": "function", "function": t} for t in TOOLS]},
+                  "tools": [{"type": "function", "function": t} for t in self.tools]},
             timeout=120,
         )
         r.raise_for_status()

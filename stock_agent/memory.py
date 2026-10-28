@@ -18,17 +18,30 @@ FILES = {"memory": "MEMORY.md", "user": "USER.md"}
 ROOT = Path(__file__).resolve().parent.parent
 
 
+def home() -> Path:
+    return Path(os.getenv("STOCK_AGENT_HOME") or ROOT)
+
+
+def config_path() -> Path:
+    """配置放在数据目录里（容器里是 /data/config.yaml），首次运行从仓库默认配置复制。"""
+    p = home() / "config.yaml"
+    if not p.exists():
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text((ROOT / "config.yaml").read_text(encoding="utf-8"), encoding="utf-8")
+    return p
+
+
 def now() -> str:
     return datetime.now(CN_TZ).strftime("%Y-%m-%d %H:%M")
 
 
 class Memory:
-    def __init__(self, home: str | Path | None = None):
-        self.home = Path(home or os.getenv("STOCK_AGENT_HOME") or ROOT)
+    def __init__(self, home_dir: str | Path | None = None):
+        self.home = Path(home_dir) if home_dir else home()
         self.mem_dir = self.home / "memory"
         self.mem_dir.mkdir(parents=True, exist_ok=True)
         (self.home / "data").mkdir(exist_ok=True)
-        self.db = sqlite3.connect(self.home / "data" / "sessions.db")
+        self.db = sqlite3.connect(self.home / "data" / "sessions.db", check_same_thread=False)
         self.db.executescript(
             """
             CREATE TABLE IF NOT EXISTS messages(id INTEGER PRIMARY KEY, session TEXT, ts TEXT, role TEXT, content TEXT);

@@ -11,6 +11,40 @@
 - AI 点评（可选）：任何 OpenAI 兼容接口（DeepSeek、通义、OpenAI 等）
 - 定时：GitHub Actions 每个工作日北京时间 08:30、21:00 自动跑，报告存进 `reports/`
 
+## 一键部署：独立沙箱常驻运行（推荐）
+
+像 Hermes Agent 一样跑成一个常驻智能体：装进 Docker 隔离沙箱，24 小时在线，记忆存在挂载卷里，重启、升级都不会丢。
+
+```bash
+git clone <你的仓库> stock-agent && cd stock-agent
+cp .env.example .env        # 填 LLM_API_KEY（DeepSeek 等），其余按需
+docker compose up -d
+```
+
+打开 http://localhost:8080 就能聊天，右侧实时显示它记住了你什么。
+
+容器里同时跑着：
+
+- **网页聊天**：带记忆面板；放到服务器上设置 `WEB_TOKEN`，用 `http://host:8080/?token=口令` 访问
+- **Telegram 网关**（可选）：填 `TELEGRAM_BOT_TOKEN` 和 `TELEGRAM_CHAT_ID`，只回复白名单里的人
+- **定时早晚报**：工作日 08:30 / 21:00（北京时间，`REPORT_TIMES` 可改），推送到已配置的渠道
+- **沙箱代码执行**：`ALLOW_CODE=1` 时 Agent 可以自己写 Python 做回测、算相关性等分析
+
+所有渠道共享同一套记忆。闲置 30 分钟自动结束会话并整理记忆；聊天里发 `/new` 立刻整理并开新对话，`/memory` 查看记忆。
+
+**沙箱隔离**
+
+| 措施 | 说明 |
+|---|---|
+| 非 root 用户 | 容器内以 uid 10001 运行 |
+| 只读根文件系统 | 只有 `/data` 和 `/tmp`（256 MB 内存盘）可写 |
+| 去掉全部 Linux capabilities | `cap_drop: ALL` + `no-new-privileges` |
+| 资源上限 | 1.5 CPU、1.5 GB 内存、256 个进程 |
+| 代码执行再隔离 | 独立子进程、60 秒超时、1 GB 内存上限、看不到任何密钥环境变量 |
+| 端口只绑本机 | 默认 `127.0.0.1:8080`，对外暴露需自己配 |
+
+数据都在 `./agent-data/`：`memory/`（记忆）、`data/sessions.db`（对话与判断账本）、`config.yaml`（自选股）、`reports/`、`workspace/`（沙箱文件）。备份这个目录就是备份它的全部记忆。
+
 ## 记忆（参考 Hermes Agent）
 
 和它聊得越多，它越懂你：
@@ -30,6 +64,7 @@
 
 ```bash
 python -m stock_agent chat     # 对话（需要 LLM_API_KEY），/memory 查看记忆，/exit 退出并整理记忆
+python -m stock_agent serve    # 常驻模式（网页 + Telegram + 定时报告），不用 Docker 也能跑
 python -m stock_agent memory   # 打印当前记忆
 python -m stock_agent review   # 手动复盘到期的判断
 ```

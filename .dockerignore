@@ -1,0 +1,7 @@
+.git
+data/
+agent-data/
+reports/*.md
+memory/
+.env
+__pycache__
