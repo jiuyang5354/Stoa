@@ -100,6 +100,7 @@
   .poster{font:400 118px/.82 var(--poster);letter-spacing:.01em;text-transform:uppercase;margin:4px 0 10px;color:var(--ink)}
   .poster small{font-size:.42em;vertical-align:top;margin-right:.08em;text-transform:lowercase}
   .arch svg,.arch canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+  .arch::after{content:"";position:absolute;left:0;right:0;bottom:0;height:30%;z-index:1;pointer-events:none;background:linear-gradient(rgba(240,238,233,0),rgba(240,238,233,.55) 45%,#F0EEE9 92%)}
   .arch canvas{opacity:0;transition:opacity 1.2s var(--ease);cursor:grab}.arch canvas.on{opacity:1}
   figure{margin:0}
   figcaption{margin-top:50px;max-width:228px;text-align:center}
@@ -268,7 +269,7 @@ const sign = v => (v >= 0 ? '+' : '') ;
 const roman = n => { let r = ''; for (const [v,c] of [[1000,'M'],[900,'CM'],[500,'D'],[400,'CD'],[100,'C'],[90,'XC'],[50,'L'],[40,'XL'],[10,'X'],[9,'IX'],[5,'V'],[4,'IV'],[1,'I']]) while (n >= v) { r += c; n -= v; } return r; };
 const COLS = [18,34,50,66,82].map(x => `<rect x="${x-4.2}" y="78" width="8.4" height="58" fill="url(#col)"/>` + [-2.4,0,2.4].map(d => `<line x1="${x+d}" x2="${x+d}" y1="80" y2="134" stroke="#181715" stroke-opacity=".18" stroke-width=".35"/>`).join('') + `<rect x="${x-5.6}" y="75.5" width="11.2" height="2.6" fill="#D8D1C2" stroke="#181715" stroke-opacity=".35" stroke-width=".3"/>`).join('');
 const BURST = (() => { const n = 16, pts = []; for (let i = 0; i < n*2; i++) { const a = i/(n*2)*Math.PI*2 - Math.PI/2, r = i%2 ? 11 : (i%4 === 0 ? 50 : 30); pts.push((50+Math.cos(a)*r).toFixed(2)+','+(50+Math.sin(a)*r).toFixed(2)); }
-  return `<svg class="burst" viewBox="0 0 100 100" aria-hidden="true"><polygon points="${pts.join(' ')}" fill="#181715"/><circle cx="50" cy="50" r="8.5" fill="#F5F2EB"/><circle cx="50" cy="50" r="8.5" fill="none" stroke="#181715" stroke-width=".4" stroke-dasharray=".6 .9"/></svg>`; })();
+  return `<svg class="burst" viewBox="0 0 100 100" aria-hidden="true"><polygon points="${pts.join(' ')}" fill="#181715"/><circle cx="50" cy="50" r="8.5" fill="#E6C66A"/><circle cx="50" cy="50" r="8.5" fill="none" stroke="#181715" stroke-width=".4" stroke-dasharray=".6 .9"/></svg>`; })();
 const TEMPLE = `<svg viewBox="0 0 100 162" preserveAspectRatio="xMidYMax slice" aria-hidden="true">
   <defs><linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#EDE7DA"/><stop offset="1" stop-color="#E2DBCC"/></linearGradient>
   <linearGradient id="col" x1="0" x2="1"><stop offset="0" stop-color="#E9E3D6"/><stop offset=".55" stop-color="#F6F2EA"/><stop offset="1" stop-color="#D9D1C1"/></linearGradient></defs>
@@ -290,7 +291,7 @@ const SUGGEST = ['今天 A 股怎么样', '港股科技股还能追吗', '美股
 const log = $('log');
 function md(s){ return esc(s).replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>').replace(/^#+\s*(.+)$/gm,'<strong>$1</strong>'); }
 function empty(){
-  log.innerHTML = `<div class="empty"><figure><div class="fig">${BURST}<span class="stem"></span><svg class="spark a" viewBox="0 0 20 20"><path d="M10 0C10.6 6.5 13.5 9.4 20 10 13.5 10.6 10.6 13.5 10 20 9.4 13.5 6.5 10.6 0 10 6.5 9.4 9.4 6.5 10 0Z" fill="#181715"/></svg><svg class="spark b" viewBox="0 0 20 20"><path d="M10 0C10.6 6.5 13.5 9.4 20 10 13.5 10.6 10.6 13.5 10 20 9.4 13.5 6.5 10.6 0 10 6.5 9.4 9.4 6.5 10 0Z" fill="#181715"/></svg><span class="tf"><i></i>TF : 0438.BC · ORACVLVM</span><div class="arch">${TEMPLE}</div><span class="ring"></span></div><figcaption class="label">Fig. I — 帕特农式神庙 · 实时渲染<br>Pentelic marble, 438 BC</figcaption></figure>
+  log.innerHTML = `<div class="empty"><figure><div class="fig">${BURST}<span class="stem"></span><svg class="spark a" viewBox="0 0 20 20"><path d="M10 0C10.6 6.5 13.5 9.4 20 10 13.5 10.6 10.6 13.5 10 20 9.4 13.5 6.5 10.6 0 10 6.5 9.4 9.4 6.5 10 0Z" fill="#181715"/></svg><svg class="spark b" viewBox="0 0 20 20"><path d="M10 0C10.6 6.5 13.5 9.4 20 10 13.5 10.6 10.6 13.5 10 20 9.4 13.5 6.5 10.6 0 10 6.5 9.4 9.4 6.5 10 0Z" fill="#181715"/></svg><span class="tf"><i></i>TF : 0438.BC · ORACVLVM</span><div class="arch">${TEMPLE}</div><span class="ring"></span></div><figcaption class="label">Fig. I — 大理石胸像 · 实时点阵渲染<br>Poly Haven · CC0</figcaption></figure>
     <div><span class="label">Oraculum · 今日之问</span><div class="poster"><small>the</small>Oracle</div><h2>今天想看什么？</h2><p class="lead">它记得你的持仓与偏好；每一次判断都刻进账本，到期自行复盘。</p><div class="chips">${
     SUGGEST.map((s,i)=>`<button class="chip" style="animation-delay:${120+i*60}ms" data-q="${esc(s)}"><i>${roman(i+1)}</i><span>${esc(s)}</span></button>`).join('')}</div></div></div>`;
   log.querySelectorAll('.chip').forEach(c => c.onclick = () => send(c.dataset.q));
@@ -319,6 +320,26 @@ async function send(text){
 
 /* ---------- 拱门里的 three.js 神庙（无构建：运行时从 CDN 动态 import；失败则保留 SVG 线稿） ---------- */
 const THREE_URL = 'https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js';
+// 极简 GLB 解析：只读一个网格 + 法线贴图，省掉 GLTFLoader 和 importmap
+async function loadBust(T){
+  try {
+    const buf = await (await fetch('/assets/bust.glb')).arrayBuffer(), dv = new DataView(buf);
+    if (dv.getUint32(0, true) !== 0x46546C67) return null;
+    const jl = dv.getUint32(12, true), j = JSON.parse(new TextDecoder().decode(new Uint8Array(buf, 20, jl))), b0 = 20 + jl + 8;
+    const CT = {5126: Float32Array, 5125: Uint32Array, 5123: Uint16Array}, N = {SCALAR: 1, VEC2: 2, VEC3: 3, VEC4: 4};
+    const acc = i => { const a = j.accessors[i], v = j.bufferViews[a.bufferView], C = CT[a.componentType];
+      return new C(buf.slice(b0 + (v.byteOffset||0) + (a.byteOffset||0), b0 + (v.byteOffset||0) + (a.byteOffset||0) + a.count*N[a.type]*C.BYTES_PER_ELEMENT)); };
+    const pr = j.meshes[0].primitives[0], g = new T.BufferGeometry();
+    g.setAttribute('position', new T.BufferAttribute(acc(pr.attributes.POSITION), 3));
+    g.setAttribute('normal', new T.BufferAttribute(acc(pr.attributes.NORMAL), 3));
+    g.setAttribute('uv', new T.BufferAttribute(acc(pr.attributes.TEXCOORD_0), 2));
+    g.setIndex(new T.BufferAttribute(acc(pr.indices), 1));
+    const im = j.images && j.images[0];
+    if (im) { const v = j.bufferViews[im.bufferView]; const bmp = await createImageBitmap(new Blob([new Uint8Array(buf, b0 + (v.byteOffset||0), v.byteLength)], {type: im.mimeType}), {imageOrientation: 'none'});
+      const tx = new T.Texture(bmp); tx.flipY = false; tx.needsUpdate = true; g.userData.nor = tx; }
+    return g;
+  } catch (e) { return null; }
+}
 async function temple3d(host){
   let T; try { T = await import(THREE_URL); } catch (e) { return; }
   if (!host.isConnected) return;
@@ -383,7 +404,7 @@ async function temple3d(host){
   const ground = add(new T.PlaneGeometry(80, 80), new T.MeshStandardMaterial({color: 0x1c1b18, roughness: 1}), 0, 0, 0);
   ground.rotation.x = -Math.PI/2; ground.castShadow = false;
   // 光：暖色夕照 + 天光
-  S.add(new T.HemisphereLight(0xFFFFFF, 0x1a1916, .32));
+  const hemi = new T.HemisphereLight(0xFFFFFF, 0x1a1916, .32); S.add(hemi);
   const sun = new T.DirectionalLight(0xFFFFFF, 1.5); sun.position.set(-9, 12, 8); sun.castShadow = true;
   sun.shadow.mapSize.set(1024, 1024); Object.assign(sun.shadow.camera, {left:-8,right:8,top:8,bottom:-8,near:1,far:40}); sun.shadow.bias = -.0005; sun.shadow.radius = 4;
   S.add(sun);
@@ -401,6 +422,28 @@ async function temple3d(host){
   rg.addColorStop(0,'rgba(255,255,255,.95)'); rg.addColorStop(.35,'rgba(255,255,255,.45)'); rg.addColorStop(1,'rgba(255,255,255,0)'); hg.fillStyle = rg; hg.fillRect(0,0,256,256);
   const halo = new T.Mesh(new T.PlaneGeometry(1, 1), new T.MeshBasicMaterial({map: new T.CanvasTexture(hc), transparent: true, depthWrite: false, fog: false}));
   halo.scale.set(15, 15, 1); halo.position.set(0, 3.2, -40); halo.material.opacity = .34; halo.renderOrder = -2; cam.add(halo);
+  // 视角参数：先是程序化神庙，胸像加载好后切换
+  const V = {a0: .62, sw: .28, d: 27, cy: 4.2, ty: 4.4}; let bustKey = null;
+  loadBust(T).then(geo => {
+    if (!host.isConnected || !geo) return;
+    temple.visible = false; disc.visible = false;
+    const g = new T.Group(); S.add(g);
+    const tex = geo.userData.nor, mat = new T.MeshStandardMaterial({color: 0xF2EEE6, roughness: .55, metalness: 0, normalMap: tex || null});
+    const bust = new T.Mesh(geo, mat); bust.castShadow = bust.receiveShadow = true; bust.scale.setScalar(21); bust.position.y = 2.2; bust.rotation.y = Math.PI/2 - .5; g.add(bust);
+    const dm = new T.Mesh(geo, depthMat); dm.scale.copy(bust.scale); dm.position.copy(bust.position); dm.rotation.copy(bust.rotation); dm.layers.set(1); g.add(dm);
+    // 柱础：方形台座，带粉笔描边
+    [[new T.BoxGeometry(6.2, 1.6, 5.4), .8], [new T.BoxGeometry(7, .5, 6.2), .25]].forEach(([bg, y]) => {
+      const m = new T.Mesh(bg, marble); m.position.y = y; m.castShadow = m.receiveShadow = true; g.add(m);
+      const dd = new T.Mesh(bg, depthMat); dd.position.y = y; dd.layers.set(1); g.add(dd);
+      const e = new T.LineSegments(new T.EdgesGeometry(bg), chalk); e.position.y = y; e.layers.set(1); g.add(e);
+    });
+    Object.assign(V, {a0: .2, sw: .2, d: 31, cy: 7.6, ty: 7.6});
+    hemi.intensity = .14; sun.intensity = .55; glow.intensity = 0; halo.material.opacity = .26; halo.position.y = 6.4;
+    bustKey = new T.SpotLight(0xFFFFFF, 260, 48, .45, .6, 1.6); bustKey.target.position.set(0, 7.5, 0); bustKey.castShadow = true; bustKey.shadow.mapSize.set(1024, 1024);
+    S.add(bustKey, bustKey.target);
+    const rim = new T.DirectionalLight(0xFFF1D6, .9); rim.position.set(-8, 9, -10); S.add(rim);
+    if (still) R.render(S, cam);
+  });
   let mx = 0, my = 0; host.onpointermove = e => { const b = host.getBoundingClientRect(); mx = (e.clientX-b.left)/b.width - .5; my = (e.clientY-b.top)/b.height - .5; };
   host.onpointerleave = () => { mx = my = 0; };
   const still = matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -425,8 +468,9 @@ async function temple3d(host){
     if (!host.isConnected) { alive = false; R.dispose(); return; }
     const t = (now - t0)/1000;
     cx += (mx - cx)*.05; cy += (my - cy)*.05;
-    const a = .62 + (still ? 0 : Math.sin(t*.12)*.28) + cx*.35, d = 27;
-    cam.position.set(Math.sin(a)*d, 4.2 - cy*2, Math.cos(a)*d); cam.lookAt(0, 4.4, 0);
+    const a = V.a0 + (still ? 0 : Math.sin(t*.12)*V.sw) + cx*.35, d = V.d;
+    if (bustKey) { const th = .7 + cx*2.4; bustKey.position.set(Math.sin(th)*14, 13 - cy*9, Math.cos(th)*14); }
+    cam.position.set(Math.sin(a)*d, V.cy - cy*2, Math.cos(a)*d); cam.lookAt(0, V.ty, 0);
     if (!still) { for (let i = 0; i < N; i++) { dp[i*3+1] += .004 + (i%5)*.0008; dp[i*3] += Math.sin(t*.5 + i)*.002; if (dp[i*3+1] > 8) dp[i*3+1] = 0; } dg.attributes.position.needsUpdate = true; }
     cam.layers.set(0); R.setRenderTarget(rt); R.render(S, cam); R.setRenderTarget(null);
     R.autoClear = true; R.render(qs, qc); R.autoClear = false; R.clearDepth(); cam.layers.set(1); R.render(S, cam); R.autoClear = true;

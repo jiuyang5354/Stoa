@@ -24,6 +24,7 @@ LOCK = threading.Lock()
 MEM = Memory()
 SESSIONS: dict[str, dict] = {}  # channel -> {"agent": Agent, "last": ts}
 UI = (Path(__file__).parent / "web.html").read_text(encoding="utf-8")
+BUST = Path(__file__).parent / "assets" / "bust.glb"
 
 
 def log(*a):
@@ -128,8 +129,17 @@ class Web(BaseHTTPRequestHandler):
         return json.loads(self.rfile.read(int(self.headers.get("Content-Length", 0))) or b"{}")
 
     def do_GET(self):
-        if self.path in ("/", "/index.html"):
+        if self.path.split("?")[0] in ("/", "/index.html"):
             return self._send(200, UI, "text/html")
+        if self.path == "/assets/bust.glb":
+            # 首页拱门里的胸像：Poly Haven「Marble Bust 01」（Rico Cilliers，CC0）
+            data = BUST.read_bytes() if BUST.exists() else b""
+            self.send_response(200 if data else 404)
+            self.send_header("Content-Type", "model/gltf-binary")
+            self.send_header("Content-Length", str(len(data)))
+            self.send_header("Cache-Control", "public, max-age=604800")
+            self.end_headers()
+            return self.wfile.write(data)
         if self.path == "/health":
             return self._send(200, {"ok": True})
         if not self._auth():

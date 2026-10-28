@@ -154,3 +154,7 @@ Actions 页面也可以手动点 “Run workflow” 立即生成一份。
 行情来自 Yahoo Finance；A股 / 港股部分指数历史不全时，自动用东方财富日K补齐，再不行只显示最新价和当日涨跌。数据可能有延迟。
 
 **仅供参考，不构成投资建议。**
+
+## 素材
+
+- 首页胸像：Poly Haven「Marble Bust 01」，作者 Rico Cilliers，CC0（stock_agent/assets/bust.glb，已裁成只含网格 + 1k 法线贴图）。
