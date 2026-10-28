@@ -1,0 +1,22 @@
+name: windows-portable
+# 发布 Release 时在 Linux 上交叉打包 Windows 绿色版 Stoa-Windows.zip 并挂到 Release
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12"}
+      - run: sudo apt-get update && sudo apt-get install -y gcc-mingw-w64-x86-64 binutils-mingw-w64-x86-64 zip
+      - run: bash packaging/windows/build.sh
+      - uses: actions/upload-artifact@v4
+        with: {name: Stoa-Windows, path: dist/Stoa-Windows.zip}
+      - if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v2
+        with: {files: dist/Stoa-Windows.zip}
