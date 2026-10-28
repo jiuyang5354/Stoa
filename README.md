@@ -43,7 +43,7 @@ docker compose up -d
 | 代码执行再隔离 | 独立子进程、60 秒超时、1 GB 内存上限、看不到任何密钥环境变量 |
 | 端口只绑本机 | 默认 `127.0.0.1:8080`，对外暴露需自己配 |
 
-数据都在 `./agent-data/`：`memory/`（记忆）、`data/sessions.db`（对话与判断账本）、`config.yaml`（自选股）、`reports/`、`workspace/`（沙箱文件）。备份这个目录就是备份它的全部记忆。
+数据都在 Docker 卷 `agent-data`（容器内 `/data`）：`memory/`（记忆）、`data/sessions.db`（对话与判断账本）、`config.yaml`（自选股）、`reports/`、`workspace/`（沙箱文件）。备份：`docker cp stock-agent:/data ./backup`。
 
 ## 记忆（参考 Hermes Agent）
 
