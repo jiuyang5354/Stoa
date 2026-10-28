@@ -10,7 +10,7 @@ SYSTEM = (
 )
 
 
-def comment(snapshot: dict, cfg: dict) -> str | None:
+def comment(snapshot: dict, cfg: dict, memory: str = "") -> str | None:
     key = os.getenv("LLM_API_KEY")
     if not key:
         return None
@@ -24,7 +24,7 @@ def comment(snapshot: dict, cfg: dict) -> str | None:
                 "model": model,
                 "temperature": 0.3,
                 "messages": [
-                    {"role": "system", "content": SYSTEM},
+                    {"role": "system", "content": SYSTEM + ("\n\n以下是你对用户的长期记忆，点评时结合用户的持仓和偏好：\n" + memory if memory else "")},
                     {"role": "user", "content": json.dumps(snapshot, ensure_ascii=False)},
                 ],
             },

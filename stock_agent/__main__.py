@@ -1,4 +1,5 @@
 import argparse
+import sys
 import json
 from datetime import datetime
 from pathlib import Path
@@ -30,7 +31,28 @@ def build_snapshot(cfg: dict, with_news: bool) -> dict:
     return snap
 
 
+def sub_command() -> bool:
+    """chat / review / memory 子命令；其余参数走报告模式。"""
+    if len(sys.argv) < 2 or sys.argv[1] not in ("chat", "review", "memory"):
+        return False
+    cmd = sys.argv[1]
+    if cmd == "chat":
+        from .agent import repl
+        repl()
+    elif cmd == "review":
+        from .agent import review_due
+        from .memory import Memory
+        notes = review_due(Memory())
+        print("\n".join(notes) or "没有到期的判断。")
+    elif cmd == "memory":
+        from .memory import Memory
+        print(Memory().snapshot())
+    return True
+
+
 def main():
+    if sub_command():
+        return
     p = argparse.ArgumentParser(description="股市 Agent")
     p.add_argument("--session", choices=["morning", "evening", "adhoc"], default="adhoc")
     p.add_argument("--config", default=str(ROOT / "config.yaml"))
@@ -46,7 +68,9 @@ def main():
     if a.json:
         print(json.dumps(snap, ensure_ascii=False, indent=2))
         return
-    ai = None if a.no_llm else llm.comment(snap, cfg.get("llm", {}))
+    from .memory import Memory
+    mem = Memory()
+    ai = None if a.no_llm else llm.comment(snap, cfg.get("llm", {}), mem.snapshot())
     md = report.render(snap, a.session, ai)
     print(md)
     if not a.stdout:
