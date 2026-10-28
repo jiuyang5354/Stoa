@@ -15,7 +15,7 @@ from pathlib import Path
 import requests
 
 from . import notify
-from .agent import Agent
+from .agent import Agent, load_cfg
 from .memory import Memory, home
 
 CN_TZ = timezone(timedelta(hours=8))
@@ -63,6 +63,34 @@ def reaper():
                     SESSIONS.pop(ch, None)
 
 
+# ---------------- 行情（给网页用，缓存 10 分钟） ----------------
+_IDX = {"ts": 0, "data": None}
+_IDX_LOCK = threading.Lock()
+
+
+def indices() -> list[dict]:
+    with _IDX_LOCK:
+        if _IDX["data"] is not None and time.time() - _IDX["ts"] < 600:
+            return _IDX["data"]
+        from .data import fetch_closes
+        cfg = load_cfg()
+        items = [(mkt, x) for mkt, xs in cfg.get("indices", {}).items() for x in xs]
+        items += [("自选", x) for x in cfg.get("watchlist") or []]
+        closes = fetch_closes([x["symbol"] for _, x in items], period="1y")
+        out = []
+        for mkt, x in items:
+            ser = closes.get(x["symbol"])
+            if ser is None or len(ser) < 2:
+                continue
+            last, prev = float(ser.iloc[-1]), float(ser.iloc[-2])
+            out.append({"market": mkt, "symbol": x["symbol"], "name": x.get("name", x["symbol"]),
+                        "last": round(last, 2), "chg": round(last - prev, 2), "pct": round((last / prev - 1) * 100, 2),
+                        "closes": [round(float(v), 2) for v in ser.tolist()],
+                        "dates": [d.strftime("%Y-%m-%d") for d in ser.index]})
+        _IDX.update(ts=time.time(), data=out)
+        return out
+
+
 # ---------------- 网页 ----------------
 class Web(BaseHTTPRequestHandler):
     def log_message(self, *a):
@@ -92,6 +120,11 @@ class Web(BaseHTTPRequestHandler):
             return self._send(200, {"user": MEM.entries("user"), "memory": MEM.entries("memory"),
                                     "usage": {"user": MEM.usage("user"), "memory": MEM.usage("memory")},
                                     "calls": MEM.call_stats()})
+        if self.path == "/api/indices":
+            try:
+                return self._send(200, {"items": indices(), "updated": datetime.now(CN_TZ).strftime("%H:%M")})
+            except Exception as e:
+                return self._send(200, {"items": [], "error": str(e)})
         if self.path == "/api/report":
             p = home() / "reports" / "latest.md"
             return self._send(200, {"markdown": p.read_text(encoding="utf-8") if p.exists() else "还没有报告。"})

@@ -21,7 +21,7 @@ cp .env.example .env        # 填 LLM_API_KEY（DeepSeek 等），其余按需
 docker compose up -d
 ```
 
-打开 http://localhost:8080 就能聊天，右侧实时显示它记住了你什么。
+打开 http://localhost:8080 就能聊天：顶部滚动行情条，右侧可切换 A股/港股/美股 的走势卡片（悬停看每日点位）和它记住的你。界面控件参考 21st.dev（Ticker、Market Snapshot、Sparkline、AI Chat Input、Suggestions、Text Dots），原生重写，无需前端构建。
 
 容器里同时跑着：
 
