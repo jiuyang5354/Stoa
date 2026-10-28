@@ -13,7 +13,7 @@
 
 ## Windows 绿色版（不用 Docker、不用装 Python）
 
-到 [Releases](https://github.com/jiuyang5354/Stoa/releases) 下载 `Stoa-Windows.zip`，解压后双击 `Stoa.exe`：自带嵌入式 Python 3.12 和全部依赖，启动后自动打开浏览器。第一次运行会用记事本打开 `.env`，填 `LLM_PROVIDER` 和 `LLM_API_KEY` 保存后重开即可。关闭黑色窗口即退出。数据在 `%LOCALAPPDATA%\Stoa`，换新版不丢。
+到 [Releases](https://github.com/jiuyang5354/Stoa/releases) 下载 `Stoa-Windows.zip`，解压后双击 `Stoa.exe`：自带嵌入式 Python 3.12 和全部依赖，启动后自动打开浏览器。第一次运行会用记事本打开 `.env`，填 `LLM_PROVIDER` 和 `LLM_API_KEY` 保存后重开即可。关闭黑色窗口即退出。数据在 `%LOCALAPPDATA%\Stoa`，换新版不丢。卸载就双击包里的 `卸载 Stoa.exe`，可选是否连数据一起删。
 
 自己打包：在 Linux 上运行 `packaging/windows/build.sh`（需要 mingw-w64），产物在 `dist/`。其它系统也能用 `python -m stock_agent desktop` 得到同样的桌面模式。
 

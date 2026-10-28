@@ -14,6 +14,8 @@ git -C "$REPO" archive HEAD | tar -x -C "$B/app"
 rm -rf "$B/app/packaging" "$B/app/.github"
 cd "$HERE" && x86_64-w64-mingw32-windres res.rc -O coff -o "$OUT/res.o"
 x86_64-w64-mingw32-gcc -municode -O2 -s launcher.c "$OUT/res.o" -o "$B/Stoa.exe" && rm "$OUT/res.o"
+x86_64-w64-mingw32-windres uninstall.rc -O coff -o "$OUT/u.o"
+x86_64-w64-mingw32-gcc -municode -mwindows -O2 -s uninstall.c "$OUT/u.o" -o "$B/卸载 Stoa.exe" -lshell32 && rm "$OUT/u.o"
 cp "$HERE/使用说明.txt" "$HERE/启动.bat" "$B/"
 (cd "$OUT" && rm -f Stoa-Windows.zip && zip -qr9 Stoa-Windows.zip Stoa)
 echo "$OUT/Stoa-Windows.zip"
