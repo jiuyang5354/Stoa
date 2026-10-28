@@ -1,0 +1,35 @@
+# 股市 Agent 配置
+# 代码用 Yahoo Finance 格式：
+#   A股 上交所 600519.SS / 深交所 000858.SZ
+#   港股 0700.HK（4 位数字）
+#   美股 AAPL、NVDA
+indices:
+  A股:
+    - {symbol: "000001.SS", name: "上证指数"}
+    - {symbol: "399001.SZ", name: "深证成指"}
+    - {symbol: "399006.SZ", name: "创业板指"}
+  港股:
+    - {symbol: "^HSI", name: "恒生指数"}
+    - {symbol: "HSTECH.HK", name: "恒生科技"}
+  美股:
+    - {symbol: "^GSPC", name: "标普500"}
+    - {symbol: "^IXIC", name: "纳斯达克"}
+    - {symbol: "^DJI", name: "道琼斯"}
+
+# 自选股：加上你想盯的股票
+watchlist: []
+#  - {symbol: "600519.SS", name: "贵州茅台"}
+#  - {symbol: "0700.HK", name: "腾讯控股"}
+#  - {symbol: "NVDA", name: "英伟达"}
+
+# 提醒阈值
+alerts:
+  daily_move_pct: 3.0     # 单日涨跌超过这个百分比就标出
+  rsi_overbought: 70
+  rsi_oversold: 30
+
+# 大模型点评（可选）：任何 OpenAI 兼容接口，如 DeepSeek、通义、OpenAI
+llm:
+  base_url: "https://api.deepseek.com/v1"
+  model: "deepseek-chat"
+  # 密钥放环境变量 LLM_API_KEY，不要写在这里
