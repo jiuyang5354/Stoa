@@ -15,7 +15,7 @@
 <style>
   :root{
     --marble:#F5F2EB;--marble-2:#EFECE6;--travertine:#E5E0D5;--ink:#181715;--mute:#7D776C;--rule:rgba(24,23,21,.12);--rule-2:rgba(24,23,21,.22);
-    --bronze:#9E7B56;--terracotta:#B3543A;--olive:#56684F;
+    --bronze:#9E7B56;--ink-2:#4A4640;--terracotta:#B3543A;--olive:#56684F;
     --up:var(--terracotta);--down:var(--olive);
     --display:"Cinzel","Noto Serif SC","Songti SC",serif;
     --serif:"Cormorant Garamond","Noto Serif SC","Songti SC",serif;
@@ -27,8 +27,11 @@
   *{box-sizing:border-box}
   html,body{height:100%}
   body{margin:0;background:repeating-linear-gradient(0deg,rgba(24,23,21,.022) 0 1px,transparent 1px 3px),repeating-linear-gradient(90deg,rgba(24,23,21,.022) 0 1px,transparent 1px 3px),var(--marble) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='600' height='600'%3E%3Cfilter id='a' x='0' y='0' width='100%25' height='100%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.0065 .0085' numOctaves='7' seed='9' stitchTiles='stitch'/%3E%3CfeDiffuseLighting lighting-color='%23F4F3F0' surfaceScale='4.5' diffuseConstant='1.04'%3E%3CfeDistantLight azimuth='225' elevation='48'/%3E%3C/feDiffuseLighting%3E%3C/filter%3E%3Cfilter id='g' x='0' y='0' width='100%25' height='100%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.055' numOctaves='3' seed='2' stitchTiles='stitch'/%3E%3CfeDiffuseLighting lighting-color='%23F8F7F4' surfaceScale='1.4' diffuseConstant='1.02'%3E%3CfeDistantLight azimuth='225' elevation='60'/%3E%3C/feDiffuseLighting%3E%3C/filter%3E%3Cfilter id='m' x='0' y='0' width='100%25' height='100%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.004' numOctaves='3' seed='5' stitchTiles='stitch'/%3E%3CfeColorMatrix type='matrix' values='0 0 0 0 .60  0 0 0 0 .59  0 0 0 0 .55  1.8 0 0 0 -.75'/%3E%3C/filter%3E%3Cfilter id='p' x='0' y='0' width='100%25' height='100%25'%3E%3CfeTurbulence type='turbulence' baseFrequency='.07 .11' numOctaves='2' seed='13' stitchTiles='stitch'/%3E%3CfeColorMatrix type='matrix' values='0 0 0 0 .36  0 0 0 0 .31  0 0 0 0 .25  -3.6 0 0 0 .78'/%3E%3CfeComponentTransfer%3E%3CfeFuncA type='discrete' tableValues='0 0 0 0 0 0 0 .5 .85'/%3E%3C/feComponentTransfer%3E%3C/filter%3E%3Crect width='100%25' height='100%25' fill='%23ECEAE5'/%3E%3Crect width='100%25' height='100%25' filter='url(%23m)' opacity='.45'/%3E%3Crect width='100%25' height='100%25' filter='url(%23a)' opacity='.48' style='mix-blend-mode:multiply'/%3E%3Crect width='100%25' height='100%25' filter='url(%23g)' opacity='.35' style='mix-blend-mode:multiply'/%3E%3Crect width='100%25' height='100%25' filter='url(%23p)' opacity='.6'/%3E%3C/svg%3E") 0 0/600px 600px;background-size:auto,auto,600px 600px;color:var(--ink);font:400 14.5px/1.75 var(--sans);overflow:hidden;-webkit-font-smoothing:antialiased;font-synthesis:none}
+  /* 印刷感：网点 + 暗角（参考雕版/海报） */
+  body::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:49;
+    background:radial-gradient(ellipse at 50% 45%,transparent 55%,rgba(24,23,21,.16) 100%),radial-gradient(rgba(24,23,21,.07) .6px,transparent .9px) 0 0/4px 4px;mix-blend-mode:multiply}
   /* 石膏 / 羊皮纸噪点 */
-  body::after{content:"";position:fixed;inset:0;pointer-events:none;z-index:50;opacity:.035;
+  body::after{content:"";position:fixed;inset:0;pointer-events:none;z-index:50;opacity:.075;
     background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")}
   .num{font-variant-numeric:tabular-nums lining-nums}
   .up{color:var(--up)}.down{color:var(--down)}
@@ -45,14 +48,14 @@
   .ticker:hover .ticker-track{animation-play-state:paused}
   @keyframes marquee{to{transform:translateX(-50%)}}
   .tk{display:inline-flex;align-items:baseline;gap:10px;cursor:pointer;padding:0 26px;font:500 10.5px var(--sans);letter-spacing:.12em;text-transform:uppercase}
-  .tk::after{content:"✦";color:var(--bronze);font-size:7px;margin-left:26px;opacity:.7;align-self:center}
+  .tk::after{content:"✦";color:var(--ink);font-size:8px;margin-left:26px;opacity:.85;align-self:center}
   .tk b{font:500 12px var(--cn);letter-spacing:.08em;text-transform:none}
   .tk .p{font:500 15px var(--serif);letter-spacing:0;color:var(--ink)}
   .tk .c{letter-spacing:.04em}
   .tk .tri{font-size:7px;margin-right:3px}
   /* 回纹饰带 */
-  .meander{height:9px;flex:none;margin:0 4px;border-bottom:1px solid var(--rule);opacity:.55;
-    background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='18' height='9' viewBox='0 0 18 9'%3E%3Cpath d='M0 8.5h4.5v-7h9v5h-4.5v-2.5h2v1' fill='none' stroke='%239E7B56' stroke-width='.8'/%3E%3C/svg%3E") repeat-x 0 0}
+  .meander{height:9px;flex:none;margin:0 4px;border-bottom:1px solid var(--ink);opacity:.7;
+    background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='18' height='9' viewBox='0 0 18 9'%3E%3Cpath d='M0 8.5h4.5v-7h9v5h-4.5v-2.5h2v1' fill='none' stroke='%23181715' stroke-width='.8'/%3E%3C/svg%3E") repeat-x 0 0}
 
   .wrap{flex:1;display:flex;min-height:0;margin:0 4px 4px}
   main{flex:1;display:flex;flex-direction:column;min-width:0;padding:0 clamp(24px,5vw,72px)}
@@ -107,13 +110,13 @@
         padding:11px 10px 11px 2px;cursor:pointer;transition:background .3s,padding .4s var(--ease);animation:rise .6s var(--ease) both}
   .chip:nth-child(odd){border-right:1px solid var(--rule)}
   .chip:nth-child(even){padding-left:16px}
-  .chip i{font:500 11px var(--display);font-style:normal;color:var(--bronze);min-width:24px;letter-spacing:.06em}
+  .chip i{font:500 11px var(--display);font-style:normal;color:var(--ink-2);min-width:24px;letter-spacing:.06em}
   .chip:hover{background:var(--marble-2);padding-left:10px}
   .chip:nth-child(even):hover{padding-left:24px}
 
   /* ---- 输入（AI Chat Input） ---- */
   .composer{padding:14px 0 22px;flex:none;border-top:1px solid var(--rule)}
-  .box{background:rgba(246,243,237,.9);box-shadow:0 1px 0 rgba(255,255,255,.6) inset,0 10px 30px -20px rgba(60,45,25,.35);border:1px solid var(--rule-2);height:58px;overflow:hidden;transition:height .55s var(--spring),background .3s,border-color .3s;cursor:text;position:relative}
+  .box{background:rgba(246,244,239,.9);box-shadow:4px 4px 0 -1px rgba(246,244,239,.9),4px 4px 0 0 var(--ink);border:1px solid var(--ink);height:58px;overflow:hidden;transition:height .55s var(--spring),background .3s,border-color .3s;cursor:text;position:relative}
   .box.open{height:106px;background:#F8F6F1;border-color:var(--ink)}
   .row{display:flex;align-items:center;gap:10px;padding:8px 8px 8px 20px;height:56px}
   .field{position:relative;flex:1;height:100%}
@@ -130,7 +133,7 @@
   .box.open .tools{opacity:1;transform:none;pointer-events:auto;transition-delay:.08s}
   .pill{border:0;background:transparent;padding:2px 0;margin-right:22px;font:500 10px var(--sans);letter-spacing:.16em;text-transform:uppercase;color:var(--mute);cursor:pointer;
         border-bottom:1px solid transparent;transition:color .2s,border-color .2s}
-  .pill i{font:500 10px var(--display);font-style:normal;color:var(--bronze);margin-right:6px}
+  .pill i{font:500 10px var(--display);font-style:normal;color:var(--ink-2);margin-right:6px}
   .pill:hover{color:var(--ink);border-color:var(--ink)}
   .disclaim{display:flex;justify-content:center;align-items:center;gap:14px;margin-top:10px;font-size:9px}
   /* 海报符号：☒ 方框、斜线刻度、星芒 */
@@ -144,8 +147,9 @@
   /* ---- 右侧柱廊 ---- */
   aside{width:384px;border-left:1px solid var(--rule-2);padding:0 26px 26px;overflow:auto;flex:none;scrollbar-width:thin;scrollbar-color:var(--rule-2) transparent;position:relative}
   aside::before{content:"";position:absolute;left:4px;top:0;bottom:0;border-left:1px solid var(--rule)}
-  .sh{display:flex;align-items:baseline;gap:12px;padding:22px 0 12px;border-bottom:1px solid var(--rule);margin-bottom:14px}
-  .sh .rn{font:500 13px var(--display);color:var(--bronze);letter-spacing:.08em;min-width:22px}
+  .sh{display:flex;align-items:baseline;gap:12px;padding:22px 0 12px;border-bottom:1px solid var(--ink);margin-bottom:14px;position:relative}
+  .sh::after{content:"";position:absolute;left:0;right:0;bottom:-4px;border-bottom:1px solid var(--rule)}
+  .sh .rn{font:500 11px/22px var(--display);color:var(--chalk);background:var(--ink);letter-spacing:.06em;min-width:28px;height:22px;text-align:center;align-self:center}
   .sh h3{margin:0;font:500 13px var(--display);letter-spacing:.15em;text-transform:uppercase;flex:1}
   .sh h3 span{font:400 12px var(--cn);letter-spacing:.1em;text-transform:none;color:var(--mute);margin-left:8px}
   .sh .label{font-size:9px;letter-spacing:.1em}
@@ -156,9 +160,10 @@
   .seg .thumb{position:absolute;bottom:0;height:1px;background:var(--ink);transition:left .5s var(--spring),width .5s var(--spring)}
 
   /* ---- 指数石碑（Market Snapshot） ---- */
-  .snap{border:1px solid var(--rule-2);background:linear-gradient(160deg,rgba(250,248,243,.92),rgba(239,236,230,.9));box-shadow:0 1px 0 rgba(255,255,255,.6) inset,0 10px 30px -18px rgba(60,45,25,.35);position:relative}
+  .snap{border:1px solid var(--ink);background:rgba(246,244,239,.86);box-shadow:5px 5px 0 -1px rgba(246,244,239,.9),5px 5px 0 0 var(--ink);position:relative}
   .snap::before{content:"";position:absolute;inset:3px;border:1px solid var(--rule);pointer-events:none}
-  .snap-h{display:flex;justify-content:space-between;align-items:flex-start;padding:16px 18px 2px}
+  .snap::after{content:"PLATE · " attr(data-n);position:absolute;right:-1px;top:-1px;background:var(--ink);color:var(--chalk);font:600 7.5px/1 var(--sans);letter-spacing:.16em;padding:4px 7px}
+  .snap-h{display:flex;justify-content:space-between;align-items:flex-start;padding:22px 18px 2px}
   .snap-h small{font:500 13px var(--cn);letter-spacing:.1em}
   .price{display:flex;align-items:baseline;gap:10px;margin-top:2px;flex-wrap:wrap}
   .price .big{font:500 36px/1.05 var(--serif);letter-spacing:-.01em;display:inline-block}
@@ -169,7 +174,7 @@
   .chart{position:relative;padding:0 10px}
   .chart svg{width:100%;display:block;touch-action:none}
   .chart path.ln{fill:none;stroke-width:1.3;stroke-linecap:round;stroke-linejoin:round}
-  .chart path.ar{opacity:.07}
+  .chart path.ar{opacity:.9}
   .tip{position:absolute;top:0;transform:translateX(-50%);background:var(--ink);color:var(--marble);padding:1px 7px;font:500 9.5px var(--sans);letter-spacing:.1em;pointer-events:none;white-space:nowrap}
   .periods{display:flex;justify-content:space-between;border-top:1px solid var(--rule);margin:4px 14px 0;padding:8px 0 0;position:relative}
   .periods button{border:0;background:transparent;font:500 10px var(--sans);letter-spacing:.14em;padding:5px 8px;color:var(--mute);cursor:pointer;transition:color .2s}
@@ -182,7 +187,7 @@
   .list{margin-top:8px}
   .li{display:grid;grid-template-columns:1fr 64px 84px;align-items:center;gap:12px;padding:10px 4px;border-bottom:1px solid var(--rule);cursor:pointer;transition:background .25s,padding .4s var(--ease)}
   .li:hover,.li.on{background:var(--marble-2);padding-left:10px}
-  .li.on{box-shadow:inset 2px 0 0 var(--bronze)}
+  .li.on{box-shadow:inset 3px 0 0 var(--ink)}
   .li .n{font:500 13px/1.3 var(--cn);letter-spacing:.06em}.li .n small{display:block;font:500 9px var(--sans);letter-spacing:.14em;color:var(--mute);margin-top:3px}
   .li .r{text-align:right;font:500 16px/1.2 var(--serif)}.li .r small{display:block;font:500 10px var(--sans);letter-spacing:.04em;margin-top:2px}
   .li svg{width:64px;height:24px}
@@ -227,10 +232,16 @@
     <div class="label disclaim"><span class="ticks">\\\\\\\\\\\\</span>仅供参考 · 不构成投资建议 · Non consilium, sed observatio<span class="xg" aria-hidden="true"><i></i><i></i><i></i></span></div>
   </div>
 </div></main>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+  <pattern id="dotup" width="3" height="3" patternUnits="userSpaceOnUse"><circle cx="1.5" cy="1.5" r=".75" fill="#B3543A"/></pattern>
+  <pattern id="dotdn" width="3" height="3" patternUnits="userSpaceOnUse"><circle cx="1.5" cy="1.5" r=".75" fill="#56684F"/></pattern>
+  <linearGradient id="fadeg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".9"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient>
+  <mask id="fade" maskContentUnits="objectBoundingBox"><rect width="1" height="1" fill="url(#fadeg)"/></mask>
+</defs></svg>
 <aside>
   <div class="sh"><span class="rn">I</span><h3>Indices<span>指数</span></h3><span class="label" id="upd2"></span></div>
   <div class="seg" id="seg"><span class="thumb" id="thumb"></span></div>
-  <div class="snap" id="snap">
+  <div class="snap" id="snap" data-n="I">
     <div class="snap-h"><div><small id="sn">—</small><div class="price num"><span class="big" id="sp">—</span><span class="d" id="sd"></span></div></div><span class="sym" id="ss"></span></div>
     <div class="chart" id="chart"><svg id="svg" viewBox="0 0 320 150" role="img"></svg><div class="tip num" id="tip" hidden></div></div>
     <div class="periods" id="periods"><span class="bar" id="bar"></span></div>
@@ -456,8 +467,8 @@ const W = 320, HH = 150;
 function spark(c, w=64, h=24){
   const d = c.slice(-22), mn = Math.min(...d), mx = Math.max(...d);
   const p = d.map((v,i)=>`${i?'L':'M'}${(i/(d.length-1)*w).toFixed(1)} ${(2+(1-(v-mn)/(mx-mn||1))*(h-4)).toFixed(1)}`).join(' ');
-  const col = d[d.length-1] >= d[0] ? 'var(--up)' : 'var(--down)';
-  return `<svg viewBox="0 0 ${w} ${h}"><path d="${p} L${w} ${h} L0 ${h}Z" fill="${col}" opacity=".1"/><path d="${p}" fill="none" stroke="${col}" stroke-width="1.5" stroke-linecap="round"/></svg>`;
+  const upq = d[d.length-1] >= d[0], col = upq ? 'var(--up)' : 'var(--down)';
+  return `<svg viewBox="0 0 ${w} ${h}"><path d="${p} L${w} ${h} L0 ${h}Z" fill="url(#${upq?'dotup':'dotdn'})" mask="url(#fade)"/><path d="${p}" fill="none" stroke="${col}" stroke-width="1.5" stroke-linecap="round"/></svg>`;
 }
 function ticker(){
   if (!items.length) return;
@@ -501,7 +512,7 @@ function chart(){
   const col = data[data.length-1] >= data[0] ? 'var(--up)' : 'var(--down)';
   $('bar').style.background = col;
   $('svg').innerHTML = [.33,.66].map(p => `<line x1="8" x2="${W-8}" y1="${8+p*(HH-18)}" y2="${8+p*(HH-18)}" stroke="var(--rule)" stroke-dasharray="1 4"/>`).join('')
-    + `<path class="ar" d="${line} L${x(data.length-1)} ${HH} L8 ${HH}Z" fill="${col}"/><path class="ln" id="ln" d="${line}" stroke="${col}"/><g id="hv"></g>`
+    + `<path class="ar" d="${line} L${x(data.length-1)} ${HH} L8 ${HH}Z" fill="url(#${data[data.length-1] >= data[0]?'dotup':'dotdn'})" mask="url(#fade)"/><path class="ln" id="ln" d="${line}" stroke="${col}"/><g id="hv"></g>`
     + (short ? `<text x="${W/2}" y="${HH/2}" text-anchor="middle" font-size="13" font-style="italic" font-family="Cormorant Garamond, serif" fill="var(--mute)">历史数据不足，只显示最新价</text>` : '');
   const ln = $('ln'), L = ln.getTotalLength();
   ln.style.strokeDasharray = L; ln.style.strokeDashoffset = L;
