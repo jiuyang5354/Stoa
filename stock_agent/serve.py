@@ -151,7 +151,7 @@ class Web(BaseHTTPRequestHandler):
         if self.path == "/api/memory":
             return self._send(200, {"user": MEM.entries("user"), "memory": MEM.entries("memory"),
                                     "usage": {"user": MEM.usage("user"), "memory": MEM.usage("memory")},
-                                    "calls": MEM.call_stats()})
+                                    "calls": MEM.call_stats(), "ledger": MEM.recent_calls()})
         if self.path == "/api/indices":
             try:
                 return self._send(200, {"items": indices(), "updated": datetime.now(CN_TZ).strftime("%H:%M")})

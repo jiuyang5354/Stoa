@@ -160,6 +160,11 @@ class Memory:
         )
         self.db.commit()
 
+    def recent_calls(self, limit: int = 120) -> list[dict]:
+        cols = ["id", "ts", "symbol", "name", "view", "price", "horizon_days", "reason", "due", "status", "result_pct", "verdict"]
+        rows = self.db.execute(f"SELECT {','.join(cols)} FROM calls ORDER BY ts DESC LIMIT ?", (limit,)).fetchall()
+        return [dict(zip(cols, r)) for r in rows][::-1]
+
     def call_stats(self) -> dict:
         rows = self.db.execute("SELECT verdict, COUNT(*) FROM calls WHERE status='closed' GROUP BY verdict").fetchall()
         open_n = self.db.execute("SELECT COUNT(*) FROM calls WHERE status='open'").fetchone()[0]
