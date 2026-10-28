@@ -24,7 +24,8 @@ LOCK = threading.Lock()
 MEM = Memory()
 SESSIONS: dict[str, dict] = {}  # channel -> {"agent": Agent, "last": ts}
 UI = (Path(__file__).parent / "web.html").read_text(encoding="utf-8")
-BUST = Path(__file__).parent / "assets" / "bust.glb"
+ASSETS = Path(__file__).parent / "assets"
+ASSET_TYPES = {"bust.glb": "model/gltf-binary", "archeologicaps.woff2": "font/woff2"}
 
 
 def log(*a):
@@ -131,11 +132,14 @@ class Web(BaseHTTPRequestHandler):
     def do_GET(self):
         if self.path.split("?")[0] in ("/", "/index.html"):
             return self._send(200, UI, "text/html")
-        if self.path == "/assets/bust.glb":
-            # 首页拱门里的胸像：Poly Haven「Marble Bust 01」（Rico Cilliers，CC0）
-            data = BUST.read_bytes() if BUST.exists() else b""
+        if self.path.startswith("/assets/"):
+            # 静态素材白名单：胸像（Poly Haven CC0）、标题字体（dafont 100% Free）
+            name = self.path[8:].split("?")[0]
+            f = ASSETS / name
+            ok = name in ASSET_TYPES and f.exists()
+            data = f.read_bytes() if ok else b""
             self.send_response(200 if data else 404)
-            self.send_header("Content-Type", "model/gltf-binary")
+            self.send_header("Content-Type", ASSET_TYPES.get(name, "text/plain"))
             self.send_header("Content-Length", str(len(data)))
             self.send_header("Cache-Control", "public, max-age=604800")
             self.end_headers()

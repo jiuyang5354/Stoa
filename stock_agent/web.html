@@ -97,9 +97,9 @@
   .tf{position:absolute;left:calc(50% + 30px);bottom:-30px;font:600 7.5px var(--sans);letter-spacing:.12em;display:flex;flex-direction:column;gap:3px;white-space:nowrap}
   .tf i{display:block;width:76px;height:5px;background:var(--ink)}
   .ring{position:absolute;left:50%;bottom:-40px;width:34px;height:34px;border:1px solid var(--ink);border-radius:50%;transform:translateX(-50%)}
-  .poster{font:400 132px/.86 var(--poster);letter-spacing:-.025em;margin:6px 0 14px;color:var(--ink);white-space:nowrap}
-  .poster em{font-style:italic;letter-spacing:-.035em;margin-left:.04em}
-  .poster sup{font:500 11px/1 var(--sans);letter-spacing:.2em;vertical-align:top;position:relative;top:1.6em;margin-left:.6em;color:var(--mute)}
+  @font-face{font-family:"Archeologicaps";src:url(/assets/archeologicaps.woff2) format("woff2");font-display:swap}
+  .poster{font:400 82px/.92 "Archeologicaps",var(--poster);letter-spacing:.02em;margin:12px 0 18px;color:var(--ink);white-space:nowrap}
+  .poster em{font:italic 400 .5em/1 var(--poster);letter-spacing:-.01em;vertical-align:.92em;margin-right:.12em}
   .arch svg,.arch canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
   .arch::after{content:"";position:absolute;left:0;right:0;bottom:0;height:30%;z-index:1;pointer-events:none;background:linear-gradient(rgba(240,238,233,0),rgba(240,238,233,.55) 45%,#F0EEE9 92%)}
   .arch canvas{opacity:0;transition:opacity 1.2s var(--ease);cursor:grab}.arch canvas.on{opacity:1}
@@ -202,8 +202,8 @@
   .ledger small{color:var(--mute);font-size:11px;letter-spacing:.06em}
   .muted{color:var(--mute);font:italic 15px var(--serif)}
   .note{margin-top:26px;padding-top:14px;border-top:1px solid var(--rule);line-height:1.8}
-  @media(max-width:1020px){aside{display:none}.empty{grid-template-columns:1fr;gap:28px}.fig{margin:96px auto 0;width:max-content}.arch{width:150px}figcaption{margin:48px auto 0}.poster{font-size:96px;text-align:center}.empty>div:last-child{text-align:left}}
-  @media(max-width:560px){header .xg.l,header .ticks.r,.disclaim .ticks,.disclaim .xg{display:none}.arch{width:118px}.fig{margin-top:66px;padding:10px}.burst{width:96px;top:-66px}.stem{top:-18px;height:30px}.spark.a{left:-28px}.spark.b{right:-26px}.tf{display:none}figcaption{margin-top:44px}.poster{font-size:68px}.poster sup{display:none}}
+  @media(max-width:1020px){aside{display:none}.empty{grid-template-columns:1fr;gap:28px}.fig{margin:96px auto 0;width:max-content}.arch{width:150px}figcaption{margin:48px auto 0}.poster{font-size:72px;text-align:center}.empty>div:last-child{text-align:left}}
+  @media(max-width:560px){header .xg.l,header .ticks.r,.disclaim .ticks,.disclaim .xg{display:none}.arch{width:118px}.fig{margin-top:66px;padding:10px}.burst{width:96px;top:-66px}.stem{top:-18px;height:30px}.spark.a{left:-28px}.spark.b{right:-26px}.tf{display:none}figcaption{margin-top:44px}.poster{font-size:46px}}
   @media(max-width:560px){.temple{inset:6px}.chips{grid-template-columns:1fr}.chip:nth-child(odd){border-right:0}.chip:nth-child(even){padding-left:2px}h1{font-size:22px}}
   @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 </style>
@@ -293,7 +293,7 @@ const log = $('log');
 function md(s){ return esc(s).replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>').replace(/^#+\s*(.+)$/gm,'<strong>$1</strong>'); }
 function empty(){
   log.innerHTML = `<div class="empty"><figure><div class="fig">${BURST}<span class="stem"></span><svg class="spark a" viewBox="0 0 20 20"><path d="M10 0C10.6 6.5 13.5 9.4 20 10 13.5 10.6 10.6 13.5 10 20 9.4 13.5 6.5 10.6 0 10 6.5 9.4 9.4 6.5 10 0Z" fill="#181715"/></svg><svg class="spark b" viewBox="0 0 20 20"><path d="M10 0C10.6 6.5 13.5 9.4 20 10 13.5 10.6 10.6 13.5 10 20 9.4 13.5 6.5 10.6 0 10 6.5 9.4 9.4 6.5 10 0Z" fill="#181715"/></svg><span class="tf"><i></i>TF : 0438.BC · ORACVLVM</span><div class="arch">${TEMPLE}</div><span class="ring"></span></div><figcaption class="label">Fig. I — 大理石胸像 · 实时点阵渲染<br>Poly Haven · CC0</figcaption></figure>
-    <div><span class="label">Oraculum · 今日之问</span><div class="poster">The <em>Oracle</em></div><h2>今天想看什么？</h2><p class="lead">它记得你的持仓与偏好；每一次判断都刻进账本，到期自行复盘。</p><div class="chips">${
+    <div><span class="label">Oraculum · 今日之问</span><div class="poster"><em>the</em>ORACLE</div><h2>今天想看什么？</h2><p class="lead">它记得你的持仓与偏好；每一次判断都刻进账本，到期自行复盘。</p><div class="chips">${
     SUGGEST.map((s,i)=>`<button class="chip" style="animation-delay:${120+i*60}ms" data-q="${esc(s)}"><i>${roman(i+1)}</i><span>${esc(s)}</span></button>`).join('')}</div></div></div>`;
   log.querySelectorAll('.chip').forEach(c => c.onclick = () => send(c.dataset.q));
   temple3d(log.querySelector('.arch'));

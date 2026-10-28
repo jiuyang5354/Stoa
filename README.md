@@ -158,3 +158,4 @@ Actions 页面也可以手动点 “Run workflow” 立即生成一份。
 ## 素材
 
 - 首页胸像：Poly Haven「Marble Bust 01」，作者 Rico Cilliers，CC0（stock_agent/assets/bust.glb，已裁成只含网格 + 1k 法线贴图）。
+- 首页标题字体：Archeologicaps（dafont，标注 100% Free），stock_agent/assets/archeologicaps.woff2，已子集化为 ASCII。
