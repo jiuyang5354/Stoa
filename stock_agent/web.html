@@ -22,7 +22,7 @@
   button:disabled{opacity:.4}
   aside{width:300px;border-left:1px solid var(--line);padding:28px 22px;overflow:auto;font-size:13px}
   aside h2{font:11px ui-monospace,Menlo,monospace;letter-spacing:.12em;color:var(--mute);margin:20px 0 8px}
-  aside li{margin-bottom:6px}
+  aside ul{margin:0;padding-left:16px}aside li{margin-bottom:6px}
   @media(max-width:900px){aside{display:none}}
 </style>
 </head>
@@ -42,7 +42,7 @@ const log = document.getElementById('log');
 function add(who, text){const d=document.createElement('div');d.className='m '+(who==='你'?'u':'');d.innerHTML='<span class="who"></span>';d.firstChild.textContent=who==='你'?'YOU':'AGENT';d.append(text);log.append(d);log.scrollTop=1e9;return d}
 async function mem(){try{const r=await (await fetch('/api/memory',{headers:H})).json();
   const fill=(id,a)=>{const u=document.getElementById(id);u.innerHTML='';(a.length?a:['（空）']).forEach(x=>{const l=document.createElement('li');l.textContent=x;u.append(l)})};
-  fill('user',r.user);fill('mem',r.memory);document.getElementById('calls').textContent=JSON.stringify(r.calls)}catch(e){}}
+  fill('user',r.user);fill('mem',r.memory);const c=r.calls||{},ok=c['对']||0,bad=c['错']||0,n=ok+bad;document.getElementById('calls').textContent=n?`命中 ${ok}/${n}（${Math.round(ok/n*100)}%）· 待复盘 ${c.open||0}`:`暂无已复盘的判断 · 待复盘 ${c.open||0}`}catch(e){}}
 document.getElementById('f').onsubmit=async e=>{e.preventDefault();const t=document.getElementById('t'),b=document.getElementById('b');
   const text=t.value.trim();if(!text)return;t.value='';add('你',text);b.disabled=true;const p=add('Agent','思考中…');
   try{const r=await fetch('/api/chat',{method:'POST',headers:H,body:JSON.stringify({text,session:sid})});const j=await r.json();p.lastChild.textContent=j.reply||j.error}
