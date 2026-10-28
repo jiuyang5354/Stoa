@@ -31,7 +31,7 @@ def push(title: str, markdown: str) -> list[str]:
         sent.append("PushPlus")
     if key := os.getenv("BARK_KEY"):  # Bark → iPhone 通知
         base = os.getenv("BARK_SERVER", "https://api.day.app").rstrip("/")
-        requests.post(f"{base}/push", json={"device_key": key, "title": title, "body": markdown[:3000], "group": "股市Agent"}, timeout=30)
+        requests.post(f"{base}/push", json={"device_key": key, "title": title, "body": markdown[:3000], "group": "Stoa"}, timeout=30)
         sent.append("Bark")
     if topic := os.getenv("NTFY_TOPIC"):  # ntfy → 安卓/iOS 通知
         base = os.getenv("NTFY_SERVER", "https://ntfy.sh").rstrip("/")

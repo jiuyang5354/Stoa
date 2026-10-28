@@ -1,6 +1,6 @@
-"""桌面模式：Windows 绿色版双击 StockAgent.exe 走这里。
+"""桌面模式：Windows 绿色版双击 Stoa.exe 走这里。
 
-- 数据目录默认 %LOCALAPPDATA%\\StockAgent（记忆、账本、config.yaml、.env 都在这，升级覆盖程序文件不会丢）
+- 数据目录默认 %LOCALAPPDATA%\\Stoa（记忆、账本、config.yaml、.env 都在这，升级覆盖程序文件不会丢）
 - 读数据目录里的 .env；首次运行从模板生成并用记事本打开，让用户填模型密钥
 - 只绑 127.0.0.1，端口被占就顺延，启动后自动打开浏览器
 """
@@ -20,7 +20,7 @@ def data_dir() -> Path:
     if os.getenv("STOCK_AGENT_HOME"):
         return Path(os.environ["STOCK_AGENT_HOME"])
     base = os.getenv("LOCALAPPDATA") or os.getenv("XDG_DATA_HOME") or str(Path.home() / ".local" / "share")
-    return Path(base) / "StockAgent"
+    return Path(base) / "Stoa"
 
 
 def load_env(p: Path):
@@ -70,14 +70,14 @@ def main():
     url = f"http://127.0.0.1:{port}/" + (f"?token={token}" if token else "")
 
     print("=" * 56)
-    print("  STOA · 股市 Agent")
+    print("  Stoa · 股市 Agent")
     print(f"  界面    {url}")
     print(f"  数据    {home}")
     print("  关闭这个窗口即退出")
     print("=" * 56)
     if not os.getenv("LLM_API_KEY") and not any(os.getenv(k) for k in ("DEEPSEEK_API_KEY", "OPENAI_API_KEY", "ANTHROPIC_API_KEY", "DASHSCOPE_API_KEY")) and os.getenv("LLM_PROVIDER") not in ("ollama", "lmstudio", "vllm"):
         print("\n  还没填大模型密钥：已打开 .env，填好 LLM_PROVIDER 和 LLM_API_KEY 后保存，")
-        print("  关掉本窗口再双击 StockAgent.exe 即可。没填也能看行情，只是不能对话。\n")
+        print("  关掉本窗口再双击 Stoa.exe 即可。没填也能看行情，只是不能对话。\n")
         open_file(env)
 
     def browse():

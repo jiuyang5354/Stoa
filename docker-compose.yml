@@ -1,9 +1,9 @@
 # docker compose up -d   然后打开 http://localhost:8080
 services:
-  stock-agent:
+  stoa:
     build: .
-    image: stock-agent:latest
-    container_name: stock-agent
+    image: stoa:latest
+    container_name: stoa
     restart: unless-stopped
     env_file: .env
     ports:

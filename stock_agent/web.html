@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>股市 Agent · Stoa</title>
+<title>Stoa · 股市 Agent</title>
 <!--
   风格：古希腊神庙 / 博物馆展签。Cinzel 铭文标题 + Cormorant Garamond 数字与斜体 + Inter 展签小字。
   控件交互参考 21st.dev（Ticker #19171 · Market Snapshot #22249 · Sparkline #35038 · AI Chat Input #2015 ·
@@ -249,7 +249,7 @@
   <header>
     <span class="label">Agora · 上海 · 香港 · 纽约 · Est. MMXXVI</span>
     <h1>Stoa · 股市</h1>
-    <em>A market oracle that remembers.</em>
+    <em>A stoic market agent that remembers.</em>
   </header>
   <div id="log"></div>
   <div class="composer">
@@ -436,7 +436,7 @@ function terrain(){
 function md(s){ return esc(s).replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>').replace(/^#+\s*(.+)$/gm,'<strong>$1</strong>'); }
 function empty(){
   log.innerHTML = `<div class="empty"><figure><div class="fig">${BURST}<span class="stem"></span><div class="arch">${TEMPLE}</div></div><figcaption class="label">Fig. I — 大理石胸像 · 实时点阵渲染<br>Poly Haven · CC0</figcaption></figure>
-    <div><span class="label">Oraculum · 今日之问</span><div class="poster"><em>the</em>ORACLE</div><h2>今天想看什么？</h2><p class="lead">它记得你的持仓与偏好；每一次判断都刻进账本，到期自行复盘。</p><div class="chips">${
+    <div><span class="label">Stoa Poikile · 今日之问</span><div class="poster"><em>the</em>STOA</div><h2>今天想看什么？</h2><p class="lead">它记得你的持仓与偏好；每一次判断都刻进账本，到期自行复盘。</p><div class="chips">${
     SUGGEST.map((s,i)=>`<button class="chip" style="animation-delay:${120+i*60}ms" data-q="${esc(s)}"><i>${roman(i+1)}</i><span>${esc(s)}</span></button>`).join('')}</div></div></div>`;
   log.querySelectorAll('.chip').forEach(c => c.onclick = () => send(c.dataset.q));
   temple3d(log.querySelector('.arch'));

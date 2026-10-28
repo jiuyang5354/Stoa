@@ -90,7 +90,7 @@ def _start(days: int) -> pd.Timestamp:
 
 
 def _get(url, **params):
-    r = requests.get(url, params=params, timeout=20, headers={"User-Agent": "stock-agent"})
+    r = requests.get(url, params=params, timeout=20, headers={"User-Agent": "stoa"})
     r.raise_for_status()
     return r.json()
 

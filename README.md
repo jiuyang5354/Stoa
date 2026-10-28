@@ -1,4 +1,4 @@
-# 股市 Agent
+# Stoa · 股市 Agent
 
 一个**有记忆**、能自己跑的股市助手，覆盖 **A股 / 港股 / 美股**：拉取指数和自选股行情，算技术信号，可选用大模型写中文点评，每个交易日自动生成早报、晚报并推送到微信 / 企业微信 / 飞书 / Telegram。
 
@@ -13,7 +13,7 @@
 
 ## Windows 绿色版（不用 Docker、不用装 Python）
 
-下载 `StockAgent-Windows.zip`，解压后双击 `StockAgent.exe`：自带嵌入式 Python 3.12 和全部依赖，启动后自动打开浏览器。第一次运行会用记事本打开 `.env`，填 `LLM_PROVIDER` 和 `LLM_API_KEY` 保存后重开即可。关闭黑色窗口即退出。数据在 `%LOCALAPPDATA%\StockAgent`，换新版不丢。
+下载 `Stoa-Windows.zip`，解压后双击 `Stoa.exe`：自带嵌入式 Python 3.12 和全部依赖，启动后自动打开浏览器。第一次运行会用记事本打开 `.env`，填 `LLM_PROVIDER` 和 `LLM_API_KEY` 保存后重开即可。关闭黑色窗口即退出。数据在 `%LOCALAPPDATA%\Stoa`，换新版不丢。
 
 自己打包：在 Linux 上运行 `packaging/windows/build.sh`（需要 mingw-w64），产物在 `dist/`。其它系统也能用 `python -m stock_agent desktop` 得到同样的桌面模式。
 
@@ -22,7 +22,7 @@
 像 Hermes Agent 一样跑成一个常驻智能体：装进 Docker 隔离沙箱，24 小时在线，记忆存在挂载卷里，重启、升级都不会丢。
 
 ```bash
-git clone <你的仓库> stock-agent && cd stock-agent
+git clone https://github.com/jiuyang5354/stoa.git && cd stoa
 cp .env.example .env        # 填 LLM_PROVIDER 和 LLM_API_KEY，其余按需
 docker compose up -d
 ```
@@ -49,7 +49,7 @@ docker compose up -d
 | 代码执行再隔离 | 独立子进程、60 秒超时、1 GB 内存上限、看不到任何密钥环境变量 |
 | 端口只绑本机 | 默认 `127.0.0.1:8080`，对外暴露需自己配 |
 
-数据都在 Docker 卷 `agent-data`（容器内 `/data`）：`memory/`（记忆）、`data/sessions.db`（对话与判断账本）、`config.yaml`（自选股）、`reports/`、`workspace/`（沙箱文件）。备份：`docker cp stock-agent:/data ./backup`。
+数据都在 Docker 卷 `agent-data`（容器内 `/data`）：`memory/`（记忆）、`data/sessions.db`（对话与判断账本）、`config.yaml`（自选股）、`reports/`、`workspace/`（沙箱文件）。备份：`docker cp stoa:/data ./backup`。
 
 ## 外接 API（全部兼容）
 
@@ -82,10 +82,10 @@ docker compose up -d
 
 **对外接口**（`serve` 模式，口令用 `Authorization: Bearer <WEB_TOKEN>`）：
 
-- OpenAI 兼容：`http://host:8080/v1`，模型名 `stock-agent`。Cherry Studio、LobeChat、NextChat、Open WebUI、沉浸式翻译这类能填自定义 OpenAI 地址的软件都能直接把它当模型用，记忆照样生效。
+- OpenAI 兼容：`http://host:8080/v1`，模型名 `stoa`。Cherry Studio、LobeChat、NextChat、Open WebUI、沉浸式翻译这类能填自定义 OpenAI 地址的软件都能直接把它当模型用，记忆照样生效。
 - MCP：远程填 `http://host:8080/mcp`；本地 Claude Desktop / Cursor 配置：
   ```json
-  {"mcpServers": {"stock-agent": {"command": "python", "args": ["-m", "stock_agent", "mcp"], "cwd": "/path/to/stock-agent", "env": {"LLM_PROVIDER": "deepseek", "LLM_API_KEY": "sk-..."}}}}
+  {"mcpServers": {"stoa": {"command": "python", "args": ["-m", "stock_agent", "mcp"], "cwd": "/path/to/stoa", "env": {"LLM_PROVIDER": "deepseek", "LLM_API_KEY": "sk-..."}}}}
   ```
   提供 get_quotes、market_overview、get_news、memory、session_search、watchlist、record_call、call_stats，配了大模型还有 ask_agent。
 - REST：`POST /api/chat` `{"text","session"}`、`GET /api/indices`、`GET /api/memory`、`GET /api/report`。

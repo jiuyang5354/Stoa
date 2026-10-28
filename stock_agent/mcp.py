@@ -52,7 +52,7 @@ def handle(req: dict) -> dict | None:
         if method == "initialize":
             result = {"protocolVersion": params.get("protocolVersion", PROTOCOL),
                       "capabilities": {"tools": {"listChanged": False}},
-                      "serverInfo": {"name": "stock-agent", "version": __version__},
+                      "serverInfo": {"name": "stoa", "version": __version__},
                       "instructions": "A股/港股/美股行情、技术指标、用户长期记忆和判断账本。代码用 Yahoo 格式：600519.SS、0700.HK、AAPL、^GSPC。"}
         elif method == "ping":
             result = {}

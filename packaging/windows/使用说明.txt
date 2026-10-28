@@ -1,18 +1,18 @@
-STOA · 股市 Agent  Windows 绿色版
+Stoa · 股市 Agent  Windows 绿色版
 
 1. 把整个文件夹解压到任意位置（路径里最好不要有空格以外的特殊符号）。
-2. 双击 StockAgent.exe。会弹出一个黑色窗口，浏览器自动打开界面。
+2. 双击 Stoa.exe。会弹出一个黑色窗口，浏览器自动打开界面。
 3. 第一次运行会用记事本打开 .env：
      LLM_PROVIDER=deepseek
      LLM_API_KEY=sk-你的密钥
-   填好保存，关掉黑色窗口，再双击 StockAgent.exe。
+   填好保存，关掉黑色窗口，再双击 Stoa.exe。
    没填密钥也能看行情，只是不能对话。
 
 关闭黑色窗口 = 退出。
 数据（记忆、判断账本、自选股 config.yaml、.env）都在
-  %LOCALAPPDATA%\StockAgent
+  %LOCALAPPDATA%\Stoa
 升级时直接用新版文件夹替换，数据不会丢。
 
 Windows 弹出“已保护你的电脑”时，点“更多信息 → 仍要运行”（程序没有付费签名）。
 
-若双击 StockAgent.exe 没反应，改双击「启动.bat」，效果一样。
+若双击 Stoa.exe 没反应，改双击「启动.bat」，效果一样。

@@ -13,7 +13,7 @@ from .providers import Router
 
 NUDGE_EVERY = 6  # 每隔几轮提醒自己是否该存记忆
 
-SYSTEM = """你是「股市 Agent」，用户的长期股市助手，覆盖 A股、港股、美股。用中文回答，简洁、具体、有数据。
+SYSTEM = """你是「Stoa」，用户的长期股市助手，覆盖 A股、港股、美股。用中文回答，简洁、具体、有数据。
 
 原则：
 - 行情数字必须来自工具结果，不编造。不知道就说不知道。
@@ -213,7 +213,7 @@ def repl():
         print("需要先配置大模型：设置 LLM_PROVIDER 和 LLM_API_KEY（见 .env.example）。")
         return
     agent = Agent()
-    print(f"股市 Agent · 已载入记忆（USER {agent.mem.usage('user')}，MEMORY {agent.mem.usage('memory')}）。输入 /exit 退出，/memory 查看记忆。\n")
+    print(f"Stoa · 已载入记忆（USER {agent.mem.usage('user')}，MEMORY {agent.mem.usage('memory')}）。输入 /exit 退出，/memory 查看记忆。\n")
     try:
         while True:
             text = input("你 › ").strip()

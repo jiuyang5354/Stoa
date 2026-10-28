@@ -73,7 +73,7 @@ def sub_command() -> bool:
 def main():
     if sub_command():
         return
-    p = argparse.ArgumentParser(description="股市 Agent")
+    p = argparse.ArgumentParser(description="Stoa · 股市 Agent")
     p.add_argument("--session", choices=["morning", "evening", "adhoc"], default="adhoc")
     p.add_argument("--config", default=None)
     p.add_argument("--no-llm", action="store_true", help="不调用大模型点评")

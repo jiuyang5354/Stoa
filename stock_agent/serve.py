@@ -159,7 +159,7 @@ class Web(BaseHTTPRequestHandler):
             except Exception as e:
                 return self._send(200, {"items": [], "error": str(e)})
         if self.path == "/v1/models":
-            return self._send(200, {"object": "list", "data": [{"id": "stock-agent", "object": "model", "owned_by": "stock-agent"}]})
+            return self._send(200, {"object": "list", "data": [{"id": "stoa", "object": "model", "owned_by": "stoa"}]})
         if self.path == "/api/report":
             p = home() / "reports" / "latest.md"
             return self._send(200, {"markdown": p.read_text(encoding="utf-8") if p.exists() else "还没有报告。"})
@@ -212,12 +212,12 @@ class Web(BaseHTTPRequestHandler):
             self._cors()
             self.end_headers()
             for delta, fin in (({"role": "assistant", "content": reply}, None), ({}, "stop")):
-                chunk = {"id": cid, "object": "chat.completion.chunk", "created": created, "model": "stock-agent",
+                chunk = {"id": cid, "object": "chat.completion.chunk", "created": created, "model": "stoa",
                          "choices": [{"index": 0, "delta": delta, "finish_reason": fin}]}
                 self.wfile.write(f"data: {json.dumps(chunk, ensure_ascii=False)}\n\n".encode())
             self.wfile.write(b"data: [DONE]\n\n")
             return
-        self._send(200, {"id": cid, "object": "chat.completion", "created": created, "model": "stock-agent",
+        self._send(200, {"id": cid, "object": "chat.completion", "created": created, "model": "stoa",
                          "choices": [{"index": 0, "message": {"role": "assistant", "content": reply}, "finish_reason": "stop"}],
                          "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}})
 
@@ -272,7 +272,7 @@ def main():
     port, host = int(os.getenv("PORT", "8080")), os.getenv("HOST", "0.0.0.0")
     for fn in (reaper, telegram, scheduler):
         threading.Thread(target=fn, daemon=True).start()
-    log(f"股市 Agent 已启动：http://{host}:{port}  数据目录 {home()}")
+    log(f"Stoa 已启动：http://{host}:{port}  数据目录 {home()}")
     from .data import provider_order
     from .providers import Router
     log(f"大模型 {Router(load_cfg().get('llm', {}))}  行情源 {' → '.join(provider_order())}")
