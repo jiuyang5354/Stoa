@@ -25,7 +25,7 @@
   }
   *{box-sizing:border-box}
   html,body{height:100%}
-  body{margin:0;background:var(--marble);color:var(--ink);font:400 14.5px/1.75 var(--sans);overflow:hidden;-webkit-font-smoothing:antialiased;font-synthesis:none}
+  body{margin:0;background:var(--marble) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='600' height='600'%3E%3Cfilter id='a' x='0' y='0' width='100%25' height='100%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.0065 .0085' numOctaves='7' seed='9' stitchTiles='stitch'/%3E%3CfeDiffuseLighting lighting-color='%23F7F0E4' surfaceScale='4.5' diffuseConstant='1.04'%3E%3CfeDistantLight azimuth='225' elevation='48'/%3E%3C/feDiffuseLighting%3E%3C/filter%3E%3Cfilter id='g' x='0' y='0' width='100%25' height='100%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.055' numOctaves='3' seed='2' stitchTiles='stitch'/%3E%3CfeDiffuseLighting lighting-color='%23FBF6EE' surfaceScale='1.4' diffuseConstant='1.02'%3E%3CfeDistantLight azimuth='225' elevation='60'/%3E%3C/feDiffuseLighting%3E%3C/filter%3E%3Cfilter id='m' x='0' y='0' width='100%25' height='100%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.004' numOctaves='3' seed='5' stitchTiles='stitch'/%3E%3CfeColorMatrix type='matrix' values='0 0 0 0 .70  0 0 0 0 .62  0 0 0 0 .50  1.8 0 0 0 -.75'/%3E%3C/filter%3E%3Cfilter id='p' x='0' y='0' width='100%25' height='100%25'%3E%3CfeTurbulence type='turbulence' baseFrequency='.07 .11' numOctaves='2' seed='13' stitchTiles='stitch'/%3E%3CfeColorMatrix type='matrix' values='0 0 0 0 .36  0 0 0 0 .31  0 0 0 0 .25  -3.6 0 0 0 .78'/%3E%3CfeComponentTransfer%3E%3CfeFuncA type='discrete' tableValues='0 0 0 0 0 0 0 .5 .85'/%3E%3C/feComponentTransfer%3E%3C/filter%3E%3Crect width='100%25' height='100%25' fill='%23F4EFE6'/%3E%3Crect width='100%25' height='100%25' filter='url(%23m)' opacity='.45'/%3E%3Crect width='100%25' height='100%25' filter='url(%23a)' opacity='.48' style='mix-blend-mode:multiply'/%3E%3Crect width='100%25' height='100%25' filter='url(%23g)' opacity='.35' style='mix-blend-mode:multiply'/%3E%3Crect width='100%25' height='100%25' filter='url(%23p)' opacity='.6'/%3E%3C/svg%3E") 0 0/600px 600px;color:var(--ink);font:400 14.5px/1.75 var(--sans);overflow:hidden;-webkit-font-smoothing:antialiased;font-synthesis:none}
   /* 石膏 / 羊皮纸噪点 */
   body::after{content:"";position:fixed;inset:0;pointer-events:none;z-index:50;opacity:.035;
     background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")}
@@ -101,7 +101,7 @@
 
   /* ---- 输入（AI Chat Input） ---- */
   .composer{padding:14px 0 22px;flex:none;border-top:1px solid var(--rule)}
-  .box{background:var(--marble-2);border:1px solid var(--rule-2);height:58px;overflow:hidden;transition:height .55s var(--spring),background .3s,border-color .3s;cursor:text;position:relative}
+  .box{background:rgba(246,243,237,.9);box-shadow:0 1px 0 rgba(255,255,255,.6) inset,0 10px 30px -20px rgba(60,45,25,.35);border:1px solid var(--rule-2);height:58px;overflow:hidden;transition:height .55s var(--spring),background .3s,border-color .3s;cursor:text;position:relative}
   .box.open{height:106px;background:#F8F6F1;border-color:var(--ink)}
   .row{display:flex;align-items:center;gap:10px;padding:8px 8px 8px 20px;height:56px}
   .field{position:relative;flex:1;height:100%}
@@ -137,7 +137,7 @@
   .seg .thumb{position:absolute;bottom:0;height:1px;background:var(--ink);transition:left .5s var(--spring),width .5s var(--spring)}
 
   /* ---- 指数石碑（Market Snapshot） ---- */
-  .snap{border:1px solid var(--rule-2);background:var(--marble-2);position:relative}
+  .snap{border:1px solid var(--rule-2);background:linear-gradient(160deg,rgba(250,248,243,.92),rgba(239,236,230,.9));box-shadow:0 1px 0 rgba(255,255,255,.6) inset,0 10px 30px -18px rgba(60,45,25,.35);position:relative}
   .snap::before{content:"";position:absolute;inset:3px;border:1px solid var(--rule);pointer-events:none}
   .snap-h{display:flex;justify-content:space-between;align-items:flex-start;padding:16px 18px 2px}
   .snap-h small{font:500 13px var(--cn);letter-spacing:.1em}
