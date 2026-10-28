@@ -524,7 +524,7 @@ async function temple3d(host){
     const x = new T.MeshStandardMaterial({map: k(tMap), normalMap: k(tNor), normalScale: new T.Vector2(1.8, 1.8), roughnessMap: k(tRou), roughness: 1, color, metalness: 0});
     x.onBeforeCompile = veins; x.customProgramCacheKey = () => 'veins'; x.userData.r = r; mats.push(x); return x; };
   const marble = stoneMat(0xFFFFFF, .6), stone = stoneMat(0xEDE6DA, .8);
-  const shaftM = stoneMat(0xFFFFFF, .6, [1, .32]), band = stoneMat(0xFFFFFF, .6, [.8, .07]); // 神庙柱身 / 台基与额枋：同理放大条纹
+  const shaftM = stoneMat(0xDDD7CC, .6, [1, .22]), band = stoneMat(0xFFFFFF, .6, [.8, .07]); // 神庙柱身 / 台基与额枋：同理放大条纹
   const slab = stoneMat(0xFFFFFF, .6, [.7, .16]); // 胸像台座：只取贴图一窄条放大，条纹粗到点阵也装得下
   const add = (geo, mat, x, y, z) => { const o = new T.Mesh(geo, mat); o.position.set(x, y, z); o.castShadow = o.receiveShadow = true; S.add(o); return o; };
   const temple = new T.Group(); S.add(temple);

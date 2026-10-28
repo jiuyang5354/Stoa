@@ -11,6 +11,12 @@
 - AI 点评与对话：DeepSeek、通义、Kimi、智谱、豆包、Claude、Gemini、Ollama 等二十多家模型，行情源可接 Tushare、Twelve Data 等，对外提供 OpenAI 兼容接口和 MCP
 - 定时：GitHub Actions 每个工作日北京时间 08:30、21:00 自动跑，报告存进 `reports/`
 
+## Windows 绿色版（不用 Docker、不用装 Python）
+
+下载 `StockAgent-Windows.zip`，解压后双击 `StockAgent.exe`：自带嵌入式 Python 3.12 和全部依赖，启动后自动打开浏览器。第一次运行会用记事本打开 `.env`，填 `LLM_PROVIDER` 和 `LLM_API_KEY` 保存后重开即可。关闭黑色窗口即退出。数据在 `%LOCALAPPDATA%\StockAgent`，换新版不丢。
+
+自己打包：在 Linux 上运行 `packaging/windows/build.sh`（需要 mingw-w64），产物在 `dist/`。其它系统也能用 `python -m stock_agent desktop` 得到同样的桌面模式。
+
 ## 一键部署：独立沙箱常驻运行（推荐）
 
 像 Hermes Agent 一样跑成一个常驻智能体：装进 Docker 隔离沙箱，24 小时在线，记忆存在挂载卷里，重启、升级都不会丢。

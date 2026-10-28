@@ -269,13 +269,13 @@ def scheduler():
 
 
 def main():
-    port = int(os.getenv("PORT", "8080"))
+    port, host = int(os.getenv("PORT", "8080")), os.getenv("HOST", "0.0.0.0")
     for fn in (reaper, telegram, scheduler):
         threading.Thread(target=fn, daemon=True).start()
-    log(f"股市 Agent 已启动：http://0.0.0.0:{port}  数据目录 {home()}")
+    log(f"股市 Agent 已启动：http://{host}:{port}  数据目录 {home()}")
     from .data import provider_order
     from .providers import Router
     log(f"大模型 {Router(load_cfg().get('llm', {}))}  行情源 {' → '.join(provider_order())}")
     log(f"对外接口：OpenAI 兼容 /v1/chat/completions · MCP /mcp · REST /api/*")
     log(f"记忆 USER {MEM.usage('user')} · MEMORY {MEM.usage('memory')} · 代码执行 {'开' if os.getenv('ALLOW_CODE') == '1' else '关'}")
-    ThreadingHTTPServer(("0.0.0.0", port), Web).serve_forever()
+    ThreadingHTTPServer((host, port), Web).serve_forever()
