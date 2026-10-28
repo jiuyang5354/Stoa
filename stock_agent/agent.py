@@ -9,6 +9,7 @@ import yaml
 from . import data, indicators
 from . import sandbox
 from .memory import Memory, config_path, now
+from .providers import Router
 
 NUDGE_EVERY = 6  # 每隔几轮提醒自己是否该存记忆
 
@@ -97,9 +98,7 @@ class Agent:
     def __init__(self, mem: Memory | None = None, channel: str = "cli"):
         self.mem = mem or Memory()
         cfg = load_cfg().get("llm", {})
-        self.key = os.getenv("LLM_API_KEY")
-        self.base = os.getenv("LLM_BASE_URL", cfg.get("base_url", "https://api.openai.com/v1")).rstrip("/")
-        self.model = os.getenv("LLM_MODEL", cfg.get("model", "gpt-4o-mini"))
+        self.llm = Router(cfg)
         self.session = f"{channel}-" + now().replace(" ", "_") + "-" + uuid.uuid4().hex[:4]
         self.tools = [t for t in TOOLS if t["name"] != "run_python" or sandbox.enabled()]
         self.turns = 0
@@ -159,15 +158,7 @@ class Agent:
 
     # ----- 模型调用 -----
     def _chat(self, messages):
-        r = requests.post(
-            f"{self.base}/chat/completions",
-            headers={"Authorization": f"Bearer {self.key}"},
-            json={"model": self.model, "temperature": 0.3, "messages": messages,
-                  "tools": [{"type": "function", "function": t} for t in self.tools]},
-            timeout=120,
-        )
-        r.raise_for_status()
-        return r.json()["choices"][0]["message"]
+        return self.llm.chat(messages, self.tools)
 
     def ask(self, text: str, on_tool=None) -> str:
         self.turns += 1
@@ -218,8 +209,8 @@ class Agent:
 
 
 def repl():
-    if not os.getenv("LLM_API_KEY"):
-        print("需要先设置 LLM_API_KEY（任何 OpenAI 兼容接口，如 DeepSeek）。")
+    if not Router(load_cfg().get("llm", {})).ready:
+        print("需要先配置大模型：设置 LLM_PROVIDER 和 LLM_API_KEY（见 .env.example）。")
         return
     agent = Agent()
     print(f"股市 Agent · 已载入记忆（USER {agent.mem.usage('user')}，MEMORY {agent.mem.usage('memory')}）。输入 /exit 退出，/memory 查看记忆。\n")
@@ -235,7 +226,7 @@ def repl():
                 continue
             try:
                 reply = agent.ask(text, on_tool=lambda n, a: print(f"  · {n}"))
-            except requests.RequestException as e:
+            except Exception as e:
                 reply = f"（调用大模型失败：{e}）"
             print(f"\nAgent › {reply}\n")
     except (KeyboardInterrupt, EOFError):
@@ -243,6 +234,6 @@ def repl():
     print("\n正在整理记忆…")
     try:
         agent.end_session()
-    except requests.RequestException as e:
+    except Exception as e:
         print(f"（整理记忆失败：{e}）")
     print("已保存。下次见。")

@@ -28,8 +28,10 @@ alerts:
   rsi_overbought: 70
   rsi_oversold: 30
 
-# 大模型点评（可选）：任何 OpenAI 兼容接口，如 DeepSeek、通义、OpenAI
+# 大模型：环境变量 LLM_PROVIDER / LLM_MODEL 优先；这里是没设环境变量时的默认值
+# provider 可选：deepseek openai anthropic gemini qwen kimi zhipu doubao hunyuan minimax stepfun baichuan
+#   siliconflow openrouter groq together fireworks mistral xai perplexity ollama lmstudio vllm azure
 llm:
-  base_url: "https://api.deepseek.com/v1"
-  model: "deepseek-chat"
+  provider: deepseek
+  model: deepseek-chat
   # 密钥放环境变量 LLM_API_KEY，不要写在这里

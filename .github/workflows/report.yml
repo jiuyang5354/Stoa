@@ -25,7 +25,14 @@ jobs:
       - run: pip install -r requirements.txt
       - name: 生成报告
         env:
+          LLM_PROVIDER: ${{ secrets.LLM_PROVIDER }}
           LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+          DATA_PROVIDERS: ${{ secrets.DATA_PROVIDERS }}
+          TUSHARE_TOKEN: ${{ secrets.TUSHARE_TOKEN }}
+          TWELVEDATA_API_KEY: ${{ secrets.TWELVEDATA_API_KEY }}
+          PUSHPLUS_TOKEN: ${{ secrets.PUSHPLUS_TOKEN }}
+          DINGTALK_WEBHOOK: ${{ secrets.DINGTALK_WEBHOOK }}
+          BARK_KEY: ${{ secrets.BARK_KEY }}
           LLM_BASE_URL: ${{ secrets.LLM_BASE_URL }}
           LLM_MODEL: ${{ secrets.LLM_MODEL }}
           SERVERCHAN_KEY: ${{ secrets.SERVERCHAN_KEY }}

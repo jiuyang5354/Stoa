@@ -8,7 +8,7 @@
 - 自选股：在 `config.yaml` 里随便加
 - 每只标的：收盘、单日 / 5 日 / 20 日涨跌、RSI、20/60 日均线
 - 信号：单日大涨大跌、RSI 超买超卖、上穿 / 跌破 20 日线、52 周新高新低
-- AI 点评（可选）：任何 OpenAI 兼容接口（DeepSeek、通义、OpenAI 等）
+- AI 点评与对话：DeepSeek、通义、Kimi、智谱、豆包、Claude、Gemini、Ollama 等二十多家模型，行情源可接 Tushare、Twelve Data 等，对外提供 OpenAI 兼容接口和 MCP
 - 定时：GitHub Actions 每个工作日北京时间 08:30、21:00 自动跑，报告存进 `reports/`
 
 ## 一键部署：独立沙箱常驻运行（推荐）
@@ -17,7 +17,7 @@
 
 ```bash
 git clone <你的仓库> stock-agent && cd stock-agent
-cp .env.example .env        # 填 LLM_API_KEY（DeepSeek 等），其余按需
+cp .env.example .env        # 填 LLM_PROVIDER 和 LLM_API_KEY，其余按需
 docker compose up -d
 ```
 
@@ -44,6 +44,47 @@ docker compose up -d
 | 端口只绑本机 | 默认 `127.0.0.1:8080`，对外暴露需自己配 |
 
 数据都在 Docker 卷 `agent-data`（容器内 `/data`）：`memory/`（记忆）、`data/sessions.db`（对话与判断账本）、`config.yaml`（自选股）、`reports/`、`workspace/`（沙箱文件）。备份：`docker cp stock-agent:/data ./backup`。
+
+## 外接 API（全部兼容）
+
+运行 `python -m stock_agent providers` 查看当前用的模型和行情源。
+
+**大模型**：`.env` 里设 `LLM_PROVIDER` + `LLM_API_KEY` 就行，工具调用在各家之间自动转换。
+
+| 协议 | 预设 |
+|---|---|
+| OpenAI 兼容 | deepseek · openai · qwen（通义）· kimi · zhipu（智谱）· doubao（豆包）· hunyuan · minimax · stepfun · baichuan · siliconflow · openrouter · groq · together · fireworks · mistral · xai · perplexity |
+| 本地 | ollama · lmstudio · vllm |
+| 原生 | anthropic（Claude）· gemini · azure |
+
+任何别的 OpenAI 兼容服务（中转站、One API、自建网关）：`LLM_BASE_URL` 填地址即可。`LLM_FALLBACK=qwen,ollama:qwen2.5:7b` 让主模型挂了自动换。
+
+**行情源**：`DATA_PROVIDERS` 按顺序尝试，默认 `yahoo,eastmoney`（免费、免密钥）。
+
+| 源 | A股 | 港股 | 美股 | 指数 | 密钥 |
+|---|---|---|---|---|---|
+| tushare | ✓ | ✓* | ✓* | A股指数 | TUSHARE_TOKEN |
+| twelvedata | ✓* | ✓* | ✓ | ✓ | TWELVEDATA_API_KEY |
+| alphavantage | ✓ | ✓ | ✓ | – | ALPHAVANTAGE_API_KEY |
+| finnhub | ✓* | ✓* | ✓* | – | FINNHUB_API_KEY |
+| polygon | – | – | ✓ | 美股* | POLYGON_API_KEY |
+| fmp | ✓* | ✓* | ✓ | ✓* | FMP_API_KEY |
+| tiingo | – | – | ✓ | – | TIINGO_API_KEY |
+| custom | 自建接口 `DATA_CUSTOM_URL` | | | | 可选 |
+
+\* 需要对应套餐的权限。比如 A股为主可以写 `DATA_PROVIDERS=tushare,yahoo,eastmoney`。
+
+**对外接口**（`serve` 模式，口令用 `Authorization: Bearer <WEB_TOKEN>`）：
+
+- OpenAI 兼容：`http://host:8080/v1`，模型名 `stock-agent`。Cherry Studio、LobeChat、NextChat、Open WebUI、沉浸式翻译这类能填自定义 OpenAI 地址的软件都能直接把它当模型用，记忆照样生效。
+- MCP：远程填 `http://host:8080/mcp`；本地 Claude Desktop / Cursor 配置：
+  ```json
+  {"mcpServers": {"stock-agent": {"command": "python", "args": ["-m", "stock_agent", "mcp"], "cwd": "/path/to/stock-agent", "env": {"LLM_PROVIDER": "deepseek", "LLM_API_KEY": "sk-..."}}}}
+  ```
+  提供 get_quotes、market_overview、get_news、memory、session_search、watchlist、record_call、call_stats，配了大模型还有 ask_agent。
+- REST：`POST /api/chat` `{"text","session"}`、`GET /api/indices`、`GET /api/memory`、`GET /api/report`。
+
+**推送**：Telegram、Server酱、PushPlus、企业微信、飞书、钉钉、Bark、ntfy、Discord、Slack、通用 Webhook，填哪个推哪个。
 
 ## 记忆（参考 Hermes Agent）
 
