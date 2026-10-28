@@ -11,7 +11,7 @@
 -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500;600&family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&family=Inter:wght@400;500;600&family=Noto+Serif+SC:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500;600&family=Six+Caps&family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&family=Inter:wght@400;500;600&family=Noto+Serif+SC:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
   :root{
     --marble:#F5F2EB;--marble-2:#EFECE6;--travertine:#E5E0D5;--ink:#181715;--mute:#7D776C;--rule:rgba(24,23,21,.12);--rule-2:rgba(24,23,21,.22);
@@ -19,13 +19,14 @@
     --up:var(--terracotta);--down:var(--olive);
     --display:"Cinzel","Noto Serif SC","Songti SC",serif;
     --serif:"Cormorant Garamond","Noto Serif SC","Songti SC",serif;
+    --poster:"Six Caps","Bebas Neue",Impact,sans-serif;--slate:#121211;--chalk:#E9E6DF;
     --cn:"Noto Serif SC","Songti SC",serif;
     --sans:"Inter","Plus Jakarta Sans","PingFang SC","Noto Sans SC",sans-serif;
     --ease:cubic-bezier(.16,1,.3,1);--spring:cubic-bezier(.34,1.3,.64,1);
   }
   *{box-sizing:border-box}
   html,body{height:100%}
-  body{margin:0;background:var(--marble) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='600' height='600'%3E%3Cfilter id='a' x='0' y='0' width='100%25' height='100%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.0065 .0085' numOctaves='7' seed='9' stitchTiles='stitch'/%3E%3CfeDiffuseLighting lighting-color='%23F7F0E4' surfaceScale='4.5' diffuseConstant='1.04'%3E%3CfeDistantLight azimuth='225' elevation='48'/%3E%3C/feDiffuseLighting%3E%3C/filter%3E%3Cfilter id='g' x='0' y='0' width='100%25' height='100%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.055' numOctaves='3' seed='2' stitchTiles='stitch'/%3E%3CfeDiffuseLighting lighting-color='%23FBF6EE' surfaceScale='1.4' diffuseConstant='1.02'%3E%3CfeDistantLight azimuth='225' elevation='60'/%3E%3C/feDiffuseLighting%3E%3C/filter%3E%3Cfilter id='m' x='0' y='0' width='100%25' height='100%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.004' numOctaves='3' seed='5' stitchTiles='stitch'/%3E%3CfeColorMatrix type='matrix' values='0 0 0 0 .70  0 0 0 0 .62  0 0 0 0 .50  1.8 0 0 0 -.75'/%3E%3C/filter%3E%3Cfilter id='p' x='0' y='0' width='100%25' height='100%25'%3E%3CfeTurbulence type='turbulence' baseFrequency='.07 .11' numOctaves='2' seed='13' stitchTiles='stitch'/%3E%3CfeColorMatrix type='matrix' values='0 0 0 0 .36  0 0 0 0 .31  0 0 0 0 .25  -3.6 0 0 0 .78'/%3E%3CfeComponentTransfer%3E%3CfeFuncA type='discrete' tableValues='0 0 0 0 0 0 0 .5 .85'/%3E%3C/feComponentTransfer%3E%3C/filter%3E%3Crect width='100%25' height='100%25' fill='%23F4EFE6'/%3E%3Crect width='100%25' height='100%25' filter='url(%23m)' opacity='.45'/%3E%3Crect width='100%25' height='100%25' filter='url(%23a)' opacity='.48' style='mix-blend-mode:multiply'/%3E%3Crect width='100%25' height='100%25' filter='url(%23g)' opacity='.35' style='mix-blend-mode:multiply'/%3E%3Crect width='100%25' height='100%25' filter='url(%23p)' opacity='.6'/%3E%3C/svg%3E") 0 0/600px 600px;color:var(--ink);font:400 14.5px/1.75 var(--sans);overflow:hidden;-webkit-font-smoothing:antialiased;font-synthesis:none}
+  body{margin:0;background:repeating-linear-gradient(0deg,rgba(24,23,21,.022) 0 1px,transparent 1px 3px),repeating-linear-gradient(90deg,rgba(24,23,21,.022) 0 1px,transparent 1px 3px),var(--marble) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='600' height='600'%3E%3Cfilter id='a' x='0' y='0' width='100%25' height='100%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.0065 .0085' numOctaves='7' seed='9' stitchTiles='stitch'/%3E%3CfeDiffuseLighting lighting-color='%23F4F3F0' surfaceScale='4.5' diffuseConstant='1.04'%3E%3CfeDistantLight azimuth='225' elevation='48'/%3E%3C/feDiffuseLighting%3E%3C/filter%3E%3Cfilter id='g' x='0' y='0' width='100%25' height='100%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.055' numOctaves='3' seed='2' stitchTiles='stitch'/%3E%3CfeDiffuseLighting lighting-color='%23F8F7F4' surfaceScale='1.4' diffuseConstant='1.02'%3E%3CfeDistantLight azimuth='225' elevation='60'/%3E%3C/feDiffuseLighting%3E%3C/filter%3E%3Cfilter id='m' x='0' y='0' width='100%25' height='100%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.004' numOctaves='3' seed='5' stitchTiles='stitch'/%3E%3CfeColorMatrix type='matrix' values='0 0 0 0 .60  0 0 0 0 .59  0 0 0 0 .55  1.8 0 0 0 -.75'/%3E%3C/filter%3E%3Cfilter id='p' x='0' y='0' width='100%25' height='100%25'%3E%3CfeTurbulence type='turbulence' baseFrequency='.07 .11' numOctaves='2' seed='13' stitchTiles='stitch'/%3E%3CfeColorMatrix type='matrix' values='0 0 0 0 .36  0 0 0 0 .31  0 0 0 0 .25  -3.6 0 0 0 .78'/%3E%3CfeComponentTransfer%3E%3CfeFuncA type='discrete' tableValues='0 0 0 0 0 0 0 .5 .85'/%3E%3C/feComponentTransfer%3E%3C/filter%3E%3Crect width='100%25' height='100%25' fill='%23ECEAE5'/%3E%3Crect width='100%25' height='100%25' filter='url(%23m)' opacity='.45'/%3E%3Crect width='100%25' height='100%25' filter='url(%23a)' opacity='.48' style='mix-blend-mode:multiply'/%3E%3Crect width='100%25' height='100%25' filter='url(%23g)' opacity='.35' style='mix-blend-mode:multiply'/%3E%3Crect width='100%25' height='100%25' filter='url(%23p)' opacity='.6'/%3E%3C/svg%3E") 0 0/600px 600px;background-size:auto,auto,600px 600px;color:var(--ink);font:400 14.5px/1.75 var(--sans);overflow:hidden;-webkit-font-smoothing:antialiased;font-synthesis:none}
   /* 石膏 / 羊皮纸噪点 */
   body::after{content:"";position:fixed;inset:0;pointer-events:none;z-index:50;opacity:.035;
     background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")}
@@ -82,13 +83,24 @@
   @keyframes d3{0%,60%{opacity:0}80%{opacity:1}100%{opacity:0}}
 
   /* ---- 空状态：拱门 + 建议（Suggestions） ---- */
-  .empty{min-height:100%;display:grid;grid-template-columns:auto 1fr;gap:44px;align-items:center;padding:8px 0 24px}
-  .arch{width:220px;aspect-ratio:1/1.618;border-radius:999px 999px 0 0;overflow:hidden;background:var(--travertine);border:1px solid var(--rule-2);position:relative;animation:rise .8s var(--ease) both}
+  .empty{min-height:100%;display:grid;grid-template-columns:auto 1fr;gap:56px;align-items:center;padding:8px 0 24px}
+  .fig{position:relative;padding:14px;margin-top:64px}
+  .fig::before{content:"";position:absolute;inset:0 0 -26px;border:1px solid rgba(24,23,21,.55);border-radius:999px;pointer-events:none}
+  .arch{width:200px;aspect-ratio:1/1.618;border-radius:999px 999px 0 0;overflow:hidden;background:var(--slate);border:1px solid var(--ink);position:relative;animation:rise .8s var(--ease) both;box-shadow:0 18px 40px -24px rgba(0,0,0,.55)}
+  .burst{position:absolute;left:50%;top:-92px;width:132px;transform:translateX(-50%);z-index:2;animation:spin 120s linear infinite}
+  @keyframes spin{to{transform:translateX(-50%) rotate(360deg)}}
+  .stem{position:absolute;left:50%;top:-26px;height:42px;border-left:1px solid var(--ink);z-index:1}
+  .spark{position:absolute;width:26px;z-index:2}.spark.a{left:-34px;top:38%}.spark.b{right:-30px;bottom:22%;width:20px}
+  .tf{position:absolute;left:calc(50% + 30px);bottom:-30px;font:600 7.5px var(--sans);letter-spacing:.12em;display:flex;flex-direction:column;gap:3px;white-space:nowrap}
+  .tf i{display:block;width:76px;height:5px;background:var(--ink)}
+  .ring{position:absolute;left:50%;bottom:-40px;width:34px;height:34px;border:1px solid var(--ink);border-radius:50%;transform:translateX(-50%)}
+  .poster{font:400 118px/.82 var(--poster);letter-spacing:.01em;text-transform:uppercase;margin:4px 0 10px;color:var(--ink)}
+  .poster small{font-size:.42em;vertical-align:top;margin-right:.08em;text-transform:lowercase}
   .arch svg,.arch canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
   .arch canvas{opacity:0;transition:opacity 1.2s var(--ease);cursor:grab}.arch canvas.on{opacity:1}
   figure{margin:0}
-  figcaption{margin-top:12px;max-width:220px}
-  .empty h2{font:500 34px/1.2 var(--cn);margin:6px 0 4px;letter-spacing:.04em}
+  figcaption{margin-top:50px;max-width:228px;text-align:center}
+  .empty h2{font:500 26px/1.3 var(--cn);margin:6px 0 4px;letter-spacing:.04em}
   .empty .lead{font:italic 400 19px/1.5 var(--serif);color:var(--mute);margin:0 0 22px}
   .chips{display:grid;grid-template-columns:1fr 1fr;border-top:1px solid var(--rule)}
   .chip{display:flex;gap:14px;align-items:baseline;text-align:left;border:0;border-bottom:1px solid var(--rule);background:transparent;color:var(--ink);font:inherit;font-size:13.5px;
@@ -120,7 +132,14 @@
         border-bottom:1px solid transparent;transition:color .2s,border-color .2s}
   .pill i{font:500 10px var(--display);font-style:normal;color:var(--bronze);margin-right:6px}
   .pill:hover{color:var(--ink);border-color:var(--ink)}
-  .disclaim{text-align:center;margin-top:10px;font-size:9px}
+  .disclaim{display:flex;justify-content:center;align-items:center;gap:14px;margin-top:10px;font-size:9px}
+  /* 海报符号：☒ 方框、斜线刻度、星芒 */
+  .xg{display:inline-flex;gap:4px}.xg i{width:11px;height:11px;border:1.4px solid var(--ink);position:relative;display:block}
+  .xg i::before,.xg i::after{content:"";position:absolute;left:50%;top:-2px;bottom:-2px;width:1.4px;background:var(--ink);transform:translateX(-50%) rotate(45deg)}
+  .xg i::after{transform:translateX(-50%) rotate(-45deg)}
+  .ticks{font:400 10px/1 var(--sans);letter-spacing:.5px;color:var(--ink);opacity:.75;white-space:nowrap;overflow:hidden}
+  header .xg.l{position:absolute;left:0;top:30px}header .ticks.r{position:absolute;right:0;top:30px;max-width:200px}
+  .disclaim .ticks{max-width:80px}.disclaim .xg i{width:8px;height:8px;border-width:1px}.disclaim .xg i::before,.disclaim .xg i::after{width:1px}
 
   /* ---- 右侧柱廊 ---- */
   aside{width:384px;border-left:1px solid var(--rule-2);padding:0 26px 26px;overflow:auto;flex:none;scrollbar-width:thin;scrollbar-color:var(--rule-2) transparent;position:relative}
@@ -176,7 +195,8 @@
   .ledger small{color:var(--mute);font-size:11px;letter-spacing:.06em}
   .muted{color:var(--mute);font:italic 15px var(--serif)}
   .note{margin-top:26px;padding-top:14px;border-top:1px solid var(--rule);line-height:1.8}
-  @media(max-width:1020px){aside{display:none}.empty{grid-template-columns:1fr}.arch{width:150px;margin:0 auto}figcaption{margin:12px auto 0;text-align:center}}
+  @media(max-width:1020px){aside{display:none}.empty{grid-template-columns:1fr;gap:28px}.fig{margin:96px auto 0;width:max-content}.arch{width:150px}figcaption{margin:48px auto 0}.poster{font-size:92px;text-align:center}.empty>div:last-child{text-align:left}}
+  @media(max-width:560px){header .xg.l,header .ticks.r,.disclaim .ticks,.disclaim .xg{display:none}.arch{width:118px}.fig{margin-top:66px;padding:10px}.burst{width:96px;top:-66px}.stem{top:-18px;height:30px}.spark.a{left:-28px}.spark.b{right:-26px}.tf{display:none}figcaption{margin-top:44px}.poster{font-size:76px}}
   @media(max-width:560px){.temple{inset:6px}.chips{grid-template-columns:1fr}.chip:nth-child(odd){border-right:0}.chip:nth-child(even){padding-left:2px}h1{font-size:22px}}
   @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 </style>
@@ -188,6 +208,7 @@
 <div class="wrap">
 <main><div class="inner">
   <header>
+    <span class="xg l" aria-hidden="true"><i></i><i></i><i></i><i></i></span><span class="ticks r" aria-hidden="true">\\\\\\\\\\\\\\\\\\\\\\\\</span>
     <span class="label">Agora · 上海 · 香港 · 纽约 · Est. MMXXVI</span>
     <h1>Stoa · 股市</h1>
     <em>A market oracle that remembers.</em>
@@ -203,7 +224,7 @@
       </div>
       <div class="tools" id="tools"></div>
     </form>
-    <div class="label disclaim">仅供参考 · 不构成投资建议 · Non consilium, sed observatio</div>
+    <div class="label disclaim"><span class="ticks">\\\\\\\\\\\\</span>仅供参考 · 不构成投资建议 · Non consilium, sed observatio<span class="xg" aria-hidden="true"><i></i><i></i><i></i></span></div>
   </div>
 </div></main>
 <aside>
@@ -235,6 +256,8 @@ const cls = v => v >= 0 ? 'up' : 'down';
 const sign = v => (v >= 0 ? '+' : '') ;
 const roman = n => { let r = ''; for (const [v,c] of [[1000,'M'],[900,'CM'],[500,'D'],[400,'CD'],[100,'C'],[90,'XC'],[50,'L'],[40,'XL'],[10,'X'],[9,'IX'],[5,'V'],[4,'IV'],[1,'I']]) while (n >= v) { r += c; n -= v; } return r; };
 const COLS = [18,34,50,66,82].map(x => `<rect x="${x-4.2}" y="78" width="8.4" height="58" fill="url(#col)"/>` + [-2.4,0,2.4].map(d => `<line x1="${x+d}" x2="${x+d}" y1="80" y2="134" stroke="#181715" stroke-opacity=".18" stroke-width=".35"/>`).join('') + `<rect x="${x-5.6}" y="75.5" width="11.2" height="2.6" fill="#D8D1C2" stroke="#181715" stroke-opacity=".35" stroke-width=".3"/>`).join('');
+const BURST = (() => { const n = 16, pts = []; for (let i = 0; i < n*2; i++) { const a = i/(n*2)*Math.PI*2 - Math.PI/2, r = i%2 ? 11 : (i%4 === 0 ? 50 : 30); pts.push((50+Math.cos(a)*r).toFixed(2)+','+(50+Math.sin(a)*r).toFixed(2)); }
+  return `<svg class="burst" viewBox="0 0 100 100" aria-hidden="true"><polygon points="${pts.join(' ')}" fill="#181715"/><circle cx="50" cy="50" r="8.5" fill="#F5F2EB"/><circle cx="50" cy="50" r="8.5" fill="none" stroke="#181715" stroke-width=".4" stroke-dasharray=".6 .9"/></svg>`; })();
 const TEMPLE = `<svg viewBox="0 0 100 162" preserveAspectRatio="xMidYMax slice" aria-hidden="true">
   <defs><linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#EDE7DA"/><stop offset="1" stop-color="#E2DBCC"/></linearGradient>
   <linearGradient id="col" x1="0" x2="1"><stop offset="0" stop-color="#E9E3D6"/><stop offset=".55" stop-color="#F6F2EA"/><stop offset="1" stop-color="#D9D1C1"/></linearGradient></defs>
@@ -256,8 +279,8 @@ const SUGGEST = ['今天 A 股怎么样', '港股科技股还能追吗', '美股
 const log = $('log');
 function md(s){ return esc(s).replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>').replace(/^#+\s*(.+)$/gm,'<strong>$1</strong>'); }
 function empty(){
-  log.innerHTML = `<div class="empty"><figure><div class="arch">${TEMPLE}</div><figcaption class="label">Fig. I — 帕特农式神庙 · 实时渲染<br>Pentelic marble, 438 BC</figcaption></figure>
-    <div><span class="label">Oraculum · 今日之问</span><h2>今天想看什么？</h2><p class="lead">它记得你的持仓与偏好；每一次判断都刻进账本，到期自行复盘。</p><div class="chips">${
+  log.innerHTML = `<div class="empty"><figure><div class="fig">${BURST}<span class="stem"></span><svg class="spark a" viewBox="0 0 20 20"><path d="M10 0C10.6 6.5 13.5 9.4 20 10 13.5 10.6 10.6 13.5 10 20 9.4 13.5 6.5 10.6 0 10 6.5 9.4 9.4 6.5 10 0Z" fill="#181715"/></svg><svg class="spark b" viewBox="0 0 20 20"><path d="M10 0C10.6 6.5 13.5 9.4 20 10 13.5 10.6 10.6 13.5 10 20 9.4 13.5 6.5 10.6 0 10 6.5 9.4 9.4 6.5 10 0Z" fill="#181715"/></svg><span class="tf"><i></i>TF : 0438.BC · ORACVLVM</span><div class="arch">${TEMPLE}</div><span class="ring"></span></div><figcaption class="label">Fig. I — 帕特农式神庙 · 实时渲染<br>Pentelic marble, 438 BC</figcaption></figure>
+    <div><span class="label">Oraculum · 今日之问</span><div class="poster"><small>the</small>Oracle</div><h2>今天想看什么？</h2><p class="lead">它记得你的持仓与偏好；每一次判断都刻进账本，到期自行复盘。</p><div class="chips">${
     SUGGEST.map((s,i)=>`<button class="chip" style="animation-delay:${120+i*60}ms" data-q="${esc(s)}"><i>${roman(i+1)}</i><span>${esc(s)}</span></button>`).join('')}</div></div></div>`;
   log.querySelectorAll('.chip').forEach(c => c.onclick = () => send(c.dataset.q));
   temple3d(log.querySelector('.arch'));
@@ -292,14 +315,14 @@ async function temple3d(host){
   let R; try { R = new T.WebGLRenderer({canvas: cv, antialias: true, powerPreference: 'low-power'}); } catch (e) { return; }
   host.append(cv);
   R.setPixelRatio(Math.min(devicePixelRatio, 2)); R.shadowMap.enabled = true; R.shadowMap.type = T.PCFSoftShadowMap;
-  R.outputColorSpace = T.SRGBColorSpace; R.toneMapping = T.ACESFilmicToneMapping; R.toneMappingExposure = 1.3;
+  R.outputColorSpace = T.SRGBColorSpace; R.toneMapping = T.NoToneMapping;
   const S = new T.Scene();
   // 天空：风化大理石到石灰华的竖向渐变，带赤陶色落日
   const sky = document.createElement('canvas'); sky.width = 4; sky.height = 256;
   const g = sky.getContext('2d'), gr = g.createLinearGradient(0,0,0,256);
   gr.addColorStop(0,'#EFEAE0'); gr.addColorStop(.62,'#E9E2D4'); gr.addColorStop(1,'#DCD3C2'); g.fillStyle = gr; g.fillRect(0,0,4,256);
-  const skyT = new T.CanvasTexture(sky); skyT.colorSpace = T.SRGBColorSpace; S.background = skyT;
-  S.fog = new T.Fog(0xE6DFD2, 34, 80);
+  R.setClearColor(0x0d0d0c, 1); // 不用 scene.background：它会强制清屏，冲掉抖动层
+  S.fog = new T.Fog(0x0d0d0c, 30, 62);
   // 大理石纹理：噪点 + 几道淡灰脉络
   const mc = document.createElement('canvas'); mc.width = mc.height = 512; const m = mc.getContext('2d');
   m.fillStyle = '#EEE8DD'; m.fillRect(0,0,512,512);
@@ -312,7 +335,11 @@ async function temple3d(host){
   const stone = new T.MeshStandardMaterial({map: mt, color: 0xECE4D5, roughness: .8});
   const add = (geo, mat, x, y, z) => { const o = new T.Mesh(geo, mat); o.position.set(x, y, z); o.castShadow = o.receiveShadow = true; S.add(o); return o; };
   const temple = new T.Group(); S.add(temple);
-  const put = (geo, mat, x, y, z) => { const o = add(geo, mat, x, y, z); temple.add(o); return o; };
+  const depthMat = new T.MeshBasicMaterial({colorWrite: false, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1});
+  const chalk = new T.LineBasicMaterial({color: 0xEDEAE3, transparent: true, opacity: .62});
+  const put = (geo, mat, x, y, z) => { const o = add(geo, mat, x, y, z); temple.add(o);
+    const dm = new T.Mesh(geo, depthMat); dm.position.copy(o.position); dm.layers.set(1); temple.add(dm);
+    const e = new T.LineSegments(geo.userData.edges || (geo.userData.edges = new T.EdgesGeometry(geo, 24)), chalk); e.position.copy(o.position); e.layers.set(1); temple.add(e); return o; };
   // 台基三级
   const W = 7.2, D = 4.4;
   [[0,.18,1.2],[.36,.18,.6],[.54,.18,0]].forEach(([y,h,p]) => put(new T.BoxGeometry(W+p, h, D+p), marble, 0, y+h/2, 0));
@@ -342,35 +369,56 @@ async function temple3d(host){
   const ped = new T.ExtrudeGeometry(tri, {depth: D-.3, bevelEnabled: false}); ped.translate(0, 0, -(D-.3)/2);
   put(ped, marble, 0, top+.88, 0);
   // 地面
-  const ground = add(new T.PlaneGeometry(80, 80), new T.MeshStandardMaterial({color: 0xE3DACA, roughness: 1}), 0, 0, 0);
+  const ground = add(new T.PlaneGeometry(80, 80), new T.MeshStandardMaterial({color: 0x1c1b18, roughness: 1}), 0, 0, 0);
   ground.rotation.x = -Math.PI/2; ground.castShadow = false;
   // 光：暖色夕照 + 天光
-  S.add(new T.HemisphereLight(0xFFF8EE, 0xCFC2AA, 1.7));
-  const sun = new T.DirectionalLight(0xFFDDB8, 2.1); sun.position.set(-9, 11, 7); sun.castShadow = true;
+  S.add(new T.HemisphereLight(0xFFFFFF, 0x1a1916, .32));
+  const sun = new T.DirectionalLight(0xFFFFFF, 1.5); sun.position.set(-9, 12, 8); sun.castShadow = true;
   sun.shadow.mapSize.set(1024, 1024); Object.assign(sun.shadow.camera, {left:-8,right:8,top:8,bottom:-8,near:1,far:40}); sun.shadow.bias = -.0005; sun.shadow.radius = 4;
   S.add(sun);
+  const glow = new T.PointLight(0xFFF4E0, 9, 8, 1.6); glow.position.set(0, 2.4, 0); S.add(glow);
   // 赤陶色落日
   const disc = new T.Mesh(new T.CircleGeometry(2.4, 64), new T.MeshBasicMaterial({color: 0xB3543A, transparent: true, opacity: .2, fog: false}));
   disc.renderOrder = -1; disc.material.depthWrite = false;
   // 浮尘
   const N = 140, dp = new Float32Array(N*3); for (let i = 0; i < N; i++) { dp[i*3] = (Math.random()-.5)*12; dp[i*3+1] = Math.random()*8; dp[i*3+2] = (Math.random()-.5)*8 + 2; }
   const dg = new T.BufferGeometry(); dg.setAttribute('position', new T.BufferAttribute(dp, 3));
-  const dust = new T.Points(dg, new T.PointsMaterial({color: 0x9E7B56, size: .045, transparent: true, opacity: .55, depthWrite: false})); S.add(dust);
-  const cam = new T.PerspectiveCamera(30, 1, .1, 120); S.add(cam); cam.add(disc); disc.position.set(3.4, 8.6, -62);
+  const dust = new T.Points(dg, new T.PointsMaterial({color: 0xEDEAE3, size: .05, transparent: true, opacity: .7, depthWrite: false})); S.add(dust);
+  const cam = new T.PerspectiveCamera(30, 1, .1, 120); S.add(cam); disc.visible = false;
+  // 神庙背后的光晕：抖动后变成一圈点阵辉光
+  const hc = document.createElement('canvas'); hc.width = hc.height = 256; const hg = hc.getContext('2d'), rg = hg.createRadialGradient(128,128,0,128,128,128);
+  rg.addColorStop(0,'rgba(255,255,255,.95)'); rg.addColorStop(.35,'rgba(255,255,255,.45)'); rg.addColorStop(1,'rgba(255,255,255,0)'); hg.fillStyle = rg; hg.fillRect(0,0,256,256);
+  const halo = new T.Mesh(new T.PlaneGeometry(1, 1), new T.MeshBasicMaterial({map: new T.CanvasTexture(hc), transparent: true, depthWrite: false, fog: false}));
+  halo.scale.set(15, 15, 1); halo.position.set(0, 3.2, -40); halo.material.opacity = .34; halo.renderOrder = -2; cam.add(halo);
   let mx = 0, my = 0; host.onpointermove = e => { const b = host.getBoundingClientRect(); mx = (e.clientX-b.left)/b.width - .5; my = (e.clientY-b.top)/b.height - .5; };
   host.onpointerleave = () => { mx = my = 0; };
   const still = matchMedia('(prefers-reduced-motion: reduce)').matches;
   let cx = 0, cy = 0, t0 = performance.now(), alive = true;
-  function size(){ const w = host.clientWidth, h = host.clientHeight; R.setSize(w, h, false); cam.aspect = w/h; cam.updateProjectionMatrix(); }
+  // 1-bit 抖动后期：场景先画进离屏纹理，再用 4×4 Bayer 阵量化成粉笔白 / 石板黑
+  const rt = new T.WebGLRenderTarget(2, 2, {samples: 0});
+  const qc = new T.OrthographicCamera(-1, 1, 1, -1, 0, 1), qs = new T.Scene();
+  const qm = new T.ShaderMaterial({uniforms: {tex: {value: rt.texture}, res: {value: new T.Vector2(2, 2)}, cell: {value: 2}},
+    vertexShader: 'void main(){ gl_Position = vec4(position.xy, 0., 1.); }',
+    fragmentShader: `uniform sampler2D tex; uniform vec2 res; uniform float cell;
+      float b2(vec2 a){ a = floor(a); return fract(a.x*.5 + a.y*a.y*.75); }
+      float b4(vec2 a){ return b2(.5*a)*.25 + b2(a); }
+      void main(){ vec2 px = floor(gl_FragCoord.xy/cell); vec2 uv = (px*cell + cell*.5)/res;
+        vec3 c = texture2D(tex, uv).rgb; float l = pow(clamp(dot(c, vec3(.299,.587,.114)), 0., 1.), 1./2.2);
+        l = clamp((l - .1)*1.08, 0., 1.); float on = step(b4(px) + .03, l);
+        gl_FragColor = vec4(mix(vec3(.051,.051,.047), vec3(.913,.902,.874), on), 1.); }`, depthTest: false, depthWrite: false});
+  const quad = new T.Mesh(new T.PlaneGeometry(2, 2), qm); quad.frustumCulled = false; qs.add(quad);
+  function size(){ const w = host.clientWidth, h = host.clientHeight, pr = R.getPixelRatio(); R.setSize(w, h, false); cam.aspect = w/h; cam.updateProjectionMatrix();
+    rt.setSize(Math.round(w*pr), Math.round(h*pr)); qm.uniforms.res.value.set(Math.round(w*pr), Math.round(h*pr)); qm.uniforms.cell.value = Math.max(2, Math.round(1.6*pr)); }
   new ResizeObserver(size).observe(host); size();
   function frame(now){
     if (!host.isConnected) { alive = false; R.dispose(); return; }
     const t = (now - t0)/1000;
     cx += (mx - cx)*.05; cy += (my - cy)*.05;
-    const a = .62 + (still ? 0 : Math.sin(t*.12)*.28) + cx*.35, d = 33;
-    cam.position.set(Math.sin(a)*d, 4.4 - cy*2, Math.cos(a)*d); cam.lookAt(0, 4.6, 0);
+    const a = .62 + (still ? 0 : Math.sin(t*.12)*.28) + cx*.35, d = 27;
+    cam.position.set(Math.sin(a)*d, 4.2 - cy*2, Math.cos(a)*d); cam.lookAt(0, 4.4, 0);
     if (!still) { for (let i = 0; i < N; i++) { dp[i*3+1] += .004 + (i%5)*.0008; dp[i*3] += Math.sin(t*.5 + i)*.002; if (dp[i*3+1] > 8) dp[i*3+1] = 0; } dg.attributes.position.needsUpdate = true; }
-    R.render(S, cam);
+    cam.layers.set(0); R.setRenderTarget(rt); R.render(S, cam); R.setRenderTarget(null);
+    R.autoClear = true; R.render(qs, qc); R.autoClear = false; R.clearDepth(); cam.layers.set(1); R.render(S, cam); R.autoClear = true;
     if (!still) requestAnimationFrame(frame);
   }
   requestAnimationFrame(frame);
