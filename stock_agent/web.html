@@ -14,7 +14,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500;600&family=Instrument+Serif:ital@0;1&family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&family=Inter:wght@400;500;600&family=Noto+Serif+SC:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
   :root{
-    --marble:#F5F2EB;--marble-2:#EFECE6;--travertine:#E5E0D5;--ink:#181715;--mute:#7D776C;--rule:rgba(24,23,21,.12);--rule-2:rgba(24,23,21,.22);
+    --marble:#F5F2EB;--marble-2:#EFECE6;--travertine:#E5E0D5;--ink:#181715;--mute:#5F5A52;--rule:rgba(24,23,21,.12);--rule-2:rgba(24,23,21,.22);
     --bronze:#9E7B56;--ink-2:#4A4640;--terracotta:#B3543A;--olive:#56684F;
     --up:var(--terracotta);--down:var(--olive);
     --display:"Cinzel","Noto Serif SC","Songti SC",serif;
@@ -27,6 +27,8 @@
   *{box-sizing:border-box}
   html,body{height:100%}
   body{margin:0;background:repeating-linear-gradient(0deg,rgba(24,23,21,.022) 0 1px,transparent 1px 3px),repeating-linear-gradient(90deg,rgba(24,23,21,.022) 0 1px,transparent 1px 3px),var(--marble) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='600' height='600'%3E%3Cfilter id='a' x='0' y='0' width='100%25' height='100%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.0065 .0085' numOctaves='7' seed='9' stitchTiles='stitch'/%3E%3CfeDiffuseLighting lighting-color='%23F4F3F0' surfaceScale='4.5' diffuseConstant='1.04'%3E%3CfeDistantLight azimuth='225' elevation='48'/%3E%3C/feDiffuseLighting%3E%3C/filter%3E%3Cfilter id='g' x='0' y='0' width='100%25' height='100%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.055' numOctaves='3' seed='2' stitchTiles='stitch'/%3E%3CfeDiffuseLighting lighting-color='%23F8F7F4' surfaceScale='1.4' diffuseConstant='1.02'%3E%3CfeDistantLight azimuth='225' elevation='60'/%3E%3C/feDiffuseLighting%3E%3C/filter%3E%3Cfilter id='m' x='0' y='0' width='100%25' height='100%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.004' numOctaves='3' seed='5' stitchTiles='stitch'/%3E%3CfeColorMatrix type='matrix' values='0 0 0 0 .60  0 0 0 0 .59  0 0 0 0 .55  1.8 0 0 0 -.75'/%3E%3C/filter%3E%3Cfilter id='p' x='0' y='0' width='100%25' height='100%25'%3E%3CfeTurbulence type='turbulence' baseFrequency='.07 .11' numOctaves='2' seed='13' stitchTiles='stitch'/%3E%3CfeColorMatrix type='matrix' values='0 0 0 0 .36  0 0 0 0 .31  0 0 0 0 .25  -3.6 0 0 0 .78'/%3E%3CfeComponentTransfer%3E%3CfeFuncA type='discrete' tableValues='0 0 0 0 0 0 0 .5 .85'/%3E%3C/feComponentTransfer%3E%3C/filter%3E%3Crect width='100%25' height='100%25' fill='%23ECEAE5'/%3E%3Crect width='100%25' height='100%25' filter='url(%23m)' opacity='.45'/%3E%3Crect width='100%25' height='100%25' filter='url(%23a)' opacity='.48' style='mix-blend-mode:multiply'/%3E%3Crect width='100%25' height='100%25' filter='url(%23g)' opacity='.35' style='mix-blend-mode:multiply'/%3E%3Crect width='100%25' height='100%25' filter='url(%23p)' opacity='.6'/%3E%3C/svg%3E") 0 0/600px 600px;background-size:auto,auto,600px 600px;color:var(--ink);font:400 14.5px/1.75 var(--sans);overflow:hidden;-webkit-font-smoothing:antialiased;font-synthesis:none}
+  /* 石灰华岩壁：ambientCG Travertine 009（CC0）颜色图 + 法线图，运行时在 canvas 里打柔和侧光烘成一张贴片；加载失败就保留上面的程序生成版 */
+  body.stone{background-image:repeating-linear-gradient(0deg,rgba(24,23,21,.022) 0 1px,transparent 1px 3px),repeating-linear-gradient(90deg,rgba(24,23,21,.022) 0 1px,transparent 1px 3px),var(--wall);background-size:auto,auto,1024px 1024px;background-position:0 0}
   /* 印刷感：网点 + 暗角（参考雕版/海报） */
   body::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:49;
     background:radial-gradient(ellipse at 50% 45%,transparent 55%,rgba(24,23,21,.08) 100%),radial-gradient(rgba(24,23,21,.035) .6px,transparent .9px) 0 0/4px 4px;mix-blend-mode:multiply}
@@ -97,7 +99,7 @@
   .poster{font:400 82px/.92 "Archeologicaps",var(--poster);letter-spacing:.02em;margin:12px 0 18px;color:var(--ink);white-space:nowrap}
   .poster em{font:italic 400 .5em/1 var(--poster);letter-spacing:-.01em;vertical-align:.92em;margin-right:.12em}
   .arch svg,.arch canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
-  .arch::after{content:"";position:absolute;left:0;right:0;bottom:0;height:30%;z-index:1;pointer-events:none;background:linear-gradient(rgba(240,238,233,0),rgba(240,238,233,.55) 45%,#F0EEE9 92%)}
+  .arch::after{content:"";position:absolute;left:0;right:0;bottom:0;height:13%;z-index:1;pointer-events:none;background:linear-gradient(rgba(240,238,233,0),rgba(240,238,233,.5) 50%,#F0EEE9 96%)}
   .arch canvas{opacity:0;transition:opacity 1.2s var(--ease);cursor:grab}.arch canvas.on{opacity:1}
   figure{margin:0}
   figcaption{margin-top:22px;max-width:228px;text-align:center}
@@ -298,6 +300,36 @@ const fmt = (v, d=2) => Number(v).toLocaleString('zh-CN', {minimumFractionDigits
 const cls = v => v >= 0 ? 'up' : 'down';
 const sign = v => (v >= 0 ? '+' : '') ;
 const roman = n => { let r = ''; for (const [v,c] of [[1000,'M'],[900,'CM'],[500,'D'],[400,'CD'],[100,'C'],[90,'XC'],[50,'L'],[40,'XL'],[10,'X'],[9,'IX'],[5,'V'],[4,'IV'],[1,'I']]) while (n >= v) { r += c; n -= v; } return r; };
+
+/* ---------- 石灰华岩壁（ambientCG Travertine 009 · CC0）：颜色图 × 法线侧光，压浅压低对比，不抢文字 ---------- */
+const TRAV = '/assets/travertine009_';
+(async function stoneWall(){
+  try {
+    const ld = src => new Promise((ok, no) => { const im = new Image(); im.onload = () => ok(im); im.onerror = no; im.src = src; });
+    const [ci, ni] = await Promise.all([ld(TRAV + 'color.jpg'), ld(TRAV + 'normal.jpg')]);
+    const S = 1024, cv = document.createElement('canvas'); cv.width = cv.height = S;
+    const g = cv.getContext('2d', {willReadFrequently: true});
+    g.drawImage(ci, 0, 0, S, S); const C = g.getImageData(0, 0, S, S), c = C.data;
+    g.drawImage(ni, 0, 0, S, S); const n = g.getImageData(0, 0, S, S).data;
+    let mean = 0; for (let i = 0; i < c.length; i += 4) mean += .299*c[i] + .587*c[i+1] + .114*c[i+2]; mean /= c.length/4;
+    // 光从左上方斜射（与旧版 feDistantLight azimuth 225 同向），法线为 OpenGL 约定（+y 向上）
+    let lx = -.5, ly = .55, lz = .67; const ll = Math.hypot(lx, ly, lz); lx /= ll; ly /= ll; lz /= ll;
+    const base = [243, 241, 236], A = .22, DESAT = .78, RELIEF = .05; // A：石纹保留比例；RELIEF：浮雕强度
+    for (let i = 0; i < c.length; i += 4) {
+      const y = .299*c[i] + .587*c[i+1] + .114*c[i+2];
+      const nx = n[i]/127.5 - 1, ny = n[i+1]/127.5 - 1, nz = n[i+2]/127.5 - 1;
+      const sh = 1 + RELIEF*((nx*lx + ny*ly + nz*lz)/lz - 1);
+      for (let k = 0; k < 3; k++) {
+        const v = (c[i+k] + (y - c[i+k])*DESAT) / mean; // 去掉大半黄调，按平均亮度归一
+        c[i+k] = Math.max(0, Math.min(255, base[k]*((1 - A) + A*v)*sh));
+      }
+    }
+    g.putImageData(C, 0, 0);
+    const url = URL.createObjectURL(await new Promise(r => cv.toBlob(r, 'image/jpeg', .9)));
+    document.body.style.setProperty('--wall', `url(${url})`);
+    document.body.classList.add('stone');
+  } catch (e) { /* 贴图拿不到就保留程序生成的岩壁 */ }
+})();
 const COLS = [18,34,50,66,82].map(x => `<rect x="${x-4.2}" y="78" width="8.4" height="58" fill="url(#col)"/>` + [-2.4,0,2.4].map(d => `<line x1="${x+d}" x2="${x+d}" y1="80" y2="134" stroke="#181715" stroke-opacity=".18" stroke-width=".35"/>`).join('') + `<rect x="${x-5.6}" y="75.5" width="11.2" height="2.6" fill="#D8D1C2" stroke="#181715" stroke-opacity=".35" stroke-width=".3"/>`).join('');
 const BURST = (() => { const n = 16, pts = []; for (let i = 0; i < n*2; i++) { const a = i/(n*2)*Math.PI*2 - Math.PI/2, r = i%2 ? 11 : (i%4 === 0 ? 50 : 30); pts.push((50+Math.cos(a)*r).toFixed(2)+','+(50+Math.sin(a)*r).toFixed(2)); }
   return `<svg class="burst" viewBox="0 0 100 100" aria-hidden="true"><polygon points="${pts.join(' ')}" fill="#181715"/><circle cx="50" cy="50" r="8.5" fill="#E6C66A"/><circle cx="50" cy="50" r="8.5" fill="none" stroke="#181715" stroke-width=".4" stroke-dasharray=".6 .9"/></svg>`; })();
@@ -476,8 +508,24 @@ async function temple3d(host){
   for (let k = 0; k < 7; k++) { m.lineWidth = .6 + Math.random()*1.4; m.beginPath(); let x = Math.random()*512, y = 0; m.moveTo(x,y);
     while (y < 512) { y += 8; x += Math.sin(y*.03 + k)*6 + (Math.random()-.5)*5; m.lineTo(x,y); } m.stroke(); }
   const mt = new T.CanvasTexture(mc); mt.colorSpace = T.SRGBColorSpace; mt.wrapS = mt.wrapT = T.RepeatWrapping;
-  const marble = new T.MeshStandardMaterial({map: mt, color: 0xFAF6EE, roughness: .6, metalness: 0});
-  const stone = new T.MeshStandardMaterial({map: mt, color: 0xECE4D5, roughness: .8});
+  // 真实石材：ambientCG Travertine 009（CC0）颜色 / 法线 / 粗糙度；任一张加载失败就退回上面的程序纹理
+  const TL = new T.TextureLoader(), mats = [], TX = [];
+  const fallback = () => mats.forEach(x => { x.map = mt; x.normalMap = null; x.roughnessMap = null; x.roughness = x.userData.r; x.onBeforeCompile = () => {}; x.customProgramCacheKey = () => 'fb'; x.needsUpdate = true; });
+  // 石灰华原图明暗差很小（σ≈8/255），抖动前在材质里把条纹明暗拉开约 4.5 倍，否则会被点阵量化成一片
+  const veins = sh => { sh.fragmentShader = sh.fragmentShader.replace('#include <map_fragment>',
+    `#ifdef USE_MAP
+      vec4 sdc = texture2D(map, vMapUv); vec3 dv = sdc.rgb - vec3(.61);
+      sdc.rgb = clamp(vec3(.6) + dv*4.5 + vec3(dot(dv, vec3(.3,.59,.11))*1.5), 0., 1.); diffuseColor *= sdc;
+    #endif`); };
+  const tx = (f, srgb) => { const t = TL.load(TRAV + f, () => TX.forEach(c => { if (c.image) c.needsUpdate = true; }), fallback); TX.push(t);
+    t.wrapS = t.wrapT = T.RepeatWrapping; t.anisotropy = 4; if (srgb) t.colorSpace = T.SRGBColorSpace; return t; };
+  const tMap = tx('color.jpg', true), tNor = tx('normal.jpg'), tRou = tx('roughness.jpg');
+  const stoneMat = (color, r, rep) => { const k = rep ? t => { const c = new T.Texture(); c.source = t.source; c.wrapS = c.wrapT = T.RepeatWrapping; c.anisotropy = 4; c.colorSpace = t.colorSpace; c.repeat.set(...rep); if (c.image) c.needsUpdate = true; TX.push(c); return c; } : t => t; // 共享图源；不用 clone()，免得图未到就被标记更新
+    const x = new T.MeshStandardMaterial({map: k(tMap), normalMap: k(tNor), normalScale: new T.Vector2(1.8, 1.8), roughnessMap: k(tRou), roughness: 1, color, metalness: 0});
+    x.onBeforeCompile = veins; x.customProgramCacheKey = () => 'veins'; x.userData.r = r; mats.push(x); return x; };
+  const marble = stoneMat(0xFFFFFF, .6), stone = stoneMat(0xEDE6DA, .8);
+  const shaftM = stoneMat(0xFFFFFF, .6, [1, .32]), band = stoneMat(0xFFFFFF, .6, [.8, .07]); // 神庙柱身 / 台基与额枋：同理放大条纹
+  const slab = stoneMat(0xFFFFFF, .6, [.7, .16]); // 胸像台座：只取贴图一窄条放大，条纹粗到点阵也装得下
   const add = (geo, mat, x, y, z) => { const o = new T.Mesh(geo, mat); o.position.set(x, y, z); o.castShadow = o.receiveShadow = true; S.add(o); return o; };
   const temple = new T.Group(); S.add(temple);
   const depthMat = new T.MeshBasicMaterial({colorWrite: false, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1});
@@ -487,7 +535,7 @@ async function temple3d(host){
     const e = new T.LineSegments(geo.userData.edges || (geo.userData.edges = new T.EdgesGeometry(geo, 24)), chalk); e.position.copy(o.position); e.layers.set(1); temple.add(e); return o; };
   // 台基三级
   const W = 7.2, D = 4.4;
-  [[0,.18,1.2],[.36,.18,.6],[.54,.18,0]].forEach(([y,h,p]) => put(new T.BoxGeometry(W+p, h, D+p), marble, 0, y+h/2, 0));
+  [[0,.18,1.2],[.36,.18,.6],[.54,.18,0]].forEach(([y,h,p]) => put(new T.BoxGeometry(W+p, h, D+p), band, 0, y+h/2, 0));
   // 凹槽柱身：20 道凹槽，顶部收分
   const H = 3.1, r = .26;
   const shaft = new T.CylinderGeometry(r*.82, r, H, 120, 12, false);
@@ -501,11 +549,11 @@ async function temple3d(host){
   for (let i = 0; i < nx; i++) for (let j = 0; j < nz; j++) {
     if (j > 0 && j < nz-1 && i > 0 && i < nx-1) continue;
     const x = -((W-1.1)/2) + i*sx, z = -((D-1.1)/2) + j*sz;
-    cols.push(put(shaft, marble, x, base + H/2, z)); put(echinus, marble, x, base+H+.08, z); put(abacus, marble, x, base+H+.205, z);
+    cols.push(put(shaft, shaftM, x, base + H/2, z)); put(echinus, marble, x, base+H+.08, z); put(abacus, marble, x, base+H+.205, z);
   }
   // 檐部：额枋、带三陇板的檐壁、檐口
   const top = base + H + .25;
-  put(new T.BoxGeometry(W-.6, .38, D-.6), marble, 0, top+.19, 0);
+  put(new T.BoxGeometry(W-.6, .38, D-.6), band, 0, top+.19, 0);
   put(new T.BoxGeometry(W-.62, .36, D-.62), stone, 0, top+.56, 0);
   for (let i = 0; i < 13; i++) { const x = -(W-.9)/2 + i*(W-.9)/12; put(new T.BoxGeometry(.14, .36, .06), marble, x, top+.56, (D-.6)/2); put(new T.BoxGeometry(.14,.36,.06), marble, x, top+.56, -(D-.6)/2); }
   put(new T.BoxGeometry(W-.3, .14, D-.3), marble, 0, top+.81, 0);
@@ -546,22 +594,25 @@ async function temple3d(host){
     const dm = new T.Mesh(geo, depthMat); dm.scale.copy(bust.scale); dm.position.copy(bust.position); dm.rotation.copy(bust.rotation); dm.layers.set(1); g.add(dm);
     // 柱础：方形台座，带粉笔描边
     [[new T.BoxGeometry(6.2, 1.6, 5.4), .8], [new T.BoxGeometry(7, .5, 6.2), .25]].forEach(([bg, y]) => {
-      const m = new T.Mesh(bg, marble); m.position.y = y; m.castShadow = m.receiveShadow = true; g.add(m);
+      const m = new T.Mesh(bg, slab); m.position.y = y; m.castShadow = m.receiveShadow = true; g.add(m);
       const dd = new T.Mesh(bg, depthMat); dd.position.y = y; dd.layers.set(1); g.add(dd);
       const e = new T.LineSegments(new T.EdgesGeometry(bg), chalk); e.position.y = y; e.layers.set(1); g.add(e);
     });
-    Object.assign(V, {a0: .2, sw: .2, d: 31, cy: 7.6, ty: 7.6});
+    Object.assign(V, {a0: .2, sw: .2, d: 31, cy: 7.2, ty: 6.9}); // 略压低视点，让台座离开底部渐隐带
     hemi.intensity = .14; sun.intensity = .55; glow.intensity = 0; halo.material.opacity = .26; halo.position.y = 6.4;
     bustKey = new T.SpotLight(0xFFFFFF, 260, 48, .45, .6, 1.6); bustKey.target.position.set(0, 7.5, 0); bustKey.castShadow = true; bustKey.shadow.mapSize.set(1024, 1024);
     S.add(bustKey, bustKey.target);
     const rim = new T.DirectionalLight(0xFFF1D6, .9); rim.position.set(-8, 9, -10); S.add(rim);
+    // 台座掠射侧光：贴着正面从上斜扫下来，把石灰华的横纹沟槽挑出来；只照台座高度，不碰胸像
+    const rake = new T.SpotLight(0xFFF6EA, 40, 30, .5, .5, 1.2); rake.position.set(7, 4.2, 6.2); rake.target.position.set(-1, .6, 2.6); S.add(rake, rake.target);
     if (still) R.render(S, cam);
   });
   let mx = 0, my = 0; host.onpointermove = e => { const b = host.getBoundingClientRect(); mx = (e.clientX-b.left)/b.width - .5; my = (e.clientY-b.top)/b.height - .5; };
   host.onpointerleave = () => { mx = my = 0; };
   const still = matchMedia('(prefers-reduced-motion: reduce)').matches;
   let cx = 0, cy = 0, t0 = performance.now(), alive = true;
-  // 1-bit 抖动后期：场景先画进离屏纹理，再用 4×4 Bayer 阵量化成粉笔白 / 石板黑
+  // 抖动后期：场景先画进离屏纹理，再用 4×4 Bayer 阵做 4 级有序抖动（石板黑 / 暗石 / 石灰华 / 粉笔白），
+  // 量化前先做一次局部反差增强（原图减去周围均值），让石纹这类高频明暗在点阵里留下来
   const rt = new T.WebGLRenderTarget(2, 2, {samples: 0});
   const qc = new T.OrthographicCamera(-1, 1, 1, -1, 0, 1), qs = new T.Scene();
   const qm = new T.ShaderMaterial({uniforms: {tex: {value: rt.texture}, res: {value: new T.Vector2(2, 2)}, cell: {value: 2}},
@@ -569,10 +620,14 @@ async function temple3d(host){
     fragmentShader: `uniform sampler2D tex; uniform vec2 res; uniform float cell;
       float b2(vec2 a){ a = floor(a); return fract(a.x*.5 + a.y*a.y*.75); }
       float b4(vec2 a){ return b2(.5*a)*.25 + b2(a); }
-      void main(){ vec2 px = floor(gl_FragCoord.xy/cell); vec2 uv = (px*cell + cell*.5)/res;
-        vec3 c = texture2D(tex, uv).rgb; float l = pow(clamp(dot(c, vec3(.299,.587,.114)), 0., 1.), 1./2.2);
-        l = clamp((l - .1)*1.08, 0., 1.); float on = step(b4(px) + .03, l);
-        gl_FragColor = vec4(mix(vec3(.051,.051,.047), vec3(.913,.902,.874), on), 1.); }`, depthTest: false, depthWrite: false});
+      float lum(vec2 uv){ return pow(clamp(dot(texture2D(tex, uv).rgb, vec3(.299,.587,.114)), 0., 1.), 1./2.2); }
+      void main(){ vec2 px = floor(gl_FragCoord.xy/cell); vec2 uv = (px*cell + cell*.5)/res, o = 2.5*cell/res;
+        float l = lum(uv), m = (lum(uv+vec2(o.x,0.)) + lum(uv-vec2(o.x,0.)) + lum(uv+vec2(0.,o.y)) + lum(uv-vec2(0.,o.y)))*.25;
+        l += (l - m)*1.1*smoothstep(.06, .3, l);
+        l = clamp((l - .1)*1.08, 0., 1.);
+        float q = l*3., f = floor(q), k = min(f + step(b4(px) + .03, q - f), 3.);
+        vec3 c = k < .5 ? vec3(.051,.051,.047) : k < 1.5 ? vec3(.29,.278,.255) : k < 2.5 ? vec3(.62,.6,.56) : vec3(.913,.902,.874);
+        gl_FragColor = vec4(c, 1.); }`, depthTest: false, depthWrite: false});
   const quad = new T.Mesh(new T.PlaneGeometry(2, 2), qm); quad.frustumCulled = false; qs.add(quad);
   function size(){ const w = host.clientWidth, h = host.clientHeight, pr = R.getPixelRatio(); R.setSize(w, h, false); cam.aspect = w/h; cam.updateProjectionMatrix();
     rt.setSize(Math.round(w*pr), Math.round(h*pr)); qm.uniforms.res.value.set(Math.round(w*pr), Math.round(h*pr)); qm.uniforms.cell.value = Math.max(2, Math.round(1.6*pr)); }

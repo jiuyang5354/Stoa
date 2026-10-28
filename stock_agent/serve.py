@@ -25,7 +25,8 @@ MEM = Memory()
 SESSIONS: dict[str, dict] = {}  # channel -> {"agent": Agent, "last": ts}
 UI = (Path(__file__).parent / "web.html").read_text(encoding="utf-8")
 ASSETS = Path(__file__).parent / "assets"
-ASSET_TYPES = {"bust.glb": "model/gltf-binary", "archeologicaps.woff2": "font/woff2"}
+ASSET_TYPES = {"bust.glb": "model/gltf-binary", "archeologicaps.woff2": "font/woff2",
+               "travertine009_color.jpg": "image/jpeg", "travertine009_normal.jpg": "image/jpeg", "travertine009_roughness.jpg": "image/jpeg"}
 
 
 def log(*a):
@@ -133,7 +134,7 @@ class Web(BaseHTTPRequestHandler):
         if self.path.split("?")[0] in ("/", "/index.html"):
             return self._send(200, UI, "text/html")
         if self.path.startswith("/assets/"):
-            # 静态素材白名单：胸像（Poly Haven CC0）、标题字体（dafont 100% Free）
+            # 静态素材白名单：胸像（Poly Haven CC0）、标题字体（dafont 100% Free）、石灰华贴图（ambientCG CC0）
             name = self.path[8:].split("?")[0]
             f = ASSETS / name
             ok = name in ASSET_TYPES and f.exists()
