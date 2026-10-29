@@ -365,7 +365,7 @@ class Agent:
                                  **({"判断结果": h["meta"].get("verdict")} if h["kind"] == "call" and h["meta"].get("verdict") else {})} for h in hits]}
         if name == "earnings_calendar":
             from . import earnings
-            return earnings.calendar_view(m, refresh=bool(args.get("refresh")))
+            return earnings.calendar_view(m, refresh_now=bool(args.get("refresh")))
         if name == "earnings_report":
             from . import earnings
             return earnings.report_for_agent(str(args.get("symbol", "")).strip(), m, llm=self.llm, with_debate=bool(args.get("debate")))

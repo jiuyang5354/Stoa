@@ -50,6 +50,16 @@ def save(d: dict):
     tmp.replace(p)
 
 
+def add_events(events: list[dict]):
+    """其它模块（财报事件等）往提醒事件流里写：网页轮询弹出、桌面窗口通知。"""
+    if not events:
+        return
+    with LOCK:
+        d = load()
+        d["events"] += events
+        save(d)
+
+
 def describe(r: dict) -> str:
     n = r.get("name") or r["symbol"]
     if r["kind"] == "announcement":
@@ -208,4 +218,9 @@ def loop(log=print):
                 log("提醒", len(ev), "条：", "；".join(e["title"] for e in ev)[:200])
         except Exception as e:
             log("提醒检查出错", e)
+        try:  # 财报事件：日历刷新（节流）、财报前提醒、财报后自动研报
+            from . import earnings
+            earnings.tick(log)
+        except Exception as e:
+            log("财报事件检查出错", e)
         time.sleep(max(60, int(os.getenv("ALERT_INTERVAL", "300"))))
