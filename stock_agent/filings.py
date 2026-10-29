@@ -610,7 +610,7 @@ def sentences(pages: list[str], lo: int, hi: int, head: str = "") -> list[dict]:
         for s in SENT_SPLIT.split(txt):
             s = s.strip()
             digits = sum(ch.isdigit() for ch in s)
-            if 12 <= len(s) <= 400 and not re.fullmatch(r"[\d\s,.%()\-—/|]+", s) and "适用" not in s and "適用" not in s and digits / len(s) < .3:
+            if 6 <= len(s) <= 400 and not re.fullmatch(r"[\d\s,.%()\-—/|]+", s) and "适用" not in s and "適用" not in s and digits / len(s) < .3:
                 out.append({"page": pno, "text": s})
     return out
 
