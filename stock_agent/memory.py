@@ -52,8 +52,14 @@ class Memory:
             CREATE TABLE IF NOT EXISTS calls(id INTEGER PRIMARY KEY, ts TEXT, symbol TEXT, name TEXT, view TEXT,
                 price REAL, horizon_days INTEGER, reason TEXT, due TEXT, status TEXT DEFAULT 'open',
                 result_price REAL, result_pct REAL, verdict TEXT);
+            CREATE TABLE IF NOT EXISTS session_digest(session TEXT PRIMARY KEY, upto_id INTEGER, text TEXT, facts TEXT, ts TEXT, n_msgs INTEGER DEFAULT 0);
             """
         )
+        try:
+            from . import vectors
+            vectors.ensure(self.db)
+        except Exception:
+            pass
 
     # ---------- 记忆文件 ----------
     def _path(self, target: str) -> Path:
@@ -135,15 +141,31 @@ class Memory:
         return "\n\n".join(parts)
 
     # ---------- 会话检索 ----------
-    def log(self, session: str, role: str, content: str):
+    def log(self, session: str, role: str, content: str) -> int | None:
         if not content:
-            return
+            return None
         ts = now()
-        self.db.execute("INSERT INTO messages(session,ts,role,content) VALUES(?,?,?,?)", (session, ts, role, content))
+        mid = self.db.execute("INSERT INTO messages(session,ts,role,content) VALUES(?,?,?,?)", (session, ts, role, content)).lastrowid
         self.db.execute("INSERT INTO messages_fts(content,session,ts,role) VALUES(?,?,?,?)", (content, session, ts, role))
         self.db.commit()
+        return mid
 
-    def search(self, query: str, limit: int = 8) -> list[dict]:
+    def search(self, query: str, limit: int = 8, exclude_ids=()) -> list[dict]:
+        """对话检索（v0.17 起为混合检索：BM25 关键词 + 向量语义，RRF 融合；会话纪要也算）。索引不可用时退回 FTS。"""
+        try:
+            from . import vectors
+            hits = vectors.search(self, query, kinds=("msg", "digest"), limit=limit, exclude_refs=exclude_ids)
+            out = []
+            for h in hits:
+                role = (h.get("meta") or {}).get("role") or ("纪要" if h["kind"] == "digest" else "")
+                out.append({"time": h["ts"], "role": role, "text": h["text"][:300], "session": h["session"], "via": h["via"], "kind": h["label"]})
+            if out:
+                return out
+        except Exception:
+            pass
+        return self.search_fts(query, limit)
+
+    def search_fts(self, query: str, limit: int = 8) -> list[dict]:
         q = query.strip()
         rows = []
         if len(q) >= 3:
@@ -198,11 +220,34 @@ class Memory:
             rows = self.db.execute("SELECT DISTINCT session FROM messages WHERE content LIKE ? AND session LIKE ? LIMIT 200",
                                    (f"%{q}%", prefix + "%")).fetchall()
             rows += self.db.execute("SELECT session FROM session_meta WHERE title LIKE ? AND session LIKE ?", (f"%{q}%", prefix + "%")).fetchall()
-        return [{"session": r[0]} for r in rows]
+        out = [{"session": r[0], "via": "关键词"} for r in rows]
+        try:  # 语义补充：换个说法也能搜到那段对话
+            from . import vectors
+            have = {r["session"] for r in out}
+            for h in vectors.search(self, q, kinds=("msg", "digest"), limit=20):
+                if h["session"].startswith(prefix) and h["session"] not in have and h["via"] != "关键词":
+                    have.add(h["session"])
+                    out.append({"session": h["session"], "via": "语义", "text": h["text"][:120]})
+        except Exception:
+            pass
+        return out
 
-    def history(self, session: str, limit: int = 400) -> list[dict]:
-        rows = self.db.execute("SELECT ts, role, content FROM messages WHERE session=? ORDER BY id DESC LIMIT ?", (session, limit)).fetchall()
-        return [{"time": t, "role": r, "text": c} for t, r, c in rows[::-1]]
+    def history(self, session: str, limit: int = 400, after_id: int = 0) -> list[dict]:
+        rows = self.db.execute("SELECT id, ts, role, content FROM messages WHERE session=? AND id>? ORDER BY id DESC LIMIT ?",
+                               (session, after_id, limit)).fetchall()
+        return [{"id": i, "time": t, "role": r, "text": c} for i, t, r, c in rows[::-1]]
+
+    # ---------- 会话纪要（长对话压缩） ----------
+    def digest(self, session: str) -> dict | None:
+        r = self.db.execute("SELECT upto_id, text, facts, ts, n_msgs FROM session_digest WHERE session=?", (session,)).fetchone()
+        if not r:
+            return None
+        return {"session": session, "upto_id": r[0], "text": r[1], "facts": json.loads(r[2] or "[]"), "ts": r[3], "n_msgs": r[4] or 0}
+
+    def save_digest(self, session: str, upto_id: int, text: str, facts: list[str], n_msgs: int):
+        self.db.execute("INSERT OR REPLACE INTO session_digest(session,upto_id,text,facts,ts,n_msgs) VALUES(?,?,?,?,?,?)",
+                        (session, int(upto_id), text, json.dumps(facts, ensure_ascii=False), now(), int(n_msgs)))
+        self.db.commit()
 
     def rename_session(self, session: str, title: str = None, pinned: bool = None):
         self.db.execute("INSERT OR IGNORE INTO session_meta(session) VALUES(?)", (session,))
@@ -216,6 +261,7 @@ class Memory:
         n = self.db.execute("DELETE FROM messages WHERE session=?", (session,)).rowcount
         self.db.execute("DELETE FROM messages_fts WHERE session=?", (session,))
         self.db.execute("DELETE FROM session_meta WHERE session=?", (session,))
+        self.db.execute("DELETE FROM session_digest WHERE session=?", (session,))
         self.db.commit()
         return n
 

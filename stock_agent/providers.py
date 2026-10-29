@@ -43,6 +43,23 @@ PRESETS = {
 }
 LOCAL = {"ollama", "lmstudio", "vllm"}
 
+# 上下文窗口（token）：长对话压缩按它定预算。没列的默认 32k；LLM_CONTEXT 可覆盖。
+CONTEXT = {
+    "openai": 128000, "deepseek": 64000, "qwen": 128000, "kimi": 128000, "zhipu": 128000, "doubao": 128000, "hunyuan": 32000,
+    "minimax": 200000, "stepfun": 32000, "baichuan": 32000, "siliconflow": 64000, "openrouter": 128000, "groq": 128000,
+    "together": 128000, "fireworks": 128000, "mistral": 32000, "xai": 128000, "perplexity": 128000,
+    "ollama": 8192, "lmstudio": 8192, "vllm": 32000, "anthropic": 200000, "gemini": 1000000, "azure": 128000,
+}
+DEFAULT_CONTEXT = 32000
+
+# 支持 OpenAI 兼容 /embeddings 的预设 → 默认嵌入模型（语义记忆用；EMBED_MODEL 可覆盖）。
+# 没列的（deepseek、kimi、anthropic、gemini 原生协议等）没有 embeddings 接口，自动用本地 TF-IDF 向量。
+EMBED_MODELS = {
+    "openai": "text-embedding-3-small", "qwen": "text-embedding-v3", "zhipu": "embedding-3", "siliconflow": "BAAI/bge-m3",
+    "mistral": "mistral-embed", "together": "BAAI/bge-base-en-v1.5", "fireworks": "nomic-ai/nomic-embed-text-v1.5",
+    "ollama": "nomic-embed-text", "lmstudio": "text-embedding-nomic-embed-text-v1.5", "vllm": "default", "hunyuan": "hunyuan-embedding",
+}
+
 
 def _guess(base: str) -> str:
     b = base.lower()
@@ -73,6 +90,13 @@ class LLM:
     @property
     def ready(self) -> bool:
         return bool(self.key and self.base and self.model)
+
+    @property
+    def context(self) -> int:
+        try:
+            return int(os.getenv("LLM_CONTEXT") or 0) or CONTEXT.get(self.name, DEFAULT_CONTEXT)
+        except ValueError:
+            return CONTEXT.get(self.name, DEFAULT_CONTEXT)
 
     def __repr__(self):
         return f"{self.name}:{self.model}"
@@ -189,6 +213,11 @@ class Router:
     @property
     def ready(self) -> bool:
         return self.chain[0].ready
+
+    @property
+    def context(self) -> int:
+        """备用模型可能窗口更小：按链里最小的算，切换后也放得下。"""
+        return min(c.context for c in self.chain)
 
     def __repr__(self):
         return " → ".join(map(repr, self.chain))
