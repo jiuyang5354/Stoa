@@ -931,6 +931,8 @@ const PANES = {
     const code = (dirty.ALLOW_CODE ?? S.env.ALLOW_CODE.value) === '1', o = location.origin;
     return `<h3>工具与接口</h3><p class="lead">Stoa 能用的工具，以及把它接进别的软件的地址。</p>` +
     grp('Tools · 工具', `<div class="fr"><span><b>允许写代码分析</b><small>在沙箱里跑 Python 算指标、回测</small></span><span><input type="checkbox" class="tg" id="tcode" ${code ? 'checked' : ''}></span></div>`) +
+    grp('Research · 资料', `<div class="fr"><span><b>新闻 · 公告 · 财报</b><small>东方财富资讯与公告中心、SEC EDGAR、Yahoo Finance，免密钥</small></span><span class="k"><small>已启用</small></span></div>
+      <div class="fr"><span><b>联网搜索 · 读网页</b><small>默认 DuckDuckGo，失败换 Bing；填了下面的密钥会优先用</small></span><span class="k"><small>已启用</small></span></div>` + field('TAVILY_API_KEY') + field('BRAVE_API_KEY')) +
     grp('Endpoints · 对外接口', `<div class="fr"><span><b>OpenAI 兼容</b><small>Cherry Studio、LobeChat 等填这个地址，模型名 stoa</small></span><span class="k"><span class="ep">${o}/v1</span><button class="x" data-copy="${o}/v1">复制</button></span></div>
       <div class="fr"><span><b>MCP</b><small>Claude、Cursor、Hermes 可直接调用 Stoa 的工具</small></span><span class="k"><span class="ep">${o}/mcp</span><button class="x" data-copy="${o}/mcp">复制</button></span></div>`) +
     grp('Access · 访问', field('WEB_TOKEN') + field('CORS_ORIGIN'));

@@ -259,16 +259,9 @@ def fetch_closes(symbols: list[str], period: str = "1y") -> dict[str, pd.Series]
 
 
 def fetch_news(symbol: str, limit: int = 3) -> list[dict]:
-    """Yahoo Finance 上的个股新闻标题（英文为主）。"""
+    """个股新闻标题（东方财富 + Yahoo），给报告用。"""
+    from . import research
     try:
-        items = yf.Ticker(symbol).news or []
+        return [{"title": n["title"], "url": n["url"]} for n in research.news(symbol, limit)["news"]]
     except Exception:
         return []
-    out = []
-    for it in items[:limit]:
-        c = it.get("content", it)
-        title = c.get("title")
-        url = (c.get("canonicalUrl") or {}).get("url") or c.get("link")
-        if title:
-            out.append({"title": title, "url": url})
-    return out

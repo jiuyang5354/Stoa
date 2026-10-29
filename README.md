@@ -7,6 +7,7 @@
 - 指数：上证、深证成指、创业板指、恒生、恒生科技、标普500、纳斯达克、道琼斯
 - 自选股：在 `config.yaml` 里随便加
 - 每只标的：收盘、单日 / 5 日 / 20 日涨跌、RSI、20/60 日均线
+- 研究资料（v0.7，免密钥）：个股新闻（东方财富 + Yahoo）、公司公告（东方财富公告中心、美股 SEC EDGAR）、财报与估值（东方财富 F10 + Yahoo Finance）、联网搜索（DuckDuckGo / Bing，可选 Tavily、Brave）、读网页正文
 - 信号：单日大涨大跌、RSI 超买超卖、上穿 / 跌破 20 日线、52 周新高新低
 - AI 点评与对话：DeepSeek、通义、Kimi、智谱、豆包、Claude、Gemini、Ollama 等二十多家模型，行情源可接 Tushare、Twelve Data 等，对外提供 OpenAI 兼容接口和 MCP
 - 定时：GitHub Actions 每个工作日北京时间 08:30、21:00 自动跑，报告存进 `reports/`
@@ -87,7 +88,7 @@ docker compose up -d
   ```json
   {"mcpServers": {"stoa": {"command": "python", "args": ["-m", "stock_agent", "mcp"], "cwd": "/path/to/stoa", "env": {"LLM_PROVIDER": "deepseek", "LLM_API_KEY": "sk-..."}}}}
   ```
-  提供 get_quotes、market_overview、get_news、memory、session_search、watchlist、record_call、call_stats，配了大模型还有 ask_agent。
+  提供 get_quotes、market_overview、get_news、get_announcements、get_financials、web_search、fetch_url、memory、session_search、watchlist、record_call、call_stats，配了大模型还有 ask_agent。
 - REST：`POST /api/chat` `{"text","session"}`、`GET /api/indices`、`GET /api/memory`、`GET /api/report`。
 
 **推送**：Telegram、Server酱、PushPlus、企业微信、飞书、钉钉、Bark、ntfy、Discord、Slack、通用 Webhook，填哪个推哪个。
@@ -116,7 +117,7 @@ python -m stock_agent memory   # 打印当前记忆
 python -m stock_agent review   # 手动复盘到期的判断
 ```
 
-对话里能做的：查行情和技术指标、看新闻、增删自选股、记住你的持仓、搜以前聊过的内容、给判断并记账、看历史胜率。
+对话里能做的：查行情和技术指标、看新闻和公告、查财报估值、联网搜索并读原文、增删自选股、记住你的持仓、搜以前聊过的内容、给判断并记账、看历史胜率。
 
 ## 本地运行
 
@@ -157,7 +158,7 @@ Actions 页面也可以手动点 “Run workflow” 立即生成一份。
 
 ## 数据说明
 
-行情来自 Yahoo Finance；A股 / 港股部分指数历史不全时，自动用东方财富日K补齐，再不行只显示最新价和当日涨跌。数据可能有延迟。
+行情来自 Yahoo Finance；A股 / 港股部分指数历史不全时，自动用东方财富日K补齐，再不行只显示最新价和当日涨跌。新闻、公告、财报来自东方财富、SEC EDGAR 和 Yahoo Finance，联网搜索默认 DuckDuckGo。读网页只允许公网地址。数据可能有延迟。
 
 **仅供参考，不构成投资建议。**
 

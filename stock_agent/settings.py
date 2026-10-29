@@ -43,6 +43,8 @@ FIELDS = {
     "SLACK_WEBHOOK": ("push", "Slack", True, ""),
     "WEBHOOK_URL": ("push", "通用 Webhook", True, "POST {title, markdown}"),
     "REPORT_TIMES": ("tasks", "报告时间", False, ""),
+    "TAVILY_API_KEY": ("tools", "Tavily 搜索", True, "可选，不填用 DuckDuckGo / Bing"),
+    "BRAVE_API_KEY": ("tools", "Brave 搜索", True, "可选"),
     "ALLOW_CODE": ("tools", "允许写代码分析", False, ""),
     "WEB_TOKEN": ("tools", "访问口令", True, "放到公网时必须设"),
     "CORS_ORIGIN": ("tools", "跨域来源", False, ""),
