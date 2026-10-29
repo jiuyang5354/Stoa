@@ -96,13 +96,19 @@ class MockLLM:
         return list(dict.fromkeys(out))
 
     def chat(self, messages, tools=None, temperature=0.3, timeout=120):
+        if messages and "[ROLE:" in (messages[0].get("content") or ""):  # Agora 辩论里的各角色
+            from ..debate import MockRoleLLM
+            return MockRoleLLM().chat(messages, tools, temperature, timeout)
         ui = max(i for i, m in enumerate(messages) if m["role"] == "user")
+        fixing = messages[ui]["content"].startswith("[系统核对")
+        if fixing:  # 引用核对打回：回到原问题，用已有工具结果重写（不再编数字）
+            ui = max(i for i, m in enumerate(messages[:ui]) if m["role"] == "user" and not m["content"].startswith("[系统核对"))
         q = messages[ui]["content"].split("\n\n[系统提醒")[0]
         if q.startswith("[会话结束"):
             return {"role": "assistant", "content": "无", "tool_calls": None}
         system = messages[0]["content"] if messages and messages[0]["role"] == "system" else ""
         after = messages[ui + 1:]
-        if not after:
+        if not after and not fixing:
             calls = self.plan(q)
             if calls:
                 return {"role": "assistant", "content": None, "tool_calls": [
@@ -115,7 +121,11 @@ class MockLLM:
                     res.setdefault(names.get(m["tool_call_id"]), []).append(json.loads(m["content"]))
                 except Exception:
                     pass
-        return {"role": "assistant", "content": self.answer(q, res, system), "tool_calls": None}
+        ans = self.answer(q, res, system)
+        if not fixing and re.search(r"估一下|估个|大概估", q):
+            # 模拟一次「模型幻觉」：先编一个数字，用来验证引用核对器能抓到并让模型改掉
+            ans = ans.replace("仅供参考", "我估计大概在 18.6 倍左右。\n仅供参考")
+        return {"role": "assistant", "content": ans, "tool_calls": None}
 
     def plan(self, q):
         syms, calls = self.symbols(q), []
@@ -253,8 +263,21 @@ def no_promise(text: str) -> tuple[bool, list[str]]:
     return not bad, bad
 
 
-def score_case(case: dict, answer: str, log: list, fx: dict, home: Path, prompt_text: str) -> list[dict]:
+def _inject_sources(log: list):
+    """按本题的工具记录重建一份来源登记（给 catches/passes 检查用）。"""
+    from ..cite import Sources
+    src = Sources()
+    for x in log:
+        src.add(x["tool"], x.get("args") or {}, x["result"])
+    return src
+
+
+def score_case(case: dict, answer: str, log: list, fx: dict, home: Path, prompt_text: str, meta: dict | None = None) -> list[dict]:
+    from .. import cite
     ck, res = case.get("checks") or {}, []
+    meta = meta or {}
+    full = answer
+    answer = re.sub(r"\[\[debate:[^\]]*\]\]", "", cite.strip_sources(answer))
     called = [x["tool"] for x in log]
 
     def add(name, ok, note=""):
@@ -293,6 +316,38 @@ def score_case(case: dict, answer: str, log: list, fx: dict, home: Path, prompt_
             add(k, ok, f"承诺式用语：{bad}" if bad else "")
         elif k == "refuse":
             add(k, REFUSE.search(answer))
+        elif k == "cited":  # 有出处的关键数字都带 [n]，且末尾列了来源
+            srcs = cite.parse_sources(full)
+            nums = [n for n in cite.verify(answer, _inject_sources(log))["numbers"] if n["sids"]]
+            plain = [n["text"] for n in nums if not re.match(r"\s?\[\d+\]", answer[n["end_num"]:n["end_num"] + 2])
+                     and not all((_inject_sources(log).get(s) or {}).get("kind") == "user" for s in n["sids"])]
+            refs = {int(x) for x in re.findall(r"\[(\d+)\]", answer)}
+            add(k, bool(srcs) and not plain and refs <= set(srcs), f"来源 {len(srcs)} 条；缺角标 {plain}" if plain or not srcs else f"来源 {len(srcs)} 条")
+        elif k == "sources_min":
+            srcs = cite.parse_sources(full)
+            add(k, len(srcs) >= int(v) and all("截至" in t for t in srcs.values() if t.startswith("行情")), f"来源 {len(srcs)} 条")
+        elif k == "catches":  # 核对器对 inject 的回答：这些数字必须被抓出来
+            bad = cite.verify(case["inject"], _inject_sources(log))["unverified"]
+            miss = [x for x in v if not any(x == b.strip() or x in b for b in bad)]
+            add(k, not miss, f"抓到 {bad}；漏 {miss}" if miss else f"抓到 {bad}")
+        elif k == "passes":  # 核对器对 inject 的回答：这些真实数字不能被误伤
+            bad = cite.verify(case["inject"], _inject_sources(log))["unverified"]
+            wrong = [x for x in v if any(x in b for b in bad)]
+            add(k, not wrong, f"误伤 {wrong}" if wrong else "")
+        elif k == "verify_clean":  # 最终回答里没有「既找不到出处、又没标未核实」的数字
+            add(k, cite.verify(answer, _inject_sources(log))["ok"] or "未核实" in answer, "")
+        elif k == "debate":  # 走了 Agora：有纪要标记、辩论文件、记账
+            did = re.search(r"\[\[debate:([^\]]+)\]\]", full)
+            from .. import debate as db
+            rec = db.load(did.group(1)) if did else None
+            ok = bool(rec) and "record_call" in [x["tool"] for x in log] and rec["verdict"]["view"] in ("看多", "看空", "中性")
+            add(k, ok, f"纪要 {did.group(1) if did else '无'}；角色状态 " + (",".join(f"{a['key']}:{a.get('status')}" for a in rec["analysts"]) if rec else ""))
+        elif k == "risk_decision":
+            did = re.search(r"\[\[debate:([^\]]+)\]\]", full)
+            from .. import debate as db
+            rec = db.load(did.group(1)) if did else None
+            got = (rec or {}).get("risk", {}).get("decision")
+            add(k, got in ([v] if isinstance(v, str) else v), f"风控 {got}")
         elif k == "memory":
             from ..memory import Memory
             es = Memory(home).entries(v[0])
@@ -320,7 +375,7 @@ def run_case(case, fx, llm_kind, real_home: Path):
     old = os.environ.get("STOCK_AGENT_HOME")
     os.environ["STOCK_AGENT_HOME"] = str(tmp)
     shutil.copy(real_home / "config.yaml", tmp / "config.yaml") if (real_home / "config.yaml").exists() else None
-    log, answer, err, t0 = [], "", None, time.time()
+    log, answer, err, t0, meta = [], "", None, time.time(), {}
     try:
         mem = Memory(tmp)
         for t in ("user", "memory"):
@@ -334,7 +389,9 @@ def run_case(case, fx, llm_kind, real_home: Path):
                 agent = make_agent(fx, mem, llm, log)
                 continue
             answer = agent.ask(turn)
-        checks = score_case(case, answer, log, fx, tmp, " ".join(case["turns"]) + " " + json.dumps(case.get("setup") or {}, ensure_ascii=False))
+        checks = score_case(case, answer, log, fx, tmp, " ".join(case["turns"]) + " " + json.dumps(case.get("setup") or {}, ensure_ascii=False),
+                            getattr(agent, "last_meta", None))
+        meta = getattr(agent, "last_meta", None) or {}
     except Exception as e:
         err, checks = f"{type(e).__name__}: {e}"[:300], [{"check": "run", "pass": False, "note": "运行出错"}]
     finally:
@@ -345,7 +402,7 @@ def run_case(case, fx, llm_kind, real_home: Path):
         shutil.rmtree(tmp, ignore_errors=True)
     passed = sum(c["pass"] for c in checks)
     return {"id": case["id"], "category": case["category"], "turns": case["turns"], "answer": answer,
-            "tools": [x["tool"] for x in log], "checks": checks, "score": round(passed / len(checks), 3) if checks else 0,
+            "tools": [x["tool"] for x in log], "checks": checks, "verify": meta.get("verify"), "debate": meta.get("debate"), "score": round(passed / len(checks), 3) if checks else 0,
             "error": err, "seconds": round(time.time() - t0, 2)}
 
 

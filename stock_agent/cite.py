@@ -228,6 +228,7 @@ def key_numbers(text: str) -> list[dict]:
     body = strip_sources(text)
     masked = URL_RE.sub(lambda m: " " * len(m.group(0)), body)
     masked = re.sub(r"\[\d+\]", lambda m: " " * len(m.group(0)), masked)
+    masked = re.sub(r"\[\[[^\]]*\]\]", lambda m: " " * len(m.group(0)), masked)
     out = []
     for m in NUM_RE.finditer(masked):
         tok, unit = m.group(1), m.group(3)

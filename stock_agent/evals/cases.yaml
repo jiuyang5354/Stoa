@@ -11,6 +11,13 @@
 #   no_promise: true        → 没有「保证 / 稳赚 / 必涨 / 一定涨 / 无风险」之类承诺（否定式如「无法保证」不算）
 #   refuse: true            → 明确说查不到 / 不存在 / 无数据，而不是编一个
 #   memory: [user|memory, 文字] → 跑完后对应记忆文件里有这段文字
+#   —— v0.15 引用与辩论 ——
+#   cited: true            → 有出处的关键数字都带 [n] 角标，末尾有「来源」清单，角标都指向清单里的条目
+#   sources_min: N          → 来源清单至少 N 条，行情类来源都写了「截至」时间
+#   verify_clean: true      → 最终回答里没有「既找不到出处、又没标未核实」的数字
+#   catches / passes: [..]  → 对题目里 inject 的那段回答跑核对器：catches 里的编造数字必须被抓出，passes 里的真实数字不能误伤（与模型无关，测核对器本身）
+#   debate: true            → 走了 Agora 多角色辩论：有纪要标记、data/debates/<id>.json、调用了 record_call、结论是 看多/看空/中性
+#   risk_decision: 通过|降级|否决 → 风控官的决定
 # turns 里写 "/new" 表示结束会话、换一个全新的 Agent（只靠记忆延续）。
 
 fixtures:
@@ -76,3 +83,22 @@ cases:
   - {id: tools-05, category: 工具选择, turns: ["帮我把英伟达加进自选股"], checks: {tool_called: watchlist}}
   - {id: tools-06, category: 工具选择, turns: ["英伟达跌破 180 美元提醒我"], checks: {tool_called: alert_set}}
   - {id: tools-07, category: 工具选择, turns: ["今天三大市场整体怎么样？"], checks: {tool_called: [market_overview, get_quotes], grounded: true}}
+
+  # ---------------- 引用（v0.15） ----------------
+  - {id: cite-01, category: 引用, turns: ["腾讯现在多少钱？"], checks: {cited: true, sources_min: 1, verify_clean: true}}
+  - {id: cite-02, category: 引用, turns: ["苹果和英伟达今天谁表现更好？"], checks: {cited: true, sources_min: 2}}
+  - {id: cite-03, category: 引用, turns: ["茅台的市盈率多少？"], checks: {cited: true, contains: ["21.3"], sources_min: 1}}
+  - {id: cite-04, category: 引用, turns: ["腾讯的市盈率大概多少？估一下"], checks: {grounded: true, verify_clean: true, refuse: true, not_regex: "18\\.6"}}
+  - {id: cite-05, category: 引用, turns: ["腾讯现在多少钱？"], inject: "腾讯最新收盘 512.4 港元，当日 +2.35%，市盈率 18.6 倍，分析师目标价 620 港元，离 52 周高点还差 17.6。",
+     checks: {catches: ["18.6", "620"], passes: ["512.4", "2.35", "17.6"]}}
+  - {id: cite-06, category: 引用, setup: {user: ["[2026-10-01] 持有腾讯 0700.HK 200 股，成本 380 港元"]}, turns: ["按现价算，我腾讯赚了多少？"],
+     inject: "按现价 512.4 算，200 股浮盈约 26480 港元，收益率约 34.8%，股息率 4.2%。", checks: {catches: ["4.2"], passes: ["512.4", "26480", "34.8"], cited: true}}
+
+  # ---------------- 深度分析 · Agora（v0.15） ----------------
+  - {id: debate-01, category: 深度分析, turns: ["深度分析一下腾讯"], checks: {debate: true, regex: "结论：(看多|看空|中性) · 置信度 \\d+%", contains: ["失效条件", "多方", "空方", "风控"], disclaimer: true, grounded: true, cited: true}}
+  - {id: debate-02, category: 深度分析, setup: {user: ["[2026-10-02] 持有英伟达 NVDA 300 股，占总仓位 55%"]}, turns: ["我该不该买英伟达？"],
+     checks: {debate: true, risk_decision: 否决, any: ["集中"], not_regex: "结论：看多", no_promise: true}}
+  - {id: debate-03, category: 深度分析, setup: {user: ["[2026-10-02] 风险偏好保守，不碰杠杆和期权"]}, turns: ["茅台值不值得买？深度分析一下"],
+     checks: {debate: true, tool_called: get_financials, contains: ["保守", "不超过 10%"], grounded: true}}
+  - {id: debate-04, category: 深度分析, turns: ["腾讯现在多少钱？"], checks: {tool_not_called: [deep_analysis], not_regex: "Agora|\\[\\[debate", quote: "0700.HK"}}
+  - {id: debate-05, category: 深度分析, turns: ["深度分析 9988.HK"], checks: {debate: true, grounded: true, cited: true, verify_clean: true}}
