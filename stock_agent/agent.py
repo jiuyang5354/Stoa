@@ -6,13 +6,15 @@ import uuid
 import requests
 import yaml
 
-from . import alerts, cards, cite, data, indicators, research, skills
+from . import alerts, cards, cite, context, data, indicators, research, skills
 from . import sandbox
 from .memory import Memory, config_path, now
 from .providers import Router
 
-RESUME_MSGS = 40  # 恢复旧对话时带回的最近消息条数
+RESUME_MSGS = 40  # 恢复旧对话时最多带回的原文条数；更早的（或超出上下文预算的）滚动摘要成会话纪要，不再直接丢掉
 NUDGE_EVERY = 6  # 每隔几轮提醒自己是否该存记忆
+MAX_TOOL_ROUNDS = 12  # 工具循环默认上限（config.yaml agent.max_tool_rounds / AGENT_MAX_ROUNDS）；上下文预算先用完会提前收尾
+FINAL_NUDGE = "[系统：{why}。请不要再调用工具，基于已经拿到的结果直接回答；没查到或没来得及查的部分如实说明。]"
 
 SYSTEM = """你是「Stoa」，用户的长期股市助手，覆盖 A股、港股、美股。用中文回答，简洁、具体、有数据。
 
@@ -40,7 +42,9 @@ SYSTEM = """你是「Stoa」，用户的长期股市助手，覆盖 A股、港�
 - MEMORY.md 存你自己的笔记：复盘得出的经验、对某只股票的长期观察、用户纠正过你的地方、数据源的坑。
 - 用户透露了以后还用得上的信息，当场用 memory 工具保存；信息变了就 replace，过时就 remove。
 - 不要存：一次性的行情数字、闲聊、能随时再查到的东西。条目要短、可独立理解，带日期。
-- 用户提到「上次」「之前说过」时，先用 session_search 查历史对话。
+- 用户提到「上次」「之前说过」「我以前定的…」时，先用 session_search 查历史对话；想找某条记忆、过去的判断理由或辩论结论（换个说法也行）用 search_memory（关键词 + 语义混合检索）。
+- 对话很长时，较早的内容会被归档为「会话纪要」放在下面，里面的关键数字和用户决定是原话，回答早先的问题以纪要为准。
+- 财报事件：问持仓/自选股什么时候出财报、财报前要注意什么 → earnings_calendar；财报出来了要复盘、对照持仓逻辑 → earnings_report（实际 vs 一致预期、同比、指引、和用户持仓逻辑对照，会写成事件研报）。
 - 分析某只股票或主题前，先用 memory_links 顺着记忆图谱把相关的持仓、笔记、技能、过去判断的对错一次取齐，别重复犯同样的错。
 - 每条记忆开头有日期。旧条目和新信息冲突时以新为准，replace 掉旧的；快满时先合并相近条目。
 
@@ -108,7 +112,14 @@ TOOLS = [
          "action": {"type": "string", "enum": ["add", "replace", "remove"]},
          "target": {"type": "string", "enum": ["user", "memory"]},
          "content": {"type": "string"}, "old_text": {"type": "string"}}, "required": ["action", "target"]}},
-    {"name": "session_search", "description": "全文检索过去所有对话。", "parameters": {"type": "object", "properties": {"query": {"type": "string"}}, "required": ["query"]}},
+    {"name": "session_search", "description": "检索过去所有对话（关键词 + 语义混合，换个说法也能搜到；含已归档的会话纪要）。", "parameters": {"type": "object", "properties": {"query": {"type": "string"}}, "required": ["query"]}},
+    {"name": "search_memory", "description": "语义记忆检索（关键词 BM25 + 向量，RRF 融合）：在用户画像、你的笔记、判断账本的理由、辩论纪要、历史对话与会话纪要里找和问题意思相近的内容，同义改写也能召回（如「离场价」能找到「止损 455」）。kinds 可限定：user/memory/call/debate/msg/digest。",
+     "parameters": {"type": "object", "properties": {"query": {"type": "string"}, "kinds": {"type": "array", "items": {"type": "string", "enum": ["user", "memory", "call", "debate", "msg", "digest"]}},
+                                                     "limit": {"type": "integer"}}, "required": ["query"]}},
+    {"name": "earnings_calendar", "description": "持仓与自选股的财报日历：下一次财报日期、报告期、来源（东方财富业绩预约披露 / Yahoo），以及最近生成的财报事件研报。refresh=true 立即重新抓取。",
+     "parameters": {"type": "object", "properties": {"refresh": {"type": "boolean"}}}},
+    {"name": "earnings_report", "description": "为一只股票生成财报事件研报：实际 vs 一致预期、关键指标同比、管理层指引变化、和用户持仓逻辑（USER.md、账本里该股的历史判断理由）对照——逻辑是加强、削弱还是被证伪；写入 data/reports/events/ 并推送。",
+     "parameters": {"type": "object", "properties": {"symbol": {"type": "string"}, "debate": {"type": "boolean", "description": "是否顺带跑一次 Agora 辩论，默认否"}}, "required": ["symbol"]}},
     {"name": "watchlist", "description": "管理自选股。action: list / add / remove。",
      "parameters": {"type": "object", "properties": {"action": {"type": "string", "enum": ["list", "add", "remove"]},
                                                      "symbol": {"type": "string"}, "name": {"type": "string"}}, "required": ["action"]}},
@@ -235,13 +246,23 @@ class Agent:
         self.session = session or (f"{channel}-" + now().replace(" ", "_") + "-" + uuid.uuid4().hex[:4])
         self.refresh_tools()
         self.turns = 0
-        self.messages = [{"role": "system", "content": self._system()}]
-        if session:  # 接着聊旧对话：把这段对话最近的问答放回上下文
-            past = [h for h in self.mem.history(session, limit=RESUME_MSGS) if h["role"] in ("user", "assistant")]
+        self.compressed = None  # 本轮发生的压缩 {"upto_id", "n_msgs"}
+        self.ctx_budget = None  # 测试/评测可覆盖；否则按模型窗口算
+        self._sys_base = self._system()
+        self.digest = self.mem.digest(self.session) if session else None
+        self.messages = [{"role": "system", "content": self._sys_base + context.digest_block(self.digest)}]
+        if session:  # 接着聊旧对话：纪要 + 纪要之后的原文；原文太多或超预算就再滚动摘要（不再简单截断成最近 40 条）
+            past = [h for h in self.mem.history(session, limit=2000, after_id=(self.digest or {}).get("upto_id") or 0)
+                    if h["role"] in ("user", "assistant")]
             while past and past[0]["role"] != "user":
                 past.pop(0)
-            self.messages += [{"role": h["role"], "content": h["text"][:4000]} for h in past]
-            self.turns = sum(h["role"] == "user" for h in past)
+            self.messages += [{"role": h["role"], "content": cite.strip_sources(h["text"])[:4000], "_id": h["id"]} for h in past]
+            self.turns = sum(h["role"] == "user" for h in past) + ((self.digest or {}).get("n_msgs") or 0) // 2
+            try:
+                self.compress(max_raw=RESUME_MSGS)
+            except Exception:
+                pass
+            self.compressed = None
 
     def refresh_tools(self):
         """内置工具 + 用户在 mcp.json 里接的外部 MCP 服务器的工具；每轮提问前刷新，设置页改了立刻生效。"""
@@ -334,7 +355,20 @@ class Agent:
         if name == "skill_delete":
             return skills.delete(args["name"])
         if name == "session_search":
-            return m.search(args["query"])
+            return m.search(args["query"], exclude_ids=[getattr(self, "_cur_id", None)])
+        if name == "search_memory":
+            from . import vectors
+            hits = vectors.search(m, str(args.get("query", "")), kinds=args.get("kinds") or None, limit=int(args.get("limit") or 8),
+                                  exclude_refs=[getattr(self, "_cur_id", None)])
+            return {"query": args.get("query"), "backend": hits[0]["backend"] if hits else vectors.backend_status()["local"],
+                    "results": [{"类别": h["label"], "时间": h["ts"], "内容": h["text"][:400], "匹配": h["via"], "相似度": h["sim"],
+                                 **({"判断结果": h["meta"].get("verdict")} if h["kind"] == "call" and h["meta"].get("verdict") else {})} for h in hits]}
+        if name == "earnings_calendar":
+            from . import earnings
+            return earnings.calendar_view(m, refresh=bool(args.get("refresh")))
+        if name == "earnings_report":
+            from . import earnings
+            return earnings.report_for_agent(str(args.get("symbol", "")).strip(), m, llm=self.llm, with_debate=bool(args.get("debate")))
         if name == "watchlist":
             wl = load_cfg().get("watchlist") or []
             if args["action"] == "add" and args.get("symbol"):
@@ -385,8 +419,51 @@ class Agent:
             return f"自动整理失败：{str(e)[:60]}"
 
     # ----- 模型调用 -----
-    def _chat(self, messages):
-        return self.llm.chat(messages, self.tools)
+    def _chat(self, messages, tools="default"):
+        """发给模型前去掉内部字段（_id 等）；tools=None 表示收尾轮不给工具。"""
+        clean = [{k: v for k, v in m.items() if not k.startswith("_")} for m in messages]
+        return self.llm.chat(clean, self.tools if tools == "default" else tools)
+
+    # ----- 上下文预算与压缩 -----
+    def budget(self) -> int:
+        return self.ctx_budget or context.budget(self.llm, self.tools)
+
+    def compress(self, max_raw: int | None = None, force: bool = False) -> bool:
+        """超预算（或原文条数超过 max_raw）时，把较早的消息滚动摘要成会话纪要；当前这一轮永远保留原文。"""
+        msgs = self.messages
+        raw = msgs[1:]
+        over = context.total(msgs) > self.budget()
+        too_many = bool(max_raw) and sum(m["role"] in ("user", "assistant") and m.get("_id") is not None for m in raw) > max_raw
+        if not (over or too_many or force):
+            return False
+        starts = [i for i, m in enumerate(raw) if m["role"] == "user" and m.get("_id") is not None]  # 每轮的第一条（入库的用户消息）
+        if len(starts) < 2:
+            return False
+        keep = min(context.KEEP_TURNS, len(starts) - 1)
+        while True:
+            cut = starts[-keep]
+            rest = raw[cut:]
+            n_raw = sum(m.get("_id") is not None for m in rest)
+            fits = context.total([msgs[0]] + rest) + 600 <= self.budget() and (not max_raw or n_raw <= max_raw)
+            if fits or keep == 1:
+                break
+            keep -= 1
+        dropped = raw[:cut]
+        ids = [m["_id"] for m in dropped if m.get("_id") is not None]
+        if not ids:
+            return False
+        old = self.digest or {}
+        upto = max(ids)
+        rows = [h for h in self.mem.history(self.session, limit=5000, after_id=old.get("upto_id") or 0) if h["id"] <= upto]
+        if not rows:
+            rows = [{"role": m["role"], "text": m.get("content") or ""} for m in dropped if m["role"] in ("user", "assistant")]
+        text, facts = context.make_digest(self.llm, old, rows)
+        n = (old.get("n_msgs") or 0) + len(rows)
+        self.mem.save_digest(self.session, upto, text, facts, n)
+        self.digest = {"session": self.session, "upto_id": upto, "text": text, "facts": facts, "n_msgs": n}
+        self.messages = [{"role": "system", "content": self._sys_base + context.digest_block(self.digest)}] + raw[cut:]
+        self.compressed = {"upto_id": upto, "n_msgs": n}
+        return True
 
     def _tool(self, name: str, args: dict):
         """跑工具并登记来源：返回给模型的结果里带 _cite 编号。辩论里多个分析师会并发调用。"""
@@ -402,8 +479,9 @@ class Agent:
         self.sources = cite.Sources()
         self.turn_cards = []
         self.sources.add_context(text, "你的提问", "user")
-        sysmsg = self.messages[0]["content"] if self.messages and self.messages[0]["role"] == "system" else ""
-        self.sources.add_context(sysmsg.split("当前时间：", 1)[-1], "Stoa 记忆与判断账本", "memory")
+        self.sources.add_context(self._sys_base.split("当前时间：", 1)[-1], "Stoa 记忆与判断账本", "memory")
+        if self.digest and self.digest.get("text"):  # 纪要里的关键数字是早先对话的原话（带当时来源），复述时算有出处
+            self.sources.add_context(self.digest["text"], "Stoa 会话纪要", "memory")
 
     def _finish(self, reply: str, verify_meta: dict) -> str:
         if getattr(self, "last_debate", None) and "[[debate:" not in reply:
@@ -424,7 +502,8 @@ class Agent:
             if cid:
                 body, tail = cite.split_sources(reply)
                 reply = body.rstrip() + f"\n[[cards:{cid}]]" + ("\n\n" + tail if tail else "")
-        self.last_meta = {"sources": used, "verify": verify_meta, "debate": getattr(self, "last_debate", None), "cards": cid}
+        self.last_meta = {"sources": used, "verify": verify_meta, "debate": getattr(self, "last_debate", None), "cards": cid,
+                          "compressed": self.compressed, "archived": (self.digest or {}).get("n_msgs") or 0}
         return reply
 
     def ask(self, text: str, on_tool=None) -> str:
@@ -432,7 +511,8 @@ class Agent:
             self.refresh_tools()
         self.turns += 1
         self.last_debate = None
-        self.mem.log(self.session, "user", text)
+        self.compressed = None
+        self._cur_id = self.mem.log(self.session, "user", text)
         self._begin_sources(text)
         # 「深度分析 X」「该不该买 X」：直接开 Agora 辩论，不先绕一圈单 agent
         from . import debate
@@ -440,7 +520,7 @@ class Agent:
             cfg = load_cfg()
             sym = debate.resolve_symbol(text, {w["symbol"]: w.get("name", "") for w in cfg.get("watchlist") or []})
             if sym:
-                self.messages.append({"role": "user", "content": text})
+                self.messages.append({"role": "user", "content": text, "_id": self._cur_id})
                 try:
                     rec = debate.run_for_agent(self, sym, text)
                     self.last_debate = rec["id"]
@@ -450,8 +530,7 @@ class Agent:
                     reply = self._finish(reply, vm)
                     if on_tool:
                         on_tool("deep_analysis", {"symbol": sym})
-                    self.messages.append({"role": "assistant", "content": cite.strip_sources(reply)})
-                    self.mem.log(self.session, "assistant", reply)
+                    self.messages.append({"role": "assistant", "content": cite.strip_sources(reply), "_id": self.mem.log(self.session, "assistant", reply)})
                     return reply
                 except Exception as e:  # 辩论整体出错：退回单 agent
                     self.messages.pop()
@@ -463,9 +542,31 @@ class Agent:
             content += "\n\n[系统提醒：上一轮你用了很多步工具。如果那套做法以后还用得上，先用 skill_save 存成技能（或更新已有技能），再回答这条。]"
             self._heavy = False
         n_tools, saved, retried, first_bad = 0, False, False, []
-        self.messages.append({"role": "user", "content": content})
-        for _ in range(9):
-            msg = self._chat(self.messages)
+        self.messages.append({"role": "user", "content": content, "_id": self._cur_id})
+        try:
+            self.compress()
+        except Exception:
+            pass
+        max_rounds = self.max_rounds()
+        rounds, final = 0, None
+        while True:
+            # 预算：先压缩较早的对话；还放不下（或工具轮数到上限）就收尾——不给工具，让模型用已有结果作答
+            if final is None and context.total(self.messages) > self.budget():
+                try:
+                    self.compress()
+                except Exception:
+                    pass
+                if context.total(self.messages) > self.budget():
+                    final = "上下文预算已用完"
+            if final is None and rounds >= max_rounds:
+                final = f"工具调用已达上限（{max_rounds} 轮）"
+            if final and not (self.messages[-1]["role"] == "user" and self.messages[-1]["content"].startswith("[系统：")):
+                self.messages.append({"role": "user", "content": FINAL_NUDGE.format(why=final)})
+            msg = self._chat(self.messages, None if final else "default")
+            if final:
+                msg = {**msg, "tool_calls": None}
+                if not (msg.get("content") or "").strip():
+                    msg["content"] = f"（{final}，以下只能基于已查到的部分回答：暂时没有足够的数据给出完整结论。）"
             self.messages.append({k: v for k, v in msg.items() if v is not None})
             calls = msg.get("tool_calls") or []
             if not calls:
@@ -476,11 +577,15 @@ class Agent:
                     self.messages.append({"role": "user", "content": cite.correction_prompt(v["unverified"])})
                     continue
                 reply, flagged = cite.flag(reply, self.sources)
-                reply = self._finish(reply, {"first_unverified": first_bad, "fixed": bool(first_bad) and not flagged, "flagged": flagged})
-                self.messages[-1] = {"role": "assistant", "content": cite.strip_sources(reply)}
-                self.mem.log(self.session, "assistant", reply)
+                reply = self._finish(reply, {"first_unverified": first_bad, "fixed": bool(first_bad) and not flagged, "flagged": flagged,
+                                             "rounds": rounds, "stopped": final})
+                aid = self.mem.log(self.session, "assistant", reply)
+                # 收尾提示只是过程：从上下文里拿掉，免得下一轮的模型以为还不能用工具
+                self.messages = [m for m in self.messages[:-1] if not (m["role"] == "user" and m.get("_id") is None and m["content"].startswith("[系统："))]
+                self.messages.append({"role": "assistant", "content": cite.strip_sources(reply), "_id": aid})
                 self._heavy = n_tools >= 4 and not saved
                 return reply
+            rounds += 1
             n_tools += len(calls)
             saved = saved or any(c["function"]["name"] == "skill_save" for c in calls)
             for c in calls:
@@ -493,9 +598,18 @@ class Agent:
                     result = f"工具出错：{e}"
                 if on_tool:
                     on_tool(name, args)
-                self.messages.append({"role": "tool", "tool_call_id": c["id"],
-                                      "content": json.dumps(result, ensure_ascii=False, default=str)[:9000 if name in BIG_TOOLS else 6000]})
-        return "（工具调用次数过多，已停止。）"
+                # 工具结果按剩余预算收缩（结构化：保留 _cite / url / 来源 / 时间，不从 JSON 中间硬切）
+                left = self.budget() - context.total(self.messages)
+                cap = 9000 if name in BIG_TOOLS else 6000
+                limit = max(1200, min(cap, left * 2 // max(1, len(calls))))
+                self.messages.append({"role": "tool", "tool_call_id": c["id"], "content": context.clip_tool(result, limit)})
+
+    def max_rounds(self) -> int:
+        try:
+            v = os.getenv("AGENT_MAX_ROUNDS") or (load_cfg().get("agent") or {}).get("max_tool_rounds")
+            return max(1, min(40, int(v))) if v else MAX_TOOL_ROUNDS
+        except Exception:
+            return MAX_TOOL_ROUNDS
 
     def end_session(self):
         """会话结束时的后台复盘：让模型最后再检查一遍有没有该记住的。"""
