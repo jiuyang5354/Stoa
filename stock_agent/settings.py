@@ -12,7 +12,7 @@ import zipfile
 from . import __version__
 from .agent import load_cfg, save_watchlist
 from .memory import home
-from . import skills
+from . import skills, alerts
 from .providers import PRESETS, LOCAL
 
 # key: (所属分栏, 中文名, 是否密钥, 说明)
@@ -44,6 +44,8 @@ FIELDS = {
     "SLACK_WEBHOOK": ("push", "Slack", True, ""),
     "WEBHOOK_URL": ("push", "通用 Webhook", True, "POST {title, markdown}"),
     "REPORT_TIMES": ("tasks", "报告时间", False, ""),
+    "ALERT_INTERVAL": ("tasks", "提醒检查间隔（秒）", False, "默认 300，最小 60"),
+    "ANN_WATCH": ("tasks", "自选股公告提醒", False, "1 开 / 0 关，默认开"),
     "TAVILY_API_KEY": ("tools", "Tavily 搜索", True, "可选，不填用 DuckDuckGo / Bing"),
     "BRAVE_API_KEY": ("tools", "Brave 搜索", True, "可选"),
     "ALLOW_CODE": ("tools", "允许写代码分析", False, ""),
@@ -105,6 +107,7 @@ def get(mem) -> dict:
         "providers": [{"id": n, "model": p[2], "base": p[1], "local": n in LOCAL} for n, p in PRESETS.items()],
         "watchlist": cfg.get("watchlist") or [],
         "alerts": cfg.get("alerts") or {},
+        "pa": alerts.listing(),
         "memory": {"user": mem.entries("user"), "memory": mem.entries("memory"),
                    "usage": {"user": mem.usage("user"), "memory": mem.usage("memory")},
                    "skills": skills.list_skills(), "stats": mem.call_stats()},

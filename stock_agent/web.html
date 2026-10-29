@@ -282,6 +282,12 @@
   .seg2 button{border:0;background:transparent;font:500 12.5px var(--cn);padding:5px 12px;cursor:pointer;color:var(--ink)}
   .seg2 button.on{background:var(--ink);color:var(--chalk)}
   .ml{list-style:none;margin:0;padding:0}
+  #toasts{position:fixed;right:22px;bottom:22px;z-index:90;display:flex;flex-direction:column;gap:10px;width:min(340px,calc(100vw - 44px))}
+  .toast{position:relative;background:#F5F2EB;border:1px solid var(--ink);box-shadow:4px 4px 0 var(--ink);padding:12px 34px 12px 14px;animation:tin .35s ease-out;transition:opacity .8s}
+  .toast.out{opacity:0}.toast p{margin:6px 0 0;font:15px/1.5 var(--serif)}.toast a{display:inline-block;margin-top:6px;font-size:12px;color:var(--ink)}
+  .toast button{position:absolute;top:6px;right:8px;border:0;background:none;font-size:16px;cursor:pointer;color:var(--mute)}
+  @keyframes tin{from{transform:translateY(10px);opacity:0}}
+  .addrow select{font:13px var(--sans);border:0;border-bottom:1px solid var(--rule);background:transparent;padding:6px 2px}
   .lsh{display:flex;gap:22px;align-items:center;padding:6px 0 16px;border-bottom:1px solid var(--rule)}
   .lsh>b{font:400 54px/1 var(--serif);letter-spacing:-.01em}.lsh>b span{font-size:22px;margin-left:2px;color:var(--mute)}
   .lsh small{display:block;font-size:12px;color:var(--mute)}.lsk{font:15px/1 var(--sans);letter-spacing:.25em;margin-top:8px}.lsk span{font-size:10px;letter-spacing:.12em;color:var(--mute);margin-left:10px}
@@ -858,6 +864,32 @@ async function loadIndices(){
 }
 
 /* ---------- 记忆 ---------- */
+async function watchAlerts(){
+  const KEY = 'stoa.alertSeen';
+  const tick = async () => {
+    try {
+      const j = await (await fetch('/api/alerts', {headers:H})).json();
+      const evs = (j.events || []), last = localStorage.getItem(KEY);
+      if (last === null) { localStorage.setItem(KEY, evs[0] ? evs[0].time + evs[0].title : ''); return; }
+      const fresh = [];
+      for (const e of evs) { if (e.time + e.title === last) break; fresh.push(e); }
+      if (!fresh.length) return;
+      localStorage.setItem(KEY, fresh[0].time + fresh[0].title);
+      fresh.slice(0, 3).reverse().forEach(toast);
+      if (window.Notification && Notification.permission === 'granted') fresh.slice(0, 3).forEach(e => new Notification('Stoa 提醒', {body: e.title}));
+    } catch (_) {}
+  };
+  if (window.Notification && Notification.permission === 'default') document.addEventListener('click', () => Notification.requestPermission(), {once:true});
+  tick(); setInterval(tick, 60000);
+}
+function toast(e){
+  let box = document.getElementById('toasts');
+  if (!box) { box = document.createElement('div'); box.id = 'toasts'; document.body.appendChild(box); }
+  const t = document.createElement('div'); t.className = 'toast';
+  t.innerHTML = `<span class="label">${e.kind === 'announcement' ? 'NOTICE · 公告' : 'VIGILIA · 价格提醒'} · ${esc(e.time.slice(11))}</span><p>${esc(e.title)}</p>${e.url ? `<a href="${esc(e.url)}" target="_blank" rel="noopener">读原文 →</a>` : ''}<button aria-label="关闭">×</button>`;
+  t.querySelector('button').onclick = () => t.remove();
+  box.appendChild(t); setTimeout(() => t.classList.add('out'), 30000); setTimeout(() => t.remove(), 31000);
+}
 async function loadMemory(){
   try {
     const r = await (await fetch('/api/memory', {headers:H})).json();
@@ -872,7 +904,7 @@ async function loadMemory(){
   } catch (e) {}
 }
 $('tq').oninput = terrain;
-periods(); seg(); loadIndices(); loadMemory();
+periods(); seg(); loadIndices(); loadMemory(); watchAlerts();
 setInterval(loadIndices, 10*60*1000);
 addEventListener('resize', () => { seg(); periods(); });
 
@@ -888,7 +920,7 @@ function ledgerStats(st){
     `<div class="lsw">${tb('按方向', st['按方向'])}${tb('按市场', st['按市场'])}${tb('按周期', st['按周期'])}</div>` +
     (st['短板'] ? `<p class="lsn">短板：${esc(st['短板'])}。Stoa 在这类判断上会更谨慎，并在回答里说明。</p>` : '');
 }
-const SECS = [['general','通用'],['model','模型'],['memory','记忆'],['data','自选与行情'],['push','推送渠道'],['tasks','定时任务'],['tools','工具与接口'],['about','数据与关于']];
+const SECS = [['general','通用'],['model','模型'],['memory','记忆'],['data','自选与行情'],['push','推送渠道'],['tasks','定时与提醒'],['tools','工具与接口'],['about','数据与关于']];
 let S = null, dirty = {}, wl = null, scur = 'general';
 const setSt = (t, c='') => { const e = $('sst'); e.textContent = t; e.className = 'st ' + c; };
 function openSettings(sec){
@@ -945,8 +977,14 @@ const PANES = {
   tasks: () => {
     const rt = (dirty.REPORT_TIMES ?? S.env.REPORT_TIMES.value) || '', t = Object.fromEntries(rt.split(',').filter(s => s.includes('=')).map(s => s.split('=').map(x => x.trim())));
     const row = (k, n, d, def) => `<div class="fr"><span><b>${n}</b><small>${d}</small></span><span class="k"><input type="checkbox" class="tg" data-rt="${k}" ${t[k] ? 'checked' : ''}><input type="time" data-rtt="${k}" value="${t[k] || def}" style="max-width:130px"></span></div>`;
-    return `<h3>定时任务</h3><p class="lead">工作日按北京时间自动生成报告，并推到你开的渠道。Stoa 窗口开着才会运行。</p>` +
-      grp('Reports · 报告', row('morning', '早报', 'A股 / 港股盘前 + 美股隔夜', '08:30') + row('evening', '晚报', 'A股 / 港股收盘 + 美股盘前', '21:00'));
+    const pa = S.pa || {rules:[], events:[]}, KN = {above:'涨到', below:'跌到', up:'单日涨超 %', down:'单日跌超 %', announcement:'有新公告'};
+    const rules = pa.rules.map((r, i) => `<li><i>${roman(i+1)}</i><span><b>${esc(r.text)}</b><br><span class="muted">${r.active ? (r.kind === 'announcement' ? '每条新公告都提醒' : r.repeat ? '每天最多一次' : '触发一次后关闭') : '已触发 · ' + esc(r.fired || '')}${r.note ? ' · ' + esc(r.note) : ''}</span></span><button class="x" data-adel="${r.id}">删除</button></li>`).join('') || '<li><i>—</i><span class="muted">还没有。也可以直接对 Stoa 说「腾讯跌破 450 提醒我」。</span><span></span></li>';
+    const evs = pa.events.slice(0, 8).map(e => `<li><i>${esc(e.time.slice(5))}</i><span>${e.url ? `<a href="${esc(e.url)}" target="_blank" rel="noopener">${esc(e.title)}</a>` : esc(e.title)}</span><span></span></li>`).join('') || '<li><i>—</i><span class="muted">还没有触发过</span><span></span></li>';
+    return `<h3>定时与提醒</h3><p class="lead">工作日按北京时间自动生成报告；价格和公告提醒约每 5 分钟检查一次。都会推到你开的推送渠道，网页开着也会弹出。Stoa 窗口开着才会运行。</p>` +
+      grp('Reports · 报告', row('morning', '早报', 'A股 / 港股盘前 + 美股隔夜', '08:30') + row('evening', '晚报', 'A股 / 港股收盘 + 美股盘前', '21:00')) +
+      grp('Vigilia · 提醒', `<ul class="ml">${rules}</ul><div class="addrow"><input id="asym" placeholder="代码，如 0700.HK" style="flex:.6"><select id="akind">${Object.entries(KN).map(([k, t]) => `<option value="${k}">${t}</option>`).join('')}</select><input id="aval" placeholder="价格或百分比" style="flex:.5"><label class="muted" style="font-size:12px;white-space:nowrap"><input type="checkbox" id="arep"> 每天</label><button class="x" id="aadd">添加</button></div>` +
+        field('ALERT_INTERVAL') + field('ANN_WATCH')) +
+      grp('Acta · 最近触发', `<ul class="ml">${evs}</ul><button class="x" id="acheck">立即检查一次</button>`);
   },
   tools: () => {
     const code = (dirty.ALLOW_CODE ?? S.env.ALLOW_CODE.value) === '1', o = location.origin;
@@ -976,6 +1014,9 @@ function show(k){
   if ($('tcode')) $('tcode').onchange = e => { dirty.ALLOW_CODE = e.target.checked ? '1' : '0'; setSt('有未保存的修改'); };
   pane.querySelectorAll('[data-skv]').forEach(b => b.onclick = async () => { const pre = pane.querySelector(`[data-skb="${CSS.escape(b.dataset.skv)}"]`); if (!pre.hidden) { pre.hidden = true; return; } const j = await (await fetch('/api/skills/view', {method:'POST', headers:H, body:JSON.stringify({name:b.dataset.skv})})).json(); pre.textContent = j.content || j.error || ''; pre.hidden = false; });
   pane.querySelectorAll('[data-skd]').forEach(b => b.onclick = () => memReq('/api/skills/delete', {name:b.dataset.skd}));
+  const aReq = async (path, body) => { const j = await (await fetch(path, {method:'POST', headers:H, body:JSON.stringify(body)})).json(); setSt(j.msg || j.error || (j.events ? `检查完毕，新触发 ${j.events.length} 条` : ''), j.error ? '' : 'ok'); S.pa = await (await fetch('/api/alerts', {headers:H})).json(); show('tasks'); };
+  pane.querySelectorAll('[data-adel]').forEach(b => b.onclick = () => aReq('/api/alerts/delete', {id:b.dataset.adel}));
+  if ($('aadd')) { $('akind').onchange = () => { $('aval').disabled = $('akind').value === 'announcement'; }; $('aadd').onclick = () => { const sym = $('asym').value.trim(); if (sym) aReq('/api/alerts/add', {symbol:sym, kind:$('akind').value, value:$('aval').value.trim(), repeat:$('arep').checked}); }; $('acheck').onclick = () => { setSt('检查中…'); aReq('/api/alerts/check', {}); }; }
   const memReq = async (path, body) => { const j = await (await fetch(path, {method:'POST', headers:H, body:JSON.stringify(body)})).json(); setSt(j.msg || j.error || '', /已|added|成功/.test(j.msg || '') ? 'ok' : ''); const s = await (await fetch('/api/settings', {headers:H})).json(); S.memory = s.memory; show('memory'); loadMemory(); };
   pane.querySelectorAll('[data-del]').forEach(b => b.onclick = () => memReq('/api/memory/delete', {target:b.dataset.del, text:S.memory[b.dataset.del][+b.dataset.i]}));
   pane.querySelectorAll('[data-addb]').forEach(b => b.onclick = () => { const v = pane.querySelector(`[data-add=${b.dataset.addb}]`).value.trim(); if (v) memReq('/api/memory/add', {target:b.dataset.addb, text:v}); });

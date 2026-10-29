@@ -6,7 +6,7 @@ import uuid
 import requests
 import yaml
 
-from . import data, indicators, research, skills
+from . import alerts, data, indicators, research, skills
 from . import sandbox
 from .memory import Memory, config_path, now
 from .providers import Router
@@ -34,6 +34,10 @@ SYSTEM = """你是「Stoa」，用户的长期股市助手，覆盖 A股、港�
 技能（程序性记忆）：
 - 做完一件多步骤（用了 4 次以上工具）、以后还会再做的分析，用 skill_save 把做法写成步骤清单：用哪些工具、按什么顺序、看哪些指标、怎么下结论、踩过什么坑。不写具体数字。
 - 接到任务先看下面的技能索引，有对口的就先 skill_view 照着做；做的过程中发现更好的办法，就 skill_save 覆盖更新。
+
+提醒：
+- 用户说「跌破/涨到多少提醒我」「出公告告诉我」「大跌提醒」时，用 alert_set 设好，并说明触发后推到哪里（没开推送渠道就提醒用户去设置 → 推送渠道开一个；网页开着也会弹出）。
+- 自选股默认有新公告就提醒。
 
 判断账本：
 - 给方向性判断前，参考下面的账本统计；某类判断（方向/市场/周期）准确率偏低时，要更谨慎，并在回答里说明。
@@ -79,6 +83,13 @@ TOOLS = [
     {"name": "run_python", "description": "在隔离沙箱里运行一段 Python 做自定义分析（已装 pandas、yfinance、numpy）。用 print 输出结果；可以在当前目录读写文件，文件会保留。超时 60 秒。",
      "parameters": {"type": "object", "properties": {"code": {"type": "string"}}, "required": ["code"]}},
     {"name": "call_stats", "description": "判断账本统计：总体准确率，按方向、市场、周期拆开的准确率，最近 10 次对错，短板。", "parameters": {"type": "object", "properties": {}}},
+    {"name": "alert_set", "description": "设一个提醒，触发后推送到用户开的渠道。kind：above 涨到某价、below 跌到某价、up 单日涨超某百分比、down 单日跌超某百分比（填正数）、announcement 有新公告。默认触发一次就关，repeat=true 则每天最多提醒一次。",
+     "parameters": {"type": "object", "properties": {"symbol": {"type": "string"}, "name": {"type": "string"},
+                                                     "kind": {"type": "string", "enum": ["above", "below", "up", "down", "announcement"]},
+                                                     "value": {"type": "number"}, "repeat": {"type": "boolean"}, "note": {"type": "string", "description": "触发时附带的一句备注，如「到了考虑加仓」"}},
+                    "required": ["symbol", "kind"]}},
+    {"name": "alert_list", "description": "列出所有提醒规则和最近触发的提醒。", "parameters": {"type": "object", "properties": {}}},
+    {"name": "alert_delete", "description": "按 id 删除一个提醒。", "parameters": {"type": "object", "properties": {"id": {"type": "string"}}, "required": ["id"]}},
     {"name": "skill_view", "description": "读取一个技能的完整步骤。", "parameters": {"type": "object", "properties": {"name": {"type": "string"}}, "required": ["name"]}},
     {"name": "skill_save", "description": "新建或覆盖一个技能：name 用简短中文或英文，description 一句话说明什么时候用，content 写步骤清单（Markdown）。",
      "parameters": {"type": "object", "properties": {"name": {"type": "string"}, "description": {"type": "string"}, "content": {"type": "string"}},
@@ -212,6 +223,13 @@ class Agent:
             return f"已记账 #{cid}：{args['view']}，基准价 {q['close']}，{args['horizon_days']} 天后复盘。"
         if name == "call_stats":
             return m.call_stats()
+        if name == "alert_set":
+            return alerts.add(args["symbol"], args["kind"], args.get("value"), args.get("name", ""), args.get("repeat", False), args.get("note", ""))
+        if name == "alert_list":
+            d = alerts.listing()
+            return {"rules": [{k: r[k] for k in ("id", "text", "active", "repeat", "fired", "note")} for r in d["rules"]], "recent": d["events"][:10]}
+        if name == "alert_delete":
+            return alerts.remove(args["id"])
         if name == "run_python":
             return sandbox.run_python(args["code"])
         return f"未知工具 {name}"

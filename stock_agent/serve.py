@@ -14,7 +14,7 @@ from pathlib import Path
 
 import requests
 
-from . import notify, settings, skills
+from . import alerts, notify, settings, skills
 from .agent import Agent, load_cfg
 from .memory import Memory, home
 
@@ -169,6 +169,8 @@ class Web(BaseHTTPRequestHandler):
             return self._send(200, {"ok": True})
         if not self._auth():
             return self._send(401, {"error": "token"})
+        if self.path.split("?")[0] == "/api/alerts":
+            return self._send(200, alerts.listing())
         if self.path == "/api/memory":
             return self._send(200, {"user": MEM.entries("user"), "memory": MEM.entries("memory"),
                                     "usage": {"user": MEM.usage("user"), "memory": MEM.usage("memory")},
@@ -207,7 +209,7 @@ class Web(BaseHTTPRequestHandler):
             body = self._body()
             reply = chat("web:" + str(body.get("session", "default"))[:40], str(body.get("text", ""))[:4000])
             return self._send(200, {"reply": reply})
-        if path.startswith("/api/settings") or path in ("/api/memory/delete", "/api/memory/add", "/api/skills/delete", "/api/skills/view"):
+        if path.startswith("/api/settings") or path in ("/api/memory/delete", "/api/memory/add", "/api/skills/delete", "/api/skills/view", "/api/alerts/add", "/api/alerts/delete", "/api/alerts/check"):
             if not self._local_ok():
                 return self._send(403, {"error": "设置页只能在本机打开，或先设 WEB_TOKEN"})
             body = self._body()
@@ -217,6 +219,13 @@ class Web(BaseHTTPRequestHandler):
                 return self._send(200, out)
             if path == "/api/settings/test":
                 return self._send(200, settings.test_push() if body.get("what") == "push" else settings.test_llm())
+            if path == "/api/alerts/add":
+                return self._send(200, alerts.add(str(body.get("symbol", "")), str(body.get("kind", "")), body.get("value"),
+                                                  str(body.get("name", "")), bool(body.get("repeat")), str(body.get("note", ""))))
+            if path == "/api/alerts/delete":
+                return self._send(200, {"msg": alerts.remove(str(body.get("id", "")))})
+            if path == "/api/alerts/check":
+                return self._send(200, {"events": alerts.check()})
             if path == "/api/skills/delete":
                 return self._send(200, {"msg": skills.delete(str(body.get("name", "")))})
             if path == "/api/skills/view":
@@ -330,7 +339,7 @@ def scheduler():
 def main():
     settings.load_env_file()
     port, host = int(os.getenv("PORT", "8080")), os.getenv("HOST", "0.0.0.0")
-    for fn in (reaper, telegram, scheduler):
+    for fn in (reaper, telegram, scheduler, lambda: alerts.loop(log)):
         threading.Thread(target=fn, daemon=True).start()
     log(f"Stoa 已启动：http://{host}:{port}  数据目录 {home()}")
     from .data import provider_order
