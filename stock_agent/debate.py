@@ -568,7 +568,7 @@ class Debate:
         try:
             j = parse_json(self.ask(key, sys, user))
             out = {"stance": norm_view(j.get("stance")), "confidence": clamp_conf(j.get("confidence")),
-                   "summary": str(j.get("summary", ""))[:200], "evidence": [str(x)[:160] for x in (j.get("evidence") or [])][:4]}
+                   "summary": str(j.get("summary", ""))[:200], "evidence": [str(x)[:160] for x in (j.get("evidence") or [])][:5]}
             status, err = "ok", None
         except Exception as e:  # 降级：用规则摘要代替
             out, status, err = RULES[key](data), "degraded", f"{type(e).__name__}: {str(e)[:100]}"

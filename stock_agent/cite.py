@@ -229,9 +229,10 @@ class Sources:
         for s, sid in pairs:  # 原值、小数↔百分数；多个来源都对得上时，取最接近的、再按 工具 > 辩论 > 记忆 > 提问
             for cand in (s, s * 100 if abs(s) < 5 else None):
                 if cand is not None and close(cand):
-                    direct.append((abs(av - abs(cand)) > 1e-9, rank.get((self.get(sid) or {}).get("kind"), 4), sid))
+                    it = self.get(sid) or {}
+                    direct.append((abs(av - abs(cand)) > 1e-9, rank.get(it.get("kind"), 4), it.get("tool") != "get_quotes", sid))
         if direct:
-            return [min(direct)[2]]
+            return [min(direct)[-1]]
         uniq = {}
         for s, sid in pairs:
             uniq.setdefault(s, sid)
