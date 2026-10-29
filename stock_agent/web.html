@@ -298,6 +298,15 @@
   .fr .k em{font:italic 13px var(--serif);color:var(--mute);white-space:nowrap}
   .x{border:1px solid var(--rule-2);background:transparent;font:500 9px var(--sans);letter-spacing:.16em;padding:5px 8px;cursor:pointer;color:var(--ink);text-transform:uppercase;white-space:nowrap}
   .x:hover{border-color:var(--ink)}
+  .fr textarea,textarea.mono{width:100%;box-sizing:border-box;border:1px solid var(--rule-2);background:rgba(255,255,255,.35);font:12.5px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--ink);padding:6px 8px;outline:0;resize:vertical}
+  .fr textarea:focus,textarea.mono:focus{border-color:var(--ink)}
+  .mlist .ms{display:flex;justify-content:space-between;gap:14px;align-items:flex-start;padding:12px 0}
+  .ms>div{min-width:0;flex:1}.ms b{font:500 14px var(--serif)}.mlist .ms small{display:block;margin-top:5px;font:11.5px/1.45 var(--sans);color:var(--mute)}.mlist .ms small.ep{display:block;width:fit-content;font:11px ui-monospace,Menlo,monospace;color:var(--ink);max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .mlist .x{opacity:1!important}.mlist .ms .k{flex-shrink:0;gap:6px}.mlist .ms small span{font:inherit}
+  .ms .ok{color:var(--olive)}.ms .bad{color:var(--terracotta)}
+  .mk{font:500 8.5px var(--sans);letter-spacing:.16em;border:1px solid var(--rule-2);padding:1px 5px;margin-left:8px;text-transform:uppercase;vertical-align:2px}
+  .mt{margin-top:6px}.mt summary{cursor:pointer;font:500 9px var(--sans);letter-spacing:.16em;color:var(--mute);text-transform:uppercase}
+  .mt label{display:grid;grid-template-columns:18px 1fr;gap:0 6px;padding:5px 0;border-bottom:1px dotted var(--rule)}.mt label b{font:12.5px ui-monospace,Menlo,monospace}.mt label small{grid-column:2;margin:0}
   .x.dark{background:var(--ink);color:var(--chalk);border-color:var(--ink)}
   .tg{appearance:none;width:36px;height:18px;border:1px solid var(--ink);border-radius:999px;position:relative;cursor:pointer;margin:0;background:transparent;transition:background .25s}
   .tg::after{content:"";position:absolute;left:2px;top:2px;width:12px;height:12px;border-radius:50%;background:var(--ink);transition:transform .3s var(--spring),background .25s}
@@ -981,7 +990,7 @@ function ledgerStats(st){
     `<div class="lsw">${tb('按方向', st['按方向'])}${tb('按市场', st['按市场'])}${tb('按周期', st['按周期'])}</div>` +
     (st['短板'] ? `<p class="lsn">短板：${esc(st['短板'])}。Stoa 在这类判断上会更谨慎，并在回答里说明。</p>` : '');
 }
-const SECS = [['general','通用'],['model','模型'],['memory','记忆'],['data','自选与行情'],['push','推送渠道'],['tasks','定时与提醒'],['tools','工具与接口'],['about','数据与关于']];
+const SECS = [['general','通用'],['model','模型'],['memory','记忆'],['data','自选与行情'],['push','推送渠道'],['tasks','定时与提醒'],['tools','工具与接口'],['mcp','MCP 服务器'],['about','数据与关于']];
 let S = null, dirty = {}, wl = null, scur = 'general';
 const setSt = (t, c='') => { const e = $('sst'); e.textContent = t; e.className = 'st ' + c; };
 function openSettings(sec){
@@ -998,6 +1007,36 @@ function field(k){
   const ph = f.secret ? (f.set ? f.value + ' · 已设置，留空不改' : '未设置') : (f.hint || '');
   const clr = f.secret && f.set ? `<button class="x" data-clr="${k}">清除</button>` : '';
   return `<label class="fr"><span><b>${esc(f.label)}</b>${f.hint && !f.secret ? '' : `<small>${esc(f.hint)}</small>`}</span><span class="k"><input type="${f.secret ? 'password' : 'text'}" data-env="${k}" value="${esc(v)}" placeholder="${esc(ph)}" autocomplete="off" spellcheck="false">${clr}</span></label>`;
+}
+/* ---------- MCP 服务器管理 ---------- */
+let MCPE = {kind: 'stdio'};
+async function loadMcp(msg, ok){ S.mcp = await (await fetch('/api/mcp', {headers:H})).json(); if (scur === 'mcp') show('mcp'); if (msg) setSt(msg, ok ? 'ok' : 'bad'); }
+async function mcpReq(act, body, busyMsg){ if (busyMsg) setSt(busyMsg); const j = await (await fetch('/api/mcp/' + act, {method:'POST', headers:H, body:JSON.stringify(body)})).json(); await loadMcp(j.msg || j.error || '', !j.error && j.ok !== false); return j; }
+function bindMcp(pane){
+  if (!S.mcp) { loadMcp(); return; }
+  const lines = id => ($(id)?.value || '').split('\n').map(x => x.trim()).filter(Boolean);
+  const kvs = (id, sep) => Object.fromEntries(lines(id).map(l => { const i = l.indexOf(sep); return i > 0 ? [l.slice(0, i).trim(), l.slice(i + 1).trim()] : null; }).filter(Boolean));
+  const keep = () => { MCPE = {...MCPE, name: $('mname').value, url: $('murl')?.value ?? MCPE.url, command: $('mcmd')?.value ?? MCPE.command, args: $('margs') ? lines('margs') : MCPE.args, env: $('menv') ? kvs('menv', '=') : MCPE.env, headers: $('mhdr') ? kvs('mhdr', ':') : MCPE.headers}; };
+  $('mkind').querySelectorAll('button').forEach(b => b.onclick = () => { keep(); MCPE.kind = b.dataset.v; show('mcp'); });
+  $('msave').onclick = async () => {
+    keep(); const name = MCPE.name.trim(), old = MCPE.old;
+    const orig = old ? (S.mcp.servers.find(v => v.name === old) || {}).config || {} : {};
+    const keepKeys = Object.fromEntries(Object.entries(orig).filter(([k2]) => ['disabled', 'disabledTools', 'cwd', 'transport', 'type'].includes(k2)));
+    const config = MCPE.kind === 'remote' ? {...keepKeys, url: (MCPE.url || '').trim(), headers: MCPE.headers} : {...keepKeys, command: (MCPE.command || '').trim(), args: MCPE.args, env: MCPE.env};
+    const j = await mcpReq('save', {name, config, old_name: old}, '保存中…');
+    if (!j.error) { MCPE = {kind: MCPE.kind}; show('mcp'); mcpReq('test', {name}, `正在连接 ${name}…`); }
+  };
+  if ($('mcancel')) $('mcancel').onclick = () => { MCPE = {kind: 'stdio'}; show('mcp'); };
+  $('mimp').onclick = () => { const t = $('mjson').value.trim(); if (t) mcpReq('import', {json: t}); };
+  pane.querySelectorAll('[data-mtest]').forEach(b => b.onclick = () => mcpReq('test', {name: b.dataset.mtest}, `正在连接 ${b.dataset.mtest}…`));
+  pane.querySelectorAll('[data-mdel]').forEach(b => b.onclick = () => { if (confirm(`删除 MCP 服务器「${b.dataset.mdel}」？`)) mcpReq('delete', {name: b.dataset.mdel}); });
+  pane.querySelectorAll('[data-mon]').forEach(b => b.onchange = () => mcpReq('toggle', {name: b.dataset.mon, enabled: b.checked}));
+  pane.querySelectorAll('[data-mtool]').forEach(b => b.onchange = () => mcpReq('toggle', {name: b.dataset.mtool, tool: b.dataset.t, enabled: b.checked}));
+  pane.querySelectorAll('[data-medit]').forEach(b => b.onclick = () => {
+    const v = S.mcp.servers.find(x => x.name === b.dataset.medit), c = v.config;
+    MCPE = {old: v.name, name: v.name, kind: c.url ? 'remote' : 'stdio', url: c.url, headers: c.headers, command: c.command, args: c.args, env: c.env};
+    show('mcp'); $('pane').querySelector('#mname').scrollIntoView({block: 'center'});
+  });
 }
 function grp(title, inner){ return `<div class="grp"><span class="label">${title}</span>${inner}</div>`; }
 function sseg(name, opts){ return `<span class="seg2" data-pref="${name}">${opts.map(([v,t]) => `<button type="button" data-v="${v}" class="${PREF[name]===v?'on':''}">${t}</button>`).join('')}</span>`; }
@@ -1057,6 +1096,30 @@ const PANES = {
       <div class="fr"><span><b>MCP</b><small>Claude、Cursor、Hermes 可直接调用 Stoa 的工具</small></span><span class="k"><span class="ep">${o}/mcp</span><button class="x" data-copy="${o}/mcp">复制</button></span></div>`) +
     grp('Access · 访问', field('WEB_TOKEN') + field('CORS_ORIGIN'));
   },
+  mcp: () => {
+    if (!S.mcp) return `<h3>MCP 服务器</h3><p class="lead">读取中…</p>`;
+    const KT = {stdio:'本地命令', http:'远程', sse:'远程 · SSE'}, e = MCPE;
+    const rows = S.mcp.servers.map(v => {
+      const c = v.config, st = !v.enabled ? '<span class="muted">已停用</span>' : v.connected ? `<span class="ok">● 已连接 · ${v.tools.length} 个工具</span>` : v.error ? `<span class="bad">● ${esc(v.error)}</span>` : '<span class="muted">○ 下次提问时连接</span>';
+      const tools = v.tools.length ? `<details class="mt"><summary>${v.tools.length} 个工具</summary>${v.tools.map(t => `<label><input type="checkbox" data-mtool="${esc(v.name)}" data-t="${esc(t.name)}" ${t.enabled ? 'checked' : ''}><b>${esc(t.name)}</b><small>${esc(t.description)}</small></label>`).join('')}</details>` : '';
+      return `<li class="ms"><div><b>${esc(v.name)}</b><span class="mk">${KT[v.kind]}</span>${v.server && v.server.name ? `<span class="mk">${esc(v.server.name)} ${esc(v.server.version || '')}</span>` : ''}<small class="ep">${esc(c.url || [c.command, ...(c.args || [])].join(' '))}</small><small>${st}</small>${tools}</div>
+        <span class="k"><input type="checkbox" class="tg" data-mon="${esc(v.name)}" ${v.enabled ? 'checked' : ''} title="启用"><button class="x" data-mtest="${esc(v.name)}">测试</button><button class="x" data-medit="${esc(v.name)}">编辑</button><button class="x" data-mdel="${esc(v.name)}">删除</button></span></li>`;
+    }).join('') || '<li class="muted">还没有接入服务器。</li>';
+    const kv = (o, sep) => Object.entries(o || {}).map(([k, x]) => k + sep + x).join('\n');
+    const remote = e.kind === 'remote';
+    return `<h3>MCP 服务器</h3><p class="lead">接入别人做好的 MCP 服务器，它们的工具 Stoa 提问时就能直接用。配置格式和 Claude Desktop、Cursor 通用。</p>` +
+      grp('Servers · 已接入', `<ul class="ml mlist">${rows}</ul>`) +
+      grp(e.old ? `Edit · 编辑 ${esc(e.old)}` : 'Add · 添加', `<div class="fr"><span><b>名字</b><small>字母、数字、_ - .</small></span><input type="text" id="mname" value="${esc(e.name || '')}" placeholder="如 fetch"></div>
+        <div class="fr"><span><b>类型</b></span><span><span class="seg2" id="mkind"><button type="button" data-v="stdio" class="${remote ? '' : 'on'}">本地命令</button><button type="button" data-v="remote" class="${remote ? 'on' : ''}">远程 URL</button></span></span></div>
+        ${remote ? `<div class="fr"><span><b>URL</b><small>以 /sse 结尾会用旧版 SSE</small></span><input type="text" id="murl" value="${esc(e.url || '')}" placeholder="https://example.com/mcp"></div>
+        <div class="fr"><span><b>请求头</b><small>每行一个，Key: Value；可写 \${变量名}</small></span><textarea id="mhdr" rows="2" placeholder="Authorization: Bearer \${MY_KEY}">${esc(kv(e.headers, ': '))}</textarea></div>`
+        : `<div class="fr"><span><b>命令</b><small>npx 要装 Node.js，uvx 要装 uv</small></span><input type="text" id="mcmd" value="${esc(e.command || '')}" placeholder="uvx"></div>
+        <div class="fr"><span><b>参数</b><small>每行一个</small></span><textarea id="margs" rows="2" placeholder="mcp-server-fetch">${esc((e.args || []).join('\n'))}</textarea></div>
+        <div class="fr"><span><b>环境变量</b><small>每行一个，KEY=值</small></span><textarea id="menv" rows="2" placeholder="API_KEY=...">${esc(kv(e.env, '='))}</textarea></div>`}
+        <div class="addrow" style="justify-content:flex-end">${e.old ? '<button class="x" id="mcancel">取消编辑</button>' : ''}<button class="x dark" id="msave">${e.old ? '保存修改' : '添加并连接'}</button></div>`) +
+      grp('Import · 粘贴配置', `<textarea id="mjson" rows="5" class="mono" placeholder='{"mcpServers": {"fetch": {"command": "uvx", "args": ["mcp-server-fetch"]}}}'></textarea><div class="addrow" style="justify-content:space-between"><small class="muted">从 Claude Desktop、Cursor、Cline 的配置里整段复制过来</small><button class="x" id="mimp">导入</button></div>`) +
+      grp('File · 配置文件', `<div class="fr"><span><b>mcp.json</b><small>也可以直接改这个文件，下次提问时生效</small></span><span class="k"><span class="ep">${esc(S.mcp.path)}</span><button class="x" data-copy="${esc(S.mcp.path)}">复制</button></span></div>`);
+  },
   about: () => `<h3>数据与关于</h3><p class="lead">所有数据都在你自己的电脑上，Stoa 不上传任何东西。</p>` +
     grp('Data · 数据', `<div class="fr"><span><b>数据目录</b><small>记忆、账本、配置、密钥</small></span><span class="k"><span class="ep">${esc(S.home)}</span><button class="x" data-copy="${esc(S.home)}">复制</button></span></div>
       <div class="fr"><span><b>导出备份</b><small>记忆、判断账本、自选股和报告，不含密钥</small></span><span><button class="x" id="exp">导出 .zip</button></span></div>`) +
@@ -1077,6 +1140,7 @@ function show(k){
   pane.querySelectorAll('[data-skv]').forEach(b => b.onclick = async () => { const pre = pane.querySelector(`[data-skb="${CSS.escape(b.dataset.skv)}"]`); if (!pre.hidden) { pre.hidden = true; return; } const j = await (await fetch('/api/skills/view', {method:'POST', headers:H, body:JSON.stringify({name:b.dataset.skv})})).json(); pre.textContent = j.content || j.error || ''; pre.hidden = false; });
   pane.querySelectorAll('[data-skd]').forEach(b => b.onclick = () => memReq('/api/skills/delete', {name:b.dataset.skd}));
   if ($('upchk')) $('upchk').onclick = () => checkUpdate(true);
+  if (k === 'mcp') bindMcp(pane);
   const aReq = async (path, body) => { const j = await (await fetch(path, {method:'POST', headers:H, body:JSON.stringify(body)})).json(); setSt(j.msg || j.error || (j.events ? `检查完毕，新触发 ${j.events.length} 条` : ''), j.error ? '' : 'ok'); S.pa = await (await fetch('/api/alerts', {headers:H})).json(); show('tasks'); };
   pane.querySelectorAll('[data-adel]').forEach(b => b.onclick = () => aReq('/api/alerts/delete', {id:b.dataset.adel}));
   if ($('aadd')) { $('akind').onchange = () => { $('aval').disabled = $('akind').value === 'announcement'; }; $('aadd').onclick = () => { const sym = $('asym').value.trim(); if (sym) aReq('/api/alerts/add', {symbol:sym, kind:$('akind').value, value:$('aval').value.trim(), repeat:$('arep').checked}); }; $('acheck').onclick = () => { setSt('检查中…'); aReq('/api/alerts/check', {}); }; }

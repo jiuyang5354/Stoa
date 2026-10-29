@@ -172,6 +172,11 @@ class Web(BaseHTTPRequestHandler):
             return self._send(200, {"ok": True})
         if not self._auth():
             return self._send(401, {"error": "token"})
+        if self.path == "/api/mcp":
+            if not self._local_ok():
+                return self._send(403, {"error": "forbidden"})
+            from .mcpclient import MCP, path as mcp_path
+            return self._send(200, {"servers": MCP.status(), "path": str(mcp_path())})
         if self.path.split("?")[0] == "/api/sessions":
             from urllib.parse import parse_qs, urlparse
             q = parse_qs(urlparse(self.path).query).get("q", [""])[0][:100]
@@ -222,7 +227,7 @@ class Web(BaseHTTPRequestHandler):
             sid = re.sub(r"[^A-Za-z0-9_-]", "", str(body.get("session", "default")))[:40] or "default"
             reply = chat("web:" + sid, str(body.get("text", ""))[:4000])
             return self._send(200, {"reply": reply})
-        if path.startswith("/api/settings") or path in ("/api/memory/delete", "/api/memory/add", "/api/skills/delete", "/api/skills/view", "/api/alerts/add", "/api/alerts/delete", "/api/alerts/check", "/api/update/apply", "/api/sessions/delete", "/api/sessions/rename"):
+        if path.startswith("/api/settings") or path in ("/api/memory/delete", "/api/memory/add", "/api/skills/delete", "/api/skills/view", "/api/alerts/add", "/api/alerts/delete", "/api/alerts/check", "/api/update/apply", "/api/sessions/delete", "/api/sessions/rename") or path.startswith("/api/mcp/"):
             if not self._local_ok():
                 return self._send(403, {"error": "设置页只能在本机打开，或先设 WEB_TOKEN"})
             body = self._body()
@@ -232,6 +237,20 @@ class Web(BaseHTTPRequestHandler):
                 return self._send(200, out)
             if path == "/api/settings/test":
                 return self._send(200, settings.test_push() if body.get("what") == "push" else settings.test_llm())
+            if path.startswith("/api/mcp/"):
+                from . import mcpclient as mc
+                act, name = path.rsplit("/", 1)[-1], str(body.get("name", ""))
+                if act == "save":
+                    return self._send(200, mc.upsert(name, body.get("config") or {}, body.get("old_name")))
+                if act == "delete":
+                    return self._send(200, mc.remove(name))
+                if act == "toggle":
+                    return self._send(200, mc.set_enabled(name, bool(body.get("enabled")), body.get("tool")))
+                if act == "import":
+                    return self._send(200, mc.import_json(str(body.get("json", ""))))
+                if act == "test":
+                    return self._send(200, mc.MCP.test(name))
+                return self._send(404, {"error": "not found"})
             if path in ("/api/sessions/delete", "/api/sessions/rename"):
                 sid = re.sub(r"[^A-Za-z0-9_-]", "", str(body.get("id", "")))[:40]
                 if not sid:

@@ -141,7 +141,7 @@ class Agent:
         cfg = load_cfg().get("llm", {})
         self.llm = Router(cfg)
         self.session = session or (f"{channel}-" + now().replace(" ", "_") + "-" + uuid.uuid4().hex[:4])
-        self.tools = [t for t in TOOLS if t["name"] != "run_python" or sandbox.enabled()]
+        self.refresh_tools()
         self.turns = 0
         self.messages = [{"role": "system", "content": self._system()}]
         if session:  # 接着聊旧对话：把这段对话最近的问答放回上下文
@@ -150,6 +150,16 @@ class Agent:
                 past.pop(0)
             self.messages += [{"role": h["role"], "content": h["text"][:4000]} for h in past]
             self.turns = sum(h["role"] == "user" for h in past)
+
+    def refresh_tools(self):
+        """内置工具 + 用户在 mcp.json 里接的外部 MCP 服务器的工具；每轮提问前刷新，设置页改了立刻生效。"""
+        self.tools = [t for t in TOOLS if t["name"] != "run_python" or sandbox.enabled()]
+        try:
+            from .mcpclient import MCP
+            names = {t["name"] for t in self.tools}
+            self.tools += [t for t in MCP.tools() if t["name"] not in names]
+        except Exception:
+            pass
 
     def review_due(self) -> list[str]:
         return review_due(self.mem)
@@ -168,6 +178,9 @@ class Agent:
     # ----- 工具 -----
     def run_tool(self, name: str, args: dict):
         m = self.mem
+        if name.startswith("mcp__"):
+            from .mcpclient import MCP
+            return MCP.call(name, args)
         if name == "get_quotes":
             return quotes(args["symbols"])
         if name == "market_overview":
@@ -266,6 +279,8 @@ class Agent:
         return self.llm.chat(messages, self.tools)
 
     def ask(self, text: str, on_tool=None) -> str:
+        if self.turns:
+            self.refresh_tools()
         self.turns += 1
         self.mem.log(self.session, "user", text)
         content = text
