@@ -678,6 +678,8 @@ def run(llm_kind="auto", only=None, use_judge=False, save=True) -> dict:
         cases = [c for c in cases if c["category"] == only or c["id"].startswith(only)]
     llm_name = repr(pick_llm(llm_kind))
     t0 = time.time()
+    from ..providers import usage_since
+    u0 = usage_since()
     results = [run_case(c, fx, llm_kind, real_home) for c in cases]
     if use_judge:
         from ..providers import Router
@@ -688,7 +690,7 @@ def run(llm_kind="auto", only=None, use_judge=False, save=True) -> dict:
     s = summarize(results)
     rid = f"{datetime.now(CN_TZ):%Y%m%d-%H%M%S}-{'mock' if llm_name == 'mock' else 'llm'}"
     out = {"id": rid, "created": datetime.now(CN_TZ).strftime("%Y-%m-%d %H:%M"), "version": __version__, "llm": llm_name,
-           "only": only, "summary": s, "seconds": round(time.time() - t0, 1), "results": results}
+           "only": only, "summary": s, "seconds": round(time.time() - t0, 1), "usage": usage_since(u0), "results": results}
     if save:
         d = evals_dir()
         prev = history()
@@ -732,6 +734,9 @@ def print_report(out: dict, verbose: bool = False):
                 print(f"     - {c['check']}：{c['note']}")
             if verbose:
                 print("     " + r["answer"].replace("\n", "\n     ")[:600])
+    u = out.get("usage") or {}
+    if u.get("calls") or u.get("errors"):
+        print(f"\n模型调用 {u['calls']} 次（出错 {u['errors']}）· token 输入 {u['prompt_tokens']} / 输出 {u['completion_tokens']}")
     print(f"\n结果：{evals_dir() / (out['id'] + '.json')}")
 
 

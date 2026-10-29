@@ -457,6 +457,8 @@ def run(symbols=None, start=None, end=None, step=5, horizons=(5, 20), agent="bas
     start = pd.Timestamp(start) if start else end - pd.Timedelta(days=365)
     symbols = symbols or DEFAULT_SYMBOLS
     t0 = time.time()
+    from .providers import usage_since
+    u0 = usage_since()
     run_id = run_id or f"{datetime.now(CN_TZ):%Y%m%d-%H%M%S}-{agent}"
     if progress:
         progress("fetching")
@@ -503,6 +505,7 @@ def run(symbols=None, start=None, end=None, step=5, horizons=(5, 20), agent="bas
                       "missing": [s for s in symbols if s not in pit.symbols]},
            "results": results, "predictions": preds_main,
            "llm": llm_agent.summary() if llm_agent else None, "seconds": round(time.time() - t0, 1),
+           "usage": usage_since(u0) if llm_agent else None,
            "headline": headline(results, horizons)}
     if save:
         d = bt_dir()
@@ -638,6 +641,8 @@ def print_report(res: dict):
         print("  校准（置信度 → 方向胜率）：" + "  ".join(f"{c['bucket']}:{_f(c['hit%'])}({c['n']})" for c in cal))
     if res.get("llm"):
         print("\nLLM：", json.dumps(res["llm"], ensure_ascii=False))
+    if res.get("usage"):
+        print("接口用量：", json.dumps(res["usage"], ensure_ascii=False))
     print(f"\n结果：{bt_dir() / (res['id'] + '.json')}" + (f"  图：{bt_dir() / res['chart']}" if res.get("chart") else "  （未装 matplotlib，没有出图）"))
 
 

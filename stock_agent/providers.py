@@ -10,9 +10,37 @@
 """
 import json
 import os
+import threading
 import uuid
 
 import requests
+
+# 真实用量（接口返回的 usage）：回测/评测用它报 token，没有 usage 的接口记 calls_no_usage
+USAGE = {"calls": 0, "prompt_tokens": 0, "completion_tokens": 0, "calls_no_usage": 0, "errors": 0}
+_USAGE_LOCK = threading.Lock()
+
+
+def record_usage(u: dict | None = None, error: bool = False):
+    with _USAGE_LOCK:
+        if error:
+            USAGE["errors"] += 1
+            return
+        USAGE["calls"] += 1
+        if not u:
+            USAGE["calls_no_usage"] += 1
+            return
+        USAGE["prompt_tokens"] += int(u.get("prompt_tokens") or u.get("input_tokens") or u.get("promptTokenCount") or 0)
+        USAGE["completion_tokens"] += int(u.get("completion_tokens") or u.get("output_tokens") or u.get("candidatesTokenCount") or 0)
+
+
+def usage_since(base: dict | None = None) -> dict:
+    """当前累计用量（给了 base 就返回差值）。"""
+    with _USAGE_LOCK:
+        cur = dict(USAGE)
+    if base:
+        cur = {k: cur[k] - base.get(k, 0) for k in cur}
+    cur["total_tokens"] = cur["prompt_tokens"] + cur["completion_tokens"]
+    return cur
 
 # name: (协议, 默认地址, 默认模型, 密钥变量名)
 PRESETS = {
@@ -103,7 +131,11 @@ class LLM:
 
     def chat(self, messages: list[dict], tools: list[dict] | None = None, temperature: float = 0.3, timeout: int = 120) -> dict:
         fn = {"openai": self._openai, "azure": self._openai, "anthropic": self._anthropic, "gemini": self._gemini}[self.proto]
-        return fn(messages, tools or [], temperature, timeout)
+        try:
+            return fn(messages, tools or [], temperature, timeout)
+        except Exception:
+            record_usage(error=True)
+            raise
 
     # ---- OpenAI / Azure ----
     def _openai(self, messages, tools, temperature, timeout):
@@ -117,7 +149,9 @@ class LLM:
             url, headers = f"{self.base}/chat/completions", {"Authorization": f"Bearer {self.key}"}
         r = requests.post(url, headers=headers, json=body, timeout=timeout)
         r.raise_for_status()
-        msg = r.json()["choices"][0]["message"]
+        j = r.json()
+        record_usage(j.get("usage"))
+        msg = j["choices"][0]["message"]
         return {"role": "assistant", "content": msg.get("content"), "tool_calls": msg.get("tool_calls") or None}
 
     # ---- Anthropic Messages API ----
@@ -149,6 +183,7 @@ class LLM:
                           headers={"x-api-key": self.key, "anthropic-version": "2023-06-01"})
         r.raise_for_status()
         text, calls = [], []
+        record_usage(r.json().get("usage"))
         for b in r.json().get("content", []):
             if b["type"] == "text":
                 text.append(b["text"])
@@ -191,6 +226,7 @@ class LLM:
         r = requests.post(f"{self.base}/models/{self.model}:generateContent", json=body, timeout=timeout,
                           headers={"x-goog-api-key": self.key})
         r.raise_for_status()
+        record_usage(r.json().get("usageMetadata"))
         parts = ((r.json().get("candidates") or [{}])[0].get("content") or {}).get("parts") or []
         text = "".join(p.get("text", "") for p in parts)
         calls = [{"id": "call_" + uuid.uuid4().hex[:12], "type": "function",
