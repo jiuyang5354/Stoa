@@ -26,7 +26,7 @@ MEM = Memory()
 SESSIONS: dict[str, dict] = {}  # channel -> {"agent": Agent, "last": ts}
 UI = (Path(__file__).parent / "web.html").read_text(encoding="utf-8")
 ASSETS = Path(__file__).parent / "assets"
-ASSET_TYPES = {"bust.glb": "model/gltf-binary", "ruins.jpg": "image/jpeg", "laurel.png": "image/png", "archeologicaps.woff2": "font/woff2",
+ASSET_TYPES = {"bust.glb": "model/gltf-binary", "archeologicaps.woff2": "font/woff2",
                **{f: "font/woff2" for f in ("optimus-princeps.woff2", "optimus-princeps-semibold.woff2", "libertine-regular.woff2",
                                             "libertine-bold.woff2", "libertine-italic.woff2", "alte-haas-grotesk.woff2", "alte-haas-grotesk-bold.woff2")},
                "travertine009_color.jpg": "image/jpeg", "travertine009_normal.jpg": "image/jpeg", "travertine009_roughness.jpg": "image/jpeg"}
