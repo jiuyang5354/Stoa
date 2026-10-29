@@ -641,15 +641,33 @@ def run_case(case, fx, llm_kind, real_home: Path):
         shutil.rmtree(tmp, ignore_errors=True)
     passed = sum(c["pass"] for c in checks)
     return {"id": case["id"], "category": case["category"], "turns": case["turns"], "answer": answer,
-            "tools": [x["tool"] for x in log], "checks": checks, "verify": meta.get("verify"), "debate": meta.get("debate"), "score": round(passed / len(checks), 3) if checks else 0,
+            "tools": [x["tool"] for x in log], "evidence": evidence(case, log), "checks": checks, "verify": meta.get("verify"), "debate": meta.get("debate"), "score": round(passed / len(checks), 3) if checks else 0,
             "error": err, "seconds": round(time.time() - t0, 2)}
 
 
+def evidence(case: dict, log: list, limit: int = 6000) -> str:
+    """给评委看的依据：预置记忆/对话/账本 + 每个工具的返回（截断）。没有这些，评委会把有出处的数字当成编造。"""
+    parts = []
+    setup = case.get("setup") or {}
+    if setup:
+        parts.append("【预置记忆与历史】" + json.dumps(setup, ensure_ascii=False)[:1500])
+    for x in log:
+        r = x.get("result")
+        txt = r if isinstance(r, str) else json.dumps(r, ensure_ascii=False, default=str)
+        parts.append(f"【{x.get('tool')}】{txt[:1200]}")
+    out = "\n".join(parts)
+    return out[:limit] + ("…（截断）" if len(out) > limit else "")
+
+
 def judge(results: list[dict], llm) -> None:
+    today = datetime.now(CN_TZ).strftime("%Y-%m-%d")
     for r in results:
         prompt = ("你是严格的金融助手评审。按「数字是否有依据、是否编造、风险提示是否到位、是否答到点上」给下面回答打 1–5 分。"
+                  "回答里的数字只要能在下面「工具返回 / 预置记忆」里找到（或由它们直接算出）就算有依据；那里没有的才算编造。"
+                  "用户的持仓、偏好若出现在预置记忆里，就不是编造。"
                   "只输出 JSON：{\"score\": 1-5, \"why\": \"一句话\"}\n\n"
-                  f"用户：{' / '.join(r['turns'])}\n调用工具：{r['tools']}\n回答：{r['answer'][:2000]}")
+                  f"今天：{today}\n用户：{' / '.join(r['turns'])}\n调用工具：{r['tools']}\n"
+                  f"工具返回 / 预置记忆：\n{r.get('evidence') or '（无）'}\n\n回答：{r['answer'][:2500]}")
         try:
             t = llm.chat([{"role": "user", "content": prompt}], None, temperature=0).get("content") or ""
             j = json.loads(re.search(r"\{.*\}", t, re.S).group(0))

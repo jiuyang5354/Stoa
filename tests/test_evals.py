@@ -88,3 +88,19 @@ def test_contains_ignores_thousands_separator():
     case = {"checks": {"contains": ["1430", "2030"], "any": ["1354"]}}
     res = ev.score_case(case, "目标价 1,430—2,030 元，现价 1,354 元。", [], {"quotes": {}}, None, "")
     assert all(r["pass"] for r in res), res
+
+
+def test_judge_sees_tool_results_and_setup():
+    seen = []
+
+    class J:
+        def chat(self, msgs, tools=None, temperature=0):
+            seen.append(msgs[0]["content"])
+            return {"content": '{"score": 5, "why": "ok"}'}
+
+    case = {"setup": {"user": ["[2026-10-01] 持有腾讯 200 股"]}}
+    log = [{"tool": "get_quotes", "args": {}, "result": {"0700.HK": {"close": 512.4}}}]
+    r = {"turns": ["腾讯多少钱"], "tools": ["get_quotes"], "answer": "512.4 港元", "evidence": ev.evidence(case, log)}
+    ev.judge([r], J())
+    assert "512.4" in seen[0].split("回答：")[0] and "持有腾讯 200 股" in seen[0] and "今天：" in seen[0]
+    assert r["judge"]["score"] == 5
