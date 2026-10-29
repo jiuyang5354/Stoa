@@ -92,6 +92,32 @@ fixtures:
                   removed: [{page: 22, text: "三是食品安全风险。", url: "https://static.cninfo.com.cn/finalpage/2025-04-03/1222993920.PDF#page=22"}],
                   modified: [], warnings: []}
 
+  # ---- v0.17：财报事件（固定返回，数值为虚构的评测样本；日期都在过去，结果与运行日期无关） ----
+  earnings:
+    "0700.HK":
+      calendar: {source: "Yahoo Finance · Earnings", url: "https://finance.yahoo.com/calendar/earnings?symbol=0700.HK", as_of: "2026-10-29 21:00",
+                 events: [{date: "2026-08-12", period: "季度财报", eps_est: 7.24, eps_actual: 7.43, surprise_pct: 2.73, published: true},
+                          {date: "2026-05-13", period: "季度财报", eps_est: 7.23, eps_actual: 7.36, surprise_pct: 1.79, published: true}]}
+      quarterly: [{period: "2026-06-30", "Total Revenue": 204785000000, "Gross Profit": 118433000000, "Operating Income": 68236000000, "Net Income": 56022000000, "Diluted EPS": 6.104},
+                  {period: "2026-03-31", "Total Revenue": 196110000000, "Net Income": 54300000000, "Diluted EPS": 5.9},
+                  {period: "2025-12-31", "Total Revenue": 190300000000, "Net Income": 51200000000, "Diluted EPS": 5.6},
+                  {period: "2025-09-30", "Total Revenue": 189100000000, "Net Income": 53100000000, "Diluted EPS": 5.8},
+                  {period: "2025-06-30", "Total Revenue": 184504000000, "Gross Profit": 105014000000, "Operating Income": 64945000000, "Net Income": 55628000000, "Diluted EPS": 5.996}]
+      consensus: {symbol: "0700.HK", source: "Yahoo Finance", url: "https://finance.yahoo.com/quote/0700.HK/analysis", as_of: "2026-10-28",
+                  ratings: {强烈买入: 7, 买入: 32, 持有: 3, 卖出: 1}, target: {low: 430.81, mean: 653.23, high: 890.94}, price_now: 512.4, upside_pct: 27.5, warnings: []}
+      announcements: [{date: "2026-08-12", title: "截至二零二六年六月三十日止三个月及六个月业绩公布", url: "https://www.hkexnews.hk/0700-20260812"}]
+      news: [{time: "2026-08-13 09:10", title: "腾讯管理层：下半年广告业务展望乐观，维持资本开支指引", source: "东方财富", url: "https://finance.eastmoney.com/a/202608133301.html"}]
+    "600519.SS":
+      calendar: {source: "东方财富 · 业绩预约披露", url: "https://data.eastmoney.com/bbsj/yysj.html", as_of: "2026-10-29 21:00",
+                 events: [{date: "2026-10-25", period: "2026年三季报", published: true, name: "贵州茅台"}]}
+      financials: {symbol: "600519.SS", name: "贵州茅台", source: "东方财富 F10 + Yahoo Finance",
+                   main_indicators: [{报告期: "2026三季报", 营业总收入: "1205.31亿", 营收同比%: -3.5, 归母净利润: "598.12亿", 净利同比%: -8.2, 每股收益: 48.0, 毛利率%: 91.2},
+                                     {报告期: "2026中报", 每股收益: 35.57},
+                                     {报告期: "2025年报", 每股收益: 65.85},
+                                     {报告期: "2025三季报", 每股收益: 49.5}]}
+      announcements: [{date: "2026-10-25", title: "贵州茅台2026年第三季度报告", url: "https://data.eastmoney.com/notices/detail/600519/AN202610251.html"}]
+      news: []
+
 cases:
   # ---------------- 报价准确性 ----------------
   - {id: quote-01, category: 报价准确性, turns: ["腾讯现在多少钱？"], checks: {tool_called: get_quotes, quote: "0700.HK", grounded: true}}
@@ -169,3 +195,34 @@ cases:
   - {id: cmp-02, category: 年报对比, turns: ["茅台 2025 年报比 2024 年删掉了哪些风险表述？"], checks: {tool_called: compare_filings, contains: ["食品安全风险"], regex: "第 ?\\d+ ?页"}}
   - {id: conflict-01, category: 数据源冲突, turns: ["1810.HK 现在多少钱？"], checks: {tool_called: get_quotes, regex: "不一致|差异", contains: ["52.3", "49.8"], grounded: true}}
   - {id: conflict-02, category: 数据源冲突, turns: ["英伟达分析师目标价多少？"], checks: {tool_called: get_consensus, regex: "不一致|差异", contains: ["328.95", "263.4"], grounded: true}}
+
+  # ---------------- 语义记忆（v0.17：同义改写也要召回） ----------------
+  - {id: sem-01, category: 语义记忆, setup: {history: [{session: web-old1, role: user, text: "我决定腾讯跌破 455 港元就止损"}, {session: web-old1, role: assistant, text: "好的，记下了：腾讯止损线 455 港元。"},
+                                                     {session: web-old2, role: user, text: "茅台的市盈率现在多少？"}, {session: web-old2, role: assistant, text: "茅台市盈率 21.3 倍。"}]},
+     turns: ["我以前给腾讯定的离场价是多少来着？"], checks: {tool_called: [search_memory, session_search], contains: ["455"]}}
+  - {id: sem-02, category: 语义记忆, setup: {history: [{session: web-old3, role: user, text: "我不喜欢高估值的票，市盈率超过 40 倍的一概不考虑"}, {session: web-old4, role: user, text: "英伟达 RSI 超买了吗？"}]},
+     turns: ["我之前说过对太贵的股票是什么态度？"], checks: {tool_called: search_memory, contains: ["高估值"]}}
+  - {id: sem-03, category: 语义记忆, setup: {user: ["[2026-10-01] 持有腾讯 0700.HK 200 股，成本 380 港元", "[2026-10-02] 风险偏好稳健，单票不超过三成", "[2026-10-03] 主要关注半导体和新能源", "[2026-10-04] 不看早报，只看晚报"]},
+     turns: ["之前我那只港股互联网龙头是多少钱买进的？"], checks: {tool_called: search_memory, contains: ["380"]}}
+  - {id: sem-04, category: 语义记忆, setup: {calls: [{symbol: NVDA, name: 英伟达, view: 看涨, price: 180.5, horizon_days: 20, reason: "数据中心资本开支上行，GPU 订单饱满"},
+                                                   {symbol: 600519.SS, name: 贵州茅台, view: 震荡, price: 1400, horizon_days: 20, reason: "白酒需求偏弱，估值合理"}]},
+     turns: ["上次我们看好英伟达的理由是什么？"], checks: {tool_called: search_memory, contains: ["订单"]}}
+
+  # ---------------- 长对话压缩（v0.17：压缩后仍记得早期关键数字/用户决定） ----------------
+  - {id: ctx-01, category: 长对话, context_extra: 900,
+     turns: ["记一下：我决定腾讯 0700.HK 跌破 455 就止损，目标价 620。", "腾讯现在多少钱？", "茅台最近有什么公告？", "腾讯为什么涨？", "茅台的市盈率多少？", "英伟达 RSI 超买了吗？",
+             "我最早定的腾讯止损价和目标价是多少？"],
+     checks: {compressed: true, digest_has: ["455", "620"], contains: ["455", "620"]}}
+  - {id: ctx-02, category: 长对话, context_extra: 900,
+     turns: ["腾讯现在多少钱？", "茅台最近有什么公告？", "腾讯为什么涨？", "茅台的市盈率多少？", "英伟达 RSI 超买了吗？", "我们最早查的腾讯收盘价是多少？"],
+     checks: {compressed: true, digest_has: ["512.4", "来源"], contains: ["512.4"], verify_clean: true, cited: true}}
+
+  # ---------------- 财报事件研报（v0.17） ----------------
+  - {id: event-01, category: 事件研报, setup: {user: ["[2026-10-01] 持有腾讯 0700.HK 200 股，成本 380 港元，看好游戏和广告增长"],
+                                              calls: [{symbol: 0700.HK, name: 腾讯控股, view: 看涨, price: 480, horizon_days: 30, reason: "游戏流水增长、广告需求复苏"}]},
+     turns: ["腾讯财报出来了，帮我做个事件研报"],
+     checks: {tool_called: earnings_report, contains: ["7.43", "7.24"], any: ["超预期"], regex: "持仓逻辑对照：(加强|削弱|被证伪|基本不变)", event_report: true, disclaimer: true}}
+  - {id: event-02, category: 事件研报, setup: {user: ["[2026-10-01] 持有贵州茅台 600519.SS 100 股"],
+                                              calls: [{symbol: 600519.SS, name: 贵州茅台, view: 看涨, price: 1400, horizon_days: 30, reason: "高端白酒需求复苏，业绩增长稳健"}]},
+     turns: ["茅台财报出来了，帮我复盘一下，对我的持仓逻辑有什么影响？"],
+     checks: {tool_called: earnings_report, contains: ["完成度", "不及预期"], regex: "持仓逻辑对照：削弱", event_report: true}}

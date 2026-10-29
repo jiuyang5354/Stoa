@@ -35,15 +35,15 @@ KINDS = {"msg": "对话", "digest": "会话纪要", "user": "关于用户", "mem
 
 # 金融同义词表：组内任一词出现就加一个概念词，让「换个说法」也能召回。
 SYNONYMS = {
-    "持仓": ["持仓", "持有", "仓位", "我买了", "买入了", "手里", "拿着", "重仓", "建仓", "股数"],
-    "成本": ["成本", "买入价", "成本价", "均价", "进价", "建仓价", "买的价", "摊薄"],
+    "持仓": ["持仓", "持有", "仓位", "我买了", "买入了", "买进", "手里", "拿着", "重仓", "建仓", "股数"],
+    "成本": ["成本", "买入价", "成本价", "均价", "进价", "建仓价", "买的价", "买进", "多少钱买", "摊薄"],
     "止损": ["止损", "离场", "割肉", "止损位", "止损价", "跌破就卖", "清仓线", "防守位", "stop loss"],
     "止盈": ["止盈", "目标价", "卖出目标", "获利了结", "落袋", "take profit"],
     "偏好": ["偏好", "风格", "态度", "喜欢", "不喜欢", "不碰", "倾向", "习惯", "原则", "规矩"],
     "风险": ["风险偏好", "保守", "稳健", "激进", "杠杆", "回撤", "波动"],
     "估值高": ["高估值", "估值高", "太贵", "很贵", "贵的", "溢价", "泡沫", "市盈率高", "pe 高"],
     "估值低": ["低估", "便宜", "估值低", "安全边际", "破净"],
-    "看多": ["看多", "看涨", "乐观", "上涨", "做多", "bullish", "加仓"],
+    "看多": ["看多", "看涨", "看好", "乐观", "上涨", "做多", "bullish", "加仓"],
     "看空": ["看空", "看跌", "悲观", "下跌", "做空", "bearish", "减仓"],
     "决定": ["决定", "打算", "计划", "定了", "就这么办", "我会", "准备"],
     "财报": ["财报", "业绩", "季报", "年报", "中报", "三季报", "earnings", "eps", "营收", "净利"],
@@ -464,7 +464,7 @@ def search(mem, query: str, kinds=None, limit: int = 8, session: str | None = No
     return out
 
 
-def similar_pairs(mem, kinds=("user", "memory", "call", "debate"), top: int = 2, min_sim: float = 0.32) -> list[tuple[dict, dict, float]]:
+def similar_pairs(mem, kinds=("user", "memory", "call", "debate"), top: int = 2, min_sim: float = 0.1) -> list[tuple[dict, dict, float]]:
     """图谱用：条目之间的语义近邻（每个条目取最相近的 top 个，相似度 ≥ min_sim）。"""
     try:
         sync(mem, remote=False)
@@ -472,9 +472,12 @@ def similar_pairs(mem, kinds=("user", "memory", "call", "debate"), top: int = 2,
         pass
     loc = _load(mem.db, "local")
     idx = [j for j, it in enumerate(loc["items"]) if it["kind"] in kinds]
-    if len(idx) < 2:
+    if len(idx) >= 2:  # 记忆条目开头的日期对相似度没意义：去掉日期再算
+        cc = Concepts(mem)
+        tf = np.stack([local_tf(re.sub(r"^\[\d{4}-\d{2}-\d{2}\]\s*", "", loc["items"][j]["text"]), cc) for j in idx]) * loc["idf"]
+        m = tf / np.maximum(np.linalg.norm(tf, axis=1, keepdims=True), 1e-9)
+    else:
         return []
-    m = loc["norm"][idx]
     s = m @ m.T
     np.fill_diagonal(s, -1)
     pairs, seen = [], set()

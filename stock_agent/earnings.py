@@ -767,10 +767,10 @@ def tick(log=print, push=None, fetch: Fetch | None = None, mem: Memory | None = 
     return out
 
 
-def report_for_agent(sym: str, mem: Memory, llm=None, with_debate: bool = False) -> dict:
+def report_for_agent(sym: str, mem: Memory, llm=None, with_debate: bool = False, fetch: Fetch | None = None) -> dict:
     if not sym:
         return {"error": "要给股票代码"}
-    rep = make_report(sym, mem, llm=llm, with_debate=with_debate, push=None)
+    rep = make_report(sym, mem, fetch=fetch, llm=llm, with_debate=with_debate, push=False)
     rec = load_report(rep["id"]) or {}
     f = rec.get("facts") or {}
     return {"report_id": rep["id"], "headline": rep["headline"], "vs_consensus": {k: (f.get("vs_consensus") or {}).get(k) for k in ("verdict", "surprise_pct", "method", "rows")},

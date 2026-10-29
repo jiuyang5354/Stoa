@@ -91,6 +91,13 @@ def make_agent(fx: dict, mem, llm, log: list):
 
     class EvalAgent(Agent):
         def run_tool(self, name, args):
+            if name in ("earnings_report", "earnings_calendar"):
+                from .. import earnings
+                f = FixtureFetch(fx)
+                res = earnings.report_for_agent(str(args.get("symbol", "")).upper(), self.mem, llm=None, fetch=f) if name == "earnings_report" \
+                    else earnings.calendar_view(self.mem, refresh_now=True, fetch=f)
+                log.append({"tool": name, "args": args, "result": res})
+                return res
             res = fixture_tool(fx, name, args) if name in DATA_TOOLS else super().run_tool(name, args)
             log.append({"tool": name, "args": args, "result": res})
             return res
@@ -99,6 +106,38 @@ def make_agent(fx: dict, mem, llm, log: list):
     a.llm = llm
     a.tools = [t for t in a.tools if not t["name"].startswith("mcp__")]
     return a
+
+
+class FixtureFetch:
+    """财报事件的离线数据（fixtures.earnings）：日历、财务、季度利润表、一致预期、公告、新闻。"""
+
+    def __init__(self, fx: dict):
+        self.e = fx.get("earnings") or {}
+        self.fx = fx
+
+    def _g(self, sym, k, default=None):
+        return (self.e.get(sym.upper()) or {}).get(k, default)
+
+    def calendar(self, sym):
+        c = self._g(sym, "calendar")
+        if not c:
+            raise RuntimeError(f"没有 {sym} 的财报日历")
+        return {"symbol": sym, **c}
+
+    def financials(self, sym):
+        return self._g(sym, "financials") or self.fx.get("financials", {}).get(sym.upper()) or {}
+
+    def quarterly(self, sym):
+        return self._g(sym, "quarterly", [])
+
+    def consensus(self, sym):
+        return self._g(sym, "consensus") or self.fx.get("consensus", {}).get(sym.upper()) or {}
+
+    def announcements(self, sym):
+        return self._g(sym, "announcements", [])
+
+    def news(self, sym):
+        return self._g(sym, "news", [])
 
 
 # ====================================================================== Mock LLM
@@ -123,16 +162,19 @@ class MockLLM:
         if messages and "[ROLE:" in (messages[0].get("content") or ""):  # Agora 辩论里的各角色
             from ..debate import MockRoleLLM
             return MockRoleLLM().chat(messages, tools, temperature, timeout)
+        if messages and str(messages[-1].get("content") or "").startswith("[压缩会话纪要]"):
+            return {"role": "assistant", "content": "", "tool_calls": None}  # 让 context 用规则摘要（确定性）
         ui = max(i for i, m in enumerate(messages) if m["role"] == "user")
-        fixing = messages[ui]["content"].startswith("[系统核对")
-        if fixing:  # 引用核对打回：回到原问题，用已有工具结果重写（不再编数字）
-            ui = max(i for i, m in enumerate(messages[:ui]) if m["role"] == "user" and not m["content"].startswith("[系统核对"))
+        fixing = messages[ui]["content"].startswith("[系统")  # 引用核对打回 / 预算收尾：回到原问题，用已有工具结果作答
+        if fixing:
+            ui = max(i for i, m in enumerate(messages[:ui]) if m["role"] == "user" and not m["content"].startswith("[系统"))
         q = messages[ui]["content"].split("\n\n[系统提醒")[0]
         if q.startswith("[会话结束"):
             return {"role": "assistant", "content": "无", "tool_calls": None}
         system = messages[0]["content"] if messages and messages[0]["role"] == "system" else ""
         after = messages[ui + 1:]
         if not after and not fixing:
+            self._sys = system
             calls = self.plan(q)
             if calls:
                 return {"role": "assistant", "content": None, "tool_calls": [
@@ -152,9 +194,17 @@ class MockLLM:
         return {"role": "assistant", "content": ans, "tool_calls": None}
 
     def plan(self, q):
-        syms, calls = self.symbols(q), []
+        syms, calls, system = self.symbols(q), [], getattr(self, "_sys", "")
         if re.search(r"记住|我持有|我买了", q):
             return [("memory", {"action": "add", "target": "user", "content": re.sub(r"^记住[：:]\s*", "", q)})]
+        if re.search(r"最早|早先|一开始", q) and "## 会话纪要" in system:
+            return []  # 早先的内容已经归档进纪要（在系统提示里），直接按纪要答
+        if re.search(r"之前|上次|以前|最早|早先|来着|说过", q):
+            return [("search_memory", {"query": q})]
+        if syms and re.search(r"财报.{0,8}(研报|复盘|出来了|怎么样)|事件研报", q):
+            return [("earnings_report", {"symbol": syms[0]})]
+        if re.search(r"什么时候.{0,6}财报|财报日|财报日历", q):
+            return [("earnings_calendar", {})]
         if "自选" in q and syms:
             return [("watchlist", {"action": "add", "symbol": syms[0]})]
         if "提醒" in q and syms:
@@ -204,6 +254,40 @@ class MockLLM:
             out.append("无法预测明天的精确收盘价。")
         if "成交量" in q:
             out.append("行情工具里没有成交量数据，查不到这个数字。")
+        if "## 会话纪要" in system and re.search(r"最早|早先|一开始", q):
+            dg = system.split("## 会话纪要", 1)[1]
+            keys = [k for k in re.findall(r"[\u4e00-\u9fff]{2}", q) if k not in ("我们", "最早", "早先", "多少", "一开", "开始")]
+            lines = [x.strip("- ").strip() for x in dg.splitlines() if re.search(r"\d", x) and x.strip().startswith("- ")]
+            hit = [x for x in lines if any(k in x for k in keys)] or lines[:3]
+            out += ["会话纪要里记着（较早的对话已归档）："] + [f"- {x}" for x in hit[:4]]
+        for r in res.get("search_memory", []):
+            rs = r.get("results") or []
+            if rs:
+                out.append("我在之前的记录里找到：")
+                out += [f"- {x['时间'][:10]} {x['类别']}：{x['内容']}" for x in rs[:3]]
+            else:
+                out.append("没有找到相关的历史记录。")
+        for r in res.get("earnings_report", []):
+            if r.get("error"):
+                out.append(r["error"] + "。")
+                continue
+            vc = r.get("vs_consensus") or {}
+            out.append(f"{r['headline']}。")
+            for row in vc.get("rows") or []:
+                d = f"差异 {row['差异%']:+}%" if row.get("差异%") is not None else f"完成度 {row.get('完成度%')}%"
+                out.append(f"- {row['指标']}：实际 {row['实际']}，一致预期 {row['一致预期']}，{d}")
+            if vc.get("verdict"):
+                out.append(f"结论：{vc['verdict']}（{vc.get('method')}）。")
+            for y in (r.get("yoy") or [])[:3]:
+                if y.get("同比%") is not None:
+                    out.append(f"- {y['指标']} 同比 {y['同比%']:+}%")
+            out.append(f"和你的持仓逻辑对照：{r.get('thesis_verdict') or '无可对照'}。{r.get('thesis_reason') or ''}")
+            g = [x for x in r.get("guidance") or [] if x.get("guidance")]
+            if g:
+                out.append("指引相关：" + "；".join(x["title"] for x in g[:2]))
+        for r in res.get("earnings_calendar", []):
+            for t in r.get("tracked") or []:
+                out.append(f"{t['name']}（{t['symbol']}）下次财报 {t['next_date'] or '未公布'}" + (f"，{t['days_left']} 天后" if t.get("days_left") is not None else ""))
         sec = system.split("## 关于用户", 1)[1].split("## 你的笔记", 1)[0] if "## 关于用户" in system else ""
         user_lines = [x for x in re.findall(r"^- (.+)$", sec, re.M) if x != "（空）"]
         for line in user_lines:
@@ -468,6 +552,20 @@ def score_case(case: dict, answer: str, log: list, fx: dict, home: Path, prompt_
             rec = db.load(did.group(1)) if did else None
             got = (rec or {}).get("risk", {}).get("decision")
             add(k, got in ([v] if isinstance(v, str) else v), f"风控 {got}")
+        elif k == "digest_has":  # 长对话压缩：会话纪要里保留了这些早期的数字/决定
+            from ..memory import Memory
+            rows = Memory(home).db.execute("SELECT text FROM session_digest").fetchall()
+            ok = any(all(x in t for x in v) for (t,) in rows)
+            add(k, ok, f"纪要 {len(rows)} 份" + ("" if ok else f"，缺 {v}"))
+        elif k == "compressed":
+            add(k, bool(meta.get("archived")), f"归档 {meta.get('archived') or 0} 条")
+        elif k == "event_report":  # 事件研报文件：含预期对比与持仓逻辑对照
+            fs = sorted((home / "data" / "reports" / "events").glob("*.md"))
+            txt = fs[-1].read_text(encoding="utf-8") if fs else ""
+            need = ["实际 vs 一致预期", "与你的持仓逻辑对照", "—— 来源 ——"]
+            miss = [x for x in need if x not in txt]
+            ok = bool(fs) and not miss and re.search(r"结论：\*\*(加强|削弱|被证伪|基本不变)", txt)
+            add(k, ok, f"{fs[-1].name if fs else '无研报'}" + (f"，缺 {miss}" if miss else ""))
         elif k == "memory":
             from ..memory import Memory
             es = Memory(home).entries(v[0])
@@ -498,15 +596,27 @@ def run_case(case, fx, llm_kind, real_home: Path):
     log, answer, err, t0, meta = [], "", None, time.time(), {}
     try:
         mem = Memory(tmp)
+        setup = case.get("setup") or {}
         for t in ("user", "memory"):
-            for e in (case.get("setup") or {}).get(t, []):
+            for e in setup.get(t, []):
                 mem.add(t, e)
+        for h in setup.get("history", []):  # 以前的对话（别的会话），测语义检索
+            mem.log(h.get("session", "web-old"), h["role"], h["text"])
+        for c in setup.get("calls", []):
+            mem.record_call(c["symbol"], c.get("name", ""), c["view"], c["price"], c.get("horizon_days", 20), c["reason"])
         llm = pick_llm(llm_kind)
         agent = make_agent(fx, mem, llm, log)
+
+        def tune(a):
+            if case.get("context_extra"):  # 人为把上下文预算压小，触发长对话压缩
+                from .. import context
+                a.ctx_budget = context.est_tokens(a._sys_base) + int(case["context_extra"])
+            return a
+        tune(agent)
         for turn in case["turns"]:
             if turn == "/new":
                 agent.end_session()
-                agent = make_agent(fx, mem, llm, log)
+                agent = tune(make_agent(fx, mem, llm, log))
                 continue
             answer = agent.ask(turn)
         checks = score_case(case, answer, log, fx, tmp, " ".join(case["turns"]) + " " + json.dumps(case.get("setup") or {}, ensure_ascii=False),
