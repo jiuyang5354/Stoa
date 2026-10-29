@@ -448,7 +448,7 @@ def search(mem, query: str, kinds=None, limit: int = 8, session: str | None = No
             qv /= max(float(np.linalg.norm(qv)), 1e-9)
             sims = loc["norm"] @ qv
     if sims is not None:
-        thr = min_sim if min_sim is not None else (0.08 if backend == "local" else 0.3)
+        thr = min_sim if min_sim is not None else (0.1 if backend == "local" else 0.3)
         sims = np.where(mask, sims, -1)
         vec_rank = [int(i) for i in np.argsort(-sims)[:50] if sims[i] >= thr]
     else:

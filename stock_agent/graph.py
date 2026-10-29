@@ -255,7 +255,7 @@ def semantic(query: str, mem: Memory | None = None, limit: int = 12) -> list[dic
     mem = mem or Memory()
     out = []
     for h in vectors.search(mem, query, limit=limit):
-        out.append({"label": h["label"], "kind": h["kind"], "via": h["via"], "sim": h["sim"], "ts": h["ts"], "text": h["text"][:240],
+        out.append({"label": h["label"], "kind": h["kind"], "via": h["via"], "sim": h["sim"], "ts": h["ts"], "text": re.sub(r"\[\d+\]|\*\*|\[\[[^\]]*\]\]", "", h["text"])[:240],
                     "session": h["session"][4:] if h["session"].startswith("web-") else None, "node": node_for(h, mem),
                     "verdict": (h.get("meta") or {}).get("verdict"), "backend": h["backend"]})
     return out

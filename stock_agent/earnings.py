@@ -140,7 +140,8 @@ def thesis(mem: Memory, sym: str) -> dict:
         pass
     holds = any(HOLD_RE.search(x) for x in lines)
     last_view = calls[-1]["view"] if calls else None
-    direction = ("看多" if last_view == "看涨" else "看空" if last_view == "看跌" else "中性") if last_view else ("看多" if holds else None)
+    norm = {"看涨": "看多", "看多": "看多", "看跌": "看空", "看空": "看空"}
+    direction = norm.get(last_view, "中性") if last_view else ("看多" if holds else None)
     if deb and deb.get("view") in ("看多", "看空") and not calls:
         direction = deb["view"]
     return {"user": lines, "notes": notes, "calls": calls, "debate": deb, "holds": holds, "direction": direction}
@@ -512,7 +513,8 @@ def make_report(sym: str, mem: Memory | None = None, event: dict | None = None, 
     cons = safe(fetch.consensus, sym, default={}) or {}
     anns = safe(fetch.announcements, sym, default=[]) or []
     news = safe(fetch.news, sym, default=[]) or []
-    name = name or fin.get("name") or next((e.get("name") for e in evs if e.get("name")), None) or tracked(mem).get(sym, {}).get("name") or sym
+    tn = tracked(mem).get(sym, {}).get("name")
+    name = name or (tn if tn and tn != sym else None) or next((e.get("name") for e in evs if e.get("name")), None) or fin.get("name") or sym
     vc = vs_consensus(sym, event, fin, cons, src)
     growth = yoy(sym, fin, qtr or [], src)
     guide = guidance(anns, news, event.get("date") or "", src)

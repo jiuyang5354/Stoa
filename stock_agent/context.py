@@ -114,11 +114,11 @@ def rule_digest(old: str, rows: list[dict]) -> str:
     for r in rows:
         t = " ".join((r.get("text") or "").split())
         if r.get("role") == "user" and not t.startswith("[系统"):
-            asks.append(t[:50])
+            asks.append(t.rstrip("；;。？?！! ")[:50])
         elif r.get("role") == "assistant":
             first = _sentences(re.sub(r"\[\d+\]|\[\[[^\]]*\]\]", "", strip_sources(r.get("text") or "")))
             if first:
-                ends.append(first[0][:80])
+                ends.append(first[0].rstrip("；;。，, ")[:80])
     parts = []
     if old:
         parts.append(old.split("\n关键数字与用户决定")[0].strip())

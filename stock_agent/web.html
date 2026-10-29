@@ -518,7 +518,8 @@
   .evw .evsrc a{color:var(--mute)}
   .evw .evfoot{margin-top:10px;font:italic 12px var(--serif);color:var(--mute)}
   .gcard .gsem li span{flex:1;min-width:0}
-  .gcard .gsem li small{font:500 8px var(--sans);font-style:normal;letter-spacing:.12em;color:var(--bronze)}
+  .gcard .gsem li small{font:500 8px/1.5 var(--sans);font-style:normal;letter-spacing:.12em;color:var(--bronze);text-align:right}
+  .gcard .gsem li{align-items:flex-start}.gcard .gsem li i{min-width:40px;padding-top:3px}
   .gcard .gsim{font:italic 11.5px var(--serif);color:var(--bronze);margin-left:4px}
   .hi small .sem{font:500 8px var(--sans);letter-spacing:.14em;color:var(--bronze);margin-right:6px}
   #toasts{position:fixed;right:22px;bottom:22px;z-index:90;display:flex;flex-direction:column;gap:10px;width:min(340px,calc(100vw - 44px))}
@@ -1893,7 +1894,9 @@ function gkick(a = .5){ GALPHA = Math.max(GALPHA, a); if (!GRAF) GRAF = requestA
 function gloop(){ if (GALPHA > .02) { gstep(); gstep(); } gdraw(); GRAF = (GALPHA > .02 || GDRAG) ? requestAnimationFrame(gloop) : 0; }
 function gfocusSet(){
   const id = GHOV?.id || GSEL?.id; if (id) return new Set([id, ...G.adj[id]]);
-  if (GQ) { const s = new Set(); G.nodes.forEach(n => { if (gmatch(n)) { s.add(n.id); G.adj[n.id].forEach(x => s.add(x)); } }); return s; }
+  if (GQ) { const s = new Set(); G.nodes.forEach(n => { if (gmatch(n)) { s.add(n.id); G.adj[n.id].forEach(x => s.add(x)); } });
+    if (GSEM && GSEM.q === GQ) (GSEM.results || []).forEach(r => { if (r.node && G.byId[r.node]) { s.add(r.node); G.adj[r.node].forEach(x => s.add(x)); } });  // 语义命中的星也点亮
+    return s; }
   return null;
 }
 const gmatch = n => GQ && !GSEMONLY && ((n.label || '').toLowerCase().includes(GQ) || (n.symbol || '').toLowerCase().includes(GQ) || (n.type !== 'call' && (n.text || '').toLowerCase().includes(GQ)));
@@ -1957,6 +1960,17 @@ function gcard(){
   const el = $('gcard'), n = GSEL;
   if (!G.nodes.length) { el.innerHTML = ''; $('gcv').querySelector('.gempty')?.remove(); $('gcv').insertAdjacentHTML('beforeend', `<div class="gempty">天幕尚空，群星未生。<br>多聊几次，让 Stoa 记下你的持仓和偏好，做几次判断，星辰就会一颗颗亮起来。</div>`); return; }
   $('gcv').querySelector('.gempty')?.remove();
+  const semOn = GSEM && GSEM.q === GQ && GQ;
+  if (!n && semOn) {  // 规则没命中、语义找到了：整张卡给「回想」
+    const rs = GSEM.results || [];
+    el.innerHTML = `<div class="gk"><span>Reminiscentia · 回想</span><span>${rs.length} 条</span></div><div class="gbig" style="font-size:38px">QUAERE</div><h4>「${esc(GSEM.q)}」</h4><div class="gdeity">ΑΝΑΜΝΗΣΙΣ</div>
+      <div class="gepi">关键词与语义两路检索，按名次融合：换个说法，也能想起意思相近的记忆、判断与对话。</div>
+      <ul class="gsem">${rs.length ? rs.map(x => `<li ${x.node && G.byId[x.node] ? `data-gn="${esc(x.node)}"` : x.session ? `data-gs="${esc(x.session)}"` : ''}><i>${esc(x.label)}</i><span>${esc(x.text.replace(/^\[\d{4}-\d{2}-\d{2}\]\s*/, '').slice(0, 64))}</span><small>${esc(x.via)}<br>${Number(x.sim).toFixed(2)}</small></li>`).join('') : '<li><i>—</i><span class="muted">没有意思相近的记忆。</span></li>'}</ul>
+      <div class="gsub" style="margin-top:2px">${esc(GSEM.backend && GSEM.backend.remote && !GSEM.backend.remote_paused ? '向量：' + GSEM.backend.remote : '向量：本地 ' + ((GSEM.backend || {}).local || 'TF-IDF'))}</div>`;
+    el.querySelectorAll('[data-gs]').forEach(li => li.onclick = () => { closeGraph(); openSession(li.dataset.gs); });
+    el.querySelectorAll('[data-gn]').forEach(li => li.onclick = () => gselect(G.byId[li.dataset.gn], true));
+    return;
+  }
   if (!n) {
     const c = G.counts || {}, calls = G.nodes.filter(x => x.type === 'call' && (x.verdict === '对' || x.verdict === '错')), ok = calls.filter(x => x.verdict === '对').length;
     const top = G.nodes.filter(x => x.type === 'symbol' || x.type === 'theme').sort((a, b) => b.deg - a.deg).slice(0, 8);
@@ -1980,7 +1994,7 @@ function gcard(){
     if ($('gask')) $('gask').onclick = () => { closeGraph(); input.value = `结合你记得的一切，帮我看看${n.label}现在怎么样`; sync(); input.focus(); };
     if ($('gopen')) $('gopen').onclick = () => { closeGraph(); openSession(n.session); };
   }
-  if (GSEM && GSEM.q === GQ && GQ) {  // 语义回想：关键词 + 向量混合检索，换个说法也能找到
+  if (semOn) {  // 语义回想：关键词 + 向量混合检索，换个说法也能找到
     const rs = GSEM.results || [];
     el.insertAdjacentHTML('beforeend', `<span class="label glbl">${GSTAR}Reminiscentia · 回想「${esc(GSEM.q)}」${rs.length}</span><ul class="gsem">${rs.length ? rs.map(x => `<li ${x.node && G.byId[x.node] ? `data-gn="${esc(x.node)}"` : x.session ? `data-gs="${esc(x.session)}"` : ''}><i>${esc(x.label)}</i><span>${esc(x.text.slice(0, 70))}</span><small>${esc(x.via)} · ${Number(x.sim).toFixed(2)}</small></li>`).join('') : '<li><i>—</i><span class="muted">没有意思相近的记忆。</span></li>'}</ul>`);
     el.querySelectorAll('[data-gs]').forEach(li => li.onclick = () => { closeGraph(); openSession(li.dataset.gs); });
@@ -1989,7 +2003,7 @@ function gcard(){
 }
 let GSEM = null, GSEMT = 0, GSEMONLY = false;
 function gsemantic(){ clearTimeout(GSEMT); const q = GQ; if (!q || q.length < 2) { GSEM = null; return; }
-  GSEMT = setTimeout(async () => { try { const j = await (await fetch('/api/memory/search?q=' + encodeURIComponent(q), {headers:H})).json(); if (q === GQ) { GSEM = j; gcard(); } } catch (_) {} }, 320); }
+  GSEMT = setTimeout(async () => { try { const j = await (await fetch('/api/memory/search?q=' + encodeURIComponent(q), {headers:H})).json(); if (q === GQ) { GSEM = j; gcard(); gdraw(); } } catch (_) {} }, 320); }
 function gselect(n, center){
   GSEL = n || null; gcard();
   if (n && center) { const W = $('gcv').clientWidth; void W; const tx = -n.x * GV.k, ty = -n.y * GV.k, fx = GV.x, fy = GV.y; let t = 0;
