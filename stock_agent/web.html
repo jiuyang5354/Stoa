@@ -449,11 +449,11 @@
 <script>(() => {
   const el = document.getElementById('intro'), q = new URLSearchParams(location.search).get('intro');
   let seen = false; try { seen = sessionStorage.getItem('stoa-intro') === '1'; } catch (e) {}
-  if (q !== '1' && (seen || q === '0' || matchMedia('(prefers-reduced-motion: reduce)').matches)) { el.remove(); return; }
+  if (q !== '1' && q !== 'hold' && (seen || q === '0' || matchMedia('(prefers-reduced-motion: reduce)').matches)) { el.remove(); return; }
   el.hidden = false; try { sessionStorage.setItem('stoa-intro', '1'); } catch (e) {}
   let done = false; const bye = () => { if (done) return; done = true; el.classList.add('bye'); document.body.classList.add('wake');
     setTimeout(() => { el.remove(); document.body.classList.remove('wake'); }, 1000); };
-  const t = setTimeout(bye, 2900); el.addEventListener('click', () => { clearTimeout(t); bye(); });
+  const t = q === 'hold' ? 0 : setTimeout(bye, 2900); el.addEventListener('click', () => { clearTimeout(t); bye(); });
   addEventListener('keydown', () => { clearTimeout(t); bye(); }, {once: true});
 })();</script>
 <div class="temple">
