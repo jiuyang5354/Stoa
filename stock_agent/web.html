@@ -249,6 +249,39 @@
   .gear{position:absolute;right:22px;top:24px;display:flex;align-items:center;gap:7px;border:1px solid var(--rule-2);background:transparent;color:var(--ink);font:500 9.5px var(--sans);letter-spacing:.2em;text-transform:uppercase;padding:7px 11px;cursor:pointer;transition:background .25s,border-color .25s}
   .gear:hover{background:var(--ink);color:var(--chalk);border-color:var(--ink)}
   .gear.hl{right:auto;left:22px}.gear.hl:hover svg{transform:none}
+  /* ---- 记忆图谱（参考 Obsidian Graph View、Hermes 的记忆可视化；博物馆档案版式：左图例 / 中画布 / 右藏品卡） ---- */
+  .gear.hl2{right:auto;left:132px}
+  .gph{position:fixed;inset:0;z-index:46;background:rgba(24,23,21,.28);animation:fadein .2s ease both;display:flex;align-items:center;justify-content:center}
+  .gph[hidden]{display:none}
+  .gw{position:relative;width:min(1240px,96vw);height:min(820px,92vh);background:#F6F4EF;border:1px solid var(--ink);box-shadow:6px 6px 0 -1px #F6F4EF,6px 6px 0 0 var(--ink);display:grid;grid-template-columns:200px 1fr 300px;grid-template-rows:auto 1fr;overflow:hidden}
+  .gw>.gtop{grid-column:1/-1;display:flex;align-items:center;gap:18px;padding:16px 22px 14px;border-bottom:1px solid var(--ink)}
+  .gtop h3{font:500 17px/1 var(--display);letter-spacing:.16em;margin:0;text-transform:uppercase}
+  .gtop .label{margin-right:auto}
+  .gtop input{width:240px;border:0;border-bottom:1px solid var(--rule-2);background:transparent;font:13px var(--sans);padding:6px 0;outline:0;color:var(--ink)}
+  .gtop input:focus{border-bottom-color:var(--ink)}.gtop .sclose{position:static}
+  .gleg{border-right:1px solid var(--rule-2);padding:16px 18px;overflow:auto}
+  .gleg button{display:flex;align-items:center;gap:10px;width:100%;border:0;background:transparent;padding:7px 0;cursor:pointer;font:13px var(--cn);color:var(--ink);border-bottom:1px dotted var(--rule);text-align:left}
+  .gleg button.off{opacity:.32}.gleg button svg{flex:none}.gleg button em{margin-left:auto;font:italic 13px var(--serif);color:var(--mute)}
+  .gleg .gnote{font:11px/1.55 var(--sans);color:var(--mute);margin-top:16px}
+  .gcv{position:relative;overflow:hidden;cursor:grab;background:radial-gradient(circle at 50% 50%,rgba(255,255,255,.5),transparent 70%)}
+  .gcv.drag{cursor:grabbing}.gcv canvas{display:block;width:100%;height:100%}
+  .gcv .gtip{position:absolute;pointer-events:none;background:var(--ink);color:var(--chalk);font:12px/1.4 var(--cn);padding:5px 8px;max-width:280px;transform:translate(10px,10px);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .gcv .gempty{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;font:italic 16px/1.6 var(--serif);color:var(--mute);padding:40px}
+  .gcv .gzoom{position:absolute;right:12px;bottom:12px;display:flex;gap:4px}
+  .gcard{border-left:1px solid var(--rule-2);padding:18px 20px;overflow:auto}
+  .gcard .gk{font:500 9px var(--sans);letter-spacing:.2em;text-transform:uppercase;color:var(--mute);display:flex;justify-content:space-between;border-bottom:1px solid var(--ink);padding-bottom:6px}
+  .gcard h4{font:500 22px/1.25 var(--serif);margin:12px 0 4px;word-break:break-word}
+  .gcard .gsub{font:italic 13px var(--serif);color:var(--mute)}
+  .gcard p{font:13.5px/1.7 var(--cn);white-space:pre-wrap;margin:12px 0;color:var(--ink-2)}
+  .gcard .gst{display:grid;grid-template-columns:1fr 1fr;gap:0;border-top:1px solid var(--rule);margin:14px 0}
+  .gcard .gst span{padding:8px 0;border-bottom:1px solid var(--rule);font:11px var(--sans);color:var(--mute)}.gcard .gst b{display:block;font:500 20px/1.1 var(--serif);color:var(--ink)}
+  .gcard ul{list-style:none;margin:6px 0 14px;padding:0}
+  .gcard li{display:flex;gap:9px;align-items:baseline;padding:7px 0;border-bottom:1px dotted var(--rule);cursor:pointer;font:13px/1.45 var(--cn)}
+  .gcard li:hover{background:rgba(24,23,21,.04)}.gcard li i{font:500 8.5px var(--sans);font-style:normal;letter-spacing:.14em;color:var(--mute);min-width:34px;text-transform:uppercase}
+  .gcard li small{margin-left:auto;font:italic 12px var(--serif);color:var(--mute);white-space:nowrap}
+  .gcard .ask{width:100%;margin-top:6px;padding:10px;font-size:10px}
+  .gcard .v-对{color:var(--terracotta)}.gcard .v-错{color:var(--olive)}
+  @media(max-width:900px){.gw{grid-template-columns:1fr;grid-template-rows:auto 1fr 40%}.gleg{display:none}.gcard{border-left:0;border-top:1px solid var(--rule-2)}.gtop input{width:140px}}
   /* ---- 对话历史抽屉（参考 ChatGPT / Claude 侧栏：新对话、按日期分组、全文搜索、置顶、改名、删除） ---- */
   .hist{position:fixed;inset:0;z-index:45;background:rgba(24,23,21,.22);animation:fadein .2s ease both}
   .hw{position:absolute;left:0;top:0;bottom:0;width:min(380px,92vw);background:#F6F4EF;border-right:1px solid var(--ink);box-shadow:6px 0 0 -1px #F6F4EF,6px 0 0 0 var(--ink);display:flex;flex-direction:column;padding:22px 0 14px;animation:slidein .35s var(--ease) both}
@@ -357,6 +390,7 @@
     <h1>Stoa · 股市</h1>
     <em>A stoic market agent that remembers.</em>
     <button class="gear hl" id="histb" type="button" aria-label="对话历史（Ctrl+J）"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 5h16M4 10h16M4 15h10M4 20h7"/></svg>History</button>
+    <button class="gear hl hl2" id="graphb" type="button" aria-label="记忆图谱（Ctrl+G）"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="5" cy="6" r="2.2"/><circle cx="19" cy="7" r="2.2"/><circle cx="12" cy="18" r="2.6"/><path d="M7 7l10 0M6.5 8l4.5 8M17.6 9l-4.4 7"/></svg>Graph</button>
     <button class="gear" id="gear" type="button" aria-label="设置（Ctrl+,）"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="3.2"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1"/></svg>Settings</button>
   </header>
   <div id="log"></div>
@@ -380,6 +414,14 @@
     <div class="hq"><input id="hq" placeholder="搜索全部对话" aria-label="搜索对话" autocomplete="off"><span id="hqn"></span></div>
     <div class="hl2" id="hlist"></div>
     <div class="label hfoot">Ctrl+J 打开 · 输入 /new 新建</div>
+  </div>
+</div>
+<div class="gph" id="gph" hidden role="dialog" aria-label="记忆图谱">
+  <div class="gw">
+    <div class="gtop"><h3>Mnemosyne</h3><span class="label">FIG. — 记忆图谱 · 按股票与主题串起的一切</span><input id="gq" placeholder="找股票或主题，如 茅台、降息" autocomplete="off" aria-label="搜索图谱"><button class="sclose" id="gx" aria-label="关闭">×</button></div>
+    <div class="gleg" id="gleg"></div>
+    <div class="gcv" id="gcv"><canvas id="gc"></canvas><div class="gtip" id="gtip" hidden></div><div class="gzoom"><button class="x" id="gfit" type="button">适配</button></div></div>
+    <div class="gcard" id="gcard"></div>
   </div>
 </div>
 <div class="set" id="set" hidden role="dialog" aria-modal="true" aria-label="设置">
@@ -584,6 +626,7 @@ async function send(text){
   if (text === '/settings') { input.value = ''; sync(); return openSettings(); }
   if (text === '/new' || text === '/reset') { input.value = ''; sync(); return newChat(); }
   if (text === '/history') { input.value = ''; sync(); return openHist(); }
+  if (text === '/graph') { input.value = ''; sync(); return openGraph(); }
   input.value = ''; sync(); busy = true; $('b').disabled = true;
   add('u', esc(text));
   const seed = turn * 131 + Date.now() % 97;
@@ -1045,7 +1088,7 @@ const PANES = {
     `<div class="fr"><span><b>涨跌配色</b><small>A股习惯红涨绿跌</small></span><span>${sseg('colors', [['cn','赤涨 · 橄榄跌'],['intl','橄榄涨 · 赤跌']])}</span></div>
      <div class="fr"><span><b>首页 3D 胸像</b><small>老电脑卡顿时关掉</small></span><span>${sseg('bust', [['on','开'],['off','关']])}</span></div>
      <div class="fr"><span><b>石灰华岩壁</b><small>背景石材纹理</small></span><span>${sseg('stone', [['on','开'],['off','关']])}</span></div>`) +
-    grp('Shortcuts · 快捷键', `<div class="fr"><span><b>打开设置</b></span><span class="ep">Ctrl + ,</span></div><div class="fr"><span><b>新对话</b><small>先整理这次的记忆</small></span><span class="ep">/new</span></div><div class="fr"><span><b>查看记忆</b></span><span class="ep">/memory</span></div>`),
+    grp('Shortcuts · 快捷键', `<div class="fr"><span><b>打开设置</b></span><span class="ep">Ctrl + ,</span></div><div class="fr"><span><b>新对话</b><small>先整理这次的记忆</small></span><span class="ep">/new</span></div><div class="fr"><span><b>查看记忆</b></span><span class="ep">/memory</span></div><div class="fr"><span><b>记忆图谱</b></span><span class="ep">Ctrl + G · /graph</span></div>`),
   model: () => {
     const pv = dirty.LLM_PROVIDER ?? S.env.LLM_PROVIDER.value, p = S.providers.find(x => x.id === pv) || {};
     return `<h3>模型</h3><p class="lead">Stoa 用哪个大模型思考。国内直连推荐 DeepSeek、通义、Kimi；也能接本地 Ollama。</p>` +
@@ -1207,6 +1250,185 @@ async function loadHist(){
 }
 async function sessReq(act, body){ await fetch('/api/sessions/' + act, {method:'POST', headers:H, body:JSON.stringify(body)}); loadHist(); }
 function openHist(){ $('hist').hidden = false; $('hq').value = ''; loadHist(); setTimeout(() => $('hq').focus(), 50); }
+/* ---------- 记忆图谱：自写力导向布局，Canvas 绘制，无依赖 ---------- */
+const GT = {
+  symbol:{t:'股票', k:'Titulus'}, theme:{t:'主题', k:'Thema'}, market:{t:'市场', k:'Forum'},
+  user:{t:'关于你', k:'Persona'}, note:{t:'笔记', k:'Nota'}, skill:{t:'技能', k:'Ars'}, call:{t:'判断', k:'Augurium'}, chat:{t:'对话', k:'Colloquium'},
+};
+const GORDER = ['symbol','theme','market','user','note','skill','call','chat'];
+let GCOL = null, GFONT = null, G = null, GV = {x:0, y:0, k:1}, GSEL = null, GHOV = null, GOFF = new Set(), GQ = '', GRAF = 0, GALPHA = 0;
+const gcol = () => { const cs = getComputedStyle(document.body); const v = n => cs.getPropertyValue(n).trim(); return {ink:v('--ink'), mute:v('--mute'), bronze:v('--bronze'), up:v('--terracotta'), dn:v('--olive'), paper:'#F6F4EF'}; };
+function gsize(n){ return n.type === 'market' ? 11 : n.type === 'symbol' ? 5 + Math.min(9, Math.sqrt(n.deg) * 1.6) : n.type === 'theme' ? 4 + Math.min(7, Math.sqrt(n.deg) * 1.3) : 3.6; }
+function gglyph(ctx, n, x, y, r, C, dim){
+  ctx.globalAlpha = dim ? .16 : 1; ctx.lineWidth = 1.2; ctx.strokeStyle = C.ink; ctx.fillStyle = C.ink;
+  const vc = n.verdict === '对' ? C.up : n.verdict === '错' ? C.dn : null;
+  ctx.beginPath();
+  switch (n.type) {
+    case 'symbol': ctx.rect(x - r, y - r, r * 2, r * 2); ctx.fill(); break;
+    case 'theme': ctx.arc(x, y, r, 0, 7); ctx.fillStyle = C.paper; ctx.fill(); ctx.stroke(); break;
+    case 'market': ctx.arc(x, y, r, 0, 7); ctx.fillStyle = C.paper; ctx.fill(); ctx.stroke(); ctx.beginPath(); ctx.arc(x, y, r - 3.5, 0, 7); ctx.stroke(); break;
+    case 'user': ctx.arc(x, y, r + .6, 0, 7); ctx.fillStyle = C.bronze; ctx.fill(); break;
+    case 'note': ctx.arc(x, y, r, 0, 7); ctx.fill(); break;
+    case 'skill': ctx.moveTo(x, y - r - 1.5); ctx.lineTo(x + r + 1.5, y); ctx.lineTo(x, y + r + 1.5); ctx.lineTo(x - r - 1.5, y); ctx.closePath(); ctx.fillStyle = C.paper; ctx.fill(); ctx.stroke(); break;
+    case 'call': ctx.arc(x, y, r - .4, 0, 7); if (vc) { ctx.fillStyle = vc; ctx.fill(); } else { ctx.fillStyle = C.paper; ctx.fill(); ctx.strokeStyle = C.mute; ctx.stroke(); } break;
+    case 'chat': ctx.rect(x - r + .5, y - r + .5, r * 2 - 1, r * 2 - 1); ctx.fillStyle = C.paper; ctx.fill(); ctx.stroke(); break;
+  }
+  ctx.globalAlpha = 1;
+}
+function gicon(type){
+  const k = 'stroke="var(--ink)" stroke-width="1.2"', P = {
+    symbol:`<rect x="3.5" y="3.5" width="11" height="11" fill="var(--ink)"/>`, theme:`<circle cx="9" cy="9" r="5" fill="none" ${k}/>`,
+    market:`<circle cx="9" cy="9" r="7" fill="none" ${k}/><circle cx="9" cy="9" r="4" fill="none" ${k}/>`, user:`<circle cx="9" cy="9" r="4.4" fill="var(--bronze)"/>`,
+    note:`<circle cx="9" cy="9" r="3.8" fill="var(--ink)"/>`, skill:`<path d="M9 3.2 14.8 9 9 14.8 3.2 9Z" fill="none" ${k}/>`,
+    call:`<circle cx="6" cy="9" r="3.4" fill="var(--terracotta)"/><circle cx="13" cy="9" r="3.4" fill="var(--olive)"/>`, chat:`<rect x="4.5" y="4.5" width="9" height="9" fill="none" ${k}/>`};
+  return `<svg width="18" height="18" viewBox="0 0 18 18">${P[type]}</svg>`;
+}
+async function openGraph(){
+  $('gph').hidden = false; $('gq').value = GQ = ''; GSEL = null;
+  $('gcard').innerHTML = `<div class="gk"><span>Catalogus</span><span>—</span></div><p class="muted">读取中…</p>`;
+  try { G = await (await fetch('/api/graph', {headers:H})).json(); } catch(e) { G = {nodes:[], edges:[], counts:{}}; }
+  gprep(); gleg(); gcard(); gfit(true);
+}
+function closeGraph(){ $('gph').hidden = true; cancelAnimationFrame(GRAF); GRAF = 0; }
+function gprep(){
+  const byId = {}; G.adj = {};
+  const W = $('gcv').clientWidth || 700, Hh = $('gcv').clientHeight || 600;
+  const hubs = G.nodes.filter(n => n.type === 'market');
+  hubs.forEach((n, i) => { const a = i / hubs.length * Math.PI * 2 - Math.PI / 2; n.x = Math.cos(a) * 160; n.y = Math.sin(a) * 160; });
+  G.nodes.forEach((n, i) => { byId[n.id] = n; if (n.x == null) { const a = i * 2.39996, r = 40 + Math.sqrt(i) * 26; n.x = Math.cos(a) * r; n.y = Math.sin(a) * r; } n.vx = n.vy = 0; G.adj[n.id] = new Set(); });
+  G.edges = G.edges.filter(e => byId[e.s] && byId[e.t]); G.edges.forEach(e => { e.a = byId[e.s]; e.b = byId[e.t]; G.adj[e.s].add(e.t); G.adj[e.t].add(e.s); });
+  G.byId = byId; void W; void Hh;
+}
+const gvis = n => !GOFF.has(n.type);
+function gstep(){
+  const N = G.nodes.filter(gvis), a = GALPHA;
+  for (let i = 0; i < N.length; i++) { const p = N[i];
+    for (let j = i + 1; j < N.length; j++) { const q = N[j]; let dx = p.x - q.x, dy = p.y - q.y, d2 = dx * dx + dy * dy || .01;
+      if (d2 > 90000) continue; const hub = (p.type === 'symbol' || p.type === 'market' || p.type === 'theme') + (q.type === 'symbol' || q.type === 'market' || q.type === 'theme');
+      const f = (hub ? 1500 : 650) * a / d2, d = Math.sqrt(d2); dx /= d; dy /= d; p.vx += dx * f; p.vy += dy * f; q.vx -= dx * f; q.vy -= dy * f; } }
+  for (const e of G.edges) { if (!gvis(e.a) || !gvis(e.b)) continue; const L = e.kind === 'in' ? 120 : e.a.type === 'call' ? 28 : 46;
+    const dx = e.b.x - e.a.x, dy = e.b.y - e.a.y, d = Math.sqrt(dx * dx + dy * dy) || 1, k = (d - L) / d * .05 * a * (e.kind === 'in' ? .5 : 1);
+    const wa = Math.min(1, (G.adj[e.b.id].size + 1) / (G.adj[e.a.id].size + G.adj[e.b.id].size + 2));
+    e.a.vx += dx * k * wa * 2; e.a.vy += dy * k * wa * 2; e.b.vx -= dx * k * (1 - wa) * 2; e.b.vy -= dy * k * (1 - wa) * 2; }
+  for (const n of N) { n.vx -= n.x * .004 * a; n.vy -= n.y * .004 * a; if (n === GDRAG) { n.vx = n.vy = 0; continue; } n.vx *= .6; n.vy *= .6; n.x += Math.max(-30, Math.min(30, n.vx)); n.y += Math.max(-30, Math.min(30, n.vy)); }
+  GALPHA *= .975;
+}
+function gkick(a = .5){ GALPHA = Math.max(GALPHA, a); if (!GRAF) GRAF = requestAnimationFrame(gloop); }
+function gloop(){ if (GALPHA > .02) { gstep(); gstep(); } gdraw(); GRAF = (GALPHA > .02 || GDRAG) ? requestAnimationFrame(gloop) : 0; }
+function gfocusSet(){
+  const id = GHOV?.id || GSEL?.id; if (id) return new Set([id, ...G.adj[id]]);
+  if (GQ) { const s = new Set(); G.nodes.forEach(n => { if (gmatch(n)) { s.add(n.id); G.adj[n.id].forEach(x => s.add(x)); } }); return s; }
+  return null;
+}
+const gmatch = n => GQ && ((n.label || '').toLowerCase().includes(GQ) || (n.symbol || '').toLowerCase().includes(GQ) || (n.type !== 'call' && (n.text || '').toLowerCase().includes(GQ)));
+function gdraw(){
+  const cv = $('gc'), box = $('gcv'), dpr = devicePixelRatio || 1, W = box.clientWidth, Hh = box.clientHeight;
+  if (cv.width !== W * dpr || cv.height !== Hh * dpr) { cv.width = W * dpr; cv.height = Hh * dpr; }
+  const ctx = cv.getContext('2d'), C = GCOL || (GCOL = gcol()), F = gfocusSet();
+  const FF = GFONT || (GFONT = (cs => ({serif: cs.getPropertyValue('--serif'), sans: cs.getPropertyValue('--sans'), cn: cs.getPropertyValue('--cn')}))(getComputedStyle(document.body)));
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, W, Hh);
+  ctx.translate(W / 2 + GV.x, Hh / 2 + GV.y); ctx.scale(GV.k, GV.k);
+  for (const e of G.edges) { if (!gvis(e.a) || !gvis(e.b)) continue; const on = F && F.has(e.a.id) && F.has(e.b.id) && (F.size < 2 || e.a.id === (GHOV || GSEL || {}).id || e.b.id === (GHOV || GSEL || {}).id || (!GHOV && !GSEL));
+    ctx.globalAlpha = F ? (on ? .75 : .05) : (e.kind === 'in' ? .1 : .2); ctx.strokeStyle = C.ink; ctx.lineWidth = (on ? 1 : .7) / GV.k; ctx.setLineDash(e.kind === 'in' ? [3 / GV.k, 3 / GV.k] : []);
+    ctx.beginPath(); ctx.moveTo(e.a.x, e.a.y); ctx.lineTo(e.b.x, e.b.y); ctx.stroke(); }
+  ctx.setLineDash([]); ctx.globalAlpha = 1;
+  const N = G.nodes.filter(gvis);
+  for (const n of N) gglyph(ctx, n, n.x, n.y, gsize(n), C, F && !F.has(n.id));
+  if (GSEL && gvis(GSEL)) { ctx.strokeStyle = C.ink; ctx.lineWidth = 1 / GV.k; ctx.beginPath(); ctx.arc(GSEL.x, GSEL.y, gsize(GSEL) + 6, 0, 7); ctx.stroke(); }
+  ctx.textBaseline = 'middle';
+  for (const n of N) {
+    const hub = n.type === 'symbol' || n.type === 'market' || n.type === 'theme', inF = F && F.has(n.id);
+    if (!(hub && (!F || inF) ) && !(inF && GV.k > .6 && F.size < 40)) continue;
+    const r = gsize(n), fs = (n.type === 'market' ? 12 : n.type === 'symbol' ? 12.5 : 11.5) / Math.max(.75, GV.k);
+    ctx.font = n.type === 'theme' ? `italic ${fs}px ${FF.serif}` : n.type === 'market' ? `500 ${fs * .8}px ${FF.sans}` : `${fs}px ${FF.cn}`;
+    const focus = GHOV || GSEL; let lb = n.label;
+    if (focus && n !== focus && ['symbol','theme'].includes(focus.type) && lb.startsWith(focus.label)) lb = lb.slice(focus.label.length).trim() + (n.verdict ? ' · ' + n.verdict : '');
+    const t = n.type === 'market' ? lb.toUpperCase() : (lb.length > 16 ? lb.slice(0, 15) + '…' : lb);
+    ctx.lineWidth = 3 / GV.k; ctx.strokeStyle = C.paper; ctx.fillStyle = hub ? C.ink : C.mute;
+    const tx = n.type === 'market' ? n.x - ctx.measureText(t).width / 2 : n.x + r + 5, ty = n.type === 'market' ? n.y + r + 9 / GV.k : n.y;
+    ctx.strokeText(t, tx, ty); ctx.fillText(t, tx, ty);
+  }
+}
+function gleg(){
+  const c = G.counts || {};
+  $('gleg').innerHTML = `<span class="label">Legenda · 图例</span>` + GORDER.filter(t => c[t]).map(t => `<button type="button" data-gt="${t}" class="${GOFF.has(t) ? 'off' : ''}">${gicon(t)}<span>${GT[t].t}</span><em>${c[t]}</em></button>`).join('') +
+    `<div class="gnote">点图例隐藏一类。<br>判断：赤陶 = 对，橄榄 = 错，空心 = 未到期。<br>拖动节点或画布，滚轮缩放。</div>`;
+  $('gleg').querySelectorAll('[data-gt]').forEach(b => b.onclick = () => { const t = b.dataset.gt; GOFF.has(t) ? GOFF.delete(t) : GOFF.add(t); if (GSEL && GOFF.has(GSEL.type)) GSEL = null; gleg(); gkick(.4); });
+}
+function gfit(initial){
+  const N = G.nodes.filter(gvis); if (!N.length) { gdraw(); return; }
+  if (initial) for (let i = 0; i < 260; i++) { GALPHA = Math.max(GALPHA, .9 - i * .003); gstep(); }
+  const xs = N.map(n => n.x), ys = N.map(n => n.y), W = $('gcv').clientWidth, Hh = $('gcv').clientHeight;
+  const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
+  GV.k = Math.max(.35, Math.min(1.6, Math.min((W - 120) / (x1 - x0 || 1), (Hh - 80) / (y1 - y0 || 1))));
+  GV.x = -(x0 + x1) / 2 * GV.k; GV.y = -(y0 + y1) / 2 * GV.k; gdraw();
+}
+function gcard(){
+  const el = $('gcard'), n = GSEL;
+  if (!G.nodes.length) { el.innerHTML = ''; $('gcv').querySelector('.gempty')?.remove(); $('gcv').insertAdjacentHTML('beforeend', `<div class="gempty">图谱还是空的。<br>多聊几次、让 Stoa 记下你的持仓和偏好、做几次判断，这里就会长出来。</div>`); return; }
+  $('gcv').querySelector('.gempty')?.remove();
+  if (!n) {
+    const c = G.counts || {}, calls = G.nodes.filter(x => x.type === 'call' && (x.verdict === '对' || x.verdict === '错')), ok = calls.filter(x => x.verdict === '对').length;
+    const top = G.nodes.filter(x => x.type === 'symbol' || x.type === 'theme').sort((a, b) => b.deg - a.deg).slice(0, 8);
+    el.innerHTML = `<div class="gk"><span>Catalogus · 总览</span><span>${G.nodes.length} 件</span></div><h4>你的记忆</h4><div class="gsub">按股票、主题和市场串起来</div>
+      <div class="gst"><span><b>${(c.user || 0) + (c.note || 0)}</b>条记忆</span><span><b>${c.skill || 0}</b>项技能</span><span><b>${c.call || 0}</b>次判断</span><span><b>${calls.length ? Math.round(ok * 100 / calls.length) + '%' : '—'}</b>复盘准确率</span></div>
+      <span class="label">Maxime connexa · 联系最多</span><ul>${top.map(x => `<li data-gn="${esc(x.id)}"><i>${GT[x.type].t}</i>${esc(x.label)}<small>${x.deg} 条</small></li>`).join('')}</ul>`;
+  } else {
+    const nb = [...G.adj[n.id]].map(id => G.byId[id]).filter(gvis).sort((a, b) => GORDER.indexOf(a.type) - GORDER.indexOf(b.type) || (b.date || '').localeCompare(a.date || ''));
+    const hub = ['symbol', 'theme', 'market'].includes(n.type);
+    let stats = '';
+    if (hub) { const cs = nb.filter(x => x.type === 'call'), done = cs.filter(x => x.verdict === '对' || x.verdict === '错'), ok = done.filter(x => x.verdict === '对').length;
+      stats = `<div class="gst"><span><b>${nb.filter(x => x.type === 'user' || x.type === 'note').length}</b>条记忆</span><span><b>${nb.filter(x => x.type === 'chat').length}</b>段对话</span><span><b>${cs.length}</b>次判断</span><span><b>${done.length ? Math.round(ok * 100 / done.length) + '%' : '—'}</b>${done.length ? `对 ${ok} / ${done.length}` : '尚无复盘'}</span></div>`; }
+    const sub = [n.symbol && n.symbol !== n.label ? n.symbol : '', n.date, n.verdict ? `<span class="v-${esc(n.verdict)}">${esc(n.verdict)}</span>` : '', n.uses ? `用过 ${n.uses} 次` : ''].filter(Boolean).join(' · ');
+    el.innerHTML = `<div class="gk"><span>${GT[n.type].k} · ${GT[n.type].t}</span><span><a href="#" id="gback" style="color:inherit">总览</a></span></div><h4>${esc(n.type === 'call' || n.type === 'chat' || hub || n.type === 'skill' ? n.label : n.label.slice(0, 40))}</h4>${sub ? `<div class="gsub">${sub}</div>` : ''}
+      ${stats}${n.text && !hub ? `<p>${esc(n.text)}</p>` : ''}
+      ${n.type === 'chat' ? `<button class="x ask" id="gopen" type="button">打开这段对话</button>` : ''}
+      ${hub && n.type !== 'market' ? `<button class="x dark ask" id="gask" type="button">问 Stoa 关于 ${esc(n.label)}</button>` : ''}
+      <span class="label" style="display:block;margin-top:14px">Nexus · 相连 ${nb.length}</span><ul>${nb.slice(0, 60).map(x => `<li data-gn="${esc(x.id)}"><i>${GT[x.type].t}</i><span>${esc(x.label)}</span>${x.verdict ? `<small class="v-${esc(x.verdict)}">${esc(x.verdict)}</small>` : x.date ? `<small>${esc(x.date.slice(5))}</small>` : ''}</li>`).join('')}</ul>`;
+    $('gback').onclick = e => { e.preventDefault(); GSEL = null; gcard(); gdraw(); };
+    if ($('gask')) $('gask').onclick = () => { closeGraph(); input.value = `结合你记得的一切，帮我看看${n.label}现在怎么样`; sync(); input.focus(); };
+    if ($('gopen')) $('gopen').onclick = () => { closeGraph(); openSession(n.session); };
+  }
+  el.querySelectorAll('[data-gn]').forEach(li => li.onclick = () => gselect(G.byId[li.dataset.gn], true));
+}
+function gselect(n, center){
+  GSEL = n || null; gcard();
+  if (n && center) { const W = $('gcv').clientWidth; void W; const tx = -n.x * GV.k, ty = -n.y * GV.k, fx = GV.x, fy = GV.y; let t = 0;
+    const an = () => { t = Math.min(1, t + .08); const e = 1 - Math.pow(1 - t, 3); GV.x = fx + (tx - fx) * e; GV.y = fy + (ty - fy) * e; gdraw(); if (t < 1) requestAnimationFrame(an); }; an(); }
+  else gdraw();
+}
+let GDRAG = null, GPAN = null, GMOVED = false;
+function gpick(ev){
+  const r = $('gcv').getBoundingClientRect(), x = (ev.clientX - r.left - r.width / 2 - GV.x) / GV.k, y = (ev.clientY - r.top - r.height / 2 - GV.y) / GV.k;
+  let best = null, bd = 1e9; for (const n of G.nodes) { if (!gvis(n)) continue; const d = Math.hypot(n.x - x, n.y - y), rr = gsize(n) + 4 / GV.k; if (d < rr && d < bd) { bd = d; best = n; } }
+  return {n: best, x, y};
+}
+(() => {
+  const cv = $('gcv');
+  cv.onpointerdown = e => { if (e.target.closest('.gzoom')) return; const p = gpick(e); GMOVED = false; cv.setPointerCapture(e.pointerId);
+    if (p.n) { GDRAG = p.n; GDRAG.ox = p.x - p.n.x; GDRAG.oy = p.y - p.n.y; } else GPAN = {x: e.clientX - GV.x, y: e.clientY - GV.y}; cv.classList.add('drag'); };
+  cv.onpointermove = e => {
+    if (!G) return;
+    if (GDRAG) { const p = gpick(e); GDRAG.x = p.x - GDRAG.ox; GDRAG.y = p.y - GDRAG.oy; GMOVED = true; gkick(.25); return; }
+    if (GPAN) { GV.x = e.clientX - GPAN.x; GV.y = e.clientY - GPAN.y; GMOVED = true; gdraw(); return; }
+    const p = gpick(e), tip = $('gtip');
+    if (p.n !== GHOV) { GHOV = p.n; gdraw(); }
+    if (p.n) { const r = cv.getBoundingClientRect(); tip.hidden = false; tip.style.left = (e.clientX - r.left) + 'px'; tip.style.top = (e.clientY - r.top) + 'px'; tip.textContent = `${GT[p.n.type].t} · ${p.n.label}`; cv.style.cursor = 'pointer'; }
+    else { tip.hidden = true; cv.style.cursor = ''; }
+  };
+  cv.onpointerup = e => { const was = GDRAG; cv.classList.remove('drag');
+    if (!GMOVED) { const p = gpick(e); gselect(p.n, false); }
+    GDRAG = null; GPAN = null; if (was) gkick(.1); };
+  cv.onpointerleave = () => { if (GHOV) { GHOV = null; $('gtip').hidden = true; gdraw(); } };
+  cv.addEventListener('wheel', e => { e.preventDefault(); if (!G) return; const r = cv.getBoundingClientRect(), mx = e.clientX - r.left - r.width / 2, my = e.clientY - r.top - r.height / 2;
+    const k2 = Math.max(.25, Math.min(4, GV.k * Math.exp(-e.deltaY * .0015))); GV.x = mx - (mx - GV.x) * k2 / GV.k; GV.y = my - (my - GV.y) * k2 / GV.k; GV.k = k2; gdraw(); }, {passive: false});
+  $('gfit').onclick = () => gfit(false);
+  $('gx').onclick = closeGraph; $('graphb').onclick = openGraph;
+  $('gph').onclick = e => { if (e.target === $('gph')) closeGraph(); };
+  $('gq').oninput = () => { GQ = $('gq').value.trim().toLowerCase(); const hit = GQ && G.nodes.filter(n => gvis(n) && gmatch(n)).sort((a, b) => (['symbol','theme','market'].includes(b.type)) - (['symbol','theme','market'].includes(a.type)) || b.deg - a.deg)[0];
+    if (hit) gselect(hit, true); else { if (!GQ) GSEL = null; gcard(); gdraw(); } };
+  addEventListener('resize', () => { if (!$('gph').hidden) gdraw(); });
+})();
 function closeHist(){ $('hist').hidden = true; }
 $('histb').onclick = openHist; $('hx').onclick = closeHist; $('hnew').onclick = newChat;
 $('hist').onclick = e => { if (e.target === $('hist')) closeHist(); };
@@ -1219,6 +1441,8 @@ addEventListener('keydown', e => {
   if ((e.ctrlKey || e.metaKey) && e.key === ',') { e.preventDefault(); $('set').hidden ? openSettings() : closeSettings(); }
   if (e.key === 'Escape' && !$('set').hidden) closeSettings();
   if (e.key === 'Escape' && !$('hist').hidden) closeHist();
+  if (e.key === 'Escape' && !$('gph').hidden) closeGraph();
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'g') { e.preventDefault(); $('gph').hidden ? openGraph() : closeGraph(); }
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'j') { e.preventDefault(); $('hist').hidden ? openHist() : closeHist(); }
 });
 </script>

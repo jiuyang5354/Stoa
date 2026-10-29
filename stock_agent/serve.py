@@ -172,6 +172,9 @@ class Web(BaseHTTPRequestHandler):
             return self._send(200, {"ok": True})
         if not self._auth():
             return self._send(401, {"error": "token"})
+        if self.path == "/api/graph":
+            from . import graph
+            return self._send(200, graph.build(MEM))
         if self.path == "/api/mcp":
             if not self._local_ok():
                 return self._send(403, {"error": "forbidden"})

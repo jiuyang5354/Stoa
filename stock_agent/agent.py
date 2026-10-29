@@ -30,6 +30,7 @@ SYSTEM = """你是「Stoa」，用户的长期股市助手，覆盖 A股、港�
 - 用户透露了以后还用得上的信息，当场用 memory 工具保存；信息变了就 replace，过时就 remove。
 - 不要存：一次性的行情数字、闲聊、能随时再查到的东西。条目要短、可独立理解，带日期。
 - 用户提到「上次」「之前说过」时，先用 session_search 查历史对话。
+- 分析某只股票或主题前，先用 memory_links 顺着记忆图谱把相关的持仓、笔记、技能、过去判断的对错一次取齐，别重复犯同样的错。
 - 每条记忆开头有日期。旧条目和新信息冲突时以新为准，replace 掉旧的；快满时先合并相近条目。
 
 技能（程序性记忆）：
@@ -67,6 +68,8 @@ TOOLS = [
      "parameters": {"type": "object", "properties": {"query": {"type": "string"}, "limit": {"type": "integer"}}, "required": ["query"]}},
     {"name": "fetch_url", "description": "读取一个网页的正文（新闻、公告详情页、搜索结果里的链接）。",
      "parameters": {"type": "object", "properties": {"url": {"type": "string"}}, "required": ["url"]}},
+    {"name": "memory_links", "description": "记忆图谱：把和某只股票或主题（如 600519.SS、腾讯、NVDA、降息、半导体）有关的一切一次取齐——用户的持仓偏好、你的笔记教训、相关技能、过去对它的判断及对错战绩、聊过的对话、常一起出现的股票和主题。",
+     "parameters": {"type": "object", "properties": {"query": {"type": "string", "description": "股票代码、名字或主题词"}}, "required": ["query"]}},
     {"name": "memory", "description": "维护长期记忆。target: user(用户画像) 或 memory(你的笔记)。action: add / replace / remove。replace 和 remove 用 old_text 定位唯一一条。",
      "parameters": {"type": "object", "properties": {
          "action": {"type": "string", "enum": ["add", "replace", "remove"]},
@@ -178,6 +181,9 @@ class Agent:
     # ----- 工具 -----
     def run_tool(self, name: str, args: dict):
         m = self.mem
+        if name == "memory_links":
+            from . import graph
+            return graph.recall(str(args.get("query", "")), m)
         if name.startswith("mcp__"):
             from .mcpclient import MCP
             return MCP.call(name, args)
