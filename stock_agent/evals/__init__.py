@@ -439,7 +439,7 @@ def print_report(out: dict, verbose: bool = False):
     for r in out["results"]:
         fails = [c for c in r["checks"] if not c["pass"]]
         if fails or verbose:
-            print(f"\n  ✗ {r['id']} {r['score'] * 100:.0f}%  工具 {r['tools']}" + (f"  出错 {r['error']}" if r["error"] else ""))
+            print(f"\n  {'✗' if fails else '✓'} {r['id']} {r['score'] * 100:.0f}%  工具 {r['tools']}" + (f"  出错 {r['error']}" if r["error"] else ""))
             for c in fails:
                 print(f"     - {c['check']}：{c['note']}")
             if verbose:

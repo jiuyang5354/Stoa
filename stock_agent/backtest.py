@@ -386,13 +386,38 @@ def metrics(rows: list[dict], horizons: list[int], band5: float = 1.5) -> dict:
     return out
 
 
+def sleeves(curves: list[list]) -> list[tuple[str, float]]:
+    """各市场交易日历不同，决策日错开；直接混在一起按日期复利会把重叠的持有期算好几遍。
+    所以「全部」= 每个市场一份等额资金各自复利（不再平衡），按日期取各份净值的平均。"""
+    curves = [c for c in curves if c]
+    if not curves:
+        return []
+    dates = sorted({d for c in curves for d, _ in c})
+    pos, last, out = [0] * len(curves), [0.0] * len(curves), []
+    for d in dates:
+        for i, c in enumerate(curves):
+            while pos[i] < len(c) and c[pos[i]][0] <= d:
+                last[i] = c[pos[i]][1]
+                pos[i] += 1
+        out.append((d, round(sum(last) / len(curves), 3)))
+    return out
+
+
 def by_market(rows, horizons, band5):
-    res = {"全部": metrics(rows, horizons, band5)}
+    res = {}
     for m in MARKETS:
         sub = [r for r in rows if r["market"] == m]
         if sub:
             res[m] = metrics(sub, horizons, band5)
-    return res
+    allm = metrics(rows, horizons, band5)
+    if len(res) > 1:
+        allm["curve"] = sleeves([v["curve"] for v in res.values()])
+        allm["curve_bh"] = sleeves([v["curve_bh"] for v in res.values()])
+        allm["portfolio"] = {"long_short%": allm["curve"][-1][1] if allm["curve"] else None,
+                             "buy_hold%": allm["curve_bh"][-1][1] if allm["curve_bh"] else None,
+                             "mdd%": _mdd(allm["curve"]) if allm["curve"] else None, "periods": len(allm["curve"]),
+                             "note": "各市场等额分仓"}
+    return {"全部": allm, **res}
 
 
 def run(symbols=None, start=None, end=None, step=5, horizons=(5, 20), agent="baseline", synthetic=False,
