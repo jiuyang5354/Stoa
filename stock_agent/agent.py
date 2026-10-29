@@ -11,6 +11,7 @@ from . import sandbox
 from .memory import Memory, config_path, now
 from .providers import Router
 
+RESUME_MSGS = 40  # 恢复旧对话时带回的最近消息条数
 NUDGE_EVERY = 6  # 每隔几轮提醒自己是否该存记忆
 
 SYSTEM = """你是「Stoa」，用户的长期股市助手，覆盖 A股、港股、美股。用中文回答，简洁、具体、有数据。
@@ -135,14 +136,20 @@ def review_due(mem: Memory) -> list[str]:
 
 
 class Agent:
-    def __init__(self, mem: Memory | None = None, channel: str = "cli"):
+    def __init__(self, mem: Memory | None = None, channel: str = "cli", session: str | None = None):
         self.mem = mem or Memory()
         cfg = load_cfg().get("llm", {})
         self.llm = Router(cfg)
-        self.session = f"{channel}-" + now().replace(" ", "_") + "-" + uuid.uuid4().hex[:4]
+        self.session = session or (f"{channel}-" + now().replace(" ", "_") + "-" + uuid.uuid4().hex[:4])
         self.tools = [t for t in TOOLS if t["name"] != "run_python" or sandbox.enabled()]
         self.turns = 0
         self.messages = [{"role": "system", "content": self._system()}]
+        if session:  # 接着聊旧对话：把这段对话最近的问答放回上下文
+            past = [h for h in self.mem.history(session, limit=RESUME_MSGS) if h["role"] in ("user", "assistant")]
+            while past and past[0]["role"] != "user":
+                past.pop(0)
+            self.messages += [{"role": h["role"], "content": h["text"][:4000]} for h in past]
+            self.turns = sum(h["role"] == "user" for h in past)
 
     def review_due(self) -> list[str]:
         return review_due(self.mem)

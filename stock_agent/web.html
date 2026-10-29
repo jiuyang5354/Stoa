@@ -248,6 +248,30 @@
   /* ---- 设置（分栏参考 ChatGPT / Claude 桌面版、Cherry Studio、Hermes Dashboard：左侧分栏 + 右侧表单，Ctrl+, 打开） ---- */
   .gear{position:absolute;right:22px;top:24px;display:flex;align-items:center;gap:7px;border:1px solid var(--rule-2);background:transparent;color:var(--ink);font:500 9.5px var(--sans);letter-spacing:.2em;text-transform:uppercase;padding:7px 11px;cursor:pointer;transition:background .25s,border-color .25s}
   .gear:hover{background:var(--ink);color:var(--chalk);border-color:var(--ink)}
+  .gear.hl{right:auto;left:22px}.gear.hl:hover svg{transform:none}
+  /* ---- 对话历史抽屉（参考 ChatGPT / Claude 侧栏：新对话、按日期分组、全文搜索、置顶、改名、删除） ---- */
+  .hist{position:fixed;inset:0;z-index:45;background:rgba(24,23,21,.22);animation:fadein .2s ease both}
+  .hw{position:absolute;left:0;top:0;bottom:0;width:min(380px,92vw);background:#F6F4EF;border-right:1px solid var(--ink);box-shadow:6px 0 0 -1px #F6F4EF,6px 0 0 0 var(--ink);display:flex;flex-direction:column;padding:22px 0 14px;animation:slidein .35s var(--ease) both}
+  @keyframes slidein{from{transform:translateX(-24px);opacity:0}}
+  .hh{display:flex;justify-content:space-between;align-items:center;padding:0 22px 12px}.hh .sclose{position:static}
+  .hnew{margin:0 22px;display:flex;justify-content:space-between;align-items:center;border:1px solid var(--ink);background:var(--ink);color:var(--chalk);font:500 14px var(--serif);padding:10px 14px;cursor:pointer}
+  .hnew i{font-style:normal;font-size:18px;line-height:1}.hnew:hover{background:transparent;color:var(--ink)}
+  .hq{display:flex;align-items:center;gap:8px;margin:14px 22px 6px;border-bottom:1px solid var(--rule-2)}
+  .hq input{flex:1;border:0;background:transparent;font:13px var(--sans);padding:8px 0;outline:none;color:var(--ink)}.hq span{font:500 9px var(--sans);letter-spacing:.14em;color:var(--mute)}
+  .hl2{flex:1;overflow:auto;padding:0 22px}
+  .hg{font:500 9px var(--sans);letter-spacing:.2em;color:var(--mute);text-transform:uppercase;padding:16px 0 6px;border-bottom:1px solid var(--rule)}
+  .hi{position:relative;display:grid;grid-template-columns:26px 1fr;gap:6px;padding:10px 6px;border-bottom:1px solid var(--rule);cursor:pointer}
+  .hi>div{min-width:0}
+  .hi>i{font:500 9px var(--display);font-style:normal;color:var(--mute);padding-top:4px}
+  .hi b{display:block;font:500 14.5px/1.35 var(--serif);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding-right:58px}
+  .hi small{display:block;font-size:11px;color:var(--mute);margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .hi:hover{background:rgba(24,23,21,.04)}.hi.on{background:var(--ink);color:var(--chalk)}.hi.on small,.hi.on>i{color:rgba(246,244,239,.6)}
+  .hi .ha{position:absolute;right:4px;top:8px;display:flex;gap:2px;opacity:0;transition:opacity .2s}.hi:hover .ha,.hi.on .ha{opacity:1}
+  .hi .ha button{border:0;background:none;color:inherit;font:13px var(--sans);width:20px;height:20px;cursor:pointer;opacity:.65}.hi .ha button:hover{opacity:1}
+  .hi .pin{position:absolute;right:6px;bottom:8px;font:500 8px var(--sans);letter-spacing:.16em;color:var(--mute)}
+  .hi input{width:100%;font:500 14px var(--serif);border:0;border-bottom:1px solid currentColor;background:transparent;color:inherit;outline:none}
+  .hfoot{padding:10px 22px 0;color:var(--mute)}
+  .hempty{padding:22px 4px;color:var(--mute);font-size:13px}
   .gear svg{transition:transform .6s var(--ease)}.gear:hover svg{transform:rotate(90deg)}
   .set{position:fixed;inset:0;z-index:50;display:grid;place-items:center;background:rgba(24,23,21,.32);backdrop-filter:blur(3px);animation:fadein .25s ease both}
   .set[hidden]{display:none}
@@ -323,6 +347,7 @@
     <span class="label">Agora · 上海 · 香港 · 纽约 · Est. MMXXVI</span>
     <h1>Stoa · 股市</h1>
     <em>A stoic market agent that remembers.</em>
+    <button class="gear hl" id="histb" type="button" aria-label="对话历史（Ctrl+J）"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 5h16M4 10h16M4 15h10M4 20h7"/></svg>History</button>
     <button class="gear" id="gear" type="button" aria-label="设置（Ctrl+,）"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="3.2"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1"/></svg>Settings</button>
   </header>
   <div id="log"></div>
@@ -339,6 +364,15 @@
     <div class="label disclaim">仅供参考 · 不构成投资建议 · Non consilium, sed observatio</div>
   </div>
 </div></main>
+<div class="hist" id="hist" hidden role="dialog" aria-label="对话历史">
+  <div class="hw">
+    <div class="hh"><span class="label">Annales · 对话</span><button class="sclose" id="hx" aria-label="关闭">×</button></div>
+    <button class="hnew" id="hnew" type="button"><span>新对话</span><i>+</i></button>
+    <div class="hq"><input id="hq" placeholder="搜索全部对话" aria-label="搜索对话" autocomplete="off"><span id="hqn"></span></div>
+    <div class="hl2" id="hlist"></div>
+    <div class="label hfoot">Ctrl+J 打开 · 输入 /new 新建</div>
+  </div>
+</div>
 <div class="set" id="set" hidden role="dialog" aria-modal="true" aria-label="设置">
   <div class="sw">
     <nav class="rail" id="rail"><h2>Settings</h2><span class="ver" id="sver"></span></nav>
@@ -376,7 +410,8 @@ const $ = id => document.getElementById(id);
 const token = new URLSearchParams(location.search).get('token') || localStorage.token || '';
 if (token) localStorage.token = token;
 const H = {'Content-Type':'application/json','X-Token':token};
-const sid = localStorage.sid || (localStorage.sid = Math.random().toString(36).slice(2));
+const newSid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+let sid = localStorage.sid || (localStorage.sid = newSid());
 const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const fmt = (v, d=2) => Number(v).toLocaleString('zh-CN', {minimumFractionDigits:d, maximumFractionDigits:d});
 const cls = v => v >= 0 ? 'up' : 'down';
@@ -488,7 +523,10 @@ const penRO = new ResizeObserver(es => es.forEach(e => { const b = e.target; cle
   b.querySelectorAll('.pen-layer path').forEach(p => p.style.animation = 'none'); annotate(b, +b.dataset.seed);
   b.querySelectorAll('.pen-layer path').forEach(p => { p.style.animation = 'none'; p.style.strokeDashoffset = 0; }); }, 120); }));
 function render(out, text, seed){
-  const t = String(text).trim(), ch = Array.from(t)[0] || '', rest = t.slice(ch.length);
+  // 首字花饰跳过开头的 Markdown 记号（# 标题、> 引用、** 加粗），避免把「*」画成首字
+  const raw = String(text).trim(), lead = raw.match(/^[#>\-\s]*(\*\*)?/);
+  let t = raw.slice(lead[0].length); if (lead[1]) t = t.replace('**', '');
+  const ch = Array.from(t)[0] || '', rest = t.slice(ch.length);
   out.innerHTML = dropcap(ch, seed) + penMark(md(rest));
   out.dataset.seed = seed; requestAnimationFrame(() => { annotate(out, seed); penRO.observe(out); });
 }
@@ -535,6 +573,8 @@ let busy = false;
 async function send(text){
   text = (text ?? input.value).trim(); if (!text || busy) return;
   if (text === '/settings') { input.value = ''; sync(); return openSettings(); }
+  if (text === '/new' || text === '/reset') { input.value = ''; sync(); return newChat(); }
+  if (text === '/history') { input.value = ''; sync(); return openHist(); }
   input.value = ''; sync(); busy = true; $('b').disabled = true;
   add('u', esc(text));
   const seed = turn * 131 + Date.now() % 97;
@@ -751,7 +791,7 @@ box.onclick = () => input.focus();
 input.onfocus = input.oninput = sync;
 document.addEventListener('mousedown', e => { if (!box.contains(e.target)) setTimeout(() => { if (!input.value) { input.blur(); sync(); } }); });
 box.onsubmit = e => { e.preventDefault(); send(); };
-showPh(); sync(); empty();
+showPh(); sync(); empty(); openSession(sid, true);
 
 /* ---------- 行情 ---------- */
 const MARKETS = ['A股','港股','美股','自选'];
@@ -1061,6 +1101,52 @@ async function saveSettings(quiet){
   const s = await (await fetch('/api/settings', {headers:H})).json(); S = s; dirty = {}; wl = null;
   setSt('已保存，立即生效', 'ok'); if (body.watchlist) loadIndices(); if (!quiet) show(scur);
 }
+/* ---------- 多会话 ---------- */
+function newChat(){
+  if (busy) return;
+  sid = localStorage.sid = newSid(); turn = 0; empty(); closeHist(); input.focus();
+}
+async function openSession(id, quiet){
+  if (busy) return;
+  let j; try { j = await (await fetch('/api/sessions/' + encodeURIComponent(id), {headers:H})).json(); } catch (_) { return; }
+  const ms = (j.messages || []).filter(m => m.role === 'user' || m.role === 'assistant');
+  if (!ms.length) { if (!quiet) { sid = localStorage.sid = id; turn = 0; empty(); } return; }
+  sid = localStorage.sid = id; turn = 0; log.innerHTML = '';
+  ms.forEach((m, i) => { if (m.role === 'user') add('u', esc(m.text)); else render(add('a', ''), m.text, i * 131 + 7); });
+  log.scrollTop = 1e9; closeHist();
+}
+let HQT = 0;
+async function loadHist(){
+  const q = $('hq').value.trim();
+  let j; try { j = await (await fetch('/api/sessions' + (q ? '?q=' + encodeURIComponent(q) : ''), {headers:H})).json(); } catch (e) { $('hlist').innerHTML = `<p class="hempty">读取失败：${esc(e)}</p>`; return; }
+  const ss = j.sessions || [], today = new Date(), d0 = s => new Date(s.replace(' ', 'T') + ':00+08:00');
+  const bucket = s => { if (s.pinned) return '置顶 · Pinned'; const days = Math.floor((today - d0(s.updated)) / 864e5); return days < 1 && d0(s.updated).getDate() === today.getDate() ? '今天 · Hodie' : days < 2 ? '昨天 · Heri' : days < 7 ? '七天内 · Hebdomas' : days < 30 ? '三十天内 · Mensis' : '更早 · Antea'; };
+  $('hqn').textContent = q ? `${ss.length} 个` : '';
+  let last = '', html = '';
+  ss.forEach((s, i) => {
+    const b = bucket(s); if (b !== last) { html += `<div class="hg">${b}</div>`; last = b; }
+    html += `<div class="hi ${s.id === sid ? 'on' : ''}" data-id="${esc(s.id)}"><i>${roman(i+1)}</i><div><b>${esc(s.title)}</b><small>${esc(s.updated.slice(5))} · ${Math.ceil(s.count / 2)} 问 · ${esc(s.preview || '')}</small></div>
+      <span class="ha"><button data-act="pin" title="${s.pinned ? '取消置顶' : '置顶'}">${s.pinned ? '◆' : '◇'}</button><button data-act="ren" title="改名">✎</button><button data-act="del" title="删除">×</button></span></div>`;
+  });
+  $('hlist').innerHTML = html || `<p class="hempty">${q ? '没有找到相关对话。' : '还没有对话。问 Stoa 一个问题，这里就会出现。'}</p>`;
+  $('hlist').querySelectorAll('.hi').forEach(el => {
+    const id = el.dataset.id, s = ss.find(x => x.id === id);
+    el.onclick = e => { if (e.target.closest('.ha') || e.target.tagName === 'INPUT') return; openSession(id); };
+    el.querySelector('[data-act=pin]').onclick = () => sessReq('rename', {id, pinned: !s.pinned});
+    el.querySelector('[data-act=del]').onclick = async () => { if (!confirm(`删除「${s.title}」？这段对话会从记录里永久删除。`)) return; await sessReq('delete', {id}); if (id === sid) newChat(); };
+    el.querySelector('[data-act=ren]').onclick = () => {
+      const b = el.querySelector('b'); b.innerHTML = `<input value="${esc(s.title)}" maxlength="60">`; const inp = b.querySelector('input'); inp.focus(); inp.select();
+      const done = ok => { inp.onblur = null; ok && inp.value.trim() && inp.value.trim() !== s.title ? sessReq('rename', {id, title: inp.value.trim()}) : loadHist(); };
+      inp.onkeydown = e => { if (e.key === 'Enter') done(true); if (e.key === 'Escape') { e.stopPropagation(); done(false); } }; inp.onblur = () => done(true);
+    };
+  });
+}
+async function sessReq(act, body){ await fetch('/api/sessions/' + act, {method:'POST', headers:H, body:JSON.stringify(body)}); loadHist(); }
+function openHist(){ $('hist').hidden = false; $('hq').value = ''; loadHist(); setTimeout(() => $('hq').focus(), 50); }
+function closeHist(){ $('hist').hidden = true; }
+$('histb').onclick = openHist; $('hx').onclick = closeHist; $('hnew').onclick = newChat;
+$('hist').onclick = e => { if (e.target === $('hist')) closeHist(); };
+$('hq').oninput = () => { clearTimeout(HQT); HQT = setTimeout(loadHist, 250); };
 $('gear').onclick = () => openSettings();
 $('sx').onclick = $('scancel').onclick = closeSettings;
 $('ssave').onclick = () => saveSettings();
@@ -1068,6 +1154,8 @@ $('set').onclick = e => { if (e.target === $('set')) closeSettings(); };
 addEventListener('keydown', e => {
   if ((e.ctrlKey || e.metaKey) && e.key === ',') { e.preventDefault(); $('set').hidden ? openSettings() : closeSettings(); }
   if (e.key === 'Escape' && !$('set').hidden) closeSettings();
+  if (e.key === 'Escape' && !$('hist').hidden) closeHist();
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'j') { e.preventDefault(); $('hist').hidden ? openHist() : closeHist(); }
 });
 </script>
 </body>

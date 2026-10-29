@@ -3,6 +3,7 @@ python -m stock_agent serve
 """
 import hmac
 import json
+import re
 import os
 import subprocess
 import sys
@@ -45,7 +46,9 @@ def chat(channel: str, text: str) -> str:
         if text.strip() == "/memory":
             return MEM.snapshot()
         if not s:
-            s = SESSIONS[channel] = {"agent": Agent(MEM, channel=channel.split(":")[0])}
+            kind, _, sid = channel.partition(":")
+            # 网页每个对话一个 id，存成 web-<id>，重启后接着聊能带回上下文
+            s = SESSIONS[channel] = {"agent": Agent(MEM, channel=kind, session=f"web-{sid}" if kind == "web" and sid else None)}
         s["last"] = time.time()
         try:
             return s["agent"].ask(text) or "（空回复）"
@@ -169,6 +172,13 @@ class Web(BaseHTTPRequestHandler):
             return self._send(200, {"ok": True})
         if not self._auth():
             return self._send(401, {"error": "token"})
+        if self.path.split("?")[0] == "/api/sessions":
+            from urllib.parse import parse_qs, urlparse
+            q = parse_qs(urlparse(self.path).query).get("q", [""])[0][:100]
+            return self._send(200, {"sessions": MEM.sessions(query=q)})
+        if self.path.startswith("/api/sessions/"):
+            sid = re.sub(r"[^A-Za-z0-9_-]", "", self.path.split("?")[0].rsplit("/", 1)[-1])[:40]
+            return self._send(200, {"id": sid, "messages": MEM.history(f"web-{sid}")})
         if self.path.split("?")[0] == "/api/update":
             return self._send(200, updater.check(force="force" in self.path))
         if self.path.split("?")[0] == "/api/alerts":
@@ -209,9 +219,10 @@ class Web(BaseHTTPRequestHandler):
         path = self.path.split("?")[0]
         if path == "/api/chat":
             body = self._body()
-            reply = chat("web:" + str(body.get("session", "default"))[:40], str(body.get("text", ""))[:4000])
+            sid = re.sub(r"[^A-Za-z0-9_-]", "", str(body.get("session", "default")))[:40] or "default"
+            reply = chat("web:" + sid, str(body.get("text", ""))[:4000])
             return self._send(200, {"reply": reply})
-        if path.startswith("/api/settings") or path in ("/api/memory/delete", "/api/memory/add", "/api/skills/delete", "/api/skills/view", "/api/alerts/add", "/api/alerts/delete", "/api/alerts/check", "/api/update/apply"):
+        if path.startswith("/api/settings") or path in ("/api/memory/delete", "/api/memory/add", "/api/skills/delete", "/api/skills/view", "/api/alerts/add", "/api/alerts/delete", "/api/alerts/check", "/api/update/apply", "/api/sessions/delete", "/api/sessions/rename"):
             if not self._local_ok():
                 return self._send(403, {"error": "设置页只能在本机打开，或先设 WEB_TOKEN"})
             body = self._body()
@@ -221,6 +232,16 @@ class Web(BaseHTTPRequestHandler):
                 return self._send(200, out)
             if path == "/api/settings/test":
                 return self._send(200, settings.test_push() if body.get("what") == "push" else settings.test_llm())
+            if path in ("/api/sessions/delete", "/api/sessions/rename"):
+                sid = re.sub(r"[^A-Za-z0-9_-]", "", str(body.get("id", "")))[:40]
+                if not sid:
+                    return self._send(400, {"error": "id"})
+                with LOCK:
+                    SESSIONS.pop(f"web:{sid}", None)  # 删掉/改名后下次重新从库里载入
+                if path.endswith("delete"):
+                    return self._send(200, {"msg": f"已删除对话（{MEM.delete_session('web-' + sid)} 条消息）"})
+                MEM.rename_session("web-" + sid, body.get("title"), body.get("pinned"))
+                return self._send(200, {"msg": "已更新"})
             if path == "/api/update/apply":
                 try:
                     out = updater.apply()

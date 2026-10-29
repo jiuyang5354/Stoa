@@ -47,6 +47,8 @@ class Memory:
             """
             CREATE TABLE IF NOT EXISTS messages(id INTEGER PRIMARY KEY, session TEXT, ts TEXT, role TEXT, content TEXT);
             CREATE VIRTUAL TABLE IF NOT EXISTS messages_fts USING fts5(content, session UNINDEXED, ts UNINDEXED, role UNINDEXED, tokenize='trigram');
+            CREATE TABLE IF NOT EXISTS session_meta(session TEXT PRIMARY KEY, title TEXT, pinned INTEGER DEFAULT 0);
+            CREATE INDEX IF NOT EXISTS messages_session ON messages(session, id);
             CREATE TABLE IF NOT EXISTS calls(id INTEGER PRIMARY KEY, ts TEXT, symbol TEXT, name TEXT, view TEXT,
                 price REAL, horizon_days INTEGER, reason TEXT, due TEXT, status TEXT DEFAULT 'open',
                 result_price REAL, result_pct REAL, verdict TEXT);
@@ -158,6 +160,64 @@ class Memory:
                 (f"%{q}%", limit),
             ).fetchall()
         return [{"time": t, "role": r, "text": s} for t, r, s in rows]
+
+    # ---------- 多会话 ----------
+    def sessions(self, prefix: str = "web-", query: str = "", limit: int = 100) -> list[dict]:
+        """对话列表：标题（改过的名字，或第一句提问）、开始/最后时间、条数。query 按全文搜索。"""
+        args, where = [prefix + "%"], "m.session LIKE ?"
+        if query.strip():
+            hit = {r["session"] for r in self.search_sessions(query, prefix)}
+            if not hit:
+                return []
+            where += f" AND m.session IN ({','.join('?' * len(hit))})"
+            args += list(hit)
+        rows = self.db.execute(
+            f"""SELECT m.session, MIN(m.ts), MAX(m.ts), COUNT(*),
+                   (SELECT content FROM messages f WHERE f.session=m.session AND f.role='user' ORDER BY f.id LIMIT 1),
+                   (SELECT content FROM messages l WHERE l.session=m.session AND l.role='assistant' ORDER BY l.id DESC LIMIT 1),
+                   s.title, COALESCE(s.pinned,0), MAX(m.id)
+                FROM messages m LEFT JOIN session_meta s ON s.session=m.session
+                WHERE {where} GROUP BY m.session ORDER BY COALESCE(s.pinned,0) DESC, MAX(m.id) DESC LIMIT ?""", args + [limit]).fetchall()
+        out = []
+        for sid, t0, t1, n, first, last, title, pinned, _ in rows:
+            out.append({"id": sid[len(prefix):], "title": title or " ".join((first or "（无标题）").split())[:40],
+                        "started": t0, "updated": t1, "count": n, "pinned": bool(pinned),
+                        "preview": " ".join((last or "").split())[:80]})
+        return out
+
+    def search_sessions(self, query: str, prefix: str = "web-") -> list[dict]:
+        q = query.strip()
+        rows = []
+        if len(q) >= 3:
+            try:
+                rows = self.db.execute("SELECT session FROM messages_fts WHERE messages_fts MATCH ? AND session LIKE ? LIMIT 200",
+                                       (json.dumps(q, ensure_ascii=False), prefix + "%")).fetchall()
+            except sqlite3.OperationalError:
+                rows = []
+        if not rows:
+            rows = self.db.execute("SELECT DISTINCT session FROM messages WHERE content LIKE ? AND session LIKE ? LIMIT 200",
+                                   (f"%{q}%", prefix + "%")).fetchall()
+            rows += self.db.execute("SELECT session FROM session_meta WHERE title LIKE ? AND session LIKE ?", (f"%{q}%", prefix + "%")).fetchall()
+        return [{"session": r[0]} for r in rows]
+
+    def history(self, session: str, limit: int = 400) -> list[dict]:
+        rows = self.db.execute("SELECT ts, role, content FROM messages WHERE session=? ORDER BY id DESC LIMIT ?", (session, limit)).fetchall()
+        return [{"time": t, "role": r, "text": c} for t, r, c in rows[::-1]]
+
+    def rename_session(self, session: str, title: str = None, pinned: bool = None):
+        self.db.execute("INSERT OR IGNORE INTO session_meta(session) VALUES(?)", (session,))
+        if title is not None:
+            self.db.execute("UPDATE session_meta SET title=? WHERE session=?", (" ".join(title.split())[:60] or None, session))
+        if pinned is not None:
+            self.db.execute("UPDATE session_meta SET pinned=? WHERE session=?", (1 if pinned else 0, session))
+        self.db.commit()
+
+    def delete_session(self, session: str) -> int:
+        n = self.db.execute("DELETE FROM messages WHERE session=?", (session,)).rowcount
+        self.db.execute("DELETE FROM messages_fts WHERE session=?", (session,))
+        self.db.execute("DELETE FROM session_meta WHERE session=?", (session,))
+        self.db.commit()
+        return n
 
     # ---------- 判断记账与复盘 ----------
     def record_call(self, symbol, name, view, price, horizon_days, reason) -> int:
