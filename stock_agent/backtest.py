@@ -540,6 +540,8 @@ def listing(limit: int = 30) -> list[dict]:
         except Exception:
             continue
         p = j.get("params") or {}
+        if j.get("status") == "running" and time.time() - f.stat().st_mtime > 3600:
+            j["status"], j["error"] = "error", "中断（服务重启或进程退出）"
         out.append({"id": j.get("id", f.stem), "status": j.get("status"), "created": j.get("created"), "agent": p.get("agent"),
                     "start": p.get("start"), "end": p.get("end"), "step": p.get("step"), "horizons": p.get("horizons"),
                     "symbols": len(p.get("symbols") or []), "data": p.get("data"), "headline": j.get("headline"),

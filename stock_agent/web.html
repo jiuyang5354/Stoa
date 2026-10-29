@@ -403,6 +403,31 @@
   .lsb{position:relative;height:6px;border:1px solid var(--rule)}.lsb i{position:absolute;inset:0 auto 0 0;background:var(--ink)}.lsb i.weak{background:var(--up,#B3543A)}
   .lsb em{position:absolute;left:50%;top:-3px;bottom:-3px;border-left:1px dashed var(--mute)}
   .lsn{font-size:12px;color:var(--mute);margin:8px 0 0}
+  /* ---- Probatio · 回测与评测：沿用账本的数字排版，只用一道古铜线 ---- */
+  .pbh{display:grid;grid-template-columns:auto 1fr;gap:6px 26px;align-items:end;padding:8px 0 16px;border-bottom:1px solid var(--rule)}
+  .pbh>b{font:400 58px/1 var(--serif);letter-spacing:-.01em}.pbh>b span{font-size:22px;margin-left:2px;color:var(--mute)}
+  .pbh small{display:block;font:11.5px/1.5 var(--sans);color:var(--mute)}
+  .pbh .pbk{font:italic 15px/1.4 var(--serif);color:var(--ink-2)}
+  .pbn{display:grid;grid-template-columns:repeat(4,1fr);border-bottom:1px solid var(--rule)}
+  .pbn span{padding:10px 0;font:500 8.5px var(--sans);letter-spacing:.18em;text-transform:uppercase;color:var(--mute)}
+  .pbn b{display:block;font:400 24px/1.1 var(--serif);letter-spacing:0;text-transform:none;color:var(--ink);margin-top:4px}
+  .pbc{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;padding:16px 0 4px}
+  .pbc svg{width:100%;height:118px;display:block;overflow:visible}
+  .pbc h5{margin:0 0 4px;font:500 9px var(--sans);letter-spacing:.18em;color:var(--mute);display:flex;justify-content:space-between}
+  .pbc h5 b{font:500 12px var(--serif);letter-spacing:0;color:var(--ink)}
+  .pbc .ag{fill:none;stroke:var(--bronze);stroke-width:1.5}.pbc .bl{fill:none;stroke:var(--ink);stroke-width:.7;opacity:.4}
+  .pbc .z{stroke:var(--rule-2);stroke-width:.6}.pbc text{font:9px var(--sans);fill:var(--mute)}
+  .pbl{display:flex;gap:18px;font:500 8.5px var(--sans);letter-spacing:.16em;text-transform:uppercase;color:var(--mute);padding:6px 0 2px}
+  .pbl i{display:inline-block;width:18px;height:0;border-top:1.5px solid var(--bronze);vertical-align:3px;margin-right:6px}
+  .pbl i.d{border-top:1px dashed var(--ink);opacity:.5}.pbl i.o{border-top:1px dotted var(--ink);opacity:.6}
+  .pbt{width:100%;border-collapse:collapse;font-size:12.5px}
+  .pbt th{font:500 8.5px var(--sans);letter-spacing:.16em;color:var(--mute);text-align:right;padding:8px 0 6px;border-bottom:1px solid var(--rule-2);text-transform:uppercase}
+  .pbt th:first-child,.pbt td:first-child{text-align:left}
+  .pbt td{padding:8px 0;border-bottom:1px solid var(--rule);text-align:right;font:13.5px var(--serif)}.pbt td:first-child{font:13px var(--cn)}
+  .pbt td small{font:10px var(--sans);color:var(--mute);margin-left:4px}
+  .pbr li{cursor:pointer}.pbr li.on{background:rgba(158,123,86,.08)}
+  .pbr li em{font:italic 13px var(--serif);color:var(--mute);font-style:italic}
+  .pbx{display:inline-flex;margin-top:10px;border-color:var(--rule-2)}.pbx:hover{border-color:var(--bronze);color:var(--bronze)}
   .skb{white-space:pre-wrap;font:12px/1.6 var(--sans);margin:8px 0 0;padding:10px 12px;border:1px solid var(--rule);background:rgba(255,255,255,.35)}
   .ml li{display:grid;grid-template-columns:28px 1fr auto;gap:10px;align-items:baseline;padding:9px 0;border-bottom:1px solid var(--rule);font-size:13px}
   .ml li i{font:500 10px var(--display);font-style:normal;color:var(--mute)}
@@ -533,7 +558,7 @@
     <div class="snap-f num"><span id="upd">—</span><span id="mk">—</span></div>
   </div>
   <div class="list" id="list"></div>
-  <div class="sec"><div class="sh"><span class="rn">II</span><h3>Ledger<span>判断账本</span></h3></div><div class="tq"><input id="tq" placeholder="搜索账本 · 如 腾讯、看多" aria-label="搜索判断账本"><span id="tqn"></span></div><div class="terrain" id="terrain"></div><div id="calls" class="muted">—</div></div>
+  <div class="sec"><div class="sh"><span class="rn">II</span><h3>Ledger<span>判断账本</span></h3></div><div class="tq"><input id="tq" placeholder="搜索账本 · 如 腾讯、看多" aria-label="搜索判断账本"><span id="tqn"></span></div><div class="terrain" id="terrain"></div><div id="calls" class="muted">—</div><button class="x pbx" id="pbo" type="button">Probatio · 回测</button></div>
   <div class="sec"><div class="sh"><span class="rn">III</span><h3>Persona<span>关于你</span></h3><span class="label" id="uu"></span></div><ul id="user"></ul></div>
   <div class="sec"><div class="sh"><span class="rn">IV</span><h3>Codex<span>我的笔记</span></h3><span class="label" id="mu"></span></div><ul id="mem"></ul></div>
   <div class="label note">赤陶为涨 · 橄榄为跌<br>行情约十分钟一更 · 仅供参考，不构成投资建议</div>
@@ -1101,12 +1126,13 @@ async function loadMemory(){
   } catch (e) {}
 }
 $('tq').oninput = terrain;
+$('pbo').onclick = () => openSettings('probatio');
 periods(); seg(); loadIndices(); loadMemory(); watchAlerts(); setTimeout(() => checkUpdate(false), 4000);
 setInterval(loadIndices, 10*60*1000);
 addEventListener('resize', () => { seg(); periods(); });
 
 /* ---------- 设置：通用 · 模型 · 记忆 · 自选与行情 · 推送 · 定时 · 工具与接口 · 数据与关于 ---------- */
-const PREF = Object.assign({colors:'cn', bust:'on', stone:'on'}, JSON.parse(localStorage.stoaPrefs || '{}'));
+const PREF = Object.assign({colors:'cn', bust:'on', stone:'on', pbAgent:'baseline'}, JSON.parse(localStorage.stoaPrefs || '{}'));
 const savePref = () => { localStorage.stoaPrefs = JSON.stringify(PREF); document.body.classList.toggle('intl', PREF.colors === 'intl'); };
 savePref();
 function ledgerStats(st){
@@ -1117,7 +1143,37 @@ function ledgerStats(st){
     `<div class="lsw">${tb('按方向', st['按方向'])}${tb('按市场', st['按市场'])}${tb('按周期', st['按周期'])}</div>` +
     (st['短板'] ? `<p class="lsn">短板：${esc(st['短板'])}。Stoa 在这类判断上会更谨慎，并在回答里说明。</p>` : '');
 }
-const SECS = [['general','通用'],['model','模型'],['memory','记忆'],['data','自选与行情'],['push','推送渠道'],['tasks','定时与提醒'],['tools','工具与接口'],['mcp','MCP 服务器'],['about','数据与关于']];
+function pbCharts(r){
+  const ms = ['A股','港股','美股'].filter(m => r.results.agent[m]), h = String(r.params.horizons[0]), W = 220, Hh = 104;
+  return ms.map(m => {
+    const cs = [['ag', r.results.agent[m].curve, ''], ['bl', r.results.momentum20[m].curve, '1.5 2.5'], ['bl', r.results.always_long[m].curve, '4 3']];
+    const all = cs.flatMap(c => c[1].map(x => x[1])).concat([0]), lo = Math.min(...all), hi = Math.max(...all), n = Math.max(...cs.map(c => c[1].length)) - 1 || 1;
+    const y = v => 6 + (hi - v) / ((hi - lo) || 1) * (Hh - 12), x = i => i / n * W;
+    const path = c => c.map((p, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)} ${y(p[1]).toFixed(1)}`).join('');
+    const a = r.results.agent[m];
+    return `<div><h5>${m}<b>${a.horizons[h]['hit_dir%'] == null ? '—' : a.horizons[h]['hit_dir%'] + '%'}</b></h5><svg viewBox="0 0 ${W} ${Hh + 14}" preserveAspectRatio="none">
+      <line class="z" x1="0" x2="${W}" y1="${y(0)}" y2="${y(0)}"/>${cs.slice(1).map(c => `<path class="bl" stroke-dasharray="${c[2]}" d="${path(c[1])}"/>`).join('')}<path class="ag" d="${path(cs[0][1])}"/>
+      <text x="0" y="${Hh + 12}">${(cs[0][1][0] || [''])[0].slice(2, 7)}</text><text x="${W}" y="${Hh + 12}" text-anchor="end">${(a.portfolio['long_short%'] >= 0 ? '+' : '') + (a.portfolio['long_short%'] ?? 0).toFixed(1)}%</text></svg></div>`;
+  }).join('');
+}
+async function loadPb(id){
+  const L = (await (await fetch('/api/backtests', {headers:H})).json()).items || [];
+  const pick = id || (L.find(x => x.status === 'done') || L[0] || {}).id;
+  const cur = pick ? await (await fetch('/api/backtests/' + encodeURIComponent(pick), {headers:H})).json() : null;
+  const evals = await (await fetch('/api/evals', {headers:H})).json().catch(() => null);
+  S.pb = {list: L, cur, evals}; if (scur === 'probatio' && !$('set').hidden) show('probatio');
+  clearTimeout(loadPb.t); if (L.some(x => x.status === 'running')) loadPb.t = setTimeout(() => loadPb(id), 4000);
+}
+function bindPb(pane){
+  if (!S.pb) { loadPb(); return; }
+  pane.querySelectorAll('[data-pb]').forEach(li => li.onclick = () => loadPb(li.dataset.pb));
+  if ($('pbrun')) $('pbrun').onclick = async () => {
+    const symbols = $('pbsym').value.split(/[,，\s]+/).filter(Boolean);
+    const j = await (await fetch('/api/backtest', {method:'POST', headers:H, body:JSON.stringify({agent: PREF.pbAgent || 'baseline', symbols})})).json();
+    setSt(j.error ? j.error : '回测已开始，约一两分钟', j.error ? 'bad' : 'ok'); loadPb(j.id);
+  };
+}
+const SECS = [['general','通用'],['model','模型'],['memory','记忆'],['probatio','回测与评测'],['data','自选与行情'],['push','推送渠道'],['tasks','定时与提醒'],['tools','工具与接口'],['mcp','MCP 服务器'],['about','数据与关于']];
 let S = null, dirty = {}, wl = null, scur = 'general';
 const setSt = (t, c='') => { const e = $('sst'); e.textContent = t; e.className = 'st ' + c; };
 function openSettings(sec){
@@ -1189,6 +1245,39 @@ const PANES = {
       grp(`Artes · 技能 · ${(S.memory.skills || []).length}`, `<ul class="ml">${(S.memory.skills || []).map((k, i) => `<li><i>${roman(i+1)}</i><span><b>${esc(k.name)}</b><br><span class="muted">${esc(k.description)} · 用过 ${k.uses} 次 · ${esc(k.updated)}</span><pre class="skb" data-skb="${esc(k.name)}" hidden></pre></span><span><button class="x" data-skv="${esc(k.name)}">查看</button> <button class="x" data-skd="${esc(k.name)}">删除</button></span></li>`).join('') || '<li><i>—</i><span class="muted">还没有。Stoa 做完多步骤分析后会自己把做法存成技能，下次照着做。</span><span></span></li>'}</ul>`) +
       grp('Ratio · 判断账本', ledgerStats(S.memory.stats || {}));
   },
+  probatio: () => {
+    if (!S.pb) return `<h3>回测与评测</h3><p class="lead">读取中…</p>`;
+    const L = S.pb.list, r = S.pb.cur, E = S.pb.evals, f1 = v => v == null ? '—' : (+v).toFixed(1), sg = v => v == null ? '—' : (v >= 0 ? '+' : '') + (+v).toFixed(1) + '%';
+    const AG = {baseline: '规则 Agent（均线）', llm: '大模型 Agent'};
+    let top = `<p class="muted">还没有回测。点下面「开始回测」，或命令行 <span class="ep">python -m stock_agent backtest</span>。</p>`;
+    if (r && r.status === 'done') {
+      const p = r.params, h = String(p.horizons[0]), A = r.results.agent['全部'], hd = r.headline, B = hd.baselines;
+      top = `<div class="pbh"><b>${f1(hd['hit_dir%'])}<span>%</span></b><div><span class="pbk">方向胜率 · 持有 ${h} 日</span><small>${esc(AG[p.agent] || p.agent)} · ${p.symbols.length} 只标的 · ${A.horizons[h].n} 次判断 · ${esc(p.start)} → ${esc(p.end)} · 每 ${p.step} 个交易日${/synthetic/.test(p.data) ? ' · 合成行情' : ''}</small></div></div>
+        <div class="pbn"><span>多空累计<b>${sg(hd['long_short%'])}</b></span><span>买入持有<b>${sg(hd['buy_hold%'])}</b></span><span>动量基线<b>${f1(B.momentum20['hit_dir%'])}%</b></span><span>随机基线<b>${f1(B.random['hit_dir%'])}%</b></span></div>
+        <div class="pbc">${pbCharts(r)}</div><div class="pbl"><span><i></i>Stoa</span><span><i class="o"></i>动量 20 日</span><span><i class="d"></i>一直看多</span></div>`;
+    } else if (r && r.status === 'running') top = `<p class="muted">回测进行中…（${esc(r.id)}）</p>`;
+    else if (r && r.status === 'error') top = `<p class="muted">这次回测失败：${esc(r.error || '')}</p>`;
+    let mk = '';
+    if (r && r.status === 'done') {
+      const h = String(r.params.horizons[0]), h2 = r.params.horizons[1] ? String(r.params.horizons[1]) : null;
+      mk = grp('Fora · 分市场', `<table class="pbt"><tr><th>市场</th><th>胜率 ${h}日</th>${h2 ? `<th>胜率 ${h2}日</th>` : ''}<th>多空</th><th>买入持有</th><th>动量基线</th></tr>${
+        ['A股','港股','美股','全部'].filter(m => r.results.agent[m]).map(m => { const a = r.results.agent[m], b = r.results.momentum20[m];
+          return `<tr><td>${m}</td><td>${f1(a.horizons[h]['hit_dir%'])}%<small>${a.horizons[h].n_dir}</small></td>${h2 ? `<td>${f1(a.horizons[h2]['hit_dir%'])}%</td>` : ''}<td>${sg(a.portfolio['long_short%'])}</td><td>${sg(a.portfolio['buy_hold%'])}</td><td>${f1(b.horizons[h]['hit_dir%'])}%</td></tr>`; }).join('')}</table>` +
+        `<div class="lsw" style="grid-template-columns:1fr">${(() => { const c = r.results.agent['全部'].horizons[h].calibration; return `<div class="lsg"><h5>校准 · 置信度 → 方向胜率</h5>${c.map(x => `<div class="lsr"><span>${x.bucket}</span><span class="lsb"><i style="width:${x['hit%'] || 0}%"></i><em></em></span><b>${x['hit%'] == null ? '—' : x['hit%'] + '%'}</b><small>${x.n}</small></div>`).join('')}</div>`; })()}</div>`);
+    }
+    const run = grp('Novum · 新回测', `<div class="fr"><span><b>判断者</b><small>规则 Agent 不需要模型；大模型 Agent 每个时点调用一次（有缓存，最多 200 次）</small></span><span>${sseg('pbAgent', [['baseline','规则'],['llm','大模型']])}</span></div>
+      <div class="fr"><span><b>标的</b><small>留空用默认 12 只 A / 港 / 美股</small></span><input type="text" id="pbsym" placeholder="600519.SS, 0700.HK, NVDA"></div>
+      <div class="addrow" style="justify-content:space-between"><small class="muted">近一年 · 每 5 个交易日 · 持有 5 / 20 日；未来数据一律屏蔽</small><button class="x dark" id="pbrun">开始回测</button></div>`);
+    const hist = grp('Historia · 记录', `<ul class="ml pbr">${L.map((x, i) => `<li data-pb="${esc(x.id)}" class="${r && x.id === r.id ? 'on' : ''}"><i>${roman(L.length - i)}</i><span>${esc(x.created || '')} · ${esc(AG[x.agent] || x.agent || '')} <em>${x.status === 'done' && x.headline ? `胜率 ${f1(x.headline['hit_dir%'])}% · 多空 ${sg(x.headline['long_short%'])}` : x.status === 'running' ? '进行中' : '失败'}</em></span><span></span></li>`).join('') || '<li><i>—</i><span class="muted">还没有</span><span></span></li>'}</ul>`);
+    let ex = `<p class="muted">还没有跑过评测。命令行 <span class="ep">python -m stock_agent eval</span>。</p>`;
+    if (E && E.latest) {
+      const s = E.latest.summary, pv = E.latest.previous;
+      ex = `<div class="pbh"><b>${f1(s.total)}</b><div><span class="pbk">评测总分 · ${s.cases} 题 · 满分 ${s.perfect}</span><small>v${esc(E.latest.version)} · ${E.latest.llm === 'mock' ? 'mock 模型（只验证管线）' : esc(E.latest.llm)} · ${esc(E.latest.created)}${pv ? ` · 上次 ${f1(pv.total)}` : ''}</small></div></div>` +
+        `<div class="lsw" style="grid-template-columns:1fr"><div class="lsg">${Object.entries(s.by_category).map(([k, v]) => `<div class="lsr" style="grid-template-columns:76px 1fr 46px 34px"><span>${esc(k)}</span><span class="lsb"><i style="width:${v}%"></i><em></em></span><b>${f1(v)}</b><small></small></div>`).join('')}</div></div>`;
+    }
+    return `<h3>回测与评测</h3><p class="lead">Probatio：在历史上每个时点只给 Stoa 当时看得到的行情，让它表态，再用之后的真实收盘价打分。</p>` +
+      grp('Ultima · 最近一次回测', top) + mk + run + hist + grp('Examen · 评测集', ex);
+  },
   data: () => {
     const w = wl || S.watchlist;
     return `<h3>自选与行情</h3><p class="lead">自选股会出现在右栏和早晚报里。代码用 Yahoo 格式：600519.SS、0700.HK、NVDA。</p>` +
@@ -1259,7 +1348,7 @@ function show(k){
   const pane = $('pane'); pane.innerHTML = PANES[k](); pane.scrollTop = 0;
   pane.querySelectorAll('[data-env]').forEach(el => el.oninput = el.onchange = () => { dirty[el.dataset.env] = el.value; if (el.dataset.env === 'LLM_PROVIDER') show('model'); setSt('有未保存的修改'); });
   pane.querySelectorAll('[data-clr]').forEach(b => b.onclick = e => { e.preventDefault(); dirty[b.dataset.clr] = null; S.env[b.dataset.clr].set = false; S.env[b.dataset.clr].value = ''; show(k); setSt('有未保存的修改'); });
-  pane.querySelectorAll('[data-pref]').forEach(g => g.querySelectorAll('button').forEach(b => b.onclick = () => { PREF[g.dataset.pref] = b.dataset.v; savePref(); show(k); setSt(g.dataset.pref === 'colors' ? '已切换' : '刷新后生效', 'ok'); }));
+  pane.querySelectorAll('[data-pref]').forEach(g => g.querySelectorAll('button').forEach(b => b.onclick = () => { PREF[g.dataset.pref] = b.dataset.v; savePref(); show(k); setSt(g.dataset.pref === 'colors' ? '已切换' : g.dataset.pref === 'pbAgent' ? '' : '刷新后生效', 'ok'); }));
   pane.querySelectorAll('[data-copy]').forEach(b => b.onclick = () => { navigator.clipboard?.writeText(b.dataset.copy); b.textContent = '已复制'; });
   const rt = () => { dirty.REPORT_TIMES = [...pane.querySelectorAll('[data-rt]')].filter(c => c.checked).map(c => `${c.dataset.rt}=${pane.querySelector(`[data-rtt=${c.dataset.rt}]`).value}`).join(',') || 'off'; setSt('有未保存的修改'); };
   pane.querySelectorAll('[data-rt],[data-rtt]').forEach(el => el.onchange = rt);
@@ -1268,6 +1357,7 @@ function show(k){
   pane.querySelectorAll('[data-skd]').forEach(b => b.onclick = () => memReq('/api/skills/delete', {name:b.dataset.skd}));
   if ($('upchk')) $('upchk').onclick = () => checkUpdate(true);
   if (k === 'mcp') bindMcp(pane);
+  if (k === 'probatio') bindPb(pane);
   const aReq = async (path, body) => { const j = await (await fetch(path, {method:'POST', headers:H, body:JSON.stringify(body)})).json(); setSt(j.msg || j.error || (j.events ? `检查完毕，新触发 ${j.events.length} 条` : ''), j.error ? '' : 'ok'); S.pa = await (await fetch('/api/alerts', {headers:H})).json(); show('tasks'); };
   pane.querySelectorAll('[data-adel]').forEach(b => b.onclick = () => aReq('/api/alerts/delete', {id:b.dataset.adel}));
   if ($('aadd')) { $('akind').onchange = () => { $('aval').disabled = $('akind').value === 'announcement'; }; $('aadd').onclick = () => { const sym = $('asym').value.trim(); if (sym) aReq('/api/alerts/add', {symbol:sym, kind:$('akind').value, value:$('aval').value.trim(), repeat:$('arep').checked}); }; $('acheck').onclick = () => { setSt('检查中…'); aReq('/api/alerts/check', {}); }; }
