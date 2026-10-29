@@ -10,13 +10,16 @@
 """
 import json
 import os
+import random
 import threading
+import time
 import uuid
 
 import requests
 
 # 真实用量（接口返回的 usage）：回测/评测用它报 token，没有 usage 的接口记 calls_no_usage
-USAGE = {"calls": 0, "prompt_tokens": 0, "completion_tokens": 0, "calls_no_usage": 0, "errors": 0}
+USAGE = {"calls": 0, "prompt_tokens": 0, "completion_tokens": 0, "calls_no_usage": 0, "errors": 0, "retries": 0}
+RETRY_STATUS = {429, 500, 502, 503, 504}  # 中转/网关常见的限流与临时故障：退避重试（LLM_RETRIES，默认 3 次）
 _USAGE_LOCK = threading.Lock()
 
 
@@ -31,6 +34,16 @@ def record_usage(u: dict | None = None, error: bool = False):
             return
         USAGE["prompt_tokens"] += int(u.get("prompt_tokens") or u.get("input_tokens") or u.get("promptTokenCount") or 0)
         USAGE["completion_tokens"] += int(u.get("completion_tokens") or u.get("output_tokens") or u.get("candidatesTokenCount") or 0)
+
+
+def _backoff(resp, attempt: int) -> float:
+    """Retry-After（秒）优先，否则 2、4、8… 秒加抖动，最多 30 秒。"""
+    try:
+        ra = float((resp.headers or {}).get("Retry-After") or 0)
+    except (TypeError, ValueError, AttributeError):
+        ra = 0
+    base = float(os.getenv("LLM_RETRY_BASE", "2"))
+    return min(30.0, ra or base * (2 ** attempt) * (1 + random.random() * 0.25))
 
 
 def usage_since(base: dict | None = None) -> dict:
@@ -132,10 +145,23 @@ class LLM:
     def chat(self, messages: list[dict], tools: list[dict] | None = None, temperature: float = 0.3, timeout: int = 120) -> dict:
         fn = {"openai": self._openai, "azure": self._openai, "anthropic": self._anthropic, "gemini": self._gemini}[self.proto]
         try:
-            return fn(messages, tools or [], temperature, timeout)
-        except Exception:
-            record_usage(error=True)
-            raise
+            retries = max(0, int(os.getenv("LLM_RETRIES", "3")))
+        except ValueError:
+            retries = 3
+        for attempt in range(retries + 1):
+            try:
+                return fn(messages, tools or [], temperature, timeout)
+            except requests.HTTPError as e:
+                code = getattr(e.response, "status_code", None)
+                if code not in RETRY_STATUS or attempt >= retries:
+                    record_usage(error=True)
+                    raise
+                with _USAGE_LOCK:
+                    USAGE["retries"] += 1
+                time.sleep(_backoff(e.response, attempt))
+            except Exception:
+                record_usage(error=True)
+                raise
 
     # ---- OpenAI / Azure ----
     def _openai(self, messages, tools, temperature, timeout):
