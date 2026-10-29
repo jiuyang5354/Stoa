@@ -175,6 +175,23 @@ class Web(BaseHTTPRequestHandler):
         if self.path == "/api/graph":
             from . import graph
             return self._send(200, graph.build(MEM))
+        if self.path.split("?")[0] == "/api/memory/search":
+            from urllib.parse import parse_qs, urlparse
+            from . import graph, vectors
+            q = parse_qs(urlparse(self.path).query).get("q", [""])[0][:200]
+            try:
+                return self._send(200, {"q": q, "results": graph.semantic(q, MEM), "backend": vectors.backend_status()})
+            except Exception as e:
+                return self._send(200, {"q": q, "results": [], "error": str(e)[:120]})
+        if self.path.split("?")[0] == "/api/events":
+            from . import earnings
+            d = earnings.load()
+            return self._send(200, {"tracked": sorted(d["items"].values(), key=lambda x: ((x.get("next") or {}).get("date") or "9999")),
+                                    "reports": d["reports"][-30:][::-1], "updated": d.get("updated")})
+        if self.path.startswith("/api/events/report/"):
+            from . import earnings
+            j = earnings.load_report(self.path.split("?")[0].rsplit("/", 1)[-1])
+            return self._send(200 if j else 404, j or {"error": "not found"})
         if self.path == "/api/mcp":
             if not self._local_ok():
                 return self._send(403, {"error": "forbidden"})
@@ -186,7 +203,9 @@ class Web(BaseHTTPRequestHandler):
             return self._send(200, {"sessions": MEM.sessions(query=q)})
         if self.path.startswith("/api/sessions/"):
             sid = re.sub(r"[^A-Za-z0-9_-]", "", self.path.split("?")[0].rsplit("/", 1)[-1])[:40]
-            return self._send(200, {"id": sid, "messages": MEM.history(f"web-{sid}")})
+            d = MEM.digest(f"web-{sid}")
+            return self._send(200, {"id": sid, "messages": MEM.history(f"web-{sid}", limit=2000),
+                                    "digest": {k: d[k] for k in ("upto_id", "text", "ts", "n_msgs")} if d else None})
         if self.path.split("?")[0] == "/api/update":
             return self._send(200, updater.check(force="force" in self.path))
         if self.path.split("?")[0] == "/api/alerts":
@@ -272,8 +291,9 @@ class Web(BaseHTTPRequestHandler):
             sid = re.sub(r"[^A-Za-z0-9_-]", "", str(body.get("session", "default")))[:40] or "default"
             reply = chat("web:" + sid, str(body.get("text", ""))[:4000])
             meta = getattr((SESSIONS.get("web:" + sid) or {}).get("agent"), "last_meta", None) or {}
-            return self._send(200, {"reply": reply, "sources": meta.get("sources") or [], "verify": meta.get("verify"), "debate": meta.get("debate"), "cards": meta.get("cards")})
-        if path.startswith("/api/settings") or path in ("/api/memory/delete", "/api/memory/add", "/api/skills/delete", "/api/skills/view", "/api/alerts/add", "/api/alerts/delete", "/api/alerts/check", "/api/update/apply", "/api/sessions/delete", "/api/sessions/rename") or path.startswith("/api/mcp/"):
+            return self._send(200, {"reply": reply, "sources": meta.get("sources") or [], "verify": meta.get("verify"), "debate": meta.get("debate"), "cards": meta.get("cards"),
+                                    "compressed": meta.get("compressed"), "archived": meta.get("archived") or 0})
+        if path.startswith("/api/settings") or path in ("/api/memory/delete", "/api/memory/add", "/api/skills/delete", "/api/skills/view", "/api/alerts/add", "/api/alerts/delete", "/api/alerts/check", "/api/events/check", "/api/update/apply", "/api/sessions/delete", "/api/sessions/rename") or path.startswith("/api/mcp/"):
             if not self._local_ok():
                 return self._send(403, {"error": "设置页只能在本机打开，或先设 WEB_TOKEN"})
             body = self._body()
@@ -323,6 +343,10 @@ class Web(BaseHTTPRequestHandler):
                 return self._send(200, {"msg": alerts.remove(str(body.get("id", "")))})
             if path == "/api/alerts/check":
                 return self._send(200, {"events": alerts.check()})
+            if path == "/api/events/check":
+                from . import earnings
+                earnings.refresh(MEM, force=True)
+                return self._send(200, {"events": earnings.tick(log, mem=MEM)})
             if path == "/api/skills/delete":
                 return self._send(200, {"msg": skills.delete(str(body.get("name", "")))})
             if path == "/api/skills/view":
@@ -445,7 +469,8 @@ def scheduler():
 def main():
     settings.load_env_file()
     port, host = int(os.getenv("PORT", "8080")), os.getenv("HOST", "0.0.0.0")
-    for fn in (reaper, telegram, scheduler, lambda: alerts.loop(log)):
+    from . import vectors
+    for fn in (reaper, telegram, scheduler, lambda: alerts.loop(log), lambda: vectors.indexer_loop(MEM, log)):
         threading.Thread(target=fn, daemon=True).start()
     log(f"Stoa 已启动：http://{host}:{port}  数据目录 {home()}")
     from .data import provider_order

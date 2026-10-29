@@ -199,11 +199,26 @@ class Sources:
             sid = self.new(f"网页 · {(result or {}).get('title', '')[:40] if isinstance(result, dict) else ''}".rstrip(" ·"), url, today(), tool=tool)
             self.bind(result, sid)
             return {**result, "_cite": sid} if isinstance(result, dict) else result
+        if tool == "earnings_report" and isinstance(result, dict) and not result.get("error"):
+            # 研报里每行数据带 cite（研报自己的来源序号）→ 换成本轮的来源编号
+            smap = {}
+            for i, it in enumerate(result.get("sources") or [], 1):
+                smap[i] = self.new(it.get("name") or "财报事件研报", it.get("url") or "", it.get("as_of") or "", tool=tool)
+            rows = list(((result.get("vs_consensus") or {}).get("rows") or [])) + list(result.get("yoy") or []) + list(result.get("guidance") or [])
+            if result.get("consensus"):
+                rows.append(result["consensus"])
+            for r in rows:
+                if isinstance(r, dict) and r.get("cite") in smap:
+                    self.bind({k: v for k, v in r.items() if k != "cite"}, smap[r["cite"]])
+            sid = self.new(f"财报事件研报 · {result.get('report_id') or ''}".rstrip(" ·"), "", today(), kind="memory", tool=tool)
+            self.bind({k: v for k, v in result.items() if k in ("vs_consensus", "thesis_verdict")}, sid)
+            return {**result, "_cite": sid, "_cite_map": {str(k): v for k, v in smap.items()}}
         if tool == "deep_analysis":  # 辩论内部的数据调用已经登记过；这里只登记结论本身
             sid = self.new("Agora 辩论纪要", "", today(), kind="debate", tool=tool)
             self.bind({k: v for k, v in (result or {}).items() if k != "answer"} if isinstance(result, dict) else result, sid)
             return result
-        names = {"memory_links": "Stoa 记忆图谱", "session_search": "Stoa 历史对话", "call_stats": "Stoa 判断账本",
+        names = {"memory_links": "Stoa 记忆图谱", "session_search": "Stoa 历史对话", "search_memory": "Stoa 语义记忆", "earnings_calendar": "Stoa 财报日历",
+                 "call_stats": "Stoa 判断账本",
                  "record_call": "Stoa 判断账本", "alert_list": "Stoa 提醒", "watchlist": "Stoa 自选股", "run_python": "沙箱计算"}
         sid = self.new(names.get(tool, tool), "", today(), kind="memory" if tool in names else "tool", tool=tool)
         self.bind(result, sid)

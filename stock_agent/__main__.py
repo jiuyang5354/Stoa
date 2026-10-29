@@ -38,7 +38,7 @@ def build_snapshot(cfg: dict, with_news: bool) -> dict:
 
 def sub_command() -> bool:
     """chat / review / memory 子命令；其余参数走报告模式。"""
-    if len(sys.argv) < 2 or sys.argv[1] not in ("chat", "review", "memory", "serve", "mcp", "providers", "desktop", "backtest", "eval"):
+    if len(sys.argv) < 2 or sys.argv[1] not in ("chat", "review", "memory", "serve", "mcp", "providers", "desktop", "backtest", "eval", "earnings"):
         return False
     cmd = sys.argv[1]
     if cmd == "chat":
@@ -70,9 +70,29 @@ def sub_command() -> bool:
     elif cmd == "eval":
         from .evals import main as ev
         ev(sys.argv[2:])
+    elif cmd == "earnings":
+        from .earnings import main as em
+        em(sys.argv[2:])
     elif cmd == "memory":
         from .memory import Memory
-        print(Memory().snapshot())
+        args = sys.argv[2:]
+        if args and args[0] in ("reindex", "index", "stats", "search"):
+            from . import settings, vectors
+            settings.load_env_file()
+            m = Memory()
+            if args[0] in ("reindex", "index"):
+                import time as _t
+                t0 = _t.time()
+                s = vectors.sync(m, full=args[0] == "reindex")
+                print(f"语义索引{'重建' if args[0] == 'reindex' else '增量更新'}完成（{_t.time() - t0:.1f}s）：", s)
+                print(vectors.stats(m))
+            elif args[0] == "stats":
+                print(json.dumps(vectors.stats(m), ensure_ascii=False, indent=1))
+            else:
+                for h in vectors.search(m, " ".join(args[1:]), limit=10):
+                    print(f"[{h['label']} · {h['via']} · {h['sim']}] {h['ts'][:16]}  {h['text'][:100]}")
+        else:
+            print(Memory().snapshot())
     return True
 
 

@@ -44,3 +44,13 @@ debate:
   role_timeout: 60     # 每个角色的超时（秒），超时的角色降级为规则摘要
   horizon_days: 20     # 结论的观察周期（交易日），也是记账复盘的期限
 
+# 对话 Agent（v0.17）：工具循环最多几轮（上下文预算先用完会提前收尾）；上下文窗口按模型预设，LLM_CONTEXT 可覆盖
+agent:
+  max_tool_rounds: 12
+
+# 财报事件（v0.17）：跟踪 USER.md 持仓 + 自选股的财报日，财报前提醒、财报后自动生成事件研报（data/reports/events/）
+earnings:
+  enabled: on
+  remind_days: 3       # 财报前几天提醒（含市场预期与上次判断回顾）
+  refresh_hours: 12    # 财报日历多久刷新一次
+  debate: false        # 研报后顺带跑一次 Agora 辩论（会多调用十来次模型）

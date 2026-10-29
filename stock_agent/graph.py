@@ -12,6 +12,8 @@
 
 没有用模型抽取，全靠规则：已知代码 + 名字（自选、指数、账本里出现过的）、裸 6 位 A 股代码、
 x.HK、$TSLA 这类写法，以及一张主题词表。便宜、确定、离线可用。
+v0.17：再用语义向量（vectors.py）补两样——条目之间「意思相近」的边（kind=similar，带相似度），
+以及 recall() 在规则命中之外的「语义相关」条目；规则匹配仍是兜底，向量不可用时图谱照常。
 """
 from __future__ import annotations
 
@@ -199,6 +201,25 @@ def build(mem: Memory | None = None, with_chats: bool = True) -> dict:
                        date=str(ss.get("updated") or ss.get("ts") or "")[:10], session=sid)
             hubs(nid, text)
 
+    sims = {}
+    try:  # 语义近邻边：条目 ↔ 条目（记忆、判断）
+        from . import vectors
+        ref2node = {}
+        for target, typ in (("user", "user"), ("memory", "note")):
+            for i, e in enumerate(mem.entries(target)):
+                ref2node[(target, vectors._hash(e))] = f"{typ}:{i}"
+        for nid in nodes:
+            if nid.startswith("call:"):
+                ref2node[("call", nid[5:])] = nid
+        for a, b, sim in vectors.similar_pairs(mem, kinds=("user", "memory", "call")):
+            na, nb = ref2node.get((a["kind"], a["ref"])), ref2node.get((b["kind"], b["ref"]))
+            if na and nb and na in nodes and nb in nodes and (na, nb) not in seen and (nb, na) not in seen:
+                seen.add((na, nb))
+                edges.add((na, nb, "similar"))
+                sims[f"{na}|{nb}"] = sim
+    except Exception:
+        pass
+
     # 只出现一次、又没连到别的东西的孤立集线器去掉，图更干净
     deg = {}
     for a, b, _ in edges:
@@ -209,7 +230,35 @@ def build(mem: Memory | None = None, with_chats: bool = True) -> dict:
     kinds = {}
     for n in nodes.values():
         kinds[n["type"]] = kinds.get(n["type"], 0) + 1
-    return {"nodes": list(nodes.values()), "edges": [{"s": a, "t": b, "kind": k} for a, b, k in sorted(edges)], "counts": kinds}
+    return {"nodes": list(nodes.values()), "counts": kinds,
+            "edges": [{"s": a, "t": b, "kind": k, **({"sim": sims.get(f"{a}|{b}")} if k == "similar" else {})} for a, b, k in sorted(edges)]}
+
+
+def node_for(hit: dict, mem: Memory) -> str | None:
+    """语义检索结果 → 图谱节点 id（网页点击跳转用）。"""
+    from . import vectors
+    k = hit.get("kind")
+    if k in ("user", "memory"):
+        for i, e in enumerate(mem.entries(k)):
+            if vectors._hash(e) == hit.get("ref"):
+                return f"{'user' if k == 'user' else 'note'}:{i}"
+    if k == "call":
+        return f"call:{hit.get('ref')}"
+    if k in ("msg", "digest") and str(hit.get("session") or "").startswith("web-"):
+        return "chat:" + hit["session"][4:]
+    return None
+
+
+def semantic(query: str, mem: Memory | None = None, limit: int = 12) -> list[dict]:
+    """网页图谱的语义检索：混合检索结果 + 对应节点。"""
+    from . import vectors
+    mem = mem or Memory()
+    out = []
+    for h in vectors.search(mem, query, limit=limit):
+        out.append({"label": h["label"], "kind": h["kind"], "via": h["via"], "sim": h["sim"], "ts": h["ts"], "text": h["text"][:240],
+                    "session": h["session"][4:] if h["session"].startswith("web-") else None, "node": node_for(h, mem),
+                    "verdict": (h.get("meta") or {}).get("verdict"), "backend": h["backend"]})
+    return out
 
 
 def recall(query: str, mem: Memory | None = None, limit: int = 30) -> dict:
@@ -223,7 +272,26 @@ def recall(query: str, mem: Memory | None = None, limit: int = 30) -> dict:
     hubs_ = {"sym:" + s for s in L.symbols(q)} | {"thm:" + t for t in L.themes(q)}
     hubs_ |= {n["id"] for n in g["nodes"] if n["type"] in ("symbol", "theme", "market") and q and (q.lower() == n["label"].lower() or q.upper() == n.get("symbol", "") or (len(q) >= 2 and q in n["label"]))}
     hubs_ = {h for h in hubs_ if h in nodes}
+    sem = []
+    try:  # 语义补充：规则没连上、但意思相近的记忆 / 判断 / 辩论 / 对话
+        from . import vectors
+        sem = vectors.search(mem, q, kinds=("user", "memory", "call", "debate", "digest", "msg"), limit=8)
+    except Exception:
+        sem = []
+
+    def sem_lines(skip=()):
+        out = []
+        for h in sem:
+            t = h["text"]
+            if any(t[:40] in x for x in skip):
+                continue
+            v = (h.get("meta") or {}).get("verdict")
+            out.append(f"[{h['label']} · {h['via']} · 相似度 {h['sim']}] {h['ts'][:10]} {t[:240]}" + (f"（结果：{v}）" if v else ""))
+        return out[:8]
+
     if not hubs_:
+        if sem:
+            return {"query": q, "found": True, "hubs": [], "语义相关": sem_lines(), "note": "规则图谱里没有这个股票或主题，以下是语义检索找到的相近内容。"}
         return {"query": q, "found": False, "hint": "图里没有这个股票或主题。可以换成代码（600519.SS / 0700.HK / NVDA）或中文名再试。",
                 "themes": sorted(THEMES)}
     adj = {}
@@ -253,4 +321,8 @@ def recall(query: str, mem: Memory | None = None, limit: int = 30) -> dict:
                 related[nodes[j]["label"]] = related.get(nodes[j]["label"], 0) + 1
     if related:
         out["常一起出现"] = [k for k, _ in sorted(related.items(), key=lambda x: -x[1])[:8]]
+    have = [x for k in ("关于用户", "笔记", "技能", "判断", "对话") for x in out.get(k, [])]
+    extra = sem_lines(have)
+    if extra:
+        out["语义相关"] = extra
     return out
