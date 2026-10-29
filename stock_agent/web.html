@@ -416,9 +416,46 @@
   .sclose{position:absolute;right:12px;top:10px;border:0;background:transparent;font:300 26px/1 var(--serif);cursor:pointer;color:var(--ink)}
   body.intl{--up:var(--olive);--down:var(--terracotta)}
   @media(max-width:720px){.sw{grid-template-columns:1fr}.rail{flex-direction:row;overflow-x:auto;padding:10px 0;border-right:0;border-bottom:1px solid var(--rule-2)}.rail h2,.rail .ver{display:none}.rail button{white-space:nowrap}.sfoot{left:0}.fr{grid-template-columns:1fr}}
+  /* 开屏：一束顶光落下 → 金线描出拱门 → STOA 逐字显形 → 拱内亮起 → 整幕淡出，主界面浮现。每次会话只放一次，点击/按键跳过 */
+  #intro{position:fixed;inset:0;z-index:9999;background:#F6F3EC;display:grid;place-items:center;cursor:pointer;overflow:hidden}
+  #intro .ist{position:relative;width:min(300px,60vw);aspect-ratio:200/270;display:grid;place-items:center}
+  #intro svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
+  #intro svg path{fill:none;stroke:#B0915F;stroke-width:.8;stroke-dasharray:900;stroke-dashoffset:900;animation:idraw 1.5s .45s cubic-bezier(.65,0,.25,1) forwards}
+  #intro svg path+path{stroke-width:.5;opacity:.6;animation-delay:.7s}
+  #intro .ibeam{position:absolute;left:50%;top:-50vh;width:1px;height:calc(50vh + 12%);background:linear-gradient(#B0915F00,#B0915F);transform-origin:top;transform:scaleY(0);animation:ibeam .7s .05s cubic-bezier(.5,0,.2,1) forwards}
+  #intro .iglow{position:absolute;inset:10% 12% 0;border-radius:50% 50% 0 0/38% 38% 0 0;background:radial-gradient(ellipse 60% 55% at 50% 22%,#fff,#ffffff00 70%);opacity:0;animation:iglow 1.2s 1.15s ease forwards}
+  #intro .iword{position:relative;font:400 clamp(44px,7vw,68px)/1 "Archeologicaps",var(--poster);color:var(--ink);letter-spacing:.16em;margin-left:.16em;margin-top:22%}
+  #intro .iword span{display:inline-block;opacity:0;animation:iglyph 1s var(--ease) forwards;animation-delay:calc(var(--i) * 110ms + 1s)}
+  #intro .isub{position:absolute;bottom:13%;left:0;right:0;text-align:center;font:500 9.5px var(--sans);letter-spacing:.42em;text-transform:uppercase;color:var(--bronze);opacity:0;animation:iup .8s 1.6s var(--ease) forwards}
+  #intro .isub b{display:block;font:400 12px var(--cn);letter-spacing:.5em;color:var(--mute);margin-top:9px}
+  #intro.bye{animation:ibye .75s cubic-bezier(.6,0,.3,1) forwards;pointer-events:none}
+  #intro.bye .ist{animation:ibyeIn .75s cubic-bezier(.6,0,.3,1) forwards}
+  body.wake .temple{animation:iwake 1s var(--ease) both}
+  @keyframes idraw{to{stroke-dashoffset:0}}
+  @keyframes ibeam{60%{transform:scaleY(1);opacity:1}100%{transform:scaleY(1);opacity:.0}}
+  @keyframes iglow{to{opacity:1}}
+  @keyframes iglyph{from{opacity:0;transform:translateY(.18em);filter:blur(6px)}to{opacity:1;transform:none;filter:none}}
+  @keyframes iup{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+  @keyframes ibye{to{opacity:0}}
+  @keyframes ibyeIn{to{transform:scale(1.06);filter:blur(2px)}}
+  @keyframes iwake{from{opacity:0;transform:translateY(10px)}}
 </style>
 </head>
 <body>
+<div id="intro" aria-hidden="true" hidden><div class="ist"><div class="ibeam"></div><div class="iglow"></div>
+  <svg viewBox="0 0 200 270"><path d="M14 270V100a86 86 0 0 1 172 0v170"/><path d="M30 270V104a70 70 0 0 1 140 0v166"/></svg>
+  <div class="iword"><span style="--i:0">S</span><span style="--i:1">T</span><span style="--i:2">O</span><span style="--i:3">A</span></div>
+  <div class="isub">Noble simplicity · quiet grandeur<b>记忆之廊</b></div></div></div>
+<script>(() => {
+  const el = document.getElementById('intro'), q = new URLSearchParams(location.search).get('intro');
+  let seen = false; try { seen = sessionStorage.getItem('stoa-intro') === '1'; } catch (e) {}
+  if (q !== '1' && (seen || q === '0' || matchMedia('(prefers-reduced-motion: reduce)').matches)) { el.remove(); return; }
+  el.hidden = false; try { sessionStorage.setItem('stoa-intro', '1'); } catch (e) {}
+  let done = false; const bye = () => { if (done) return; done = true; el.classList.add('bye'); document.body.classList.add('wake');
+    setTimeout(() => { el.remove(); document.body.classList.remove('wake'); }, 1000); };
+  const t = setTimeout(bye, 2900); el.addEventListener('click', () => { clearTimeout(t); bye(); });
+  addEventListener('keydown', () => { clearTimeout(t); bye(); }, {once: true});
+})();</script>
 <div class="temple">
 <div class="ticker" id="ticker"><div class="ticker-track" id="track"><span class="tk"><span class="p">行情加载中…</span></span></div></div>
 <div class="meander"></div>
