@@ -302,6 +302,24 @@
   .gcard .ask .gstar{width:10px;height:10px;background:currentColor}
   .gcard .v-对{color:var(--terracotta)}.gcard .v-错{color:var(--olive)}
   .gcard .glbl{display:flex;align-items:center;gap:8px;margin-top:16px}.gcard .glbl .gstar{width:9px;height:9px}
+  /* 图谱过渡：浮层浮起 → 拱门自上而下被光照亮 → 标题逐字显形 → 星辰由内向外点亮 → 侧栏依次升起；关闭时轻轻沉下 */
+  @keyframes fadeout{to{opacity:0}}
+  @keyframes gwIn{from{opacity:0;transform:translateY(18px) scale(.985)}}
+  @keyframes gwOut{to{opacity:0;transform:translateY(10px) scale(.99)}}
+  @keyframes archIn{from{clip-path:inset(0 0 100% 0);opacity:.3}to{clip-path:inset(0 0 0 0);opacity:1}}
+  @keyframes lightIn{0%{opacity:0;transform:translateY(-30%) scaleY(.6)}55%{opacity:1}100%{opacity:.55;transform:none}}
+  @keyframes glyphIn{from{opacity:0;transform:translateY(.22em);filter:blur(5px)}}
+  @keyframes riseIn{from{opacity:0;transform:translateY(8px)}}
+  .gph .gw{animation:gwIn .6s var(--ease) both}
+  .gph.out{animation:fadeout .3s ease forwards}.gph.out .gw{animation:gwOut .3s ease forwards}
+  .gcv{animation:archIn 1.2s .12s cubic-bezier(.65,0,.15,1) both}
+  .gcv::before{content:"";position:absolute;inset:0;pointer-events:none;z-index:0;background:radial-gradient(ellipse 34% 62% at 50% 0%,rgba(255,255,255,.95),rgba(255,255,255,0) 72%);animation:lightIn 1.8s .25s ease both}
+  .gtop h3 span{display:inline-block;animation:glyphIn .9s var(--ease) both;animation-delay:calc(var(--i) * 55ms + .25s)}
+  .gtop .gsr,.gtop .sclose{animation:riseIn .6s .5s var(--ease) both}
+  .gleg>*{animation:riseIn .5s var(--ease) both;animation-delay:calc(var(--i,0) * 45ms + .35s)}
+  .gcard>*{animation:riseIn .45s var(--ease) both}
+  .gcard>:nth-child(2){animation-delay:.04s}.gcard>:nth-child(3){animation-delay:.08s}.gcard>:nth-child(4){animation-delay:.12s}.gcard>:nth-child(5){animation-delay:.16s}.gcard>:nth-child(6){animation-delay:.2s}.gcard>:nth-child(7){animation-delay:.24s}.gcard>:nth-child(n+8){animation-delay:.28s}
+  .gbase{animation:riseIn .6s .9s var(--ease) both}
   @media(max-width:980px){.gw{grid-template-columns:1fr;grid-template-rows:auto 1fr 40%}.gleg{display:none}.gtop{grid-template-columns:auto 1fr auto}.gtop .gstack{display:none}.gtop h3{font-size:44px}.gtop input{width:140px}.gmid .glaurel{display:none}}
   /* ---- 对话历史抽屉（参考 ChatGPT / Claude 侧栏：新对话、按日期分组、全文搜索、置顶、改名、删除） ---- */
   .hist{position:fixed;inset:0;z-index:45;background:rgba(24,23,21,.22);animation:fadein .2s ease both}
@@ -1311,12 +1329,12 @@ const GLAT = {'ΗΦΑΙΣΤΟΣ':'HEPHAESTUS','ΠΡΟΜΗΘΕΥΣ':'PROMETHEUS',
   'ΑΙΔΗΣ':'HADES','ΑΡΗΣ':'ARES','ΚΡΟΝΟΣ':'CRONUS','ΕΡΜΗΣ':'HERMES','ΖΕΥΣ':'ZEUS','ΝΕΜΕΣΙΣ':'NEMESIS','ΑΠΟΛΛΩΝ':'APOLLO','ΑΘΗΝΑ':'ATHENA','ΚΛΩΘΩ':'CLOTHO','ΛΑΧΕΣΙΣ':'LACHESIS','ΑΤΡΟΠΟΣ':'ATROPOS'};
 const GSTAR = '<span class="gstar"></span>';
 const GORDER = ['symbol','theme','market','user','note','skill','call','chat'];
-let GCOL = null, GFONT = null, GSKY = null, G = null, GV = {x:0, y:0, k:1}, GSEL = null, GHOV = null, GOFF = new Set(), GQ = '', GRAF = 0, GALPHA = 0;
+let GINTRO = 0, GCOL = null, GFONT = null, GSKY = null, G = null, GV = {x:0, y:0, k:1}, GSEL = null, GHOV = null, GOFF = new Set(), GQ = '', GRAF = 0, GALPHA = 0;
 const gcol = () => ({ink:'#181715', mute:'rgba(24,23,21,.5)', bronze:'#9E7B56', up:'#B3543A', dn:'#56684F', paper:'#F8F6F0', glow:'rgba(201,169,110,.22)'});
 function gsize(n){ return n.type === 'market' ? 12 : n.type === 'symbol' ? 5 + Math.min(9, Math.sqrt(n.deg) * 1.6) : n.type === 'theme' ? 4.5 + Math.min(7, Math.sqrt(n.deg) * 1.3) : 3.4; }
 function gstar(ctx, x, y, r){ const q = r * .22; ctx.moveTo(x, y - r); ctx.quadraticCurveTo(x + q, y - q, x + r, y); ctx.quadraticCurveTo(x + q, y + q, x, y + r); ctx.quadraticCurveTo(x - q, y + q, x - r, y); ctx.quadraticCurveTo(x - q, y - q, x, y - r); ctx.closePath(); }
-function gglyph(ctx, n, x, y, r, C, dim){
-  ctx.globalAlpha = dim ? .14 : 1; ctx.lineWidth = 1.1; ctx.strokeStyle = C.ink; ctx.fillStyle = C.ink;
+function gglyph(ctx, n, x, y, r, C, dim, A = 1){
+  ctx.globalAlpha = (dim ? .14 : 1) * A; ctx.lineWidth = 1.1; ctx.strokeStyle = C.ink; ctx.fillStyle = C.ink;
   const vc = n.verdict === '对' ? C.up : n.verdict === '错' ? C.dn : null;
   ctx.beginPath();
   switch (n.type) {
@@ -1336,9 +1354,9 @@ function gglyph(ctx, n, x, y, r, C, dim){
 }
 /* 天球底图：星空 + 星盘同心环 + 环刻希腊铭文与罗马数字 */
 /* 只留一圈极淡的光环，其余留白 */
-function gsky(ctx, W, Hh, C){
-  const R = G.R || 560; ctx.strokeStyle = C.bronze; ctx.lineWidth = .8 / GV.k; ctx.globalAlpha = .28;
-  ctx.beginPath(); ctx.arc(0, 0, R, 0, 7); ctx.stroke(); ctx.globalAlpha = 1;
+function gsky(ctx, W, Hh, C, p = 1){
+  if (!p) return; const R = G.R || 560; ctx.strokeStyle = C.bronze; ctx.lineWidth = .8 / GV.k; ctx.globalAlpha = .28;
+  ctx.beginPath(); ctx.arc(0, 0, R, -Math.PI / 2 - Math.PI * p, -Math.PI / 2 + Math.PI * p); ctx.stroke(); ctx.globalAlpha = 1;
 }
 function gicon(type){
   const k = 'stroke="var(--ink)" stroke-width="1.1"', st = (cx, cy, r) => { const q = r * .22; return `M${cx} ${cy - r}Q${cx + q} ${cy - q} ${cx + r} ${cy}Q${cx + q} ${cy + q} ${cx} ${cy + r}Q${cx - q} ${cy + q} ${cx - r} ${cy}Q${cx - q} ${cy - q} ${cx} ${cy - r}Z`; };
@@ -1350,13 +1368,20 @@ function gicon(type){
     call:`<circle cx="6" cy="9" r="3.2" fill="var(--terracotta)"/><circle cx="13" cy="9" r="3.2" fill="var(--olive)"/>`, chat:`<rect x="4.5" y="4.5" width="9" height="9" fill="none" ${k}/>`};
   return `<svg width="18" height="18" viewBox="0 0 18 18">${P[type]}</svg>`;
 }
+const GSTILL = matchMedia('(prefers-reduced-motion: reduce)');
+let GOUT = 0;
 async function openGraph(){
+  const h3 = $('gph').querySelector('.gtop h3'); if (!h3.querySelector('span')) h3.innerHTML = [...h3.textContent].map((c, i) => `<span style="--i:${i}">${c}</span>`).join('');
+  $('gph').classList.remove('out'); clearTimeout(GOUT);
   $('gph').hidden = false; $('gq').value = GQ = ''; GSEL = null;
   $('gcard').innerHTML = `<div class="gk"><span>Catalogus</span><span>—</span></div><p class="muted">读取中…</p>`;
   try { G = await (await fetch('/api/graph', {headers:H})).json(); } catch(e) { G = {nodes:[], edges:[], counts:{}}; }
   gprep(); gleg(); gcard(); gfit(true);
+  GINTRO = GSTILL.matches ? 0 : performance.now() + 350;
+  if (GINTRO) { const tick = () => { if ($('gph').hidden) return; gdraw(); if (performance.now() - GINTRO < 1900) requestAnimationFrame(tick); }; requestAnimationFrame(tick); }
 }
-function closeGraph(){ $('gph').hidden = true; cancelAnimationFrame(GRAF); GRAF = 0; }
+function closeGraph(){ const g = $('gph'); if (g.hidden) return; cancelAnimationFrame(GRAF); GRAF = 0;
+  if (GSTILL.matches) { g.hidden = true; return; } g.classList.add('out'); clearTimeout(GOUT); GOUT = setTimeout(() => { g.hidden = true; g.classList.remove('out'); }, 300); }
 function gprep(){
   const byId = {}; G.adj = {};
   const W = $('gcv').clientWidth || 700, Hh = $('gcv').clientHeight || 600;
@@ -1395,17 +1420,20 @@ function gdraw(){
   const FF = GFONT || (GFONT = (cs => ({serif: cs.getPropertyValue('--serif'), sans: cs.getPropertyValue('--sans'), cn: cs.getPropertyValue('--cn'), disp: cs.getPropertyValue('--display')}))(getComputedStyle(document.body)));
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, W, Hh);
   ctx.translate(W / 2 + GV.x, Hh / 2 + GV.y); ctx.scale(GV.k, GV.k);
-  gsky(ctx, W, Hh, C);
-  for (const e of G.edges) { if (!gvis(e.a) || !gvis(e.b)) continue; const on = F && F.has(e.a.id) && F.has(e.b.id) && (F.size < 2 || e.a.id === (GHOV || GSEL || {}).id || e.b.id === (GHOV || GSEL || {}).id || (!GHOV && !GSEL));
-    ctx.globalAlpha = F ? (on ? .7 : .05) : (e.kind === 'in' ? .1 : .18); ctx.strokeStyle = C.ink; ctx.lineWidth = (on ? 1 : .7) / GV.k; ctx.setLineDash(e.kind === 'in' ? [3 / GV.k, 3 / GV.k] : []);
+  const age = GINTRO ? performance.now() - GINTRO : 1e9, RR = G.R || 400, ez = t => t <= 0 ? 0 : t >= 1 ? 1 : 1 - Math.pow(1 - t, 3);
+  for (const n of G.nodes) n._a = age > 1900 ? 1 : ez((age - Math.hypot(n.x, n.y) / RR * 900) / 550);
+  gsky(ctx, W, Hh, C, ez(age / 1300));
+  for (const e of G.edges) { if (!gvis(e.a) || !gvis(e.b)) continue; const ea = Math.min(e.a._a, e.b._a); if (!ea) continue; const on = F && F.has(e.a.id) && F.has(e.b.id) && (F.size < 2 || e.a.id === (GHOV || GSEL || {}).id || e.b.id === (GHOV || GSEL || {}).id || (!GHOV && !GSEL));
+    ctx.globalAlpha = ea * (F ? (on ? .7 : .05) : (e.kind === 'in' ? .1 : .18)); ctx.strokeStyle = C.ink; ctx.lineWidth = (on ? 1 : .7) / GV.k; ctx.setLineDash(e.kind === 'in' ? [3 / GV.k, 3 / GV.k] : []);
     ctx.beginPath(); ctx.moveTo(e.a.x, e.a.y); ctx.lineTo(e.b.x, e.b.y); ctx.stroke(); }
   ctx.setLineDash([]); ctx.globalAlpha = 1;
   const N = G.nodes.filter(gvis);
-  for (const n of N) gglyph(ctx, n, n.x, n.y, gsize(n), C, F && !F.has(n.id));
+  for (const n of N) if (n._a) gglyph(ctx, n, n.x, n.y, gsize(n) * (.6 + .4 * n._a), C, F && !F.has(n.id), n._a);
   if (GSEL && gvis(GSEL)) { ctx.strokeStyle = C.bronze; ctx.lineWidth = 1 / GV.k; ctx.setLineDash([2 / GV.k, 3 / GV.k]); ctx.beginPath(); ctx.arc(GSEL.x, GSEL.y, gsize(GSEL) + 9, 0, 7); ctx.stroke(); ctx.setLineDash([]); }
   ctx.textBaseline = 'middle';
   for (const n of N) {
     const hub = n.type === 'symbol' || n.type === 'market' || n.type === 'theme', inF = F && F.has(n.id);
+    if (n._a < .05) continue; ctx.globalAlpha = n._a;
     if (!(hub && (!F || inF) ) && !(inF && GV.k > .6 && F.size < 40)) continue;
     if (!hub && n.type === 'call' && F && F.size > 12 && n !== (GHOV || GSEL)) continue;
     const r = gsize(n), fs = (n.type === 'market' ? 12 : n.type === 'symbol' ? 12.5 : 11.5) / Math.max(.75, GV.k);
@@ -1418,15 +1446,17 @@ function gdraw(){
     const tx = n.type === 'market' ? n.x - ctx.measureText(t).width / 2 : n.x + off, ty = n.type === 'market' ? n.y + r + 16 / GV.k : n.y;
     ctx.strokeText(t, tx, ty); ctx.fillText(t, tx, ty);
     const dei = (n.type === 'theme' || n.type === 'market') && GDEI[n.label];
-    if (dei && (GV.k > .55 || inF)) { ctx.font = `500 ${7.5 / Math.max(.75, GV.k)}px ${FF.disp}`; ctx.fillStyle = C.bronze; ctx.globalAlpha = .85; const d = dei[0].split('').join(' ');
-      const dx = n.type === 'market' ? n.x - ctx.measureText(d).width / 2 : tx, dy = ty + 11 / Math.max(.75, GV.k); ctx.strokeText(d, dx, dy); ctx.fillText(d, dx, dy); ctx.globalAlpha = 1; }
+    if (dei && (GV.k > .55 || inF)) { ctx.font = `500 ${7.5 / Math.max(.75, GV.k)}px ${FF.disp}`; ctx.fillStyle = C.bronze; ctx.globalAlpha = .85 * n._a; const d = dei[0].split('').join(' ');
+      const dx = n.type === 'market' ? n.x - ctx.measureText(d).width / 2 : tx, dy = ty + 11 / Math.max(.75, GV.k); ctx.strokeText(d, dx, dy); ctx.fillText(d, dx, dy); }
   }
+  ctx.globalAlpha = 1;
 }
 function gleg(){
   const c = G.counts || {};
   $('gleg').innerHTML = `<span class="label">Legenda · 星表</span>` + GORDER.filter(t => c[t]).map(t => `<button type="button" data-gt="${t}" class="${GOFF.has(t) ? 'off' : ''}">${gicon(t)}<span><small>${GT[t].g}</small>${GT[t].t}</span><em>${c[t]}</em></button>`).join('') +
     `<div class="gnote">股票是星，主题由掌管它的神守护，三个市场是命运三女神。<br>神谕之果：赤陶 = 应验，橄榄 = 落空，空心 = 未到期。<br>点星表隐藏一类；拖动星辰或天幕，滚轮缩放。</div><div class="gquote">“记忆是一切智慧之母。”<b>— Aeschylus</b></div>`;
-  $('gleg').querySelectorAll('[data-gt]').forEach(b => b.onclick = () => { const t = b.dataset.gt; GOFF.has(t) ? GOFF.delete(t) : GOFF.add(t); if (GSEL && GOFF.has(GSEL.type)) GSEL = null; gleg(); gkick(.4); });
+  [...$('gleg').children].forEach((el, i) => el.style.setProperty('--i', i));
+  $('gleg').querySelectorAll('[data-gt]').forEach(b => b.onclick = () => { const t = b.dataset.gt; GOFF.has(t) ? GOFF.delete(t) : GOFF.add(t); if (GSEL && GOFF.has(GSEL.type)) GSEL = null; gleg(); $('gleg').querySelectorAll(':scope>*').forEach(el => el.style.animation = 'none'); gkick(.4); });
 }
 function gfit(initial){
   const N = G.nodes.filter(gvis); if (!N.length) { gdraw(); return; }
