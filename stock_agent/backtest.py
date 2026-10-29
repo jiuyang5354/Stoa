@@ -450,7 +450,7 @@ def by_market(rows, horizons, band5):
 
 def run(symbols=None, start=None, end=None, step=5, horizons=(5, 20), agent="baseline", synthetic=False,
         concurrency=4, max_calls=300, blind=True, band5=1.5, seed=7, llm=None, price_in=0.0, price_out=0.0,
-        run_id=None, save=True, closes=None, progress=None, rounds=1, llm_kind="auto", agent_obj=None, with_flow=False) -> dict:
+        run_id=None, save=True, closes=None, progress=None, rounds=1, llm_kind="auto", agent_obj=None, with_flow=False, role_timeout=60.0) -> dict:
     horizons = sorted({int(h) for h in horizons})
     today = pd.Timestamp.now().normalize()
     end = pd.Timestamp(end) if end else today - pd.Timedelta(days=int(max(horizons) * 1.6) + 3)
@@ -480,7 +480,8 @@ def run(symbols=None, start=None, end=None, step=5, horizons=(5, 20), agent="bas
         from .debate import DebateBTAgent, MockRoleLLM
         if llm is None and llm_kind == "mock":
             llm, max_calls = MockRoleLLM(), max(max_calls, 10 ** 9)  # mock 不花钱，不设上限
-        llm_agent = agent_obj or DebateBTAgent(llm=llm, blind=blind, rounds=rounds, max_calls=max_calls, band=band5, flow=with_flow)
+        llm_agent = agent_obj or DebateBTAgent(llm=llm, blind=blind, rounds=rounds, max_calls=max_calls, band=band5, flow=with_flow,
+                                               role_timeout=role_timeout)
         if hasattr(llm_agent.llm, "ready") and not llm_agent.llm.ready:
             raise SystemExit("没有可用的大模型：设置 LLM_PROVIDER / LLM_API_KEY，或加 --llm mock 只跑通管线。")
         main_fn, conc = llm_agent, concurrency
@@ -661,6 +662,7 @@ def main(argv=None):
     p.add_argument("--rounds", type=int, default=1, help="debate 模式的多空辩论轮数（1–3）")
     p.add_argument("--llm", dest="llm_kind", choices=["auto", "mock"], default="auto", help="debate 模式：mock = 无密钥用规则扮演各角色，只验证管线")
     p.add_argument("--with-flow", action="store_true", help="debate 模式：技术面另给按决策日截断的 A股资金流（主力净占比），其它新数据在回测里一律禁用")
+    p.add_argument("--role-timeout", type=float, default=60, help="debate 模式：每个角色超时秒数（慢中转可调大，超时的角色降级为规则摘要）")
     p.add_argument("--synthetic", action="store_true", help="用合成行情（离线）")
     p.add_argument("--concurrency", type=int, default=4, help="LLM 并发上限")
     p.add_argument("--max-calls", type=int, default=300, help="本次最多调用 LLM 次数（缓存命中不算）")
@@ -676,7 +678,7 @@ def main(argv=None):
     res = run(symbols=[s.strip() for s in a.symbols.split(",")] if a.symbols else None, start=a.start, end=a.end, step=a.step,
               horizons=[int(x) for x in a.horizons.split(",")], agent=a.agent, synthetic=a.synthetic, concurrency=a.concurrency,
               max_calls=a.max_calls, blind=not a.no_blind, band5=a.band, seed=a.seed, price_in=a.price_in, price_out=a.price_out,
-              rounds=a.rounds, llm_kind=a.llm_kind, with_flow=a.with_flow)
+              rounds=a.rounds, llm_kind=a.llm_kind, with_flow=a.with_flow, role_timeout=a.role_timeout)
     if a.json:
         print(json.dumps({k: v for k, v in res.items() if k != "predictions"}, ensure_ascii=False, indent=1))
     else:
