@@ -1151,7 +1151,7 @@ function pbCharts(r){
     const y = v => 6 + (hi - v) / ((hi - lo) || 1) * (Hh - 12), x = i => i / n * W;
     const path = c => c.map((p, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)} ${y(p[1]).toFixed(1)}`).join('');
     const a = r.results.agent[m];
-    return `<div><h5>${m}<b>${a.horizons[h]['hit_dir%'] == null ? '—' : a.horizons[h]['hit_dir%'] + '%'}</b></h5><svg viewBox="0 0 ${W} ${Hh + 14}" preserveAspectRatio="none">
+    return `<div><h5>${m}<b>${a.horizons[h]['hit_dir%'] == null ? '—' : (+a.horizons[h]['hit_dir%']).toFixed(1) + '%'}</b></h5><svg viewBox="0 0 ${W} ${Hh + 14}" preserveAspectRatio="none">
       <line class="z" x1="0" x2="${W}" y1="${y(0)}" y2="${y(0)}"/>${cs.slice(1).map(c => `<path class="bl" stroke-dasharray="${c[2]}" d="${path(c[1])}"/>`).join('')}<path class="ag" d="${path(cs[0][1])}"/>
       <text x="0" y="${Hh + 12}">${(cs[0][1][0] || [''])[0].slice(2, 7)}</text><text x="${W}" y="${Hh + 12}" text-anchor="end">${(a.portfolio['long_short%'] >= 0 ? '+' : '') + (a.portfolio['long_short%'] ?? 0).toFixed(1)}%</text></svg></div>`;
   }).join('');
@@ -1275,7 +1275,7 @@ const PANES = {
       ex = `<div class="pbh"><b>${f1(s.total)}</b><div><span class="pbk">评测总分 · ${s.cases} 题 · 满分 ${s.perfect}</span><small>v${esc(E.latest.version)} · ${E.latest.llm === 'mock' ? 'mock 模型（只验证管线）' : esc(E.latest.llm)} · ${esc(E.latest.created)}${pv ? ` · 上次 ${f1(pv.total)}` : ''}</small></div></div>` +
         `<div class="lsw" style="grid-template-columns:1fr"><div class="lsg">${Object.entries(s.by_category).map(([k, v]) => `<div class="lsr" style="grid-template-columns:76px 1fr 46px 34px"><span>${esc(k)}</span><span class="lsb"><i style="width:${v}%"></i><em></em></span><b>${f1(v)}</b><small></small></div>`).join('')}</div></div>`;
     }
-    return `<h3>回测与评测</h3><p class="lead">Probatio：在历史上每个时点只给 Stoa 当时看得到的行情，让它表态，再用之后的真实收盘价打分。</p>` +
+    return `<h3>回测与评测</h3><p class="lead">Probatio：回到历史上的每一天，只给 Stoa 当时看得到的行情，再用之后的收盘价打分。</p>` +
       grp('Ultima · 最近一次回测', top) + mk + run + hist + grp('Examen · 评测集', ex);
   },
   data: () => {
