@@ -1,5 +1,6 @@
 yfinance>=0.2.40
 pandas>=2.0
+numpy>=1.24        # 语义记忆的向量检索（pandas 本来就带）
 pyyaml>=6.0
 requests>=2.31
 pypdf>=4.0          # 年报 PDF 抽文本（纯 Python，约 1MB）

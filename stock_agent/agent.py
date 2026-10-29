@@ -118,7 +118,7 @@ TOOLS = [
                                                      "limit": {"type": "integer"}}, "required": ["query"]}},
     {"name": "earnings_calendar", "description": "持仓与自选股的财报日历：下一次财报日期、报告期、来源（东方财富业绩预约披露 / Yahoo），以及最近生成的财报事件研报。refresh=true 立即重新抓取。",
      "parameters": {"type": "object", "properties": {"refresh": {"type": "boolean"}}}},
-    {"name": "earnings_report", "description": "为一只股票生成财报事件研报：实际 vs 一致预期、关键指标同比、管理层指引变化、和用户持仓逻辑（USER.md、账本里该股的历史判断理由）对照——逻辑是加强、削弱还是被证伪；写入 data/reports/events/ 并推送。",
+    {"name": "earnings_report", "description": "为一只股票生成财报事件研报：实际 vs 一致预期、关键指标同比、管理层指引变化、和用户持仓逻辑（USER.md、账本里该股的历史判断理由）对照——逻辑是加强、削弱还是被证伪；写入 data/reports/events/（网页右栏「财报事件」可看全文）。",
      "parameters": {"type": "object", "properties": {"symbol": {"type": "string"}, "debate": {"type": "boolean", "description": "是否顺带跑一次 Agora 辩论，默认否"}}, "required": ["symbol"]}},
     {"name": "watchlist", "description": "管理自选股。action: list / add / remove。",
      "parameters": {"type": "object", "properties": {"action": {"type": "string", "enum": ["list", "add", "remove"]},
