@@ -174,7 +174,7 @@ class Sources:
         return result
 
     # -------------------------------------------------- 比对
-    def match(self, value: float, dec: int, scale: float = 1.0) -> list[int] | None:
+    def match(self, value: float, dec: int, scale: float = 1.0, pct: bool | None = None) -> list[int] | None:
         """value 能否由本轮数字得出。返回来源编号（可能两个），找不到返回 None。"""
         with self.lock:
             pairs = list(dict.fromkeys(self.nums))
@@ -203,7 +203,12 @@ class Sources:
                 for b, sb in vals:
                     if a == b or (sa == sb) != same:
                         continue
-                    if close(a - b) or (b and close((a / b - 1) * 100)) or close(a * b):
+                    if close(a - b):
+                        return sorted({sa, sb})
+                    # 涨跌幅：只认带 % 的数字、两数量级相近；乘积：只认不带 % 的数字、其中一个是整数数量（股数）
+                    if pct is not False and b and .25 < a / b < 4 and close((a / b - 1) * 100):
+                        return sorted({sa, sb})
+                    if not pct and float(b).is_integer() and abs(b) >= 10 and close(a * b):
                         return sorted({sa, sb})
         try:
             import numpy as np
@@ -211,8 +216,10 @@ class Sources:
             return None
         arr = np.array([v for v, _ in vals])
         diff = arr[:, None] - arr[None, :]
-        for c, sc in vals:  # (a-b)×c：按持仓算浮盈
-            if abs(c) < 1 or float(c).is_integer() is False and abs(c) < 10:
+        if pct:
+            return None
+        for c, sc in vals:  # (a-b)×c：按持仓算浮盈（c 是整数股数）
+            if not float(c).is_integer() or abs(c) < 10:
                 continue
             prod = np.abs(diff * c)
             hit = np.argwhere(np.abs(av - prod) <= np.maximum(prod * .005, tol_abs))
@@ -279,7 +286,8 @@ def verify(text: str, src: Sources) -> dict:
     nums = []
     for n in key_numbers(body):
         flagged = body[n["end_num"]:n["end_num"] + len(UNVERIFIED) + 4].lstrip(" [0123456789]").startswith(UNVERIFIED)
-        sids = src.match(n["value"], n["dec"], n["scale"]) or (src.match(n["raw"], n["dec"]) if n["scale"] != 1 else None)
+        p = n["text"].rstrip().endswith(("%", "％"))
+        sids = src.match(n["value"], n["dec"], n["scale"], p) or (src.match(n["raw"], n["dec"], 1, p) if n["scale"] != 1 else None)
         nums.append({**n, "sids": sids, "flagged": flagged})
     bad = [n["text"] for n in nums if not n["sids"] and not n["flagged"]]
     return {"ok": not bad, "numbers": nums, "unverified": bad}
