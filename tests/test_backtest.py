@@ -262,3 +262,14 @@ def test_binom_and_boot():
     assert bt._binom_p(5, 10) > .5 and bt._binom_p(60, 100) < .05
     ci = bt._boot_ci([(f"d{i % 30}", i % 2 == 0) for i in range(300)])
     assert ci[0] < 50 < ci[1]
+
+
+def test_run_ids_same_second_do_not_collide(monkeypatch):
+    class Fixed(bt.datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return bt.datetime(2026, 10, 30, 1, 56, 26, tzinfo=tz)
+    monkeypatch.setattr(bt, "datetime", Fixed)
+    a, b = bt.new_run_id("debate"), bt.new_run_id("debate")
+    assert a == "20261030-015626-debate" and b == "20261030-015626-debate-2"
+    assert json.loads((bt.bt_dir() / f"{b}.json").read_text(encoding="utf-8"))["status"] == "running"

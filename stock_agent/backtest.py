@@ -539,7 +539,8 @@ def run(symbols=None, start=None, end=None, step=5, horizons=(5, 20), agent="bas
     t0 = time.time()
     from .providers import usage_since
     u0 = usage_since()
-    run_id = run_id or f"{datetime.now(CN_TZ):%Y%m%d-%H%M%S}-{agent}"
+    if not run_id:
+        run_id = new_run_id(agent) if save else f"{datetime.now(CN_TZ):%Y%m%d-%H%M%S}-{agent}"
     if progress:
         progress("fetching")
     if closes is not None:
@@ -679,13 +680,28 @@ def load(run_id: str) -> dict | None:
     return json.loads(f.read_text(encoding="utf-8")) if f.exists() else None
 
 
+def new_run_id(agent: str) -> str:
+    """按秒生成 id 并原子占位（写一份 running 状态）。同一秒起两只回测时第二只加 -2、-3…，不会互相覆盖结果。"""
+    base = f"{datetime.now(CN_TZ):%Y%m%d-%H%M%S}-{agent}"
+    run_id, i = base, 1
+    while True:
+        f = bt_dir() / f"{run_id}.json"
+        try:
+            with f.open("x", encoding="utf-8") as fh:
+                fh.write(json.dumps({"id": run_id, "status": "running", "created": datetime.now(CN_TZ).strftime("%Y-%m-%d %H:%M"),
+                                     "params": {"agent": agent}}, ensure_ascii=False))
+            return run_id
+        except FileExistsError:
+            i += 1
+            run_id = f"{base}-{i}"
+
+
 def run_async(params: dict) -> str:
     """网页 POST /api/backtest：后台线程跑，先写一份 running 状态。"""
     agent = params.get("agent", "baseline") if params.get("agent") in ("baseline", "llm", "debate") else "baseline"
-    run_id = f"{datetime.now(CN_TZ):%Y%m%d-%H%M%S}-{agent}"
+    run_id = new_run_id(agent)
     f = bt_dir() / f"{run_id}.json"
     base = {"id": run_id, "status": "running", "created": datetime.now(CN_TZ).strftime("%Y-%m-%d %H:%M"), "params": {"agent": agent}}
-    f.write_text(json.dumps(base, ensure_ascii=False), encoding="utf-8")
 
     def go():
         try:
