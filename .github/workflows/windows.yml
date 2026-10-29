@@ -1,5 +1,5 @@
 name: windows-portable
-# 发布 Release 时在 Linux 上交叉打包 Windows 绿色版 Stoa-Windows.zip 并挂到 Release
+# 发布 Release 时：Linux 上交叉打包 Stoa-Windows.zip → Windows 真机自检（双击 Stoa.exe、开独立窗口、静默卸载）→ 过了才挂到 Release
 on:
   release:
     types: [published]
@@ -17,6 +17,48 @@ jobs:
       - run: bash packaging/windows/build.sh
       - uses: actions/upload-artifact@v4
         with: {name: Stoa-Windows, path: dist/Stoa-Windows.zip}
-      - if: github.event_name == 'release'
-        uses: softprops/action-gh-release@v2
-        with: {files: dist/Stoa-Windows.zip}
+
+  smoke:
+    needs: build
+    runs-on: windows-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with: {name: Stoa-Windows}
+      - name: 解压
+        shell: pwsh
+        run: Expand-Archive Stoa-Windows.zip -DestinationPath C:\t
+      - name: 双击 Stoa.exe 自检
+        shell: pwsh
+        env:
+          STOA_SMOKE: "1"
+          STOCK_AGENT_HOME: C:\stoa-data
+          LLM_PROVIDER: ollama
+          STOA_LOG: "1"
+        run: |
+          New-Item -ItemType Directory -Force C:\stoa-data | Out-Null
+          Start-Process -FilePath "C:\t\Stoa\Stoa.exe"
+          $f = "C:\stoa-data\smoke.json"
+          for ($i = 0; $i -lt 150 -and -not (Test-Path $f); $i++) { Start-Sleep 2 }
+          if (Test-Path C:\stoa-data\stoa.log) { Get-Content C:\stoa-data\stoa.log -Encoding utf8 }
+          if (-not (Test-Path $f)) { throw "5 分钟内没有生成 smoke.json" }
+          $r = Get-Content $f -Encoding utf8 | ConvertFrom-Json
+          $r | Format-List | Out-String | Write-Host
+          if (-not $r.ok) { throw "自检没通过" }
+      - name: 静默卸载
+        shell: pwsh
+        run: |
+          Start-Process -FilePath "C:\t\Stoa\卸载 Stoa.exe" -ArgumentList "/S" -Wait
+          for ($i = 0; $i -lt 20 -and (Test-Path C:\t\Stoa); $i++) { Start-Sleep 1 }
+          if (Test-Path C:\t\Stoa) { Get-ChildItem C:\t\Stoa; throw "卸载后程序文件夹还在" }
+          if (-not (Test-Path C:\stoa-data\smoke.json)) { throw "/S 不该删除数据" }
+          Write-Host "卸载通过：程序已删除，数据保留"
+
+  publish:
+    needs: smoke
+    if: github.event_name == 'release'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with: {name: Stoa-Windows}
+      - uses: softprops/action-gh-release@v2
+        with: {files: Stoa-Windows.zip}

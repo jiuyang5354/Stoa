@@ -14,7 +14,7 @@ from pathlib import Path
 
 import requests
 
-from . import alerts, notify, settings, skills
+from . import alerts, notify, settings, skills, updater
 from .agent import Agent, load_cfg
 from .memory import Memory, home
 
@@ -169,6 +169,8 @@ class Web(BaseHTTPRequestHandler):
             return self._send(200, {"ok": True})
         if not self._auth():
             return self._send(401, {"error": "token"})
+        if self.path.split("?")[0] == "/api/update":
+            return self._send(200, updater.check(force="force" in self.path))
         if self.path.split("?")[0] == "/api/alerts":
             return self._send(200, alerts.listing())
         if self.path == "/api/memory":
@@ -209,7 +211,7 @@ class Web(BaseHTTPRequestHandler):
             body = self._body()
             reply = chat("web:" + str(body.get("session", "default"))[:40], str(body.get("text", ""))[:4000])
             return self._send(200, {"reply": reply})
-        if path.startswith("/api/settings") or path in ("/api/memory/delete", "/api/memory/add", "/api/skills/delete", "/api/skills/view", "/api/alerts/add", "/api/alerts/delete", "/api/alerts/check"):
+        if path.startswith("/api/settings") or path in ("/api/memory/delete", "/api/memory/add", "/api/skills/delete", "/api/skills/view", "/api/alerts/add", "/api/alerts/delete", "/api/alerts/check", "/api/update/apply"):
             if not self._local_ok():
                 return self._send(403, {"error": "设置页只能在本机打开，或先设 WEB_TOKEN"})
             body = self._body()
@@ -219,6 +221,15 @@ class Web(BaseHTTPRequestHandler):
                 return self._send(200, out)
             if path == "/api/settings/test":
                 return self._send(200, settings.test_push() if body.get("what") == "push" else settings.test_llm())
+            if path == "/api/update/apply":
+                try:
+                    out = updater.apply()
+                except Exception as e:
+                    out = {"error": f"更新失败：{str(e)[:100]}"}
+                self._send(200, out)
+                if out.get("restart"):
+                    threading.Timer(1.5, lambda: os._exit(0)).start()
+                return
             if path == "/api/alerts/add":
                 return self._send(200, alerts.add(str(body.get("symbol", "")), str(body.get("kind", "")), body.get("value"),
                                                   str(body.get("name", "")), bool(body.get("repeat")), str(body.get("note", ""))))

@@ -42,12 +42,14 @@ int WINAPI wWinMain(HINSTANCE a, HINSTANCE b, PWSTR c, int d){
   DWORD m = GetEnvironmentVariableW(L"LOCALAPPDATA", data, MAX_PATH);
   if (m && m < MAX_PATH - 8) wcscat(data, L"\\Stoa"); else data[0] = 0;
 
+  // 静默卸载（CI 自检用）：/S 保留数据，/S /purge 连数据一起删
+  int quiet = c && wcsstr(c, L"/S") != NULL, purge = c && wcsstr(c, L"/purge") != NULL;
   wchar_t msg[MAX_PATH * 2 + 200];
   swprintf(msg, sizeof msg / sizeof *msg, L"要卸载 Stoa 吗？\n\n会先关闭正在运行的 Stoa，然后删除程序文件夹：\n%ls", dir);
-  if (MessageBoxW(NULL, msg, L"卸载 Stoa", MB_YESNO | MB_ICONQUESTION | MB_DEFBUTTON2) != IDYES) return 0;
+  if (!quiet && MessageBoxW(NULL, msg, L"卸载 Stoa", MB_YESNO | MB_ICONQUESTION | MB_DEFBUTTON2) != IDYES) return 0;
 
-  int wipe = IDNO;
-  if (data[0] && GetFileAttributesW(data) != INVALID_FILE_ATTRIBUTES){
+  int wipe = quiet ? (purge ? IDYES : IDNO) : IDNO;
+  if (!quiet && data[0] && GetFileAttributesW(data) != INVALID_FILE_ATTRIBUTES){
     swprintf(msg, sizeof msg / sizeof *msg, L"是否同时删除你的数据？\n\n记忆、判断账本、自选股和大模型密钥都在：\n%ls\n\n选「否」会保留，下次重新解压 Stoa 还能接着用。", data);
     wipe = MessageBoxW(NULL, msg, L"卸载 Stoa", MB_YESNOCANCEL | MB_ICONWARNING | MB_DEFBUTTON2);
     if (wipe == IDCANCEL) return 0;
@@ -65,6 +67,6 @@ int WINAPI wWinMain(HINSTANCE a, HINSTANCE b, PWSTR c, int d){
   if (CreateProcessW(NULL, cmd, NULL, NULL, FALSE, CREATE_NO_WINDOW, NULL, tmp, &si, &pi)){
     CloseHandle(pi.hThread); CloseHandle(pi.hProcess);
   }
-  MessageBoxW(NULL, wipe == IDYES ? L"Stoa 已卸载，数据也已删除。" : L"Stoa 已卸载。你的数据保留在 %LOCALAPPDATA%\\Stoa。", L"卸载 Stoa", MB_ICONINFORMATION);
+  if (!quiet) MessageBoxW(NULL, wipe == IDYES ? L"Stoa 已卸载，数据也已删除。" : L"Stoa 已卸载。你的数据保留在 %LOCALAPPDATA%\\Stoa。", L"卸载 Stoa", MB_ICONINFORMATION);
   return 0;
 }

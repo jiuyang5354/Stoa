@@ -133,6 +133,57 @@ def window_app(url: str, home: Path) -> bool:
     return False
 
 
+def smoke(port: int, home: Path):
+    """真机自检（CI 用）：STOA_SMOKE=1 时检查本机服务各接口和独立窗口，结果写到数据目录 smoke.json 后退出。"""
+    import json
+    import urllib.request
+    res, ok = {"python": sys.version.split()[0], "platform": sys.platform, "port": port}, True
+
+    def get(path):
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}{path}", timeout=60) as r:
+            return r.status, r.read()
+
+    for path, need in (("/", b"Stoa"), ("/api/settings", b"version"), ("/api/alerts", b"rules"), ("/api/memory", b"usage"),
+                       ("/assets/bust.glb", b"glTF"), ("/api/update", b"current")):
+        try:
+            code, body = get(path)
+            res[path] = code == 200 and need in body
+        except Exception as e:
+            res[path] = f"失败：{e}"
+        ok = ok and res[path] is True
+    try:
+        _, body = get("/api/indices")
+        res["/api/indices"] = len(json.loads(body)) > 0  # 行情要联网，只记录不判失败
+    except Exception as e:
+        res["/api/indices"] = f"失败：{e}"
+    # 独立窗口：pywebview + WebView2 打开界面，页面加载完就关
+    win = {"done": False}
+    try:
+        import webview
+
+        def loaded(w):
+            try:
+                win["title"] = w.evaluate_js("document.title")
+            except Exception as e:
+                win["title"] = f"evaluate_js 失败：{e}"
+            win["done"] = True
+            w.destroy()
+
+        w = webview.create_window("Stoa smoke", f"http://127.0.0.1:{port}/", width=1280, height=800)
+        w.events.loaded += lambda: loaded(w)
+        threading.Timer(90, lambda: (not win["done"]) and w.destroy()).start()
+        webview.start(gui="edgechromium" if sys.platform == "win32" else None, private_mode=True)
+        res["window"] = win.get("title") or "未加载完成"
+        ok = ok and "Stoa" in str(win.get("title"))
+    except Exception as e:
+        res["window"] = f"失败：{e}"
+        ok = False
+    res["ok"] = ok
+    (home / "smoke.json").write_text(json.dumps(res, ensure_ascii=False, indent=1), encoding="utf-8")
+    print("smoke", res)
+    os._exit(0 if ok else 1)
+
+
 def main():
     home = data_dir()
     home.mkdir(parents=True, exist_ok=True)
@@ -182,6 +233,8 @@ def _main(home: Path):
     if no_key and first:
         threading.Thread(target=msgbox, args=("还没填大模型密钥。\n\n已用记事本打开 .env：填好 LLM_PROVIDER 和 LLM_API_KEY 后保存，关掉 Stoa 再打开即可。\n没填也能看行情，只是不能对话。",), daemon=True).start()
 
+    if os.getenv("STOA_SMOKE") == "1":
+        smoke(port, home)
     mode = os.getenv("STOA_WINDOW", "auto")  # auto | webview | app | browser | none
     if mode in ("auto", "webview") and window_webview(url, home):
         os._exit(0)

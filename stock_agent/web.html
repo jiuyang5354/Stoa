@@ -882,11 +882,32 @@ async function watchAlerts(){
   if (window.Notification && Notification.permission === 'default') document.addEventListener('click', () => Notification.requestPermission(), {once:true});
   tick(); setInterval(tick, 60000);
 }
+async function checkUpdate(force){
+  let j;
+  try { j = await (await fetch('/api/update' + (force ? '?force=1' : ''), {headers:H})).json(); } catch (_) { return; }
+  const row = document.getElementById('uprow');
+  if (row) {
+    const msg = j.error ? esc(j.error) : j.available ? `新版本 v${esc(j.latest)} · ${esc(j.published || '')}` : `已是最新（最新 v${esc(j.latest || j.current)}）`;
+    row.innerHTML = `<span><b>当前 v${esc(j.current)}</b><small>${msg}</small></span><span class="k">${j.available ? (j.portable ? '<button class="x" id="upgo">更新并重启</button>' : '') + `<a class="x" href="${esc(j.url)}" target="_blank" rel="noopener">看更新内容</a>` : '<button class="x" id="upchk">检查更新</button>'}</span>`;
+    const c = document.getElementById('upchk'); if (c) c.onclick = () => checkUpdate(true);
+    const g = document.getElementById('upgo'); if (g) g.onclick = applyUpdate;
+  }
+  if (!force && j.available && localStorage.getItem('stoa.upSeen') !== j.latest) {
+    localStorage.setItem('stoa.upSeen', j.latest);
+    toast({time:'', kind:'update', title:`Stoa v${j.latest} 可以更新了。设置 → 数据与关于 → 更新并重启。`, url:j.url});
+  }
+}
+async function applyUpdate(){
+  const b = document.getElementById('upgo'); if (b) { b.disabled = true; b.textContent = '下载中…'; }
+  const j = await (await fetch('/api/update/apply', {method:'POST', headers:H, body:'{}'})).json();
+  if (j.restart) { document.body.innerHTML = `<div style="display:grid;place-items:center;height:100vh;font:20px var(--serif)">${esc(j.msg)}</div>`; }
+  else { if (b) { b.disabled = false; b.textContent = '更新并重启'; } setSt(j.error || '', ''); }
+}
 function toast(e){
   let box = document.getElementById('toasts');
   if (!box) { box = document.createElement('div'); box.id = 'toasts'; document.body.appendChild(box); }
   const t = document.createElement('div'); t.className = 'toast';
-  t.innerHTML = `<span class="label">${e.kind === 'announcement' ? 'NOTICE · 公告' : 'VIGILIA · 价格提醒'} · ${esc(e.time.slice(11))}</span><p>${esc(e.title)}</p>${e.url ? `<a href="${esc(e.url)}" target="_blank" rel="noopener">读原文 →</a>` : ''}<button aria-label="关闭">×</button>`;
+  t.innerHTML = `<span class="label">${e.kind === 'announcement' ? 'NOTICE · 公告' : e.kind === 'update' ? 'RENOVATIO · 更新' : 'VIGILIA · 价格提醒'}${e.time ? ' · ' + esc(e.time.slice(11)) : ''}</span><p>${esc(e.title)}</p>${e.url ? `<a href="${esc(e.url)}" target="_blank" rel="noopener">${e.kind === 'update' ? '看更新内容' : '读原文'} →</a>` : ''}<button aria-label="关闭">×</button>`;
   t.querySelector('button').onclick = () => t.remove();
   box.appendChild(t); setTimeout(() => t.classList.add('out'), 30000); setTimeout(() => t.remove(), 31000);
 }
@@ -904,7 +925,7 @@ async function loadMemory(){
   } catch (e) {}
 }
 $('tq').oninput = terrain;
-periods(); seg(); loadIndices(); loadMemory(); watchAlerts();
+periods(); seg(); loadIndices(); loadMemory(); watchAlerts(); setTimeout(() => checkUpdate(false), 4000);
 setInterval(loadIndices, 10*60*1000);
 addEventListener('resize', () => { seg(); periods(); });
 
@@ -999,6 +1020,7 @@ const PANES = {
   about: () => `<h3>数据与关于</h3><p class="lead">所有数据都在你自己的电脑上，Stoa 不上传任何东西。</p>` +
     grp('Data · 数据', `<div class="fr"><span><b>数据目录</b><small>记忆、账本、配置、密钥</small></span><span class="k"><span class="ep">${esc(S.home)}</span><button class="x" data-copy="${esc(S.home)}">复制</button></span></div>
       <div class="fr"><span><b>导出备份</b><small>记忆、判断账本、自选股和报告，不含密钥</small></span><span><button class="x" id="exp">导出 .zip</button></span></div>`) +
+    grp('Renovatio · 更新', `<div class="fr" id="uprow"><span><b>当前 v${esc(S.version)}</b><small>启动时自动检查 GitHub 上的新版本</small></span><span class="k"><button class="x" id="upchk">检查更新</button></span></div>`) +
     grp('About · 关于', `<div class="fr"><span><b>版本</b></span><span>Stoa v${esc(S.version)}</span></div><div class="fr"><span><b>源代码</b></span><span><a href="https://github.com/jiuyang5354/Stoa" target="_blank" rel="noopener" style="color:var(--ink)">github.com/jiuyang5354/Stoa</a></span></div>
       <div class="fr"><span><b>声明</b></span><span class="muted">仅供参考，不构成投资建议。</span></div>`),
 };
@@ -1014,6 +1036,7 @@ function show(k){
   if ($('tcode')) $('tcode').onchange = e => { dirty.ALLOW_CODE = e.target.checked ? '1' : '0'; setSt('有未保存的修改'); };
   pane.querySelectorAll('[data-skv]').forEach(b => b.onclick = async () => { const pre = pane.querySelector(`[data-skb="${CSS.escape(b.dataset.skv)}"]`); if (!pre.hidden) { pre.hidden = true; return; } const j = await (await fetch('/api/skills/view', {method:'POST', headers:H, body:JSON.stringify({name:b.dataset.skv})})).json(); pre.textContent = j.content || j.error || ''; pre.hidden = false; });
   pane.querySelectorAll('[data-skd]').forEach(b => b.onclick = () => memReq('/api/skills/delete', {name:b.dataset.skd}));
+  if ($('upchk')) $('upchk').onclick = () => checkUpdate(true);
   const aReq = async (path, body) => { const j = await (await fetch(path, {method:'POST', headers:H, body:JSON.stringify(body)})).json(); setSt(j.msg || j.error || (j.events ? `检查完毕，新触发 ${j.events.length} 条` : ''), j.error ? '' : 'ok'); S.pa = await (await fetch('/api/alerts', {headers:H})).json(); show('tasks'); };
   pane.querySelectorAll('[data-adel]').forEach(b => b.onclick = () => aReq('/api/alerts/delete', {id:b.dataset.adel}));
   if ($('aadd')) { $('akind').onchange = () => { $('aval').disabled = $('akind').value === 'announcement'; }; $('aadd').onclick = () => { const sym = $('asym').value.trim(); if (sym) aReq('/api/alerts/add', {symbol:sym, kind:$('akind').value, value:$('aval').value.trim(), repeat:$('arep').checked}); }; $('acheck').onclick = () => { setSt('检查中…'); aReq('/api/alerts/check', {}); }; }
