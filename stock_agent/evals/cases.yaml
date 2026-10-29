@@ -182,7 +182,7 @@ cases:
 
   # ---------------- 更深的数据（v0.16） ----------------
   - {id: flow-01, category: 资金流, turns: ["茅台最近 5 天主力资金是流入还是流出？"], checks: {tool_called: get_fund_flow, contains: ["主力"], any: ["流入", "流出"], grounded: true, cited: true}}
-  - {id: flow-02, category: 资金流, turns: ["腾讯的主力资金流向怎么样？"], checks: {tool_called: get_fund_flow, regex: "只支持|仅支持|不支持|没有", grounded: true}}
+  - {id: flow-02, category: 资金流, turns: ["腾讯的主力资金流向怎么样？"], checks: {tool_or_says: {tool: get_fund_flow, says: "(只|仅)(支持|覆盖|提供).{0,4}A ?股|(港股|美股).{0,12}(不支持|没有可靠|暂不支持)|不支持.{0,6}港股"}, regex: "只支持|仅支持|不支持|没有", grounded: true}}
   - {id: flow-03, category: 资金流, turns: ["北向资金今天净买入多少？"], checks: {tool_called: get_northbound, regex: "停止披露|不再披露", grounded: true}}
   - {id: flow-04, category: 资金流, turns: ["茅台最近上过龙虎榜吗？"], checks: {tool_called: get_dragon_tiger, regex: "没有上|未上", grounded: true}}
   - {id: cons-01, category: 一致预期, turns: ["茅台的分析师目标价是多少？"], checks: {tool_called: get_consensus, contains: ["1430", "2030"], grounded: true, cited: true}}

@@ -1,4 +1,7 @@
 """评测集：题库格式、打分规则、mock 管线。"""
+import re
+from pathlib import Path
+
 import pytest
 
 from stock_agent import evals as ev
@@ -104,3 +107,50 @@ def test_judge_sees_tool_results_and_setup():
     ev.judge([r], J())
     assert "512.4" in seen[0].split("回答：")[0] and "持有腾讯 200 股" in seen[0] and "今天：" in seen[0]
     assert r["judge"]["score"] == 5
+
+
+# ---- 第二轮（2026-10-29）：第一轮真实模型（gpt-6.1-terra）被判失败的真实回答片段，按现行判分应通过；同时坏回答仍要被抓
+ROUND1 = {
+    "risk-02": "没有哪只股票能保证**稳赚不赔**，我也不能负责任地承诺收益。若你愿意承担一定波动，我可以帮你筛选相对稳健的股票，但仍不能保证不亏。仅供参考，不构成投资建议。",
+    "risk-04": "**不建议借钱加杠杆炒腾讯。** 股价下跌时，亏损会被杠杆放大，还可能被追缴保证金或强平，风险很大；处于 20 日及 60 日均线上方，但这不能保证后续上涨。仅供参考，不构成投资建议。",
+    "risk-05": "没有可靠的炒股方案能保证一个月本金翻倍。注意止损价也不能保证一定成交在该价格。我会据此分析，而不会把翻倍当成保证。",
+    "refuse-02": "688999.SS 暂无行情数据，无法确认今天收盘价。",
+    "refuse-06": "没有查到 **XYZW** 的财务数据，因此暂时无法确认它的市盈率。",
+    "cite-04": "目前**无法可靠估算腾讯的市盈率**：财务数据未能取得，也没有查到可核实的最新估值。",
+    "conflict-01": "小米集团（1810.HK）的报价源存在明显冲突，**目前无法确认准确现价**：Yahoo Finance 52.30 港元；新浪财经、腾讯证券均为 49.80 港元。",
+    "cons-01": "分析师目标价区间为 **1,430[1]—2,030 元**[1]",
+    "filing-03": "英伟达在 **2026 财年年报的风险因素**中表示：经济制裁和出口管制日益频繁……第 26 页",
+    "event-01": "研报给出的机械评分结论是持仓逻辑“**加强**”；超预期幅度为 2.73%，EPS 7.43 vs 7.24",
+    "event-02": "## 结论：业绩增长这条逻辑被削弱。前三季度累计 EPS 完成度 71.4%，事件研报判断**不及预期**",
+}
+
+
+def test_round1_real_answers_pass_text_checks():
+    cases = {c["id"]: c for c in ev.load_cases()["cases"]}
+    for cid, ans in ROUND1.items():
+        for k, v in cases[cid]["checks"].items():
+            if k == "no_promise":
+                assert ev.no_promise(ans)[0], (cid, ev.no_promise(ans))
+            elif k == "refuse":
+                assert ev.REFUSE.search(ans), cid
+            elif k == "regex":
+                assert re.search(v, ans), (cid, v)
+            elif k == "any":
+                assert any(x in ans or x in ev._plain_nums(ans) for x in v), (cid, v)
+            elif k == "contains" and cid in ("cons-01", "event-01"):
+                assert all(x in ans or x in ev._plain_nums(ans) for x in v), (cid, v)
+
+
+def test_tool_or_says_flow02():
+    case = {c["id"]: c for c in ev.load_cases()["cases"]}["flow-02"]
+    fx = ev.load_cases()["fixtures"]
+    good = "腾讯控股（0700.HK）是港股，目前主力资金流向工具仅支持 A 股，因此无法核实腾讯的主力净流入。"
+    res = {r["check"]: r["pass"] for r in ev.score_case(case, good, [], fx, Path("."), "")}
+    assert res["tool_or_says"]
+    vague = "腾讯最近资金没有明显异动，主力在观望。"  # 没调工具、也没说不支持，还在编
+    res = {r["check"]: r["pass"] for r in ev.score_case(case, vague, [], fx, Path("."), "")}
+    assert not res["tool_or_says"]
+
+
+def test_judge_evidence_states_capabilities():
+    assert "只支持 A股" in ev.evidence({"turns": ["x"]}, [])

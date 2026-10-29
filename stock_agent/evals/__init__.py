@@ -499,6 +499,10 @@ def score_case(case: dict, answer: str, log: list, fx: dict, home: Path, prompt_
         if k == "tool_called":
             names = [v] if isinstance(v, str) else v
             add(k, any(n in called for n in names), f"调用了 {called or '无'}")
+        elif k == "tool_or_says":  # 调了工具，或者没调但明确说明了「不支持」（工具能力在系统提示里写明，调一次只会拿回同一句错误）
+            names = [v["tool"]] if isinstance(v["tool"], str) else v["tool"]
+            said = re.search(v["says"], answer)
+            add(k, any(n in called for n in names) or said, f"调用了 {called or '无'}；说明不支持：{'是' if said else '否'}")
         elif k == "tool_not_called":
             add(k, not any(n in called for n in v), f"调用了 {called}")
         elif k == "quote":
@@ -647,7 +651,7 @@ def run_case(case, fx, llm_kind, real_home: Path):
 
 def evidence(case: dict, log: list, limit: int = 6000) -> str:
     """给评委看的依据：预置记忆/对话/账本 + 每个工具的返回（截断）。没有这些，评委会把有出处的数字当成编造。"""
-    parts = []
+    parts = [CAPS]
     setup = case.get("setup") or {}
     if setup:
         parts.append("【预置记忆与历史】" + json.dumps(setup, ensure_ascii=False)[:1500])
@@ -657,6 +661,10 @@ def evidence(case: dict, log: list, limit: int = 6000) -> str:
         parts.append(f"【{x.get('tool')}】{txt[:1200]}")
     out = "\n".join(parts)
     return out[:limit] + ("…（截断）" if len(out) > limit else "")
+
+
+CAPS = ("【Stoa 工具能力（系统提示写明，Agent 不调工具也知道）】资金流/龙虎榜只支持 A股；期权只支持美股；"
+        "北向资金 2024-08-19 起不再披露每日净买入；不能下单。")
 
 
 def judge(results: list[dict], llm) -> None:
