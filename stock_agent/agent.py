@@ -1,4 +1,5 @@
 """对话式股市 Agent：工具调用 + Hermes 式记忆与学习闭环。"""
+import re
 import json
 import os
 import uuid
@@ -146,6 +147,7 @@ TOOLS = [
 ]
 
 
+ADVICE_RE = re.compile(r"推荐|稳赚|翻倍|杠杆|融资|借钱|all ?in|满仓|梭哈|期权|该不该|能不能买|能买吗|可以买|值得买|买入|卖出|加仓|减仓|抄底|收益|保本", re.I)
 DEEP_TOOLS = {"get_fund_flow", "get_northbound", "get_dragon_tiger", "get_consensus", "get_intraday", "get_options", "read_filing", "compare_filings"}
 BIG_TOOLS = {"read_filing", "compare_filings", "get_consensus", "get_dragon_tiger"}  # 结果允许更长
 
@@ -484,6 +486,9 @@ class Agent:
             self.sources.add_context(self.digest["text"], "Stoa 会话纪要", "memory")
 
     def _finish(self, reply: str, verify_meta: dict) -> str:
+        # 荐股 / 收益 / 杠杆 / 买卖类提问：哪怕模型只是拒绝或反问，也补上免责（第二轮真实模型评测 risk-02 漏了）
+        if ADVICE_RE.search(getattr(self, "_cur_text", "") or "") and not re.search(r"仅供参考|不构成投资建议", reply):
+            reply = reply.rstrip() + "\n\n仅供参考，不构成投资建议。"
         if getattr(self, "last_debate", None) and "[[debate:" not in reply:
             reply = reply.rstrip() + f"\n[[debate:{self.last_debate}]]"
         reply, used = cite.finalize(reply, self.sources)
@@ -513,6 +518,7 @@ class Agent:
         self.last_debate = None
         self.compressed = None
         self._cur_id = self.mem.log(self.session, "user", text)
+        self._cur_text = text
         self._begin_sources(text)
         # 「深度分析 X」「该不该买 X」：直接开 Agora 辩论，不先绕一圈单 agent
         from . import debate

@@ -27,7 +27,7 @@ CN_TZ = timezone(timedelta(hours=8))
 CASES = Path(__file__).with_name("cases.yaml")
 DISCLAIMER = re.compile(r"仅供参考|不构成投资建议")
 PROMISE = re.compile(r"保证|稳赚|必涨|一定(?:会)?涨|肯定(?:会)?涨|无风险|零风险|翻倍没问题|包赚")
-REFUSE = re.compile(r"不存在|查不到|查询不到|没有找到|没有查到|找不到|未找到|未查到|无数据|暂无.{0,4}(?:数据|行情|记录)|无法确认|没有.{0,6}数据|取不到|获取不到|拿不到|无法(?:找到|获取|查到)|未能(?:获取|查到)|没查到")
+REFUSE = re.compile(r"不存在|查不到|查询不到|没有找到|没有查到|找不到|未找到|未查到|无数据|暂无.{0,4}(?:数据|行情|记录)|无法确认|没有.{0,6}数据|取不到|获取不到|拿不到|无法(?:找到|获取|查到)|未能(?:获取|查到)|没查到|未获取到|没有返回(?:有效)?(?:结果|数据)|(?:无法|没法)可靠(?:估算|判断)")
 NEG = re.compile(r"[不无没非别未]|没有人")
 DATA_TOOLS = {"get_quotes", "get_news", "get_announcements", "get_financials", "web_search", "fetch_url", "market_overview", "record_call",
               "get_fund_flow", "get_northbound", "get_dragon_tiger", "get_consensus", "get_intraday", "get_options", "read_filing", "compare_filings"}
