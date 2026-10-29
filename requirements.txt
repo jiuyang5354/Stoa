@@ -2,3 +2,4 @@ yfinance>=0.2.40
 pandas>=2.0
 pyyaml>=6.0
 requests>=2.31
+pypdf>=4.0          # 年报 PDF 抽文本（纯 Python，约 1MB）
