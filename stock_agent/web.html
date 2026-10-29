@@ -249,39 +249,69 @@
   .gear{position:absolute;right:22px;top:24px;display:flex;align-items:center;gap:7px;border:1px solid var(--rule-2);background:transparent;color:var(--ink);font:500 9.5px var(--sans);letter-spacing:.2em;text-transform:uppercase;padding:7px 11px;cursor:pointer;transition:background .25s,border-color .25s}
   .gear:hover{background:var(--ink);color:var(--chalk);border-color:var(--ink)}
   .gear.hl{right:auto;left:22px}.gear.hl:hover svg{transform:none}
-  /* ---- 记忆图谱（参考 Obsidian Graph View、Hermes 的记忆可视化；博物馆档案版式：左图例 / 中画布 / 右藏品卡） ---- */
+  /* ---- 记忆图谱 · Mnemosyne（参考用户 2026-10-29 给的希腊神祇海报组：旧纸底、拱门里的铜版雕刻、巨大衬线标题、竖排小字、四芒星、月相、月桂、细线框） ---- */
   .gear.hl2{right:auto;left:132px}
-  .gph{position:fixed;inset:0;z-index:46;background:rgba(24,23,21,.28);animation:fadein .2s ease both;display:flex;align-items:center;justify-content:center}
+  .gph{position:fixed;inset:0;z-index:46;background:rgba(24,23,21,.32);animation:fadein .2s ease both;display:flex;align-items:center;justify-content:center}
   .gph[hidden]{display:none}
-  .gw{position:relative;width:min(1240px,96vw);height:min(820px,92vh);background:#F6F4EF;border:1px solid var(--ink);box-shadow:6px 6px 0 -1px #F6F4EF,6px 6px 0 0 var(--ink);display:grid;grid-template-columns:200px 1fr 300px;grid-template-rows:auto 1fr;overflow:hidden}
-  .gw>.gtop{grid-column:1/-1;display:flex;align-items:center;gap:18px;padding:16px 22px 14px;border-bottom:1px solid var(--ink)}
-  .gtop h3{font:500 17px/1 var(--display);letter-spacing:.16em;margin:0;text-transform:uppercase}
-  .gtop .label{margin-right:auto}
-  .gtop input{width:240px;border:0;border-bottom:1px solid var(--rule-2);background:transparent;font:13px var(--sans);padding:6px 0;outline:0;color:var(--ink)}
-  .gtop input:focus{border-bottom-color:var(--ink)}.gtop .sclose{position:static}
-  .gleg{border-right:1px solid var(--rule-2);padding:16px 18px;overflow:auto}
-  .gleg button{display:flex;align-items:center;gap:10px;width:100%;border:0;background:transparent;padding:7px 0;cursor:pointer;font:13px var(--cn);color:var(--ink);border-bottom:1px dotted var(--rule);text-align:left}
-  .gleg button.off{opacity:.32}.gleg button svg{flex:none}.gleg button em{margin-left:auto;font:italic 13px var(--serif);color:var(--mute)}
-  .gleg .gnote{font:11px/1.55 var(--sans);color:var(--mute);margin-top:16px}
-  .gcv{position:relative;overflow:hidden;cursor:grab;background:radial-gradient(circle at 50% 50%,rgba(255,255,255,.5),transparent 70%)}
-  .gcv.drag{cursor:grabbing}.gcv canvas{display:block;width:100%;height:100%}
-  .gcv .gtip{position:absolute;pointer-events:none;background:var(--ink);color:var(--chalk);font:12px/1.4 var(--cn);padding:5px 8px;max-width:280px;transform:translate(10px,10px);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .gcv .gempty{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;font:italic 16px/1.6 var(--serif);color:var(--mute);padding:40px}
-  .gcv .gzoom{position:absolute;right:12px;bottom:12px;display:flex;gap:4px}
-  .gcard{border-left:1px solid var(--rule-2);padding:18px 20px;overflow:auto}
-  .gcard .gk{font:500 9px var(--sans);letter-spacing:.2em;text-transform:uppercase;color:var(--mute);display:flex;justify-content:space-between;border-bottom:1px solid var(--ink);padding-bottom:6px}
-  .gcard h4{font:500 22px/1.25 var(--serif);margin:12px 0 4px;word-break:break-word}
-  .gcard .gsub{font:italic 13px var(--serif);color:var(--mute)}
+  .gw{position:relative;width:min(1260px,96vw);height:min(860px,94vh);border:1px solid var(--ink);box-shadow:6px 6px 0 -1px #EFEBE2,6px 6px 0 0 var(--ink);display:grid;grid-template-columns:210px 1fr 310px;grid-template-rows:auto 1fr;overflow:hidden;
+    background:#EEEAE1 radial-gradient(ellipse at 30% 20%,rgba(255,255,255,.55),transparent 60%)}
+  .gw::before{content:"";position:absolute;inset:0;pointer-events:none;opacity:.5;mix-blend-mode:multiply;z-index:0;background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='p'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.012 .02' numOctaves='4' seed='3'/%3E%3CfeColorMatrix values='0 0 0 0 .55 0 0 0 0 .5 0 0 0 0 .42 0 0 0 .55 -.18'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23p)'/%3E%3C/svg%3E")}
+  .gw>*{position:relative;z-index:1}
+  .gw .gstar{display:inline-block;width:14px;height:14px;background:var(--ink);clip-path:polygon(50% 0,58% 42%,100% 50%,58% 58%,50% 100%,42% 58%,0 50%,42% 42%)}
+  .gtop{grid-column:1/-1;display:grid;grid-template-columns:auto auto 1fr auto;align-items:end;gap:18px;padding:16px 26px 12px;border-bottom:1px solid var(--ink);margin:0 14px}
+  .gtop h3{font:400 66px/.82 "Archeologicaps",var(--display);letter-spacing:.015em;margin:0;color:var(--ink)}
+  .gtop .gstack{font:500 9px/1.75 var(--sans);letter-spacing:.24em;text-transform:uppercase;color:var(--ink);padding-bottom:4px}
+  .gtop .gsr{justify-self:end;display:flex;align-items:center;gap:14px;padding-bottom:4px}
+  .gtop .gsr small{font:500 8.5px var(--sans);letter-spacing:.24em;text-transform:uppercase;color:var(--mute)}
+  .gtop input{width:220px;border:0;border-bottom:1px solid var(--ink);background:transparent;font:13px var(--sans);padding:6px 0;outline:0;color:var(--ink)}
+  .gtop .sclose{position:static;align-self:start}
+  .gleg{padding:18px 16px 16px 26px;overflow:auto;display:flex;flex-direction:column}
+  .gleg .gmoons{display:flex;gap:7px;margin:4px 0 14px}.gleg .gmoons i{width:13px;height:13px;border-radius:50%;border:1px solid var(--ink);display:block}
+  .gleg button{display:flex;align-items:center;gap:10px;width:100%;border:0;background:transparent;padding:7px 0;cursor:pointer;font:13px var(--cn);color:var(--ink);border-bottom:1px solid var(--rule);text-align:left}
+  .gleg button.off{opacity:.3}.gleg button svg{flex:none}.gleg button em{margin-left:auto;font:italic 14px var(--serif);color:var(--mute)}
+  .gleg button span small{display:block;font:500 8.5px var(--display);letter-spacing:.26em;color:var(--mute)}
+  .gleg .gnote{font:11px/1.6 var(--cn);color:var(--ink-2);margin-top:14px}
+  .gleg .gquote{margin-top:auto;padding-top:16px;border-top:1px solid var(--ink);font:italic 13px/1.5 var(--serif);color:var(--ink-2)}
+  .gleg .gquote b{display:block;font:500 8.5px var(--sans);font-style:normal;letter-spacing:.24em;margin-top:6px;color:var(--mute)}
+  .gmid{display:flex;flex-direction:column;min-width:0;min-height:0;padding:22px 10px 14px;position:relative}
+  .gmid .grays{position:absolute;left:50%;top:6px;width:120%;max-width:900px;aspect-ratio:2/1;transform:translateX(-50%);pointer-events:none;opacity:.55}
+  .gcv{position:relative;flex:1;overflow:hidden;cursor:grab;border:1px solid var(--ink);border-radius:999px 999px 0 0/360px 360px 0 0;
+    background:#121110 url(/assets/mnemosyne.jpg) center 85%/auto 108% no-repeat;box-shadow:0 0 0 5px #EEEAE1,0 0 0 6px var(--ink)}
+  .gcv::before{content:"";position:absolute;inset:0;pointer-events:none;z-index:0;background:linear-gradient(180deg,rgba(14,14,13,.35),rgba(14,14,13,.62) 55%,rgba(14,14,13,.8))}
+  .gcv::after{content:"";position:absolute;inset:0;pointer-events:none;opacity:.18;mix-blend-mode:screen;background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 1.6 -.75'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E")}
+  .gcv canvas{position:relative;z-index:1;display:block;width:100%;height:100%}
+  .gcv.drag{cursor:grabbing}
+  .gmid .glaurel{position:absolute;right:-26px;bottom:76px;width:190px;transform:rotate(-28deg);pointer-events:none;z-index:3;filter:contrast(1.1)}
+  .gmid .glaurel.l{right:auto;left:-30px;bottom:96px;width:150px;transform:scaleX(-1) rotate(-22deg)}
+  .gbase{display:grid;grid-template-columns:1fr 2.3fr 1fr;align-items:center;gap:14px;margin-top:10px}
+  .gbase .gruin{height:62px;border:1px solid var(--ink);background:url(/assets/ruins.jpg) center 55%/cover;mix-blend-mode:multiply;filter:grayscale(1) contrast(1.05)}
+  .gbase .gst2{font:500 8.5px/1.8 var(--sans);letter-spacing:.24em;text-transform:uppercase;color:var(--ink)}
+  .gbase .gst2.r{text-align:right}
+  .gcv .gtip{position:absolute;pointer-events:none;z-index:4;background:#EEEAE1;color:var(--ink);font:12px/1.4 var(--cn);padding:5px 8px;max-width:280px;transform:translate(10px,10px);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border:1px solid var(--ink)}
+  .gcv .gempty{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;font:italic 16px/1.6 var(--serif);color:rgba(236,230,216,.8);padding:40px;z-index:2}
+  .gcv .gzoom{position:absolute;right:50%;transform:translateX(50%);bottom:12px;display:flex;gap:4px;z-index:2}.gcv .gzoom .x{background:transparent;color:#ECE6D8;border-color:rgba(236,230,216,.4)}
+  .gcard{padding:18px 26px 16px 18px;overflow:auto}
+  .gcard .gk{font:500 8.5px var(--sans);letter-spacing:.24em;text-transform:uppercase;color:var(--mute);display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--ink);padding-bottom:7px}
+  .gcard .gbig{font:400 46px/.9 "Archeologicaps",var(--display);margin:16px 0 2px;white-space:nowrap;color:var(--ink)}
+  .gcard .gbig.num{font:500 40px/.95 var(--display);letter-spacing:.04em}
+  .gcard h4{font:500 24px/1.25 var(--cn);margin:14px 0 4px;word-break:break-word}
+  .gcard .gbig+h4{font-size:15px;margin-top:6px;color:var(--ink-2)}
+  .gcard .gsub{font:500 8.5px var(--sans);letter-spacing:.22em;text-transform:uppercase;color:var(--mute);margin-top:4px}
+  .gcard .gsub .v-对,.gcard .gsub .v-错{font:600 11px var(--cn);letter-spacing:0}
+  .gcard .gdeity{font:500 9.5px var(--display);letter-spacing:.34em;color:var(--ink-2);margin-top:6px}
+  .gcard .gepi{font:italic 14px/1.6 var(--serif);color:var(--ink-2);margin:14px 0;padding:10px 0;border-top:1px solid var(--rule-2);border-bottom:1px solid var(--rule-2)}
   .gcard p{font:13.5px/1.7 var(--cn);white-space:pre-wrap;margin:12px 0;color:var(--ink-2)}
-  .gcard .gst{display:grid;grid-template-columns:1fr 1fr;gap:0;border-top:1px solid var(--rule);margin:14px 0}
-  .gcard .gst span{padding:8px 0;border-bottom:1px solid var(--rule);font:11px var(--sans);color:var(--mute)}.gcard .gst b{display:block;font:500 20px/1.1 var(--serif);color:var(--ink)}
+  .gcard .gstw{display:grid;grid-template-columns:1fr 1fr;border-top:1px solid var(--ink);margin:14px 0}
+  .gcard .gstw span{padding:9px 0;border-bottom:1px solid var(--rule);font:500 8.5px var(--sans);letter-spacing:.18em;text-transform:uppercase;color:var(--mute)}.gcard .gstw b{display:block;font:400 26px/1.05 var(--serif);color:var(--ink);letter-spacing:0;text-transform:none}
   .gcard ul{list-style:none;margin:6px 0 14px;padding:0}
-  .gcard li{display:flex;gap:9px;align-items:baseline;padding:7px 0;border-bottom:1px dotted var(--rule);cursor:pointer;font:13px/1.45 var(--cn)}
-  .gcard li:hover{background:rgba(24,23,21,.04)}.gcard li i{font:500 8.5px var(--sans);font-style:normal;letter-spacing:.14em;color:var(--mute);min-width:34px;text-transform:uppercase}
-  .gcard li small{margin-left:auto;font:italic 12px var(--serif);color:var(--mute);white-space:nowrap}
-  .gcard .ask{width:100%;margin-top:6px;padding:10px;font-size:10px}
+  .gcard li{display:flex;gap:9px;align-items:baseline;padding:7px 0;border-bottom:1px solid var(--rule);cursor:pointer;font:13px/1.45 var(--cn)}
+  .gcard li:hover{background:rgba(24,23,21,.05)}.gcard li i{font:500 8px var(--display);font-style:normal;letter-spacing:.16em;color:var(--mute);min-width:52px}
+  .gcard li small{margin-left:auto;font:italic 12.5px var(--serif);color:var(--mute);white-space:nowrap}
+  .gcard .ask{width:100%;margin-top:6px;padding:11px;font-size:10px;display:flex;align-items:center;justify-content:center;gap:10px}
+  .gcard .ask .gstar{width:10px;height:10px;background:currentColor}
   .gcard .v-对{color:var(--terracotta)}.gcard .v-错{color:var(--olive)}
-  @media(max-width:900px){.gw{grid-template-columns:1fr;grid-template-rows:auto 1fr 40%}.gleg{display:none}.gcard{border-left:0;border-top:1px solid var(--rule-2)}.gtop input{width:140px}}
+  .gcard .glbl{display:flex;align-items:center;gap:8px;margin-top:16px}.gcard .glbl .gstar{width:9px;height:9px}
+  @media(max-width:980px){.gw{grid-template-columns:1fr;grid-template-rows:auto 1fr 40%}.gleg{display:none}.gtop{grid-template-columns:auto 1fr auto}.gtop .gstack{display:none}.gtop h3{font-size:44px}.gtop input{width:140px}.gmid .glaurel{display:none}}
   /* ---- 对话历史抽屉（参考 ChatGPT / Claude 侧栏：新对话、按日期分组、全文搜索、置顶、改名、删除） ---- */
   .hist{position:fixed;inset:0;z-index:45;background:rgba(24,23,21,.22);animation:fadein .2s ease both}
   .hw{position:absolute;left:0;top:0;bottom:0;width:min(380px,92vw);background:#F6F4EF;border-right:1px solid var(--ink);box-shadow:6px 0 0 -1px #F6F4EF,6px 0 0 0 var(--ink);display:flex;flex-direction:column;padding:22px 0 14px;animation:slidein .35s var(--ease) both}
@@ -418,9 +448,19 @@
 </div>
 <div class="gph" id="gph" hidden role="dialog" aria-label="记忆图谱">
   <div class="gw">
-    <div class="gtop"><h3>Mnemosyne</h3><span class="label">FIG. — 记忆图谱 · 按股票与主题串起的一切</span><input id="gq" placeholder="找股票或主题，如 茅台、降息" autocomplete="off" aria-label="搜索图谱"><button class="sclose" id="gx" aria-label="关闭">×</button></div>
+    <div class="gtop">
+      <h3>MNEMOSYNE</h3>
+      <div class="gstack">Memory<br>Muses<br>Time</div>
+      <div class="gsr"><small>记忆女神 · 缪斯之母</small><span class="gstar"></span><input id="gq" placeholder="寻一颗星：茅台、腾讯、降息" autocomplete="off" aria-label="搜索图谱"></div>
+      <button class="sclose" id="gx" aria-label="关闭">×</button>
+    </div>
     <div class="gleg" id="gleg"></div>
-    <div class="gcv" id="gcv"><canvas id="gc"></canvas><div class="gtip" id="gtip" hidden></div><div class="gzoom"><button class="x" id="gfit" type="button">适配</button></div></div>
+    <div class="gmid">
+      <svg class="grays" viewBox="0 0 800 400" aria-hidden="true"><g stroke="#181715" stroke-width=".7" id="grays"></g></svg>
+      <div class="gcv" id="gcv"><canvas id="gc"></canvas><div class="gtip" id="gtip" hidden></div><div class="gzoom"><button class="x" id="gfit" type="button">归位</button></div></div>
+      <img class="glaurel" src="/assets/laurel.png" alt=""><img class="glaurel l" src="/assets/laurel.png" alt="">
+      <div class="gbase"><div class="gst2">The mind<br>remembers<br>what markets forget</div><div class="gruin"></div><div class="gst2 r">Sphaera<br>Mnemosynes<br>Tab. XII</div></div>
+    </div>
     <div class="gcard" id="gcard"></div>
   </div>
 </div>
@@ -1252,38 +1292,93 @@ async function sessReq(act, body){ await fetch('/api/sessions/' + act, {method:'
 function openHist(){ $('hist').hidden = false; $('hq').value = ''; loadHist(); setTimeout(() => $('hq').focus(), 50); }
 /* ---------- 记忆图谱：自写力导向布局，Canvas 绘制，无依赖 ---------- */
 const GT = {
-  symbol:{t:'股票', k:'Titulus'}, theme:{t:'主题', k:'Thema'}, market:{t:'市场', k:'Forum'},
-  user:{t:'关于你', k:'Persona'}, note:{t:'笔记', k:'Nota'}, skill:{t:'技能', k:'Ars'}, call:{t:'判断', k:'Augurium'}, chat:{t:'对话', k:'Colloquium'},
+  symbol:{t:'股票', k:'Astrum', g:'ΑΣΤΡΑ'}, theme:{t:'主题', k:'Numen', g:'ΘΕΟΙ'}, market:{t:'市场', k:'Moira', g:'ΜΟΙΡΑΙ'},
+  user:{t:'关于你', k:'Psyche', g:'ΨΥΧΗ'}, note:{t:'笔记', k:'Mneme', g:'ΜΝΗΜΗ'}, skill:{t:'技能', k:'Techne', g:'ΤΕΧΝΗ'}, call:{t:'判断', k:'Manteia', g:'ΜΑΝΤΕΙΑ'}, chat:{t:'对话', k:'Logos', g:'ΛΟΓΟΣ'},
 };
+/* 主题 = 掌管它的神；市场 = 命运三女神（纺线、量线、剪线） */
+const GDEI = {
+  '半导体':['ΗΦΑΙΣΤΟΣ','赫菲斯托斯','锻造之神，在火山熔炉里打出众神的兵器——今天他打的是晶圆。'],
+  'AI':['ΠΡΟΜΗΘΕΥΣ','普罗米修斯','从奥林匹斯盗来火种交给凡人。算力，就是新的火。'],
+  '新能源':['ΗΛΙΟΣ','赫利俄斯','每天驾金色马车横越天空的太阳神。'],
+  '白酒消费':['ΔΙΟΝΥΣΟΣ','狄俄尼索斯','葡萄酒与欢宴之神，凡人的口腹之欲都归他管。'],
+  '医药':['ΑΣΚΛΗΠΙΟΣ','阿斯克勒庇俄斯','医神，手持蛇杖，能让死者复生。'],
+  '银行金融':['ΠΛΟΥΤΟΣ','普路托斯','财富之神，宙斯让他目盲，于是财富不问善恶地流向众人。'],
+  '地产':['ΓΑΙΑ','盖亚','大地之母，一切土地与根基。'],
+  '互联网':['ΙΡΙΣ','伊里斯','彩虹女神，在天地之间传递消息，快过一切。'],
+  '汽车':['ΦΑΕΘΩΝ','法厄同','偷驾太阳车的少年，速度与失控只有一线之隔。'],
+  '资源能源':['ΑΙΔΗΣ','哈得斯','冥王，地下的金属与矿藏都属于他。'],
+  '军工':['ΑΡΗΣ','阿瑞斯','战神。'],
+  '宏观利率':['ΚΡΟΝΟΣ','克洛诺斯','时间之神。利率，是时间的价格。'],
+  '汇率':['ΕΡΜΗΣ','赫尔墨斯','商旅、交换与边界之神。'],
+  '政策':['ΖΕΥΣ','宙斯','众神之王，一道雷霆就能改变天气。'],
+  '风控仓位':['ΝΕΜΕΣΙΣ','涅墨西斯','复仇女神，专罚傲慢——满仓追高者当心。'],
+  '技术面':['ΑΠΟΛΛΩΝ','阿波罗','德尔斐神谕的主人，从图形里读出预兆。'],
+  '财报':['ΑΘΗΝΑ','雅典娜','智慧女神，只相信算得清的东西。'],
+  'A股':['ΚΛΩΘΩ','克洛托','命运三女神之一，纺出生命之线。'],
+  '港股':['ΛΑΧΕΣΙΣ','拉刻西斯','命运三女神之一，丈量线的长短。'],
+  '美股':['ΑΤΡΟΠΟΣ','阿特罗波斯','命运三女神之一，持剪刀剪断命运之线。'],
+};
+const GLAT = {'ΗΦΑΙΣΤΟΣ':'HEPHAESTUS','ΠΡΟΜΗΘΕΥΣ':'PROMETHEUS','ΗΛΙΟΣ':'HELIOS','ΔΙΟΝΥΣΟΣ':'DIONYSUS','ΑΣΚΛΗΠΙΟΣ':'ASCLEPIUS','ΠΛΟΥΤΟΣ':'PLUTUS','ΓΑΙΑ':'GAIA','ΙΡΙΣ':'IRIS','ΦΑΕΘΩΝ':'PHAETHON',
+  'ΑΙΔΗΣ':'HADES','ΑΡΗΣ':'ARES','ΚΡΟΝΟΣ':'CRONUS','ΕΡΜΗΣ':'HERMES','ΖΕΥΣ':'ZEUS','ΝΕΜΕΣΙΣ':'NEMESIS','ΑΠΟΛΛΩΝ':'APOLLO','ΑΘΗΝΑ':'ATHENA','ΚΛΩΘΩ':'CLOTHO','ΛΑΧΕΣΙΣ':'LACHESIS','ΑΤΡΟΠΟΣ':'ATROPOS'};
+const GSTAR = '<span class="gstar"></span>';
 const GORDER = ['symbol','theme','market','user','note','skill','call','chat'];
-let GCOL = null, GFONT = null, G = null, GV = {x:0, y:0, k:1}, GSEL = null, GHOV = null, GOFF = new Set(), GQ = '', GRAF = 0, GALPHA = 0;
-const gcol = () => { const cs = getComputedStyle(document.body); const v = n => cs.getPropertyValue(n).trim(); return {ink:v('--ink'), mute:v('--mute'), bronze:v('--bronze'), up:v('--terracotta'), dn:v('--olive'), paper:'#F6F4EF'}; };
-function gsize(n){ return n.type === 'market' ? 11 : n.type === 'symbol' ? 5 + Math.min(9, Math.sqrt(n.deg) * 1.6) : n.type === 'theme' ? 4 + Math.min(7, Math.sqrt(n.deg) * 1.3) : 3.6; }
+let GCOL = null, GFONT = null, GSKY = null, G = null, GV = {x:0, y:0, k:1}, GSEL = null, GHOV = null, GOFF = new Set(), GQ = '', GRAF = 0, GALPHA = 0;
+const gcol = () => ({ink:'#ECE6D8', mute:'rgba(236,230,216,.55)', bronze:'#E6C66A', up:'#D9704F', dn:'#93A887', paper:'#141312', glow:'rgba(230,198,106,.28)'});
+function gsize(n){ return n.type === 'market' ? 12 : n.type === 'symbol' ? 5 + Math.min(9, Math.sqrt(n.deg) * 1.6) : n.type === 'theme' ? 4.5 + Math.min(7, Math.sqrt(n.deg) * 1.3) : 3.4; }
+function gstar(ctx, x, y, r){ const q = r * .22; ctx.moveTo(x, y - r); ctx.quadraticCurveTo(x + q, y - q, x + r, y); ctx.quadraticCurveTo(x + q, y + q, x, y + r); ctx.quadraticCurveTo(x - q, y + q, x - r, y); ctx.quadraticCurveTo(x - q, y - q, x, y - r); ctx.closePath(); }
 function gglyph(ctx, n, x, y, r, C, dim){
-  ctx.globalAlpha = dim ? .16 : 1; ctx.lineWidth = 1.2; ctx.strokeStyle = C.ink; ctx.fillStyle = C.ink;
+  ctx.globalAlpha = dim ? .14 : 1; ctx.lineWidth = 1.1; ctx.strokeStyle = C.ink; ctx.fillStyle = C.ink;
   const vc = n.verdict === '对' ? C.up : n.verdict === '错' ? C.dn : null;
   ctx.beginPath();
   switch (n.type) {
-    case 'symbol': ctx.rect(x - r, y - r, r * 2, r * 2); ctx.fill(); break;
-    case 'theme': ctx.arc(x, y, r, 0, 7); ctx.fillStyle = C.paper; ctx.fill(); ctx.stroke(); break;
-    case 'market': ctx.arc(x, y, r, 0, 7); ctx.fillStyle = C.paper; ctx.fill(); ctx.stroke(); ctx.beginPath(); ctx.arc(x, y, r - 3.5, 0, 7); ctx.stroke(); break;
-    case 'user': ctx.arc(x, y, r + .6, 0, 7); ctx.fillStyle = C.bronze; ctx.fill(); break;
-    case 'note': ctx.arc(x, y, r, 0, 7); ctx.fill(); break;
-    case 'skill': ctx.moveTo(x, y - r - 1.5); ctx.lineTo(x + r + 1.5, y); ctx.lineTo(x, y + r + 1.5); ctx.lineTo(x - r - 1.5, y); ctx.closePath(); ctx.fillStyle = C.paper; ctx.fill(); ctx.stroke(); break;
-    case 'call': ctx.arc(x, y, r - .4, 0, 7); if (vc) { ctx.fillStyle = vc; ctx.fill(); } else { ctx.fillStyle = C.paper; ctx.fill(); ctx.strokeStyle = C.mute; ctx.stroke(); } break;
+    case 'symbol': { if (!dim) { const g = ctx.createRadialGradient(x, y, 0, x, y, r * 2.6); g.addColorStop(0, C.glow); g.addColorStop(1, 'rgba(230,198,106,0)'); ctx.fillStyle = g; ctx.fillRect(x - r * 2.6, y - r * 2.6, r * 5.2, r * 5.2); ctx.fillStyle = C.ink; }
+      ctx.beginPath(); gstar(ctx, x, y, r * 1.55); ctx.fill(); ctx.beginPath(); gstar(ctx, x, y, r * .8); ctx.save(); ctx.translate(x, y); ctx.rotate(Math.PI / 4); ctx.translate(-x, -y); ctx.beginPath(); gstar(ctx, x, y, r * .85); ctx.fill(); ctx.restore(); break; }
+    case 'theme': ctx.arc(x, y, r, 0, 7); ctx.fillStyle = C.paper; ctx.fill(); ctx.stroke(); ctx.beginPath(); ctx.arc(x, y, 1.4, 0, 7); ctx.fillStyle = C.ink; ctx.fill(); break;
+    case 'market': { ctx.arc(x, y, r, 0, 7); ctx.fillStyle = C.paper; ctx.fill(); ctx.strokeStyle = C.bronze; ctx.stroke(); ctx.beginPath(); ctx.arc(x, y, r - 3.5, 0, 7); ctx.stroke();
+      ctx.beginPath(); for (let i = 0; i < 16; i++) { const a = i / 16 * Math.PI * 2, L = i % 2 ? 4 : 8; ctx.moveTo(x + Math.cos(a) * (r + 2), y + Math.sin(a) * (r + 2)); ctx.lineTo(x + Math.cos(a) * (r + 2 + L), y + Math.sin(a) * (r + 2 + L)); } ctx.stroke();
+      ctx.beginPath(); ctx.arc(x, y, 2, 0, 7); ctx.fillStyle = C.bronze; ctx.fill(); break; }
+    case 'user': ctx.arc(x, y, r + .4, 0, 7); ctx.fillStyle = C.bronze; ctx.fill(); ctx.beginPath(); ctx.arc(x, y, r + 3, 0, 7); ctx.strokeStyle = C.bronze; ctx.lineWidth = .7; ctx.stroke(); break;
+    case 'note': ctx.arc(x, y, r - .2, 0, 7); ctx.fill(); break;
+    case 'skill': ctx.moveTo(x, y - r - 1.8); ctx.lineTo(x + r + 1.8, y); ctx.lineTo(x, y + r + 1.8); ctx.lineTo(x - r - 1.8, y); ctx.closePath(); ctx.fillStyle = C.paper; ctx.fill(); ctx.stroke(); break;
+    case 'call': ctx.arc(x, y, r - .6, 0, 7); if (vc) { ctx.fillStyle = vc; ctx.fill(); } else { ctx.strokeStyle = C.mute; ctx.stroke(); } break;
     case 'chat': ctx.rect(x - r + .5, y - r + .5, r * 2 - 1, r * 2 - 1); ctx.fillStyle = C.paper; ctx.fill(); ctx.stroke(); break;
   }
   ctx.globalAlpha = 1;
 }
+/* 天球底图：星空 + 星盘同心环 + 环刻希腊铭文与罗马数字 */
+function gsky(ctx, W, Hh, C){
+  if (!GSKY || GSKY.w !== W || GSKY.h !== Hh) { const R = rng(7); GSKY = {w:W, h:Hh, st: Array.from({length: Math.round(W * Hh / 2600)}, () => [R() * W, R() * Hh, R() < .08 ? 1.3 : R() * .8 + .25, R() * .6 + .2])}; }
+  ctx.save(); ctx.setTransform(devicePixelRatio || 1, 0, 0, devicePixelRatio || 1, 0, 0);
+  for (const [x, y, r, a] of GSKY.st) { ctx.globalAlpha = a; ctx.fillStyle = C.ink; ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.fill(); }
+  ctx.restore(); ctx.globalAlpha = 1;
+  ctx.strokeStyle = C.ink; ctx.fillStyle = C.ink;
+  const R = G.R || 560, rings = [.27, .54, .8, 1].map(f => f * R);
+  rings.forEach((r, i) => { ctx.globalAlpha = i === 3 ? .2 : .07; ctx.lineWidth = (i === 3 ? 1 : .7) / GV.k; ctx.beginPath(); ctx.arc(0, 0, r, 0, 7); ctx.stroke(); });
+  ctx.globalAlpha = .24; ctx.beginPath(); ctx.arc(0, 0, R + 42, 0, 7); ctx.stroke();
+  ctx.globalAlpha = .06; ctx.beginPath();
+  for (let i = 0; i < 24; i++) { const a = i / 24 * Math.PI * 2; ctx.moveTo(Math.cos(a) * rings[0], Math.sin(a) * rings[0]); ctx.lineTo(Math.cos(a) * R, Math.sin(a) * R); } ctx.stroke();
+  ctx.globalAlpha = .3; ctx.beginPath();
+  for (let i = 0; i < 120; i++) { const a = i / 120 * Math.PI * 2, L = i % 10 === 0 ? 12 : i % 5 === 0 ? 8 : 4; ctx.moveTo(Math.cos(a) * R, Math.sin(a) * R); ctx.lineTo(Math.cos(a) * (R + L), Math.sin(a) * (R + L)); } ctx.stroke();
+  const txt = 'ΜΝΗΜΟΣΥΝΗ · ΜΗΤΗΡ ΜΟΥΣΩΝ · ΓΝΩΘΙ ΣΑΥΤΟΝ · ΜΗΔΕΝ ΑΓΑΝ · ', rn = ['I','II','III','IV','V','VI','VII','VIII','IX','X','XI','XII'];
+  ctx.globalAlpha = .4; ctx.font = `500 12px ${GFONT.disp}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  const full = txt.repeat(Math.max(1, Math.round(R * 2 * Math.PI / 13 / txt.length))), n = full.length;
+  for (let i = 0; i < n; i++) { const a = i / n * Math.PI * 2 - Math.PI / 2; ctx.save(); ctx.translate(Math.cos(a) * (R + 28), Math.sin(a) * (R + 28)); ctx.rotate(a + Math.PI / 2); ctx.fillText(full[i], 0, 0); ctx.restore(); }
+  ctx.globalAlpha = .3; ctx.font = `italic 14px ${GFONT.serif}`;
+  rn.forEach((t, i) => { const a = i / 12 * Math.PI * 2 - Math.PI / 2 + Math.PI / 12; ctx.fillText(t, Math.cos(a) * (R - 22), Math.sin(a) * (R - 22)); });
+  ctx.textAlign = 'left'; ctx.globalAlpha = 1;
+}
 function gicon(type){
-  const k = 'stroke="var(--ink)" stroke-width="1.2"', P = {
-    symbol:`<rect x="3.5" y="3.5" width="11" height="11" fill="var(--ink)"/>`, theme:`<circle cx="9" cy="9" r="5" fill="none" ${k}/>`,
-    market:`<circle cx="9" cy="9" r="7" fill="none" ${k}/><circle cx="9" cy="9" r="4" fill="none" ${k}/>`, user:`<circle cx="9" cy="9" r="4.4" fill="var(--bronze)"/>`,
-    note:`<circle cx="9" cy="9" r="3.8" fill="var(--ink)"/>`, skill:`<path d="M9 3.2 14.8 9 9 14.8 3.2 9Z" fill="none" ${k}/>`,
-    call:`<circle cx="6" cy="9" r="3.4" fill="var(--terracotta)"/><circle cx="13" cy="9" r="3.4" fill="var(--olive)"/>`, chat:`<rect x="4.5" y="4.5" width="9" height="9" fill="none" ${k}/>`};
+  const k = 'stroke="var(--ink)" stroke-width="1.1"', st = (cx, cy, r) => { const q = r * .22; return `M${cx} ${cy - r}Q${cx + q} ${cy - q} ${cx + r} ${cy}Q${cx + q} ${cy + q} ${cx} ${cy + r}Q${cx - q} ${cy + q} ${cx - r} ${cy}Q${cx - q} ${cy - q} ${cx} ${cy - r}Z`; };
+  const rays = Array.from({length: 12}, (_, i) => { const a = i / 12 * Math.PI * 2, L = i % 2 ? 1.6 : 3; return `M${(9 + Math.cos(a) * 5.6).toFixed(1)} ${(9 + Math.sin(a) * 5.6).toFixed(1)}L${(9 + Math.cos(a) * (5.6 + L)).toFixed(1)} ${(9 + Math.sin(a) * (5.6 + L)).toFixed(1)}`; }).join('');
+  const P = {
+    symbol:`<path d="${st(9, 9, 8)}" fill="var(--ink)"/>`, theme:`<circle cx="9" cy="9" r="5" fill="none" ${k}/><circle cx="9" cy="9" r="1.3" fill="var(--ink)"/>`,
+    market:`<circle cx="9" cy="9" r="4.6" fill="none" stroke="var(--bronze)" stroke-width="1.1"/><path d="${rays}" stroke="var(--bronze)" stroke-width="1"/>`, user:`<circle cx="9" cy="9" r="3.6" fill="var(--bronze)"/><circle cx="9" cy="9" r="6" fill="none" stroke="var(--bronze)" stroke-width=".7"/>`,
+    note:`<circle cx="9" cy="9" r="3.4" fill="var(--ink)"/>`, skill:`<path d="M9 3.2 14.8 9 9 14.8 3.2 9Z" fill="none" ${k}/>`,
+    call:`<circle cx="6" cy="9" r="3.2" fill="var(--terracotta)"/><circle cx="13" cy="9" r="3.2" fill="var(--olive)"/>`, chat:`<rect x="4.5" y="4.5" width="9" height="9" fill="none" ${k}/>`};
   return `<svg width="18" height="18" viewBox="0 0 18 18">${P[type]}</svg>`;
 }
 async function openGraph(){
+  if (!$('grays').childElementCount) $('grays').innerHTML = Array.from({length: 61}, (_, i) => { const a = Math.PI + i / 60 * Math.PI, L = i % 5 === 0 ? 400 : i % 2 ? 300 : 350; return `<line x1="${(400 + Math.cos(a) * 250).toFixed(1)}" y1="${(400 + Math.sin(a) * 250).toFixed(1)}" x2="${(400 + Math.cos(a) * L).toFixed(1)}" y2="${(400 + Math.sin(a) * L).toFixed(1)}"/>`; }).join('');
   $('gph').hidden = false; $('gq').value = GQ = ''; GSEL = null;
   $('gcard').innerHTML = `<div class="gk"><span>Catalogus</span><span>—</span></div><p class="muted">读取中…</p>`;
   try { G = await (await fetch('/api/graph', {headers:H})).json(); } catch(e) { G = {nodes:[], edges:[], counts:{}}; }
@@ -1325,66 +1420,75 @@ function gdraw(){
   const cv = $('gc'), box = $('gcv'), dpr = devicePixelRatio || 1, W = box.clientWidth, Hh = box.clientHeight;
   if (cv.width !== W * dpr || cv.height !== Hh * dpr) { cv.width = W * dpr; cv.height = Hh * dpr; }
   const ctx = cv.getContext('2d'), C = GCOL || (GCOL = gcol()), F = gfocusSet();
-  const FF = GFONT || (GFONT = (cs => ({serif: cs.getPropertyValue('--serif'), sans: cs.getPropertyValue('--sans'), cn: cs.getPropertyValue('--cn')}))(getComputedStyle(document.body)));
+  const FF = GFONT || (GFONT = (cs => ({serif: cs.getPropertyValue('--serif'), sans: cs.getPropertyValue('--sans'), cn: cs.getPropertyValue('--cn'), disp: cs.getPropertyValue('--display')}))(getComputedStyle(document.body)));
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, W, Hh);
   ctx.translate(W / 2 + GV.x, Hh / 2 + GV.y); ctx.scale(GV.k, GV.k);
+  gsky(ctx, W, Hh, C);
   for (const e of G.edges) { if (!gvis(e.a) || !gvis(e.b)) continue; const on = F && F.has(e.a.id) && F.has(e.b.id) && (F.size < 2 || e.a.id === (GHOV || GSEL || {}).id || e.b.id === (GHOV || GSEL || {}).id || (!GHOV && !GSEL));
-    ctx.globalAlpha = F ? (on ? .75 : .05) : (e.kind === 'in' ? .1 : .2); ctx.strokeStyle = C.ink; ctx.lineWidth = (on ? 1 : .7) / GV.k; ctx.setLineDash(e.kind === 'in' ? [3 / GV.k, 3 / GV.k] : []);
+    ctx.globalAlpha = F ? (on ? .8 : .05) : (e.kind === 'in' ? .14 : .26); ctx.strokeStyle = C.ink; ctx.lineWidth = (on ? 1 : .7) / GV.k; ctx.setLineDash(e.kind === 'in' ? [3 / GV.k, 3 / GV.k] : []);
     ctx.beginPath(); ctx.moveTo(e.a.x, e.a.y); ctx.lineTo(e.b.x, e.b.y); ctx.stroke(); }
   ctx.setLineDash([]); ctx.globalAlpha = 1;
   const N = G.nodes.filter(gvis);
   for (const n of N) gglyph(ctx, n, n.x, n.y, gsize(n), C, F && !F.has(n.id));
-  if (GSEL && gvis(GSEL)) { ctx.strokeStyle = C.ink; ctx.lineWidth = 1 / GV.k; ctx.beginPath(); ctx.arc(GSEL.x, GSEL.y, gsize(GSEL) + 6, 0, 7); ctx.stroke(); }
+  if (GSEL && gvis(GSEL)) { ctx.strokeStyle = C.bronze; ctx.lineWidth = 1 / GV.k; ctx.setLineDash([2 / GV.k, 3 / GV.k]); ctx.beginPath(); ctx.arc(GSEL.x, GSEL.y, gsize(GSEL) + 9, 0, 7); ctx.stroke(); ctx.setLineDash([]); }
   ctx.textBaseline = 'middle';
   for (const n of N) {
     const hub = n.type === 'symbol' || n.type === 'market' || n.type === 'theme', inF = F && F.has(n.id);
     if (!(hub && (!F || inF) ) && !(inF && GV.k > .6 && F.size < 40)) continue;
+    if (!hub && n.type === 'call' && F && F.size > 12 && n !== (GHOV || GSEL)) continue;
     const r = gsize(n), fs = (n.type === 'market' ? 12 : n.type === 'symbol' ? 12.5 : 11.5) / Math.max(.75, GV.k);
     ctx.font = n.type === 'theme' ? `italic ${fs}px ${FF.serif}` : n.type === 'market' ? `500 ${fs * .8}px ${FF.sans}` : `${fs}px ${FF.cn}`;
     const focus = GHOV || GSEL; let lb = n.label;
     if (focus && n !== focus && ['symbol','theme'].includes(focus.type) && lb.startsWith(focus.label)) lb = lb.slice(focus.label.length).trim() + (n.verdict ? ' · ' + n.verdict : '');
     const t = n.type === 'market' ? lb.toUpperCase() : (lb.length > 16 ? lb.slice(0, 15) + '…' : lb);
-    ctx.lineWidth = 3 / GV.k; ctx.strokeStyle = C.paper; ctx.fillStyle = hub ? C.ink : C.mute;
-    const tx = n.type === 'market' ? n.x - ctx.measureText(t).width / 2 : n.x + r + 5, ty = n.type === 'market' ? n.y + r + 9 / GV.k : n.y;
+    ctx.lineWidth = 3 / GV.k; ctx.strokeStyle = C.paper; ctx.fillStyle = n.type === 'market' ? C.bronze : hub ? C.ink : C.mute;
+    const off = n.type === 'symbol' ? r * 1.55 + 5 : r + 5;
+    const tx = n.type === 'market' ? n.x - ctx.measureText(t).width / 2 : n.x + off, ty = n.type === 'market' ? n.y + r + 16 / GV.k : n.y;
     ctx.strokeText(t, tx, ty); ctx.fillText(t, tx, ty);
+    const dei = (n.type === 'theme' || n.type === 'market') && GDEI[n.label];
+    if (dei && (GV.k > .55 || inF)) { ctx.font = `500 ${7.5 / Math.max(.75, GV.k)}px ${FF.disp}`; ctx.fillStyle = C.bronze; ctx.globalAlpha = .85; const d = dei[0].split('').join(' ');
+      const dx = n.type === 'market' ? n.x - ctx.measureText(d).width / 2 : tx, dy = ty + 11 / Math.max(.75, GV.k); ctx.strokeText(d, dx, dy); ctx.fillText(d, dx, dy); ctx.globalAlpha = 1; }
   }
 }
 function gleg(){
   const c = G.counts || {};
-  $('gleg').innerHTML = `<span class="label">Legenda · 图例</span>` + GORDER.filter(t => c[t]).map(t => `<button type="button" data-gt="${t}" class="${GOFF.has(t) ? 'off' : ''}">${gicon(t)}<span>${GT[t].t}</span><em>${c[t]}</em></button>`).join('') +
-    `<div class="gnote">点图例隐藏一类。<br>判断：赤陶 = 对，橄榄 = 错，空心 = 未到期。<br>拖动节点或画布，滚轮缩放。</div>`;
+  $('gleg').innerHTML = `<div class="gmoons"><i style="background:var(--ink)"></i><i style="background:linear-gradient(90deg,var(--ink) 50%,transparent 50%)"></i><i></i><i style="background:linear-gradient(90deg,transparent 50%,var(--ink) 50%)"></i><i style="background:var(--ink)"></i></div><span class="label">Legenda · 星表</span>` + GORDER.filter(t => c[t]).map(t => `<button type="button" data-gt="${t}" class="${GOFF.has(t) ? 'off' : ''}">${gicon(t)}<span><small>${GT[t].g}</small>${GT[t].t}</span><em>${c[t]}</em></button>`).join('') +
+    `<div class="gnote">股票是星，主题由掌管它的神守护，三个市场是命运三女神。<br>神谕之果：赤陶 = 应验，橄榄 = 落空，空心 = 未到期。<br>点星表隐藏一类；拖动星辰或天幕，滚轮缩放。</div><div class="gquote">“记忆是一切智慧之母。”<b>— Aeschylus</b></div>`;
   $('gleg').querySelectorAll('[data-gt]').forEach(b => b.onclick = () => { const t = b.dataset.gt; GOFF.has(t) ? GOFF.delete(t) : GOFF.add(t); if (GSEL && GOFF.has(GSEL.type)) GSEL = null; gleg(); gkick(.4); });
 }
 function gfit(initial){
   const N = G.nodes.filter(gvis); if (!N.length) { gdraw(); return; }
   if (initial) for (let i = 0; i < 260; i++) { GALPHA = Math.max(GALPHA, .9 - i * .003); gstep(); }
+  if (initial) { const cx = N.reduce((a, n) => a + n.x, 0) / N.length, cy = N.reduce((a, n) => a + n.y, 0) / N.length; G.nodes.forEach(n => { n.x -= cx; n.y -= cy; });
+    G.R = Math.max(220, ...N.map(n => Math.hypot(n.x, n.y))) + 70; }
   const xs = N.map(n => n.x), ys = N.map(n => n.y), W = $('gcv').clientWidth, Hh = $('gcv').clientHeight;
   const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
-  GV.k = Math.max(.35, Math.min(1.6, Math.min((W - 120) / (x1 - x0 || 1), (Hh - 80) / (y1 - y0 || 1))));
-  GV.x = -(x0 + x1) / 2 * GV.k; GV.y = -(y0 + y1) / 2 * GV.k; gdraw();
+  const D = 2 * (G.R + 50); void x0; void x1; void y0; void y1;
+  GV.k = Math.max(.3, Math.min(1.6, Math.min(W / D, (Hh + 60) / D))); GV.x = 0; GV.y = 20; gdraw();
 }
 function gcard(){
   const el = $('gcard'), n = GSEL;
-  if (!G.nodes.length) { el.innerHTML = ''; $('gcv').querySelector('.gempty')?.remove(); $('gcv').insertAdjacentHTML('beforeend', `<div class="gempty">图谱还是空的。<br>多聊几次、让 Stoa 记下你的持仓和偏好、做几次判断，这里就会长出来。</div>`); return; }
+  if (!G.nodes.length) { el.innerHTML = ''; $('gcv').querySelector('.gempty')?.remove(); $('gcv').insertAdjacentHTML('beforeend', `<div class="gempty">天幕尚空，群星未生。<br>多聊几次，让 Stoa 记下你的持仓和偏好，做几次判断，星辰就会一颗颗亮起来。</div>`); return; }
   $('gcv').querySelector('.gempty')?.remove();
   if (!n) {
     const c = G.counts || {}, calls = G.nodes.filter(x => x.type === 'call' && (x.verdict === '对' || x.verdict === '错')), ok = calls.filter(x => x.verdict === '对').length;
     const top = G.nodes.filter(x => x.type === 'symbol' || x.type === 'theme').sort((a, b) => b.deg - a.deg).slice(0, 8);
-    el.innerHTML = `<div class="gk"><span>Catalogus · 总览</span><span>${G.nodes.length} 件</span></div><h4>你的记忆</h4><div class="gsub">按股票、主题和市场串起来</div>
-      <div class="gst"><span><b>${(c.user || 0) + (c.note || 0)}</b>条记忆</span><span><b>${c.skill || 0}</b>项技能</span><span><b>${c.call || 0}</b>次判断</span><span><b>${calls.length ? Math.round(ok * 100 / calls.length) + '%' : '—'}</b>复盘准确率</span></div>
-      <span class="label">Maxime connexa · 联系最多</span><ul>${top.map(x => `<li data-gn="${esc(x.id)}"><i>${GT[x.type].t}</i>${esc(x.label)}<small>${x.deg} 条</small></li>`).join('')}</ul>`;
+    el.innerHTML = `<div class="gk"><span>Catalogus · 总览</span><span>${G.nodes.length} 件</span></div><div class="gbig" style="font-size:44px">MEMORIA</div><h4>你的记忆</h4><div class="gdeity">ΜΝΗΜΟΣΥΝΗ</div><div class="gepi">谟涅摩叙涅，记忆女神，九位缪斯的母亲。没有记忆，就没有诗、历史，也没有复盘。</div>
+      <div class="gstw"><span><b>${(c.user || 0) + (c.note || 0)}</b>条记忆</span><span><b>${c.skill || 0}</b>项技能</span><span><b>${c.call || 0}</b>次判断</span><span><b>${calls.length ? Math.round(ok * 100 / calls.length) + '%' : '—'}</b>复盘准确率</span></div>
+      <span class="label glbl">${GSTAR}Clarissima · 最亮的星与神</span><ul>${top.map(x => `<li data-gn="${esc(x.id)}"><i>${GT[x.type].g}</i>${esc(x.label)}<small>${x.deg} 条</small></li>`).join('')}</ul>`;
   } else {
     const nb = [...G.adj[n.id]].map(id => G.byId[id]).filter(gvis).sort((a, b) => GORDER.indexOf(a.type) - GORDER.indexOf(b.type) || (b.date || '').localeCompare(a.date || ''));
     const hub = ['symbol', 'theme', 'market'].includes(n.type);
     let stats = '';
     if (hub) { const cs = nb.filter(x => x.type === 'call'), done = cs.filter(x => x.verdict === '对' || x.verdict === '错'), ok = done.filter(x => x.verdict === '对').length;
-      stats = `<div class="gst"><span><b>${nb.filter(x => x.type === 'user' || x.type === 'note').length}</b>条记忆</span><span><b>${nb.filter(x => x.type === 'chat').length}</b>段对话</span><span><b>${cs.length}</b>次判断</span><span><b>${done.length ? Math.round(ok * 100 / done.length) + '%' : '—'}</b>${done.length ? `对 ${ok} / ${done.length}` : '尚无复盘'}</span></div>`; }
+      stats = `<div class="gstw"><span><b>${nb.filter(x => x.type === 'user' || x.type === 'note').length}</b>条记忆</span><span><b>${nb.filter(x => x.type === 'chat').length}</b>段对话</span><span><b>${cs.length}</b>次判断</span><span><b>${done.length ? Math.round(ok * 100 / done.length) + '%' : '—'}</b>${done.length ? `对 ${ok} / ${done.length}` : '尚无复盘'}</span></div>`; }
+    const dei = GDEI[n.label] && (n.type === 'theme' || n.type === 'market') ? GDEI[n.label] : null;
     const sub = [n.symbol && n.symbol !== n.label ? n.symbol : '', n.date, n.verdict ? `<span class="v-${esc(n.verdict)}">${esc(n.verdict)}</span>` : '', n.uses ? `用过 ${n.uses} 次` : ''].filter(Boolean).join(' · ');
-    el.innerHTML = `<div class="gk"><span>${GT[n.type].k} · ${GT[n.type].t}</span><span><a href="#" id="gback" style="color:inherit">总览</a></span></div><h4>${esc(n.type === 'call' || n.type === 'chat' || hub || n.type === 'skill' ? n.label : n.label.slice(0, 40))}</h4>${sub ? `<div class="gsub">${sub}</div>` : ''}
+    el.innerHTML = `<div class="gk"><span>${GT[n.type].k} · ${GT[n.type].t}</span><span><a href="#" id="gback" style="color:inherit">总览</a></span></div>${dei ? `<div class="gbig" style="font-size:${Math.min(46, Math.floor(400 / (GLAT[dei[0]] || 'X').length))}px">${GLAT[dei[0]] || ''}</div>` : n.type === 'symbol' && n.symbol ? `<div class="gbig num" style="font-size:${Math.min(40, Math.floor(400 / n.symbol.length))}px">${esc(n.symbol.replace('^', ''))}</div>` : ''}<h4>${esc(n.type === 'call' || n.type === 'chat' || hub || n.type === 'skill' ? n.label : n.label.slice(0, 40))}</h4>${dei ? `<div class="gdeity">${dei[0]}</div>` : ''}${sub ? `<div class="gsub">${sub}</div>` : ''}${dei ? `<div class="gepi">${dei[1]}：${dei[2]}</div>` : ''}
       ${stats}${n.text && !hub ? `<p>${esc(n.text)}</p>` : ''}
       ${n.type === 'chat' ? `<button class="x ask" id="gopen" type="button">打开这段对话</button>` : ''}
-      ${hub && n.type !== 'market' ? `<button class="x dark ask" id="gask" type="button">问 Stoa 关于 ${esc(n.label)}</button>` : ''}
-      <span class="label" style="display:block;margin-top:14px">Nexus · 相连 ${nb.length}</span><ul>${nb.slice(0, 60).map(x => `<li data-gn="${esc(x.id)}"><i>${GT[x.type].t}</i><span>${esc(x.label)}</span>${x.verdict ? `<small class="v-${esc(x.verdict)}">${esc(x.verdict)}</small>` : x.date ? `<small>${esc(x.date.slice(5))}</small>` : ''}</li>`).join('')}</ul>`;
+      ${hub && n.type !== 'market' ? `<button class="x dark ask" id="gask" type="button">${GSTAR}求问神谕 · ${esc(n.label)}${GSTAR}</button>` : ''}
+      <span class="label glbl">${GSTAR}Nexus · 星座相连 ${nb.length}</span><ul>${nb.slice(0, 60).map(x => `<li data-gn="${esc(x.id)}"><i>${GT[x.type].g}</i><span>${esc(x.label)}</span>${x.verdict ? `<small class="v-${esc(x.verdict)}">${esc(x.verdict)}</small>` : x.date ? `<small>${esc(x.date.slice(5))}</small>` : ''}</li>`).join('')}</ul>`;
     $('gback').onclick = e => { e.preventDefault(); GSEL = null; gcard(); gdraw(); };
     if ($('gask')) $('gask').onclick = () => { closeGraph(); input.value = `结合你记得的一切，帮我看看${n.label}现在怎么样`; sync(); input.focus(); };
     if ($('gopen')) $('gopen').onclick = () => { closeGraph(); openSession(n.session); };
@@ -1413,7 +1517,7 @@ function gpick(ev){
     if (GPAN) { GV.x = e.clientX - GPAN.x; GV.y = e.clientY - GPAN.y; GMOVED = true; gdraw(); return; }
     const p = gpick(e), tip = $('gtip');
     if (p.n !== GHOV) { GHOV = p.n; gdraw(); }
-    if (p.n) { const r = cv.getBoundingClientRect(); tip.hidden = false; tip.style.left = (e.clientX - r.left) + 'px'; tip.style.top = (e.clientY - r.top) + 'px'; tip.textContent = `${GT[p.n.type].t} · ${p.n.label}`; cv.style.cursor = 'pointer'; }
+    if (p.n) { const r = cv.getBoundingClientRect(); tip.hidden = false; tip.style.left = (e.clientX - r.left) + 'px'; tip.style.top = (e.clientY - r.top) + 'px'; tip.textContent = `${GT[p.n.type].g} · ${p.n.label}${GDEI[p.n.label] && p.n.type !== 'symbol' ? ' · ' + GDEI[p.n.label][1] : ''}`; cv.style.cursor = 'pointer'; }
     else { tip.hidden = true; cv.style.cursor = ''; }
   };
   cv.onpointerup = e => { const was = GDRAG; cv.classList.remove('drag');
