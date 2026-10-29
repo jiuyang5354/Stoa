@@ -311,7 +311,11 @@ def rule_macro(data) -> dict:
     for d in data or []:
         if isinstance(d, dict) and isinstance(d.get("indices"), dict):
             for mk, xs in d["indices"].items():
-                rows += [(x, d) for x in xs if isinstance(x, dict) and isinstance(x.get("chg_pct"), (int, float))]
+                for x in xs:
+                    if isinstance(x, dict) and not isinstance(x.get("chg_pct"), (int, float)) and isinstance(x.get("data"), dict):
+                        x = {"name": x.get("name"), **x["data"]}  # market_overview 实盘格式：{symbol, name, data: {...}}
+                    if isinstance(x, dict) and isinstance(x.get("chg_pct"), (int, float)):
+                        rows.append((x, d))
     if not rows:
         return {"stance": "中性", "confidence": 50, "summary": "没有取到大盘数据。", "evidence": []}
     avg = sum(x["chg_pct"] for x, _ in rows) / len(rows)
@@ -600,7 +604,7 @@ class Debate:
                                                  "horizon_days": verdict["horizon_days"], "reason": f"Agora 辩论 {self.id}：{verdict['summary'][:60]}"})
             except Exception as e:
                 call = f"记账失败：{e}"
-        sid = self.sources.new("Agora 辩论纪要 · 本次结论", "", cite.today(), kind="debate", tool="deep_analysis")
+        sid = self._vsid = self.sources.new("Agora 辩论纪要 · 本次结论", "", cite.today(), kind="debate", tool="deep_analysis")
         self.sources.bind({"confidence": verdict["confidence"], "horizon": verdict["horizon_days"], "cap": risk.get("max_position_pct"),
                            "risk": risk.get("findings"), "rounds": len(rounds)}, sid)
         answer = self.compose(rounds, risk, verdict, call)
@@ -623,7 +627,7 @@ class Debate:
     def compose(self, rounds, risk, v, call) -> str:
         nm = f"{self.name}（{self.symbol}）" if self.name != self.symbol else self.symbol
         L = [f"**Agora · {nm} 深度分析**", "",
-             f"**结论：{v['view']} · 置信度 {v['confidence']}%**　观察周期约 {v['horizon_days']} 个交易日"]
+             f"**结论：{v['view']} · 置信度 {v['confidence']}%{self._vc()}**　观察周期约 {v['horizon_days']} 个交易日"]
         if v.get("summary"):
             L.append(v["summary"])
         if v.get("risk_override"):
@@ -640,7 +644,7 @@ class Debate:
                 else:
                     L.append(f"- {zh}：未能发言（{x.get('error', '降级')}）")
         L += ["", f"**风控**：{risk['decision']}" + (f"——{'；'.join((risk.get('findings') or []) + (risk.get('notes') or []))}" if (risk.get('findings') or risk.get('notes')) else ""),
-              f"建议单票仓位不超过 {risk['max_position_pct']}%；止损参考：{risk['stop_loss']}"]
+              f"建议单票仓位不超过 {risk['max_position_pct']}%{self._vc()}；止损参考：{risk['stop_loss']}"]
         L += ["", f"**结论失效条件**：{v.get('invalidation') or '出现与上述依据相反的新数据或事件时'}"]
         if isinstance(call, str) and call.startswith("已记账"):
             L.append(f"\n{call}")
@@ -650,6 +654,10 @@ class Debate:
             L.append("\n部分角色未完整参与：" + "、".join(deg) + "，相关部分已用规则摘要或跳过。")
         L += ["", "仅供参考，不构成投资建议。", f"[[debate:{self.id}]]"]
         return "\n".join(L)
+
+    def _vc(self) -> str:
+        """置信度、仓位上限这些数字出自辩论本身：直接标到「辩论纪要」来源，免得被偶然撞上的行情数字认领。"""
+        return f"[{self._vsid}]" if getattr(self, "_vsid", None) else ""
 
     def fix(self, text: str) -> str:
         """最终稿核对：有找不到出处的数字，先请修订一次（预算允许时），仍不行就标「未核实」。"""
