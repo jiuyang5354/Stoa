@@ -35,3 +35,12 @@ llm:
   provider: deepseek
   model: deepseek-chat
   # 密钥放环境变量 LLM_API_KEY，不要写在这里
+
+# Agora 多角色深度分析（「深度分析 X」「该不该买 X」时触发）
+debate:
+  rounds: 1            # 多空辩论轮数 1–3
+  max_calls: 14        # 每次深度分析最多调用大模型次数（4 分析师 + 2×轮数 + 风控 + 裁决 + 1 次核对修订）
+  max_tokens: 60000    # 估算 token 上限，超了后面的角色降级
+  role_timeout: 60     # 每个角色的超时（秒），超时的角色降级为规则摘要
+  horizon_days: 20     # 结论的观察周期（交易日），也是记账复盘的期限
+
