@@ -481,6 +481,46 @@
   .seg2 button{border:0;background:transparent;font:500 12.5px var(--cn);padding:5px 12px;cursor:pointer;color:var(--ink)}
   .seg2 button.on{background:var(--ink);color:var(--chalk)}
   .ml{list-style:none;margin:0;padding:0}
+  /* v0.17 · 会话纪要分隔 / 财报事件 / 语义回想 —— 象牙白、古典衬线、金细线 */
+  .arch-div{display:flex;align-items:center;gap:14px;margin:6px 0 26px;padding:0;border:0;background:none;width:100%;cursor:pointer;color:var(--mute);font:italic 13.5px var(--serif)}
+  .arch-div::before,.arch-div::after{content:"";flex:1;border-top:1px solid rgba(176,146,89,.55)}
+  .arch-div small{font:500 8px var(--sans);font-style:normal;letter-spacing:.24em;text-transform:uppercase;color:var(--bronze)}
+  .arch-div:hover{color:var(--ink)}
+  .arch-sum{margin:-14px 0 26px;padding:14px 20px;background:var(--ivory);border-top:1px solid var(--gold);border-bottom:1px solid var(--gold);font:13px/1.75 var(--cn);white-space:pre-wrap;color:var(--ink-2);animation:rise .35s var(--ease) both}
+  .evl{list-style:none;margin:0;padding:0}
+  .evl li{display:grid;grid-template-columns:44px 1fr auto;gap:10px;align-items:baseline;padding:8px 0;border-bottom:1px solid var(--rule);font:13px/1.4 var(--cn);color:var(--ink-2)}
+  .evl li.rep{cursor:pointer}.evl li.rep:hover{background:rgba(176,146,89,.08)}
+  .evl li i{font:italic 14px var(--serif);color:var(--bronze);font-variant-numeric:lining-nums}
+  .evl li small{font:italic 12.5px var(--serif);color:var(--mute);white-space:nowrap}
+  .evl li b{font-weight:500;color:var(--ink)}
+  .evl .vd{font:500 8.5px var(--sans);letter-spacing:.16em;color:var(--bronze);margin-left:6px}
+  .evl .vd.v-加强{color:var(--terracotta)}.evl .vd.v-削弱,.evl .vd.v-被证伪{color:var(--olive)}
+  .evl .evh{display:block;border:0;padding:12px 0 4px;font:500 8px var(--sans);letter-spacing:.22em;text-transform:uppercase;color:var(--mute)}
+  .evx{position:fixed;inset:0;z-index:70;background:rgba(24,23,21,.28);display:grid;place-items:center;padding:24px}
+  .evx[hidden]{display:none}
+  .evw{position:relative;width:min(760px,100%);max-height:calc(100vh - 48px);overflow:auto;background:var(--ivory);border:1px solid var(--gold);box-shadow:0 30px 60px -30px rgba(24,23,21,.5);padding:30px 38px 26px;animation:rise .45s var(--ease) both;font:13px/1.7 var(--sans);color:var(--ink-2)}
+  .evw header{display:flex;align-items:baseline;gap:14px;padding-bottom:12px;border-bottom:1px solid var(--gold)}
+  .evw header .agt{font:500 22px/1 var(--display);letter-spacing:.38em;color:var(--ink)}
+  .evw header em{font:italic 16px var(--serif);color:var(--ink-2)}
+  .evw header small{margin-left:auto;font:500 8.5px var(--sans);letter-spacing:.16em;text-transform:uppercase;color:var(--mute);text-align:right}
+  .evw .evhl{font:400 21px/1.5 var(--serif);color:var(--ink);margin:18px 0 4px}
+  .evw table{width:100%;border-collapse:collapse;font-size:12.5px;margin:2px 0 6px}
+  .evw th{font:500 8.5px var(--sans);letter-spacing:.14em;text-transform:uppercase;color:var(--mute);text-align:left;padding:6px 8px 6px 0;border-bottom:1px solid var(--ink)}
+  .evw td{padding:7px 8px 7px 0;border-bottom:1px solid var(--rule);font-variant-numeric:tabular-nums lining-nums}
+  .evw td.n{font:500 14px var(--serif);color:var(--ink)}
+  .evw sup{font:500 9px var(--sans);color:var(--bronze);margin-left:2px}
+  .evw .evv{display:grid;grid-template-columns:auto 1fr;gap:4px 24px;align-items:start}
+  .evw .evv .big{font:400 40px/1 var(--serif);color:var(--ink)}
+  .evw .evv .big.v-加强{color:var(--terracotta)}.evw .evv .big.v-削弱,.evw .evv .big.v-被证伪{color:var(--olive)}
+  .evw .evv p{margin:0}
+  .evw ul{list-style:none;margin:0;padding:0}.evw li{position:relative;padding-left:12px;font-size:12.5px;margin:2px 0}.evw li::before{content:"·";position:absolute;left:2px;color:var(--gold)}
+  .evw .evsrc{margin-top:16px;padding-top:9px;border-top:1px solid var(--gold);font:11.5px/1.6 var(--sans);color:var(--mute)}
+  .evw .evsrc a{color:var(--mute)}
+  .evw .evfoot{margin-top:10px;font:italic 12px var(--serif);color:var(--mute)}
+  .gcard .gsem li span{flex:1;min-width:0}
+  .gcard .gsem li small{font:500 8px var(--sans);font-style:normal;letter-spacing:.12em;color:var(--bronze)}
+  .gcard .gsim{font:italic 11.5px var(--serif);color:var(--bronze);margin-left:4px}
+  .hi small .sem{font:500 8px var(--sans);letter-spacing:.14em;color:var(--bronze);margin-right:6px}
   #toasts{position:fixed;right:22px;bottom:22px;z-index:90;display:flex;flex-direction:column;gap:10px;width:min(340px,calc(100vw - 44px))}
   .toast{position:relative;background:#F5F2EB;border:1px solid var(--ink);box-shadow:4px 4px 0 var(--ink);padding:12px 34px 12px 14px;animation:tin .35s ease-out;transition:opacity .8s}
   .toast.out{opacity:0}.toast p{margin:6px 0 0;font:15px/1.5 var(--serif)}.toast a{display:inline-block;margin-top:6px;font-size:12px;color:var(--ink)}
@@ -627,6 +667,7 @@
     <div class="gcard" id="gcard"></div>
   </div>
 </div>
+<div class="evx" id="evx" hidden role="dialog" aria-label="财报事件研报"><div class="evw" id="evw"></div></div>
 <div class="set" id="set" hidden role="dialog" aria-modal="true" aria-label="设置">
   <div class="sw">
     <nav class="rail" id="rail"><h2>Settings</h2><span class="ver" id="sver"></span></nav>
@@ -653,8 +694,9 @@
   </div>
   <div class="list" id="list"></div>
   <div class="sec"><div class="sh"><span class="rn">II</span><h3>Ledger<span>判断账本</span></h3></div><div class="tq"><input id="tq" placeholder="搜索账本 · 如 腾讯、看多" aria-label="搜索判断账本"><span id="tqn"></span></div><div class="terrain" id="terrain"></div><div id="calls" class="muted">—</div><button class="x pbx" id="pbo" type="button">Probatio · 回测</button></div>
-  <div class="sec"><div class="sh"><span class="rn">III</span><h3>Persona<span>关于你</span></h3><span class="label" id="uu"></span></div><ul id="user"></ul></div>
-  <div class="sec"><div class="sh"><span class="rn">IV</span><h3>Codex<span>我的笔记</span></h3><span class="label" id="mu"></span></div><ul id="mem"></ul></div>
+  <div class="sec" id="evsec"><div class="sh"><span class="rn">III</span><h3>Eventus<span>财报事件</span></h3><span class="label" id="evu"></span></div><ul class="evl" id="evl"><li><i>—</i><span class="muted">读取中…</span><span></span></li></ul></div>
+  <div class="sec"><div class="sh"><span class="rn">IV</span><h3>Persona<span>关于你</span></h3><span class="label" id="uu"></span></div><ul id="user"></ul></div>
+  <div class="sec"><div class="sh"><span class="rn">V</span><h3>Codex<span>我的笔记</span></h3><span class="label" id="mu"></span></div><ul id="mem"></ul></div>
   <div class="label note">赤陶为涨 · 橄榄为跌<br>行情约十分钟一更 · 仅供参考，不构成投资建议</div>
 </aside>
 </div>
@@ -1003,9 +1045,60 @@ async function send(text){
   try {
     const r = await fetch('/api/chat', {method:'POST', headers:H, body:JSON.stringify({text, session:sid})});
     const j = await r.json(); render(out, j.reply || j.error || '（空回复）', seed);
+    if (j.archived) placeArchive(j.archived, null);
   } catch (e) { out.textContent = '请求失败：' + e; }
   busy = false; sync(); log.scrollTop = 1e9; loadMemory();
 }
+
+/* ---------- 会话纪要：较早的消息已滚动摘要，原文仍在记录里，只是不再放进模型上下文 ---------- */
+function placeArchive(n, text){
+  log.querySelectorAll('.arch-div,.arch-sum').forEach(x => x.remove());
+  const ms = [...log.querySelectorAll(':scope>.m')]; if (!n || n >= ms.length) return;
+  const b = document.createElement('button'); b.type = 'button'; b.className = 'arch-div';
+  b.innerHTML = `<span>此前 ${n} 条对话已归档为纪要</span><small>Commentarius · 展开</small>`;
+  b.onclick = async () => {
+    const nx = b.nextElementSibling; if (nx && nx.classList.contains('arch-sum')) { nx.remove(); b.querySelector('small').textContent = 'Commentarius · 展开'; return; }
+    if (text == null) { try { const j = await (await fetch('/api/sessions/' + encodeURIComponent(sid), {headers:H})).json(); text = (j.digest || {}).text || ''; } catch (_) { text = ''; } }
+    const d = document.createElement('div'); d.className = 'arch-sum'; d.textContent = text || '（纪要为空）'; b.after(d); b.querySelector('small').textContent = 'Commentarius · 收起';
+  };
+  ms[n - 1].after(b);
+}
+
+/* ---------- 财报事件：右栏日程 + 研报浮层 ---------- */
+let EVD = null;
+async function loadEvents(){
+  try { EVD = await (await fetch('/api/events', {headers:H})).json(); } catch (_) { return; }
+  const today = new Date(new Date().toLocaleString('en-US', {timeZone: 'Asia/Shanghai'})); today.setHours(0, 0, 0, 0);
+  const up = (EVD.tracked || []).filter(t => t.next).map(t => ({...t, days: Math.round((new Date(t.next.date + 'T00:00:00') - today) / 864e5)})).filter(t => t.days >= 0).slice(0, 5);
+  const reps = (EVD.reports || []).slice(0, 5);
+  $('evu').textContent = (EVD.tracked || []).length ? `${EVD.tracked.length} 只` : '';
+  let h = '';
+  if (up.length) h += `<li class="evh">Futura · 将至</li>` + up.map(t => `<li><i>${esc(t.next.date.slice(5).replace('-', '·'))}</i><span><b>${esc(t.name)}</b> ${esc(t.next.period || '')}</span><small>${t.days ? t.days + ' 天' : '今日'}</small></li>`).join('');
+  if (reps.length) h += `<li class="evh">Relationes · 研报</li>` + reps.map(r => `<li class="rep" data-ev="${esc(r.id)}"><i>${esc((r.date || '').slice(5).replace('-', '·'))}</i><span><b>${esc(r.name)}</b>${r.verdict ? `<span class="vd v-${esc(r.verdict)}">${esc(r.verdict)}</span>` : ''}<br><span class="muted" style="font-size:12px">${esc((r.beat || '') + (r.beat ? ' · ' : '') + (r.period || ''))}</span></span><small>读 →</small></li>`).join('');
+  $('evl').innerHTML = h || `<li><i>—</i><span class="muted">记下持仓或加自选后，这里会列出财报日；财报一出，Stoa 自动写事件研报。</span><span></span></li>`;
+  $('evl').querySelectorAll('[data-ev]').forEach(li => li.onclick = () => openEvent(li.dataset.ev));
+}
+async function openEvent(id){
+  let j; try { j = await (await fetch('/api/events/report/' + encodeURIComponent(id), {headers:H})).json(); } catch (_) { return; }
+  if (!j || j.error) return;
+  const f = j.facts || {}, vc = f.vs_consensus || {}, th = f.thesis || {}, sup = n => n ? `<sup>${n}</sup>` : '';
+  const pc = v => v == null ? '—' : (v > 0 ? '+' : '') + Number(v).toFixed(2) + '%';
+  const rows = (vc.rows || []).map(r => `<tr><td>${esc(r['指标'])}</td><td class="n">${esc(r['实际'])}${sup(r.cite)}</td><td class="n">${esc(r['一致预期'])}${sup(r.cite)}</td><td>${r['差异%'] != null ? pc(r['差异%']) : r['完成度%'] != null ? '完成度 ' + esc(r['完成度%']) + '%' : '—'}</td></tr>`).join('');
+  const yoy = (f.yoy || []).map(r => `<tr><td>${esc(r['指标'])}</td><td class="n">${esc(r['本期'])}${sup(r.cite)}</td><td class="${(r['同比%'] || 0) >= 0 ? 's-up' : 's-down'}">${pc(r['同比%'])}</td></tr>`).join('');
+  const gd = (f.guidance || []).map(g => `<li>${esc(g.date)} ${esc(g.kind)}：${g.url ? `<a href="${esc(g.url)}" target="_blank" rel="noopener" style="color:inherit">${esc(g.title)}</a>` : esc(g.title)}${sup(g.cite)}</li>`).join('');
+  const lines = [...(th.user || []).map(u => '你的记录：' + u), ...(th.calls || []).map(c => `${String(c.ts || '').slice(0, 10)} ${c.view}：${c.reason || ''}${c.verdict ? ' → ' + c.verdict : '（未到期）'}`)];
+  $('evw').innerHTML = `<header><span class="agt">EVENTUS</span><em>${esc(j.name)} · ${esc(j.period || '财报')}</em><small>财报日 ${esc(j.date || '')}<br>${esc(j.created || '')} · ${j.mode === 'llm' ? '模型撰写' : '规则生成'}</small><button class="sclose" id="evc" aria-label="关闭" style="position:static;margin-left:10px">×</button></header>
+    <div class="evhl">${esc(j.headline || '')}</div>
+    <div class="agsec"><h5>I · Comparatio <i>实际 vs 一致预期</i></h5>${rows ? `<table><tr><th>指标</th><th>实际</th><th>一致预期</th><th>差异</th></tr>${rows}</table>` : ''}<p class="muted" style="margin:4px 0 0;font-size:12px">${vc.verdict ? `<b style="color:var(--ink)">${esc(vc.verdict)}</b> · ` : ''}${esc(vc.method || '')}</p></div>
+    <div class="agsec"><h5>II · Incrementum <i>关键指标同比</i></h5>${yoy ? `<table><tr><th>指标</th><th>本期</th><th>同比</th></tr>${yoy}</table>` : '<p class="muted">没取到本期利润表数据。</p>'}</div>
+    <div class="agsec"><h5>III · Providentia <i>管理层指引</i></h5>${j.guidance_text ? `<p>${esc(j.guidance_text)}</p>` : ''}${gd ? `<ul>${gd}</ul>` : '<p class="muted">财报前后的公告和新闻里没找到指引或展望的表述。</p>'}</div>
+    <div class="agsec"><h5>IV · Ratio <i>与你的持仓逻辑对照</i></h5><div class="evv"><span class="big v-${esc(j.verdict || '')}">${esc(j.verdict || '—')}</span><div><p>${esc(j.thesis_reason || '还没有这只股票的持仓逻辑可对照。')}</p>${lines.length ? `<ul style="margin-top:8px">${lines.map(x => `<li>${esc(x)}</li>`).join('')}</ul>` : ''}</div></div></div>
+    <div class="agsec"><h5>V · Vigilanda <i>接下来盯什么</i></h5><ul>${(j.watch || []).map(w => `<li>${esc(w)}</li>`).join('')}</ul></div>
+    <div class="evsrc">${(j.sources || []).map((x, i) => `[${i + 1}] ${esc(x.name)}${x.as_of ? ' · 截至 ' + esc(x.as_of) : ''}${x.url ? ` · <a href="${esc(x.url)}" target="_blank" rel="noopener">原文</a>` : ''}`).join('<br>')}</div>
+    <div class="evfoot">仅供参考，不构成投资建议 · Non consilium, sed observatio</div>`;
+  $('evx').hidden = false; $('evc').onclick = () => $('evx').hidden = true;
+}
+$('evx').onclick = e => { if (e.target === $('evx')) $('evx').hidden = true; };
 
 /* ---------- 拱门里的 three.js 神庙（无构建：运行时从 CDN 动态 import；失败则保留 SVG 线稿） ---------- */
 const THREE_URL = 'https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js';
@@ -1368,8 +1461,11 @@ function toast(e){
   let box = document.getElementById('toasts');
   if (!box) { box = document.createElement('div'); box.id = 'toasts'; document.body.appendChild(box); }
   const t = document.createElement('div'); t.className = 'toast';
-  t.innerHTML = `<span class="label">${e.kind === 'announcement' ? 'NOTICE · 公告' : e.kind === 'update' ? 'RENOVATIO · 更新' : 'VIGILIA · 价格提醒'}${e.time ? ' · ' + esc(e.time.slice(11)) : ''}</span><p>${esc(e.title)}</p>${e.url ? `<a href="${esc(e.url)}" target="_blank" rel="noopener">${e.kind === 'update' ? '看更新内容' : '读原文'} →</a>` : ''}<button aria-label="关闭">×</button>`;
+  const lab = {announcement: 'NOTICE · 公告', update: 'RENOVATIO · 更新', earnings_report: 'EVENTUS · 财报研报', earnings_soon: 'EVENTUS · 财报将至'}[e.kind] || 'VIGILIA · 价格提醒';
+  t.innerHTML = `<span class="label">${lab}${e.time ? ' · ' + esc(e.time.slice(11)) : ''}</span><p>${esc(e.title)}</p>${e.report ? `<a href="#" data-ev="${esc(e.report)}">读研报 →</a>` : e.url ? `<a href="${esc(e.url)}" target="_blank" rel="noopener">${e.kind === 'update' ? '看更新内容' : '读原文'} →</a>` : ''}<button aria-label="关闭">×</button>`;
   t.querySelector('button').onclick = () => t.remove();
+  const ev = t.querySelector('[data-ev]'); if (ev) ev.onclick = x => { x.preventDefault(); openEvent(ev.dataset.ev); };
+  if (e.kind && e.kind.startsWith('earnings')) loadEvents();
   box.appendChild(t); setTimeout(() => t.classList.add('out'), 30000); setTimeout(() => t.remove(), 31000);
 }
 async function loadMemory(){
@@ -1387,7 +1483,7 @@ async function loadMemory(){
 }
 $('tq').oninput = terrain;
 $('pbo').onclick = () => openSettings('probatio');
-periods(); seg(); loadIndices(); loadMemory(); watchAlerts(); setTimeout(() => checkUpdate(false), 4000);
+periods(); seg(); loadIndices(); loadMemory(); loadEvents(); watchAlerts(); setTimeout(() => checkUpdate(false), 4000);
 setInterval(loadIndices, 10*60*1000);
 addEventListener('resize', () => { seg(); periods(); });
 
@@ -1654,6 +1750,7 @@ async function openSession(id, quiet){
   if (!ms.length) { if (!quiet) { sid = localStorage.sid = id; turn = 0; empty(); } return; }
   sid = localStorage.sid = id; turn = 0; log.innerHTML = '';
   ms.forEach((m, i) => { if (m.role === 'user') add('u', esc(m.text)); else render(add('a', ''), m.text, i * 131 + 7); });
+  if (j.digest) placeArchive(ms.filter(m => m.id <= j.digest.upto_id).length, j.digest.text);
   log.scrollTop = 1e9; closeHist();
 }
 let HQT = 0;
@@ -1666,7 +1763,7 @@ async function loadHist(){
   let last = '', html = '';
   ss.forEach((s, i) => {
     const b = bucket(s); if (b !== last) { html += `<div class="hg">${b}</div>`; last = b; }
-    html += `<div class="hi ${s.id === sid ? 'on' : ''}" data-id="${esc(s.id)}"><i>${roman(i+1)}</i><div><b>${esc(s.title)}</b><small>${esc(s.updated.slice(5))} · ${Math.ceil(s.count / 2)} 问 · ${esc(s.preview || '')}</small></div>
+    html += `<div class="hi ${s.id === sid ? 'on' : ''}" data-id="${esc(s.id)}"><i>${roman(i+1)}</i><div><b>${esc(s.title)}</b><small>${s.match === '语义' ? `<span class="sem">≈ 语义</span>` : ''}${esc(s.updated.slice(5))} · ${Math.ceil(s.count / 2)} 问 · ${esc(s.match === '语义' && s.hit ? s.hit : (s.preview || ''))}</small></div>
       <span class="ha"><button data-act="pin" title="${s.pinned ? '取消置顶' : '置顶'}">${s.pinned ? '◆' : '◇'}</button><button data-act="ren" title="改名">✎</button><button data-act="del" title="删除">×</button></span></div>`;
   });
   $('hlist').innerHTML = html || `<p class="hempty">${q ? '没有找到相关对话。' : '还没有对话。问 Stoa 一个问题，这里就会出现。'}</p>`;
@@ -1775,7 +1872,7 @@ function gprep(){
   const hubs = G.nodes.filter(n => n.type === 'market');
   hubs.forEach((n, i) => { const a = i / hubs.length * Math.PI * 2 - Math.PI / 2; n.x = Math.cos(a) * 160; n.y = Math.sin(a) * 160; });
   G.nodes.forEach((n, i) => { byId[n.id] = n; if (n.x == null) { const a = i * 2.39996, r = 40 + Math.sqrt(i) * 26; n.x = Math.cos(a) * r; n.y = Math.sin(a) * r; } n.vx = n.vy = 0; G.adj[n.id] = new Set(); });
-  G.edges = G.edges.filter(e => byId[e.s] && byId[e.t]); G.edges.forEach(e => { e.a = byId[e.s]; e.b = byId[e.t]; G.adj[e.s].add(e.t); G.adj[e.t].add(e.s); });
+  G.edges = G.edges.filter(e => byId[e.s] && byId[e.t]); G.sim = {}; G.edges.forEach(e => { e.a = byId[e.s]; e.b = byId[e.t]; G.adj[e.s].add(e.t); G.adj[e.t].add(e.s); if (e.kind === 'similar') G.sim[e.s + '|' + e.t] = G.sim[e.t + '|' + e.s] = e.sim; });
   G.byId = byId; void W; void Hh;
 }
 const gvis = n => !GOFF.has(n.type);
@@ -1785,8 +1882,8 @@ function gstep(){
     for (let j = i + 1; j < N.length; j++) { const q = N[j]; let dx = p.x - q.x, dy = p.y - q.y, d2 = dx * dx + dy * dy || .01;
       if (d2 > 90000) continue; const hub = (p.type === 'symbol' || p.type === 'market' || p.type === 'theme') + (q.type === 'symbol' || q.type === 'market' || q.type === 'theme');
       const f = (hub ? 1500 : 650) * a / d2, d = Math.sqrt(d2); dx /= d; dy /= d; p.vx += dx * f; p.vy += dy * f; q.vx -= dx * f; q.vy -= dy * f; } }
-  for (const e of G.edges) { if (!gvis(e.a) || !gvis(e.b)) continue; const L = e.kind === 'in' ? 120 : e.a.type === 'call' ? 28 : 46;
-    const dx = e.b.x - e.a.x, dy = e.b.y - e.a.y, d = Math.sqrt(dx * dx + dy * dy) || 1, k = (d - L) / d * .05 * a * (e.kind === 'in' ? .5 : 1);
+  for (const e of G.edges) { if (!gvis(e.a) || !gvis(e.b)) continue; const L = e.kind === 'in' ? 120 : e.kind === 'similar' ? 70 : e.a.type === 'call' ? 28 : 46;
+    const dx = e.b.x - e.a.x, dy = e.b.y - e.a.y, d = Math.sqrt(dx * dx + dy * dy) || 1, k = (d - L) / d * .05 * a * (e.kind === 'in' ? .5 : e.kind === 'similar' ? .25 : 1);
     const wa = Math.min(1, (G.adj[e.b.id].size + 1) / (G.adj[e.a.id].size + G.adj[e.b.id].size + 2));
     e.a.vx += dx * k * wa * 2; e.a.vy += dy * k * wa * 2; e.b.vx -= dx * k * (1 - wa) * 2; e.b.vy -= dy * k * (1 - wa) * 2; }
   for (const n of N) { n.vx -= n.x * .004 * a; n.vy -= n.y * .004 * a; if (n === GDRAG) { n.vx = n.vy = 0; continue; } n.vx *= .6; n.vy *= .6; n.x += Math.max(-30, Math.min(30, n.vx)); n.y += Math.max(-30, Math.min(30, n.vy)); }
@@ -1799,7 +1896,7 @@ function gfocusSet(){
   if (GQ) { const s = new Set(); G.nodes.forEach(n => { if (gmatch(n)) { s.add(n.id); G.adj[n.id].forEach(x => s.add(x)); } }); return s; }
   return null;
 }
-const gmatch = n => GQ && ((n.label || '').toLowerCase().includes(GQ) || (n.symbol || '').toLowerCase().includes(GQ) || (n.type !== 'call' && (n.text || '').toLowerCase().includes(GQ)));
+const gmatch = n => GQ && !GSEMONLY && ((n.label || '').toLowerCase().includes(GQ) || (n.symbol || '').toLowerCase().includes(GQ) || (n.type !== 'call' && (n.text || '').toLowerCase().includes(GQ)));
 function gdraw(){
   const cv = $('gc'), box = $('gcv'), dpr = devicePixelRatio || 1, W = box.clientWidth, Hh = box.clientHeight;
   if (cv.width !== W * dpr || cv.height !== Hh * dpr) { cv.width = W * dpr; cv.height = Hh * dpr; }
@@ -1811,7 +1908,8 @@ function gdraw(){
   for (const n of G.nodes) n._a = age > 1900 ? 1 : ez((age - Math.hypot(n.x, n.y) / RR * 900) / 550);
   gsky(ctx, W, Hh, C, ez(age / 1300));
   for (const e of G.edges) { if (!gvis(e.a) || !gvis(e.b)) continue; const ea = Math.min(e.a._a, e.b._a); if (!ea) continue; const on = F && F.has(e.a.id) && F.has(e.b.id) && (F.size < 2 || e.a.id === (GHOV || GSEL || {}).id || e.b.id === (GHOV || GSEL || {}).id || (!GHOV && !GSEL));
-    ctx.globalAlpha = ea * (F ? (on ? .7 : .05) : (e.kind === 'in' ? .1 : .18)); ctx.strokeStyle = C.ink; ctx.lineWidth = (on ? 1 : .7) / GV.k; ctx.setLineDash(e.kind === 'in' ? [3 / GV.k, 3 / GV.k] : []);
+    const sm = e.kind === 'similar';  // 语义近邻：金色细点线
+    ctx.globalAlpha = ea * (F ? (on ? .75 : .05) : (e.kind === 'in' ? .1 : sm ? .32 : .18)); ctx.strokeStyle = sm ? C.bronze : C.ink; ctx.lineWidth = (on ? 1 : .7) / GV.k; ctx.setLineDash(e.kind === 'in' ? [3 / GV.k, 3 / GV.k] : sm ? [1 / GV.k, 3 / GV.k] : []);
     ctx.beginPath(); ctx.moveTo(e.a.x, e.a.y); ctx.lineTo(e.b.x, e.b.y); ctx.stroke(); }
   ctx.setLineDash([]); ctx.globalAlpha = 1;
   const N = G.nodes.filter(gvis);
@@ -1877,13 +1975,21 @@ function gcard(){
       ${stats}${n.text && !hub ? `<p>${esc(n.text)}</p>` : ''}
       ${n.type === 'chat' ? `<button class="x ask" id="gopen" type="button">打开这段对话</button>` : ''}
       ${hub && n.type !== 'market' ? `<button class="x dark ask" id="gask" type="button">${GSTAR}求问神谕 · ${esc(n.label)}${GSTAR}</button>` : ''}
-      <span class="label glbl">${GSTAR}Nexus · 星座相连 ${nb.length}</span><ul>${nb.slice(0, 60).map(x => `<li data-gn="${esc(x.id)}"><i>${GT[x.type].g}</i><span>${esc(x.label)}</span>${x.verdict ? `<small class="v-${esc(x.verdict)}">${esc(x.verdict)}</small>` : x.date ? `<small>${esc(x.date.slice(5))}</small>` : ''}</li>`).join('')}</ul>`;
+      <span class="label glbl">${GSTAR}Nexus · 星座相连 ${nb.length}</span><ul>${nb.slice(0, 60).map(x => `<li data-gn="${esc(x.id)}"><i>${GT[x.type].g}</i><span>${esc(x.label)}${G.sim[n.id + '|' + x.id] != null ? `<span class="gsim">≈ ${G.sim[n.id + '|' + x.id].toFixed(2)}</span>` : ''}</span>${x.verdict ? `<small class="v-${esc(x.verdict)}">${esc(x.verdict)}</small>` : x.date ? `<small>${esc(x.date.slice(5))}</small>` : ''}</li>`).join('')}</ul>`;
     $('gback').onclick = e => { e.preventDefault(); GSEL = null; gcard(); gdraw(); };
     if ($('gask')) $('gask').onclick = () => { closeGraph(); input.value = `结合你记得的一切，帮我看看${n.label}现在怎么样`; sync(); input.focus(); };
     if ($('gopen')) $('gopen').onclick = () => { closeGraph(); openSession(n.session); };
   }
+  if (GSEM && GSEM.q === GQ && GQ) {  // 语义回想：关键词 + 向量混合检索，换个说法也能找到
+    const rs = GSEM.results || [];
+    el.insertAdjacentHTML('beforeend', `<span class="label glbl">${GSTAR}Reminiscentia · 回想「${esc(GSEM.q)}」${rs.length}</span><ul class="gsem">${rs.length ? rs.map(x => `<li ${x.node && G.byId[x.node] ? `data-gn="${esc(x.node)}"` : x.session ? `data-gs="${esc(x.session)}"` : ''}><i>${esc(x.label)}</i><span>${esc(x.text.slice(0, 70))}</span><small>${esc(x.via)} · ${Number(x.sim).toFixed(2)}</small></li>`).join('') : '<li><i>—</i><span class="muted">没有意思相近的记忆。</span></li>'}</ul>`);
+    el.querySelectorAll('[data-gs]').forEach(li => li.onclick = () => { closeGraph(); openSession(li.dataset.gs); });
+  }
   el.querySelectorAll('[data-gn]').forEach(li => li.onclick = () => gselect(G.byId[li.dataset.gn], true));
 }
+let GSEM = null, GSEMT = 0, GSEMONLY = false;
+function gsemantic(){ clearTimeout(GSEMT); const q = GQ; if (!q || q.length < 2) { GSEM = null; return; }
+  GSEMT = setTimeout(async () => { try { const j = await (await fetch('/api/memory/search?q=' + encodeURIComponent(q), {headers:H})).json(); if (q === GQ) { GSEM = j; gcard(); } } catch (_) {} }, 320); }
 function gselect(n, center){
   GSEL = n || null; gcard();
   if (n && center) { const W = $('gcv').clientWidth; void W; const tx = -n.x * GV.k, ty = -n.y * GV.k, fx = GV.x, fy = GV.y; let t = 0;
@@ -1918,7 +2024,7 @@ function gpick(ev){
   $('gfit').onclick = () => gfit(false);
   $('gx').onclick = closeGraph; $('graphb').onclick = openGraph;
   $('gph').onclick = e => { if (e.target === $('gph')) closeGraph(); };
-  $('gq').oninput = () => { GQ = $('gq').value.trim().toLowerCase(); const hit = GQ && G.nodes.filter(n => gvis(n) && gmatch(n)).sort((a, b) => (['symbol','theme','market'].includes(b.type)) - (['symbol','theme','market'].includes(a.type)) || b.deg - a.deg)[0];
+  $('gq').oninput = () => { GQ = $('gq').value.trim().toLowerCase(); gsemantic(); const hit = GQ && G.nodes.filter(n => gvis(n) && gmatch(n)).sort((a, b) => (['symbol','theme','market'].includes(b.type)) - (['symbol','theme','market'].includes(a.type)) || b.deg - a.deg)[0];
     if (hit) gselect(hit, true); else { if (!GQ) GSEL = null; gcard(); gdraw(); } };
   addEventListener('resize', () => { if (!$('gph').hidden) gdraw(); });
 })();
