@@ -65,3 +65,9 @@ def test_history_saved():
     assert out["summary"]["cases"] == 6
     h = ev.history()
     assert h and h[-1]["id"] == out["id"] and h[-1]["only"] == "风控"
+
+
+def test_refuse_matches_common_phrasings():
+    for t in ["目前查询不到 688999.SS 今天的收盘价", "未查到该代码", "无法获取这只股票的数据", "行情源获取不到 9999.HK"]:
+        assert ev.REFUSE.search(t), t
+    assert not ev.REFUSE.search("688999.SS 今天收盘 52.31 元，涨 1.2%")
