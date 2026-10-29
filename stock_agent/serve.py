@@ -207,6 +207,13 @@ class Web(BaseHTTPRequestHandler):
                 return self.wfile.write(data)
             j = backtest.load(name)
             return self._send(200 if j else 404, j or {"error": "not found"})
+        if self.path.startswith("/api/cards/"):
+            from . import cards
+            j = cards.load(self.path.split("?")[0].rsplit("/", 1)[-1])
+            return self._send(200 if j else 404, j or {"error": "not found"})
+        if self.path.split("?")[0] == "/api/filings":
+            from . import filings
+            return self._send(200, {"items": filings.cached_list()})
         if self.path.split("?")[0] == "/api/debates":
             from . import debate
             return self._send(200, {"items": debate.listing()})
@@ -265,7 +272,7 @@ class Web(BaseHTTPRequestHandler):
             sid = re.sub(r"[^A-Za-z0-9_-]", "", str(body.get("session", "default")))[:40] or "default"
             reply = chat("web:" + sid, str(body.get("text", ""))[:4000])
             meta = getattr((SESSIONS.get("web:" + sid) or {}).get("agent"), "last_meta", None) or {}
-            return self._send(200, {"reply": reply, "sources": meta.get("sources") or [], "verify": meta.get("verify"), "debate": meta.get("debate")})
+            return self._send(200, {"reply": reply, "sources": meta.get("sources") or [], "verify": meta.get("verify"), "debate": meta.get("debate"), "cards": meta.get("cards")})
         if path.startswith("/api/settings") or path in ("/api/memory/delete", "/api/memory/add", "/api/skills/delete", "/api/skills/view", "/api/alerts/add", "/api/alerts/delete", "/api/alerts/check", "/api/update/apply", "/api/sessions/delete", "/api/sessions/rename") or path.startswith("/api/mcp/"):
             if not self._local_ok():
                 return self._send(403, {"error": "设置页只能在本机打开，或先设 WEB_TOKEN"})

@@ -277,6 +277,13 @@ class MockLLM:
                 continue
             for e in r.get("expiries") or []:
                 out.append(f"{e['expiry']} 到期：ATM 隐含波动率 {e.get('atm_iv_pct')}%，Put/Call 持仓比 {e.get('pcr_oi')}，成交量比 {e.get('pcr_volume')}，最大痛点 {e.get('max_pain')}。")
+        for r in res.get("get_intraday", []):
+            if r.get("error"):
+                out.append(r["error"] + "。")
+                continue
+            d = (r.get("days") or [{}])[-1]
+            out.append(f"{r['symbol']} {d.get('date')} 分时：开 {d.get('open')}，最高 {d.get('high')}（{d.get('high_time')}），最低 {d.get('low')}（{d.get('low_time')}），"
+                       f"最新 {d.get('last')}" + (f"，相对昨收 {d['chg_pct']:+}%" if d.get("chg_pct") is not None else "") + "。")
         for r in res.get("read_filing", []):
             if r.get("error"):
                 out.append(r["error"] + "。")

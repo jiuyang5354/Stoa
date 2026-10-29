@@ -246,6 +246,34 @@
   .ctip em{display:block;margin-top:3px;font:italic 12px var(--serif);color:var(--mute)}
   .ctip a{display:inline-block;margin-top:5px;font-size:11.5px;color:var(--ink);word-break:break-all}
   /* ---- Agora · 辩论纪要（象牙白、古典衬线、金色细线） ---- */
+
+  /* ---------- v0.16 数据卡 · Tabulae：资金流柱、一致预期区间条、分时线、期权、年报段落 ---------- */
+  .dcards{position:relative;white-space:normal;margin-top:16px;padding-top:10px;border-top:1px solid var(--gold);display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:12px 18px}
+  .dcards > .label{grid-column:1/-1;display:block;font:500 8.5px var(--sans);letter-spacing:.2em;text-transform:uppercase;color:var(--bronze)}
+  .dc{position:relative;background:var(--ivory);border:1px solid rgba(176,146,89,.45);padding:11px 13px 10px;font:12px/1.5 var(--sans);color:var(--ink-2);animation:rise .4s var(--ease) both}
+  .dc.wide{grid-column:1/-1}
+  .dc h6{margin:0 0 7px;display:flex;align-items:baseline;gap:8px;font:500 13.5px/1.2 var(--serif);color:var(--ink)}
+  .dc h6 i{font:italic 11px var(--serif);color:var(--bronze)}
+  .dc h6 small{margin-left:auto;font:10px var(--sans);color:var(--mute);letter-spacing:.02em}
+  .dc svg{display:block;width:100%;height:auto;overflow:visible}
+  .dc .kv{display:flex;flex-wrap:wrap;gap:4px 14px;margin-top:6px;font-size:11.5px;color:var(--mute)}
+  .dc .kv b{font:500 12.5px var(--serif);color:var(--ink);font-variant-numeric:lining-nums}
+  .dc .ft{margin-top:7px;padding-top:5px;border-top:1px solid var(--rule);font-size:10.5px;color:var(--mute);display:flex;gap:8px;flex-wrap:wrap}
+  .dc .ft a{color:inherit;text-decoration:none;border-bottom:1px solid var(--rule-2)}
+  .dc .nota{margin-top:6px;padding-left:8px;border-left:2px solid rgba(179,84,58,.55);font-size:11px;line-height:1.45;color:var(--terracotta)}
+  .dc .nota span{display:block;font:500 8px var(--sans);letter-spacing:.18em;text-transform:uppercase;margin-bottom:1px}
+  .dc table{width:100%;border-collapse:collapse;font-size:11.5px}
+  .dc th{font:500 8.5px var(--sans);letter-spacing:.14em;text-transform:uppercase;color:var(--bronze);text-align:right;padding:2px 4px;border-bottom:1px solid var(--gold)}
+  .dc th:first-child,.dc td:first-child{text-align:left}
+  .dc td{padding:3px 4px;text-align:right;border-bottom:1px solid var(--rule);font-variant-numeric:lining-nums tabular-nums}
+  .dc blockquote{margin:6px 0 0;padding:0 0 0 10px;border-left:1px solid var(--gold);font:italic 12.5px/1.55 var(--serif);color:var(--ink-2)}
+  .dc blockquote a.pg{font:500 9px var(--sans);font-style:normal;letter-spacing:.12em;color:var(--bronze);text-decoration:none;border:1px solid rgba(176,146,89,.55);padding:0 4px;margin-right:6px;white-space:nowrap}
+  .dc blockquote a.pg:hover{color:var(--ink);background:rgba(176,146,89,.14)}
+  .dc .dlt{display:flex;gap:16px;margin:2px 0 4px;font:500 18px/1 var(--serif);font-variant-numeric:lining-nums}
+  .dc .dlt small{display:block;margin-top:3px;font:9px var(--sans);letter-spacing:.12em;color:var(--mute)}
+  .dc .add{color:var(--terracotta)}.dc .del{color:var(--olive)}
+  .dc .rbar{display:flex;height:5px;margin:4px 0 3px;border:1px solid var(--rule-2)}
+  .dc .rbar i{display:block;height:100%}
   .agb{white-space:normal;display:flex;align-items:center;gap:12px;margin-top:16px;width:100%;border:0;border-top:1px solid var(--gold);border-bottom:1px solid var(--gold);background:transparent;padding:9px 2px;cursor:pointer;color:var(--ink);font:inherit;text-align:left}
   .agb .agt{font:500 13px/1 var(--display);letter-spacing:.32em}
   .agb em{font:italic 14px var(--serif);color:var(--mute)}
@@ -751,15 +779,16 @@ const penRO = new ResizeObserver(es => es.forEach(e => { const b = e.target; cle
 /* ---------- Citatio：回答末尾「—— 来源 ——」清单 → 数字后的 [n] 变成可悬停/点开的小角标 ---------- */
 const SRC_HEAD = '—— 来源 ——';
 function splitCites(text){
-  let t = String(text), deb = null;
+  let t = String(text), deb = null, cards = null;
   t = t.replace(/\n?\[\[debate:([\w.-]+)\]\]/g, (_, id) => { deb = id; return ''; });
+  t = t.replace(/\n?\[\[cards:([\w.-]+)\]\]/g, (_, id) => { cards = id; return ''; });
   const i = t.indexOf(SRC_HEAD), src = {};
   if (i >= 0){ t.slice(i + SRC_HEAD.length).split('\n').forEach(l => { const m = l.match(/^\[(\d+)\]\s+(.+)$/); if (!m) return;
       const parts = m[2].split(' · '), url = /^https?:\/\//.test(parts[parts.length-1]) ? parts.pop() : '';
       const asOf = parts.length && /^截至 /.test(parts[parts.length-1]) ? parts.pop().slice(3) : '';
       src[m[1]] = {name: parts.join(' · '), as_of: asOf, url}; });
     t = t.slice(0, i).trimEnd(); }
-  return {text: t, src, debate: deb};
+  return {text: t, src, debate: deb, cards};
 }
 function citeHTML(html, src){
   return html.replace(/\[(\d+)\]/g, (m, n) => src[n] ? `<sup class="ct" data-n="${n}">${n}</sup>` : m)
@@ -791,11 +820,101 @@ function render(out, text, seed){
   const raw = c.text.trim(), lead = raw.match(/^[#>\-\s]*(\*\*)?/);
   let t = raw.slice(lead[0].length); if (lead[1]) t = t.replace('**', '');
   const ch = Array.from(t)[0] || '', rest = t.slice(ch.length);
-  out.innerHTML = dropcap(ch, seed) + citeHTML(penMark(md(rest)), c.src) + srcList(c.src) +
+  out.innerHTML = dropcap(ch, seed) + citeHTML(penMark(md(rest)), c.src) + (c.cards ? `<div class="dcards" data-id="${esc(c.cards)}"></div>` : '') + srcList(c.src) +
     (c.debate ? `<button class="agb" data-id="${esc(c.debate)}"><span class="agt">AGORA</span><em>辩论纪要 · 分析师、多空交锋、风控与裁决</em><span class="arr">›</span></button>` : '');
   bindCites(out, c.src);
+  const dcb = out.querySelector('.dcards'); if (dcb) loadCards(dcb, c.src);
   const ab = out.querySelector('.agb'); if (ab) ab.onclick = () => toggleAgora(ab);
   out.dataset.seed = seed; requestAnimationFrame(() => { annotate(out, seed); penRO.observe(out); });
+}
+
+/* ---------- v0.16 Tabulae：回答下方的小数据卡（[[cards:id]] → /api/cards/id） ---------- */
+const N = (v, d) => v == null || v === '' || isNaN(v) ? '—' : (d == null ? String(+v) : (+v).toFixed(d));
+const sgn = v => v == null ? '—' : (v > 0 ? '+' : '') + v;
+const csup = n => n ? `<sup class="ct" data-n="${n}">${n}</sup>` : '';
+function dcFoot(c){ return `<div class="ft"><span>${esc(c.source || '')}</span>${c.as_of ? `<span>截至 ${esc(c.as_of)}</span>` : ''}${c.url ? `<a href="${esc(c.url)}" target="_blank" rel="noopener">原始页面</a>` : ''}</div>` +
+  (c.warnings || []).map(w => `<div class="nota"><span>Nota · 校验</span>${esc(w)}</div>`).join(''); }
+function cardFlow(c){
+  const rows = c.rows || [], W = 300, H = 92, pad = 14, mx = Math.max(.01, ...rows.map(r => Math.abs(r.main || 0)), ...rows.map(r => Math.abs(r.super || 0)));
+  const bw = Math.min(26, (W - 8) / Math.max(rows.length, 1) - 6), y0 = H / 2, k = (H / 2 - pad) / mx;
+  const bars = rows.map((r, i) => { const x = 4 + i * ((W - 8) / rows.length) + ((W - 8) / rows.length - bw) / 2, v = r.main || 0, h = Math.abs(v) * k;
+    const col = v >= 0 ? 'var(--terracotta)' : 'var(--olive)', sy = r.super != null ? y0 - r.super * k : null;
+    return `<rect x="${x.toFixed(1)}" y="${(v >= 0 ? y0 - h : y0).toFixed(1)}" width="${bw.toFixed(1)}" height="${Math.max(h, .8).toFixed(1)}" fill="${col}" fill-opacity="${r.intraday ? .45 : .82}"/>` +
+      (sy != null ? `<line x1="${(x - 2).toFixed(1)}" x2="${(x + bw + 2).toFixed(1)}" y1="${sy.toFixed(1)}" y2="${sy.toFixed(1)}" stroke="var(--ink)" stroke-width="1"/>` : '') +
+      `<text x="${(x + bw / 2).toFixed(1)}" y="${(v >= 0 ? y0 - h - 3 : y0 + h + 9).toFixed(1)}" text-anchor="middle" font-size="8" fill="var(--ink-2)" font-family="Linux Libertine">${N(v, 2)}</text>` +
+      `<text x="${(x + bw / 2).toFixed(1)}" y="${H + 9}" text-anchor="middle" font-size="7.5" fill="var(--mute)" font-family="Alte Haas Grotesk">${esc(String(r.date).slice(5))}</text>`; }).join('');
+  return `<div class="dc"><h6>资金流<i>Fluxus</i><small>主力净流入 · ${esc(c.unit || '')}${csup(c.cite)}</small></h6>
+    <svg viewBox="0 0 ${W} ${H + 12}"><line x1="0" x2="${W}" y1="${y0}" y2="${y0}" stroke="var(--gold)" stroke-width=".8"/>${bars}</svg>
+    <div class="kv"><span>近 5 日合计 <b>${sgn(c.sum5)}</b></span>${c.super5 != null ? `<span>超大单 <b>${sgn(c.super5)}</b></span>` : ''}<span>细线 = 超大单</span></div>${dcFoot(c)}</div>`;
+}
+function cardConsensus(c){
+  const W = 300, lo = c.low, hi = c.high, pr = c.price, me = c.mean;
+  let svg = '';
+  if (lo != null && hi != null){
+    const a = Math.min(lo, pr ?? lo, me ?? lo), b = Math.max(hi, pr ?? hi, me ?? hi), span = (b - a) || 1, X = v => 10 + (v - a) / span * (W - 20);
+    svg = `<svg viewBox="0 0 ${W} 54"><line x1="${X(lo)}" x2="${X(hi)}" y1="24" y2="24" stroke="var(--gold)" stroke-width="3"/>
+      <line x1="${X(lo)}" x2="${X(lo)}" y1="18" y2="30" stroke="var(--ink)" stroke-width=".8"/><line x1="${X(hi)}" x2="${X(hi)}" y1="18" y2="30" stroke="var(--ink)" stroke-width=".8"/>
+      <text x="${X(lo)}" y="44" text-anchor="middle" font-size="9" font-family="Linux Libertine" fill="var(--ink-2)">${N(lo)}</text><text x="${X(hi)}" y="44" text-anchor="middle" font-size="9" font-family="Linux Libertine" fill="var(--ink-2)">${N(hi)}</text>
+      ${me != null ? `<path d="M${X(me)} 19 l5 5 -5 5 -5 -5z" fill="var(--ivory)" stroke="var(--bronze)" stroke-width="1"/><text x="${X(me)}" y="12" text-anchor="middle" font-size="8.5" font-family="Linux Libertine" fill="var(--bronze)">均值 ${N(me)}</text>` : ''}
+      ${pr != null ? `<line x1="${X(pr)}" x2="${X(pr)}" y1="14" y2="34" stroke="var(--ink)" stroke-width="1.4"/><text x="${X(pr)}" y="${me != null && Math.abs(X(pr) - X(me)) < 40 ? 53 : 12}" text-anchor="middle" font-size="8.5" font-family="Alte Haas Grotesk" fill="var(--ink)">现价 ${N(pr)}</text>` : ''}</svg>`;
+  }
+  const rt = Object.entries(c.ratings || {}).filter(([, v]) => v), tot = rt.reduce((s, [, v]) => s + v, 0) || 1;
+  const pal = ['#B3543A', '#C98A6E', '#B09259', '#8E9A83', '#56684F'];
+  const rbar = rt.length ? `<div class="rbar">${rt.map(([k, v], i) => `<i title="${esc(k)} ${v}" style="width:${v / tot * 100}%;background:${pal[Math.min(i, 4)]}"></i>`).join('')}</div><div class="kv">${rt.map(([k, v]) => `<span>${esc(k)} <b>${v}</b></span>`).join('')}</div>` : '';
+  const eps = (c.eps || []).length ? `<table><tr><th>EPS</th>${c.eps.map(e => `<th>${esc(e.label)}${e.kind === '实际' ? 'A' : 'E'}</th>`).join('')}</tr><tr><td>每股收益</td>${c.eps.map(e => `<td>${N(e.v, 2)}</td>`).join('')}</tr></table>` : '';
+  return `<div class="dc"><h6>一致预期<i>Consensus</i><small>目标价区间${c.upside != null ? ` · 空间 ${sgn(c.upside)}%` : ''}${csup(c.cite)}</small></h6>${svg}${rbar}${eps}${dcFoot(c)}</div>`;
+}
+function cardIntraday(c){
+  const p = c.points || []; if (p.length < 2) return '';
+  const W = 300, H = 74, vs = p.map(x => x[1]).concat(c.prev_close != null ? [c.prev_close] : []), a = Math.min(...vs), b = Math.max(...vs), span = (b - a) || 1;
+  const X = i => 4 + i / (p.length - 1) * (W - 8), Y = v => 6 + (b - v) / span * (H - 12);
+  const d = p.map((x, i) => `${i ? 'L' : 'M'}${X(i).toFixed(1)} ${Y(x[1]).toFixed(1)}`).join(' '), up = c.chg == null ? true : c.chg >= 0;
+  return `<div class="dc"><h6>分时<i>Hora</i><small>${esc(c.date || '')} · ${c.interval || ''} 分钟${csup(c.cite)}</small></h6>
+    <svg viewBox="0 0 ${W} ${H + 10}">${c.prev_close != null ? `<line x1="0" x2="${W}" y1="${Y(c.prev_close)}" y2="${Y(c.prev_close)}" stroke="var(--gold)" stroke-dasharray="3 3" stroke-width=".8"/>` : ''}
+    ${c.vwap != null ? `<line x1="0" x2="${W}" y1="${Y(c.vwap)}" y2="${Y(c.vwap)}" stroke="var(--mute)" stroke-dasharray="1 2" stroke-width=".7"/>` : ''}
+    <path d="${d}" fill="none" stroke="${up ? 'var(--terracotta)' : 'var(--olive)'}" stroke-width="1.3"/>
+    <text x="2" y="${H + 9}" font-size="7.5" fill="var(--mute)" font-family="Alte Haas Grotesk">${esc(p[0][0])}</text><text x="${W - 2}" y="${H + 9}" text-anchor="end" font-size="7.5" fill="var(--mute)" font-family="Alte Haas Grotesk">${esc(p[p.length - 1][0])}</text></svg>
+    <div class="kv"><span>最新 <b>${N(c.last)}</b></span><span>涨跌 <b>${c.chg == null ? '—' : sgn(c.chg) + '%'}</b></span><span>高 <b>${N(c.high)}</b></span><span>低 <b>${N(c.low)}</b></span>${c.vwap != null ? `<span>VWAP <b>${N(c.vwap, 2)}</b></span>` : ''}</div>${dcFoot(c)}</div>`;
+}
+function cardOptions(c){
+  return `<div class="dc"><h6>期权<i>Optiones</i><small>现价 ${N(c.spot)}${csup(c.cite)}</small></h6><table><tr><th>到期</th><th>ATM IV</th><th>P/C 持仓</th><th>P/C 成交</th><th>最大痛点</th></tr>
+    ${(c.expiries || []).map(e => `<tr><td>${esc(e.expiry)}${e.near_30d ? ' ·30d' : ''}</td><td>${e.atm_iv_pct == null ? '—' : N(e.atm_iv_pct, 1) + '%'}</td><td>${N(e.pcr_oi)}</td><td>${N(e.pcr_volume)}</td><td>${N(e.max_pain)}</td></tr>`).join('')}</table>${dcFoot(c)}</div>`;
+}
+function cardNorth(c){
+  const m = (c.market || []).slice(0, 3), h = c.holdings || [];
+  return `<div class="dc"><h6>北向资金<i>Boreas</i><small>${csup(c.cite)}</small></h6>
+    ${m.length ? `<table><tr><th>日期</th><th>成交额(亿)</th><th>净买入</th></tr>${m.map(r => `<tr><td>${esc(r.date)}</td><td>${N(r.deal_amt_yi, 2)}</td><td>${r.net_buy_yi == null ? '未披露' : N(r.net_buy_yi, 2)}</td></tr>`).join('')}</table>` : ''}
+    ${h.length ? `<table style="margin-top:6px"><tr><th>持股截至</th><th>持股(万股)</th><th>占A股%</th><th>变化</th></tr>${h.slice(0, 3).map(r => `<tr><td>${esc(r.date)}</td><td>${N(r.hold_shares_wan, 1)}</td><td>${N(r.pct_of_a_shares, 2)}</td><td>${r.shares_chg_pct == null ? '—' : sgn(r.shares_chg_pct) + '%'}</td></tr>`).join('')}</table>` : ''}${dcFoot(c)}</div>`;
+}
+function cardLhb(c){
+  const r = c.records || [];
+  const seats = (xs, k) => xs.length ? `<table style="margin-top:6px"><tr><th>${k}前五</th><th>净额(万)</th></tr>${xs.map(x => `<tr><td>${esc((x.seat || '').slice(0, 18))}</td><td>${N(x.net_wan, 1)}</td></tr>`).join('')}</table>` : '';
+  return `<div class="dc"><h6>龙虎榜<i>Tabula</i><small>${csup(c.cite)}</small></h6>
+    ${c.recent ? r.map(x => `<div class="kv"><span>${esc(x.date)}</span><span>${esc((x.reason || '').slice(0, 30))}</span><span>净买 <b>${N(x.net_buy_yi, 2)}</b> 亿</span></div>`).join('') : `<p style="margin:0">${esc(c.note || '近期没有上榜')}</p>`}
+    ${c.recent ? seats(c.buy || [], '买入') + seats(c.sell || [], '卖出') : ''}${dcFoot(c)}</div>`;
+}
+function cardFiling(c){
+  return `<div class="dc wide"><h6>${esc(c.title || '定期报告')}<i>Codex</i><small>${esc(c.section || '')}${c.pages ? ` · 第 ${c.pages[0]}–${c.pages[1]} 页` : ''}${c.query ? ` · 「${esc(c.query)}」` : ''}</small></h6>
+    ${(c.passages || []).map(p => `<blockquote><a class="pg" href="${esc(p.url || c.url || '#')}" target="_blank" rel="noopener">P. ${p.page}</a>${esc(p.text)}${p.text.length >= 178 ? '…' : ''}${csup(p.cite)}</blockquote>`).join('')}${dcFoot(c)}</div>`;
+}
+function cardCompare(c){
+  const k = c.counts || {}, q = (xs, cls, y) => xs.map(p => `<blockquote><a class="pg" href="${esc(p.url || '#')}" target="_blank" rel="noopener">${y} · P. ${p.page}</a><span class="${cls}">${cls === 'add' ? '＋' : '－'}</span> ${esc(p.text)}${csup(p.cite)}</blockquote>`).join('');
+  return `<div class="dc wide"><h6>年报对比<i>Collatio</i><small>${esc(c.section || '')} · ${c.year_a} → ${c.year_b}</small></h6>
+    <div class="dlt"><span class="add">+${k.added ?? 0}<small>新增句</small></span><span class="del">−${k.removed ?? 0}<small>删除句</small></span><span>~${k.modified ?? 0}<small>改写句</small></span><span>${c.ratio != null ? Math.round(c.ratio * 100) + '%' : '—'}<small>未变比例</small></span></div>
+    ${q(c.added || [], 'add', c.year_b)}${q(c.removed || [], 'del', c.year_a)}${dcFoot(c)}</div>`;
+}
+function cardQuote(c){
+  const v = Object.entries(c.values || {});
+  return `<div class="dc"><h6>报价校验<i>Examen</i><small>${esc(c.symbol)}${csup(c.cite)}</small></h6><table><tr><th>来源</th><th>价格</th></tr>${v.map(([k, x]) => `<tr><td>${esc(k)}</td><td>${N(x)}</td></tr>`).join('')}</table>
+    <div class="kv"><span>最大偏差 <b>${N(c.spread, 2)}%</b></span><span>阈值 ${N(c.threshold)}%</span></div>${dcFoot(c)}</div>`;
+}
+const CARD = {flow: cardFlow, consensus: cardConsensus, intraday: cardIntraday, options: cardOptions, north: cardNorth, lhb: cardLhb, filing: cardFiling, compare: cardCompare, quotecheck: cardQuote};
+async function loadCards(box, src){
+  let d; try { d = await (await fetch('/api/cards/' + encodeURIComponent(box.dataset.id), {headers: H})).json(); } catch (e) { box.remove(); return; }
+  const html = (d.cards || []).map(c => { try { return (CARD[c.type] || (() => ''))(c); } catch (e) { return ''; } }).join('');
+  if (!html) { box.remove(); return; }
+  box.innerHTML = `<span class="label">Tabulae · 数据 ${(d.cards || []).length}</span>` + html;
+  bindCites(box, src);
 }
 /* ---------- Agora：展开辩论纪要 ---------- */
 const STC = v => v === '看多' ? 's-up' : v === '看空' ? 's-down' : 's-flat';

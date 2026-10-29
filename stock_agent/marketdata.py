@@ -801,10 +801,8 @@ def intraday(symbol: str, days: int = 1, interval: int = 5) -> dict:
     bars = g["bars"]
     keep_days = sorted({b["t"][:10] for b in bars})[-days:]
     bars = [b for b in bars if b["t"][:10] in keep_days]
-    summ = summarize_bars(bars, g.get("prev_close") if len(keep_days) == 1 or g.get("prev_close") else None)
+    summ = summarize_bars(bars, g.get("prev_close"), max_points=48 if len(keep_days) == 1 else 16)
     warns = []
-    if len(keep_days) > 1 and g.get("prev_close") is None:
-        pass
     # 交叉校验：各源同一天最后一根 K 线的收盘
     last_d = keep_days[-1]
     vals = {}
