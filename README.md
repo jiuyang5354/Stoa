@@ -77,6 +77,20 @@ docker compose up -d
 
 任何别的 OpenAI 兼容服务（中转站、One API、自建网关）：`LLM_BASE_URL` 填地址即可。`LLM_FALLBACK=qwen,ollama:qwen2.5:7b` 让主模型挂了自动换。
 
+中转站示例（以 sui-xiang.com 为例，任何 `/v1/chat/completions` + function calling 的中转都一样）：
+
+```ini
+LLM_PROVIDER=openai
+LLM_BASE_URL=https://sui-xiang.com/v1
+LLM_MODEL=gpt-6.1-terra        # 填中转后台里你的分组能用的模型名
+LLM_API_KEY=sk-...             # 中转给你的密钥
+LLM_CONTEXT=200000             # 中转不报窗口大小，按模型实际窗口填，长对话压缩按它定预算
+EMBEDDINGS=local               # 中转没有 /v1/embeddings 时用本地向量，省得每次先失败再回退
+LLM_RETRIES=5                  # 中转限流（429）/网关 5xx 时退避重试次数，默认 3
+```
+
+中转常限并发：回测 `--concurrency 1–2`，辩论回测慢时加 `--role-timeout 120`。
+
 **行情源**：`DATA_PROVIDERS` 按顺序尝试，默认 `yahoo,eastmoney`（免费、免密钥）。
 
 | 源 | A股 | 港股 | 美股 | 指数 | 密钥 |
