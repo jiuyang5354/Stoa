@@ -77,6 +77,10 @@ def numbers_in(obj, out: list | None = None) -> list[float]:
     return out
 
 
+DATA_LABELS = {"get_fund_flow": "资金流", "get_northbound": "北向资金", "get_dragon_tiger": "龙虎榜", "get_consensus": "分析师一致预期",
+               "get_intraday": "分钟线", "get_options": "期权"}
+
+
 class Sources:
     """一轮对话里所有数据的来源登记处（线程安全：辩论里分析师并行调工具）。"""
 
@@ -152,6 +156,40 @@ class Sources:
                            str(result.get("as_of") or today()), tool=tool)
             self.bind(result, sid)
             return {**result, "_cite": sid}
+        if tool in DATA_LABELS and isinstance(result, dict) and not result.get("error"):
+            sym = str(result.get("symbol") or args.get("symbol") or "")
+            name = " · ".join(x for x in (DATA_LABELS[tool], sym, str(result.get("source") or "")) if x)
+            sid = self.new(name, result.get("url") or "", str(result.get("as_of") or today()), tool=tool)
+            self.bind({k: v for k, v in result.items() if k not in ("sources", "rule_note", "note")}, sid)
+            return {**result, "_cite": sid}
+        if tool == "read_filing" and isinstance(result, dict) and isinstance(result.get("passages"), list):
+            title = f"{result.get('title') or '定期报告'}"
+            new = []
+            for ps in result["passages"]:
+                sid = self.new(f"{title} · 第 {ps.get('page')} 页 · {result.get('source') or ''}".rstrip(" ·"), ps.get("url") or result.get("url") or "",
+                               str(result.get("as_of") or ""), tool=tool)
+                self.bind(ps.get("text") or "", sid)
+                new.append({**ps, "_cite": sid})
+            return {**result, "passages": new}
+        if tool == "compare_filings" and isinstance(result, dict) and not result.get("error"):
+            ya, yb = result.get("year_a"), result.get("year_b")
+            out = dict(result)
+            for key, yr in (("added", yb), ("removed", ya), ("modified", yb)):
+                new = []
+                for it in result.get(key) or []:
+                    pg = it.get("page") or it.get("page_b")
+                    when = result.get("as_of_a") if key == "removed" else result.get("as_of")
+                    sid = self.new(f"{yr} 年报 · {result.get('symbol')} · 第 {pg} 页 · {result.get('source') or ''}".rstrip(" ·"), it.get("url") or "",
+                                   str(when or ""), tool=tool)
+                    self.bind(it.get("text") or it.get("after") or "", sid)
+                    if key == "modified":
+                        self.bind(it.get("before") or "", sid)
+                    new.append({**it, "_cite": sid})
+                out[key] = new
+            sid = self.new(f"年报对比 · {result.get('symbol')} · {ya} vs {yb} · {result.get('section_name') or ''}", result.get("url") or "", str(result.get("as_of") or ""), tool=tool)
+            self.bind({"counts": result.get("counts"), "ratio": result.get("unchanged_ratio")}, sid)
+            out["_cite"] = sid
+            return out
         if tool == "market_overview" and isinstance(result, dict):
             sid = self.new("指数与自选一览 · 行情源", "", str(result.get("date") or result.get("as_of") or today()), tool=tool)
             self.bind(result, sid)
@@ -310,6 +348,35 @@ def flag(text: str, src: Sources) -> tuple[str, list[str]]:
     return body + ("\n\n" + tail if tail else ""), [n["text"] for n in bad]
 
 
+PAGE_RE = re.compile(r"第\s?(\d{1,4})\s?页")
+
+
+def page_cites(body: str, src: Sources) -> str:
+    """年报段落：回答里的「第 N 页」后面补上指向该页的来源角标（链接到 PDF#page=N）。"""
+    pages = {}
+    for it in src.items:
+        if it.get("tool") in ("read_filing", "compare_filings"):
+            m = PAGE_RE.search(it["name"])
+            if m:
+                yr = re.match(r"(\d{4}) 年报", it["name"])
+                pages.setdefault(int(m.group(1)), []).append((yr.group(1) if yr else "", it["id"]))
+    if not pages:
+        return body
+    out, last = [], 0
+    for m in PAGE_RE.finditer(body):
+        cand = pages.get(int(m.group(1)))
+        if not cand:
+            continue
+        before = body[max(0, m.start() - 12):m.start()]
+        yr = re.search(r"(20\d\d)\s?年", before)
+        sid = next((i for y, i in cand if yr and y == yr.group(1)), cand[0][1])
+        if re.match(r"\s?\[\d+\]", body[m.end():]) or re.match(r"[^\n]{0,3}\[\d+\]", body[m.end():m.end() + 4]):
+            continue
+        out.append(body[last:m.end()] + f"[{sid}]")
+        last = m.end()
+    return "".join(out) + body[last:]
+
+
 def finalize(text: str, src: Sources) -> tuple[str, list[dict]]:
     """补引用角标、清理无效角标、按出现顺序重新编号，末尾附来源清单。返回 (文本, 用到的来源)。"""
     body, _ = split_sources(text)
@@ -322,13 +389,18 @@ def finalize(text: str, src: Sources) -> tuple[str, list[dict]]:
         sids = [s for s in n["sids"] if (src.get(s) or {}).get("kind") != "user"]
         if not sids:
             continue
-        rest = body[n["end_num"]:]
-        if re.match(r"\s?\[\d+\]", rest):
+        at = n["end_num"]
+        cu = re.match(r"(?:港元|美元|人民币|元)", body[at:at + 3]) if n["scale"] != 1 else None  # 「4.66 亿元」角标放在「元」后
+        if cu:
+            at += cu.end()
+        rest = body[at:]
+        if re.match(r"\s?\[\d+\]", rest) or re.match(r"\s?\[\d+\]", body[n["end_num"]:]):
             continue
         near = re.split(r"[，。；,;\n]", rest[:14])[0]
         if all(f"[{x}]" in near for x in sids[:2]):  # 同一短语末尾已有同一个角标
             continue
-        body = body[:n["end_num"]] + "".join(f"[{s}]" for s in sids[:2]) + rest
+        body = body[:at] + "".join(f"[{s}]" for s in sids[:2]) + rest
+    body = page_cites(body, src)
     order = list(dict.fromkeys(int(x) for x in re.findall(r"\[(\d+)\]", body)))
     remap = {old: i + 1 for i, old in enumerate(order)}
     body = re.sub(r"\[(\d+)\]", lambda m: f"[{remap.get(int(m.group(1)), m.group(1))}]", body)

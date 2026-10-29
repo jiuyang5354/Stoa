@@ -423,9 +423,9 @@ def strip_headers(pages: list[str]) -> list[str]:
 # ====================================================================== 章节
 HEAD_RE = {
     "mdna": [r"^第[一二三四五六七八九十]+节\s*(?:管理层讨论与分析|经营情况讨论与分析|董事会报告)", r"^(?:管理層討論及分析|管理层讨论与分析)\s*$",
-             r"^item\s*7\.?\s*management.s discussion", r"^management.s discussion and analysis\b", r"^(?:管理層討論及分析|管理层讨论与分析)"],
+             r"^item\s*7\.?\s*management.s discussion", r"^management(?:.s)? discussion and analysis\b", r"^(?:管理層討論及分析|管理层讨论与分析)"],
     "risk": [r"可能面[对临]的风险", r"^(?:\(?[一二三四五六七八九十]+\)?[、.]?\s*)?(?:重大)?风险因素", r"主要風險及不確定(?:因素|性)", r"^風險(?:管理|因素)",
-             r"^item\s*1a\.?\s*risk factors", r"^risk factors\s*$", r"^principal risks"],
+             r"^item\s*1a\.?\s*risk factors", r"^risk factors\s*$", r"^principal risks", r"^risk management\b"],
     "financial": [r"主要会计数据和财务指标", r"^(?:五年)?財務(?:摘要|概要)", r"^财务摘要", r"^item\s*8\.?\s*financial statements", r"^financial (?:highlights|summary)",
                   r"^selected (?:consolidated )?financial data"],
     "segment": [r"主营业务分行业、分产品、分地区", r"^分产品情况|^主营业务分产品", r"^分部資料|^分部资料|^分部信息|^經營分部", r"segment information", r"reportable segments?"],
@@ -589,7 +589,7 @@ def read_filing(symbol: str, year: int | None = None, section: str = "all", quer
         warn.append("关键词在这一部分没有命中，给出的是章节开头的段落")
     return {"symbol": meta.get("symbol", symbol), "year": year, "kind": kind, "title": meta.get("title"), "source": meta["source"], "url": meta["url"],
             "as_of": meta.get("time"), "section": sec, "section_name": SECTIONS[sec], "section_pages": [lo, hi] if span else None, "pages_total": meta.get("pages"),
-            "query": query, "passages": passages, "warnings": warn,
+            "query": query, "passages": passages, "warnings": warn + ([meta["note"]] if meta.get("note") else []),
             "note": "每段带页码；引用时写「第 N 页」，链接可直接跳到 PDF 对应页"}
 
 
@@ -696,7 +696,7 @@ def compare_filings(symbol: str, year_a: int | None = None, year_b: int | None =
     fmt = lambda xs, meta: [{"page": x["page"], "text": _clip(x["text"], 260), "url": page_url(meta, x["page"], x["text"])} for x in xs]
     ratio = 1 - (len(d["added"]) + len(d["removed"])) / max(1, len(sa) + len(sb))
     return {"symbol": mb.get("symbol", symbol), "section": sec, "section_name": SECTIONS[sec], "year_a": ya, "year_b": yb,
-            "source": mb["source"], "url": mb["url"], "url_a": ma["url"], "as_of": mb.get("time"),
+            "source": mb["source"], "url": mb["url"], "url_a": ma["url"], "as_of": mb.get("time"), "as_of_a": ma.get("time"),
             "pages_a": spans[0], "pages_b": spans[1], "sentences_a": len(sa), "sentences_b": len(sb),
             "counts": {"added": len(d["added"]), "removed": len(d["removed"]), "modified": len(d["modified"])}, "unchanged_ratio": round(ratio, 2),
             "added": fmt(key_rank(d["added"], n=n), mb), "removed": fmt(key_rank(d["removed"], n=n), ma),

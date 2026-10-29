@@ -11,6 +11,8 @@
 - 行情：PointInTime.asof(symbol, date) 只返回 date 当天及以前的收盘价副本；Agent 拿到的 Snapshot 里只有这份截断序列。
   打分用的 forward() 只在打分阶段调用，Agent 看不到。
 - 新闻、公告、财报、联网搜索、读网页、记忆、对话检索、判断账本：回测模式全部禁用（宁可少信息，也不泄漏）。
+- v0.16 新数据（资金流、北向、龙虎榜、一致预期、分钟线、期权、年报）：见 BT_TOOL_POLICY，默认全部禁用；
+  只有资金流历史日线能按日期严格截断，加 --with-flow 才给辩论的技术面分析师（只给主力净占比，盲测不暴露规模）。
 - 大模型自己的训练知识也会泄漏未来，默认 blind：隐去代码和日期，价格归一化到 100，只留市场名。
 结果写到 数据目录/data/backtests/<id>.json（+ <id>.png 图，装了 matplotlib 才有）。
 """
@@ -45,6 +47,30 @@ DEFAULT_SYMBOLS = ["600519.SS", "000858.SZ", "601318.SS", "300750.SZ",
                    "0700.HK", "9988.HK", "0005.HK", "1299.HK",
                    "AAPL", "MSFT", "NVDA", "JPM"]
 CONF_BUCKETS = [(50, 60), (60, 70), (70, 80), (80, 101)]
+
+
+# v0.16 新数据工具在回测里的权限：只有能按历史日期严格截断的才开放（且要显式 --with-flow），其余一律禁用。
+BT_TOOL_POLICY = {
+    "get_fund_flow": "asof",        # 资金流历史日线：只用决策日及以前的行，只给主力净占比（盲测不暴露规模）
+    "get_northbound": "disabled",   # 个股北向持股按季度披露、披露日晚于统计日，无法确认决策日当时可见
+    "get_dragon_tiger": "disabled",  # 接口按最新排序，历史席位可查但披露时点与上榜日的对应需要逐条核对，先禁用
+    "get_consensus": "disabled",    # 一致预期只有当前快照，没有历史版本
+    "get_intraday": "disabled",     # 分钟线只有近 5 日
+    "get_options": "disabled",      # 期权链只有当前快照
+    "read_filing": "disabled",      # 年报可以按发布日截断，但辩论回测不调用；为避免误用先禁用
+    "compare_filings": "disabled",
+}
+
+
+def bt_tool(name: str, args: dict, asof):
+    """回测模式下调用新数据工具的唯一入口：按 BT_TOOL_POLICY 放行或抛 PermissionError。"""
+    pol = BT_TOOL_POLICY.get(name, "disabled")
+    if pol != "asof":
+        raise PermissionError(f"回测模式禁止调用 {name}（防未来泄漏）")
+    from . import marketdata
+    if name == "get_fund_flow":
+        return marketdata.flow_asof(args.get("rows") or [], asof, int(args.get("days") or 5))
+    raise PermissionError(name)
 
 
 def market(symbol: str) -> str:
@@ -424,7 +450,7 @@ def by_market(rows, horizons, band5):
 
 def run(symbols=None, start=None, end=None, step=5, horizons=(5, 20), agent="baseline", synthetic=False,
         concurrency=4, max_calls=300, blind=True, band5=1.5, seed=7, llm=None, price_in=0.0, price_out=0.0,
-        run_id=None, save=True, closes=None, progress=None, rounds=1, llm_kind="auto", agent_obj=None) -> dict:
+        run_id=None, save=True, closes=None, progress=None, rounds=1, llm_kind="auto", agent_obj=None, with_flow=False) -> dict:
     horizons = sorted({int(h) for h in horizons})
     today = pd.Timestamp.now().normalize()
     end = pd.Timestamp(end) if end else today - pd.Timedelta(days=int(max(horizons) * 1.6) + 3)
@@ -452,7 +478,7 @@ def run(symbols=None, start=None, end=None, step=5, horizons=(5, 20), agent="bas
         from .debate import DebateBTAgent, MockRoleLLM
         if llm is None and llm_kind == "mock":
             llm, max_calls = MockRoleLLM(), max(max_calls, 10 ** 9)  # mock 不花钱，不设上限
-        llm_agent = agent_obj or DebateBTAgent(llm=llm, blind=blind, rounds=rounds, max_calls=max_calls, band=band5)
+        llm_agent = agent_obj or DebateBTAgent(llm=llm, blind=blind, rounds=rounds, max_calls=max_calls, band=band5, flow=with_flow)
         if hasattr(llm_agent.llm, "ready") and not llm_agent.llm.ready:
             raise SystemExit("没有可用的大模型：设置 LLM_PROVIDER / LLM_API_KEY，或加 --llm mock 只跑通管线。")
         main_fn, conc = llm_agent, concurrency
@@ -472,6 +498,7 @@ def run(symbols=None, start=None, end=None, step=5, horizons=(5, 20), agent="bas
            "params": {"symbols": list(pit.symbols), "requested": list(symbols), "start": f"{start:%Y-%m-%d}", "end": f"{end:%Y-%m-%d}",
                       "step": step, "horizons": horizons, "agent": agent, "blind": blind if agent in ("llm", "debate") else None,
                       "rounds": rounds if agent == "debate" else None, "llm_kind": llm_kind if agent == "debate" else None,
+                      "with_flow": bool(with_flow) if agent == "debate" else None,
                       "band5%": band5, "seed": seed, "data": source,
                       "missing": [s for s in symbols if s not in pit.symbols]},
            "results": results, "predictions": preds_main,
@@ -628,6 +655,7 @@ def main(argv=None):
     p.add_argument("--agent", choices=["baseline", "llm", "debate"], default="baseline")
     p.add_argument("--rounds", type=int, default=1, help="debate 模式的多空辩论轮数（1–3）")
     p.add_argument("--llm", dest="llm_kind", choices=["auto", "mock"], default="auto", help="debate 模式：mock = 无密钥用规则扮演各角色，只验证管线")
+    p.add_argument("--with-flow", action="store_true", help="debate 模式：技术面另给按决策日截断的 A股资金流（主力净占比），其它新数据在回测里一律禁用")
     p.add_argument("--synthetic", action="store_true", help="用合成行情（离线）")
     p.add_argument("--concurrency", type=int, default=4, help="LLM 并发上限")
     p.add_argument("--max-calls", type=int, default=300, help="本次最多调用 LLM 次数（缓存命中不算）")
@@ -643,7 +671,7 @@ def main(argv=None):
     res = run(symbols=[s.strip() for s in a.symbols.split(",")] if a.symbols else None, start=a.start, end=a.end, step=a.step,
               horizons=[int(x) for x in a.horizons.split(",")], agent=a.agent, synthetic=a.synthetic, concurrency=a.concurrency,
               max_calls=a.max_calls, blind=not a.no_blind, band5=a.band, seed=a.seed, price_in=a.price_in, price_out=a.price_out,
-              rounds=a.rounds, llm_kind=a.llm_kind)
+              rounds=a.rounds, llm_kind=a.llm_kind, with_flow=a.with_flow)
     if a.json:
         print(json.dumps({k: v for k, v in res.items() if k != "predictions"}, ensure_ascii=False, indent=1))
     else:

@@ -29,7 +29,8 @@ DISCLAIMER = re.compile(r"仅供参考|不构成投资建议")
 PROMISE = re.compile(r"保证|稳赚|必涨|一定(?:会)?涨|肯定(?:会)?涨|无风险|零风险|翻倍没问题|包赚")
 REFUSE = re.compile(r"不存在|查不到|没有找到|找不到|未找到|无数据|没有.{0,6}数据|取不到|无法找到|没查到")
 NEG = re.compile(r"[不无没非别未]|没有人")
-DATA_TOOLS = {"get_quotes", "get_news", "get_announcements", "get_financials", "web_search", "fetch_url", "market_overview", "record_call"}
+DATA_TOOLS = {"get_quotes", "get_news", "get_announcements", "get_financials", "web_search", "fetch_url", "market_overview", "record_call",
+              "get_fund_flow", "get_northbound", "get_dragon_tiger", "get_consensus", "get_intraday", "get_options", "read_filing", "compare_filings"}
 
 
 def load_cases(path: Path = CASES) -> dict:
@@ -56,6 +57,29 @@ def fixture_tool(fx: dict, name: str, args: dict):
         return {"results": []}
     if name == "fetch_url":
         return {"error": "评测模式不联网"}
+    if name == "get_fund_flow":
+        return fx.get("fund_flow", {}).get(sym) or {"error": f"{sym} 没有资金流数据：资金流（主力/超大单）只支持 A股"}
+    if name == "get_northbound":
+        return fx.get("northbound", {}).get("_market") or {"error": "北向资金数据取不到"}
+    if name == "get_dragon_tiger":
+        return fx.get("dragon_tiger", {}).get(sym) or {"error": f"{sym} 没有龙虎榜数据（只适用于 A股）"}
+    if name == "get_consensus":
+        return fx.get("consensus", {}).get(sym) or {"error": f"取不到 {sym} 的分析师一致预期"}
+    if name == "get_options":
+        return fx.get("options", {}).get(sym) or {"error": "期权数据目前只支持美股"}
+    if name == "get_intraday":
+        return fx.get("intraday", {}).get(sym) or {"error": "评测模式没有分钟线数据"}
+    if name == "read_filing":
+        f = fx.get("filings", {}).get(sym)
+        if not f:
+            return {"error": f"找不到 {sym} 的定期报告"}
+        sec = args.get("section") or "all"
+        ps = f.get(sec) or [p for k, v in f.items() if k != "_meta" for p in v]
+        m = f["_meta"]
+        return {"symbol": sym, **m, "section": sec, "passages": [{**p, "url": f"{m['url']}#page={p['page']}" if m["url"].endswith("PDF") or m["url"].endswith("pdf") else m["url"]} for p in ps],
+                "warnings": []}
+    if name == "compare_filings":
+        return fx.get("compare", {}).get(sym) or {"error": f"找不到 {sym} 的年报对比"}
     if name == "record_call":
         v = q.get(sym)
         return f"已记账：{args.get('view')}，基准价 {v['close']}。" if v else "取不到现价，未记录。"
@@ -136,6 +160,28 @@ class MockLLM:
         if "提醒" in q and syms:
             n = re.search(r"(\d+(?:\.\d+)?)", q)
             return [("alert_set", {"symbol": syms[0], "kind": "below" if "跌" in q else "above", "value": float(n.group(1)) if n else 0})]
+        yrs = [int(y) for y in re.findall(r"20\d\d", q)]
+        if re.search(r"年报|10-K|季报|半年报", q) and syms:
+            if re.search(r"对比|比较|比 ?20\d\d|变化|新增|删掉|删除|多了", q):
+                ya, yb = (sorted(yrs)[0], sorted(yrs)[-1]) if len(yrs) >= 2 else ((yrs[0] - 1, yrs[0]) if yrs else (None, None))
+                return [("compare_filings", {"symbol": syms[0], "year_a": ya, "year_b": yb, "section": "mdna" if "管理层" in q else "risk"})]
+            sec = "risk" if "风险" in q else "mdna" if re.search(r"管理层|经营|渠道", q) else "segment" if re.search(r"分部|分产品", q) else "financial" if "财务" in q else "all"
+            kw = re.findall(r"[A-Za-z][A-Za-z ]{3,}[A-Za-z]", q)
+            return [("read_filing", {"symbol": syms[0], "year": yrs[0] if yrs else None, "section": sec, "query": kw[0] if kw else ""})]
+        if re.search(r"北向", q):
+            calls.append(("get_northbound", {"symbol": syms[0]} if syms else {}))
+        if syms and re.search(r"资金|主力|超大单", q) and "北向" not in q:
+            calls += [("get_fund_flow", {"symbol": s}) for s in syms]
+        if syms and "龙虎榜" in q:
+            calls += [("get_dragon_tiger", {"symbol": s}) for s in syms]
+        if syms and re.search(r"目标价|评级|一致预期|盈利预测|EPS", q):
+            calls += [("get_consensus", {"symbol": s}) for s in syms]
+        if syms and re.search(r"隐含波动|Put/Call|最大痛点|期权的", q):
+            calls += [("get_options", {"symbol": s}) for s in syms]
+        if syms and re.search(r"分时|盘中|分钟", q):
+            calls += [("get_intraday", {"symbol": s}) for s in syms]
+        if calls:
+            return calls
         if re.search(r"公告|SEC|文件", q):
             calls += [("get_announcements", {"symbol": s}) for s in syms]
         elif re.search(r"为什么|发生|原因", q):
@@ -183,6 +229,69 @@ class MockLLM:
                     if m and s in ul and "赚" in q:
                         pnl = (v["close"] - float(m.group(2))) * int(m.group(1))
                         out.append(f"按现价算浮盈约 {pnl:.0f}。")
+        for r in res.get("get_quotes", []):
+            for s, v in r.items():
+                for w in (v.get("warnings") or []) if isinstance(v, dict) else []:
+                    out.append(f"注意：两个数据源报价不一致——{w}")
+        for r in res.get("get_fund_flow", []):
+            if r.get("error"):
+                out.append(r["error"] + "。")
+                continue
+            s5 = r.get("main_net_5d")
+            out.append(f"{r['symbol']} 近 5 日主力资金合计净{'流入' if s5 >= 0 else '流出'} {abs(s5)} 亿元，其中 {r.get('inflow_days_5d')} 天净流入；"
+                       f"最近一日（{r['rows'][-1]['date']}）主力净流入 {r['rows'][-1]['main_net']} 亿元（{r['source']}）。")
+        for r in res.get("get_northbound", []):
+            if r.get("error"):
+                out.append(r["error"] + "。")
+                continue
+            m = (r.get("market") or [{}])[0]
+            out.append(f"北向资金 {m.get('date')} 成交总额 {m.get('deal_amt_yi')} 亿元；每日净买入额已停止披露（2024-08-19 起），所以查不到今天的净买入。")
+        for r in res.get("get_dragon_tiger", []):
+            if r.get("error"):
+                out.append(r["error"] + "。")
+            elif not r.get("listed_recently"):
+                out.append(f"最近没有上龙虎榜：{r.get('note')}。")
+            else:
+                r0 = r["records"][0]
+                out.append(f"{r0['date']} 上榜，原因：{r0['reason']}，龙虎榜净买 {r0['net_buy_yi']} 亿元。")
+        for r in res.get("get_consensus", []):
+            if r.get("error"):
+                out.append(r["error"] + "。")
+                continue
+            t = r.get("target") or {}
+            rt = "、".join(f"{k} {v} 家" for k, v in (r.get("ratings") or {}).items() if v)
+            line = f"{r['symbol']} 分析师目标价区间 {t.get('low')}–{t.get('high')}" + (f"，均值 {t['mean']}" if t.get("mean") else "")
+            if r.get("upside_pct") is not None:
+                line += f"，相对现价 {r.get('price_now')} 的空间约 {r['upside_pct']}%"
+            out.append(line + f"；评级：{rt}（{r['source']}）。")
+            eps = "；".join(f"{e.get('year') or e.get('period')} EPS {e.get('eps', e.get('avg'))}" for e in r.get("eps") or [])
+            if eps:
+                out.append("EPS 预测：" + eps + "。")
+            if r.get("target_nasdaq"):
+                out.append(f"Nasdaq 统计的目标价均值是 {r['target_nasdaq'].get('mean')}。")
+            for w in r.get("warnings") or []:
+                out.append(f"注意：两个数据源不一致——{w}")
+        for r in res.get("get_options", []):
+            if r.get("error"):
+                out.append(r["error"] + "。")
+                continue
+            for e in r.get("expiries") or []:
+                out.append(f"{e['expiry']} 到期：ATM 隐含波动率 {e.get('atm_iv_pct')}%，Put/Call 持仓比 {e.get('pcr_oi')}，成交量比 {e.get('pcr_volume')}，最大痛点 {e.get('max_pain')}。")
+        for r in res.get("read_filing", []):
+            if r.get("error"):
+                out.append(r["error"] + "。")
+                continue
+            out.append(f"《{r.get('title')}》（{r.get('source')}）相关段落：")
+            for ps in r.get("passages") or []:
+                out.append(f"- 第 {ps['page']} 页：{ps['text']}")
+        for r in res.get("compare_filings", []):
+            if r.get("error"):
+                out.append(r["error"] + "。")
+                continue
+            c = r.get("counts") or {}
+            out.append(f"{r['year_b']} 年报「{r.get('section_name')}」相比 {r['year_a']} 年：新增 {c.get('added')} 句、删除 {c.get('removed')} 句、改写 {c.get('modified')} 句。")
+            out += [f"- 新增（第 {x['page']} 页）：{x['text']}" for x in r.get("added") or []]
+            out += [f"- 删除（{r['year_a']} 年第 {x['page']} 页）：{x['text']}" for x in r.get("removed") or []]
         for r in res.get("get_announcements", []):
             if r.get("error"):
                 out.append(r["error"] + "。")
@@ -280,7 +389,7 @@ def score_case(case: dict, answer: str, log: list, fx: dict, home: Path, prompt_
     ck, res = case.get("checks") or {}, []
     meta = meta or {}
     full = answer
-    answer = re.sub(r"\[\[debate:[^\]]*\]\]", "", cite.strip_sources(answer))
+    answer = re.sub(r"\[\[(?:debate|cards):[^\]]*\]\]", "", cite.strip_sources(answer))
     called = [x["tool"] for x in log]
 
     def add(name, ok, note=""):

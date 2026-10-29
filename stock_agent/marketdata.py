@@ -301,6 +301,32 @@ def filter_asof(rows: list[dict], asof) -> list[dict]:
     return [r for r in rows if str(r.get("date") or "9999")[:10] <= a]
 
 
+def flow_history(symbol: str, n: int = 400, fetchers: dict | None = None) -> tuple[list[dict], str]:
+    """回测用：一次取尽量长的资金流日线（东方财富优先，新浪兜底），返回 (rows 升序, 来源名)。"""
+    p = parse(symbol)
+    if p["market"] != "A":
+        return [], ""
+    fx = fetchers or {"东方财富": lambda: _em_flow_daily(p, n), "新浪财经": lambda: _sina_flow(p, n)}
+    for name, f in fx.items():
+        try:
+            rows = sorted(f() or [], key=lambda r: r["date"])
+            if rows:
+                return rows, name
+        except Exception:
+            continue
+    return [], ""
+
+
+def flow_asof(rows: list[dict], asof, days: int = 5) -> dict | None:
+    """回测里的资金流快照：只用 date ≤ asof 的行（严格截断），并且只给相对量（主力净占比 %），盲测时不暴露成交额规模。"""
+    past = filter_asof(rows, asof)[-days:]
+    if not past:
+        return None
+    pct = [r.get("main_pct") for r in past if r.get("main_pct") is not None]
+    return {"unit": "%", "main_net_5d": round(sum(pct), 2) if pct else None, "inflow_days_5d": sum(1 for x in pct if x > 0),
+            "rows": [{"d": i - len(past) + 1, "main_pct": r.get("main_pct")} for i, r in enumerate(past)], "_last_date": past[-1]["date"]}
+
+
 def fund_flow(symbol: str, days: int = 10, asof=None, fetchers: dict | None = None) -> dict:
     """个股主力 / 超大单净流入（亿元，日级）。asof 给定时只返回该日及以前（回测）。"""
     p = parse(symbol)

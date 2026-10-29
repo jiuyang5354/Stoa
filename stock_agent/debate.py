@@ -174,9 +174,9 @@ COMMON = """你是 Stoa 投研团队里的「{title}」。只能使用下面给�
 [ROLE:{key}]"""
 
 PROMPTS = {
-    "fundamental": "看估值（市盈率/市净率/股息率）、盈利能力（ROE、毛利率、净利率）、增长（营收/净利同比）、负债与现金流、分析师目标价。",
-    "technical": "看趋势（价格与 20/60 日均线的位置关系）、动量（5/20 日涨跌幅）、RSI 超买超卖、52 周高低点位置与信号。",
-    "news": "看最近新闻和公告：有没有回购、业绩、监管、减持、重大合同等会改变预期的事件，市场情绪偏向哪边。没有新闻就判中性。",
+    "fundamental": "看估值（市盈率/市净率/股息率）、盈利能力（ROE、毛利率、净利率）、增长（营收/净利同比）、负债与现金流、分析师一致预期（目标价区间、相对现价空间、评级分布、EPS 预测）；有年报对比时看今年年报新增/删除了哪些风险（写页码）。",
+    "technical": "看趋势（价格与 20/60 日均线的位置关系）、动量（5/20 日涨跌幅）、RSI 超买超卖、52 周高低点位置与信号；A股看近 5 日主力/超大单资金流向，美股看期权 Put/Call 比、隐含波动率和最大痛点。",
+    "news": "看最近新闻和公告：有没有回购、业绩、监管、减持、重大合同等会改变预期的事件，市场情绪偏向哪边；A股看最近有没有上龙虎榜、席位是机构还是游资。没有新闻就判中性。",
     "macro": "看大盘与指数环境、行业与政策动向（来自搜索结果），判断外部环境对这只股票是顺风还是逆风。",
 }
 ANALYST_OUT = '只输出 JSON：{"stance": "看多|看空|中性", "confidence": 50-95 的整数, "summary": "不超过 80 字的判断", "evidence": ["证据1（带数字和 [编号]）", "证据2", "证据3"]}'
@@ -227,6 +227,39 @@ def _c(d) -> str:
     return f"[{d['_cite']}]" if isinstance(d, dict) and d.get("_cite") else ""
 
 
+def _find(data, key):
+    """在工具结果里找带某个键的字典（资金流 rows、期权 expiries、一致预期 target…）。"""
+    for d in data if isinstance(data, list) else [data]:
+        if isinstance(d, dict) and key in d and not d.get("error"):
+            return d
+    return None
+
+
+def flow_evidence(data) -> tuple[list[str], int]:
+    """资金流/期权的证据行 + 方向分（+1 / -1 / 0），只作参考，不单独决定结论。"""
+    ev, sc = [], 0
+    f = _find(data, "main_net_5d")
+    if f and f.get("main_net_5d") is not None:
+        k = _c(f)
+        if f.get("unit") == "%":  # 回测盲测：只有主力净占比
+            ev.append(f"近 5 日主力净占比合计 {f['main_net_5d']:+}%{k}，{f.get('inflow_days_5d', 0)} 天净流入")
+        else:
+            ev.append(f"近 5 日主力净{'流入' if f['main_net_5d'] >= 0 else '流出'} {abs(f['main_net_5d'])} 亿元{k}，{f.get('inflow_days_5d', 0)} 天净流入")
+        sc = 1 if f["main_net_5d"] > 0 and f.get("inflow_days_5d", 0) >= 3 else -1 if f["main_net_5d"] < 0 and f.get("inflow_days_5d", 5) <= 2 else 0
+    o = _find(data, "expiries")
+    if o and o.get("expiries"):
+        e0, k = o["expiries"][0], _c(o)
+        bits = [f"{e0['expiry']} 到期 Put/Call 持仓比 {e0['pcr_oi']}{k}" if e0.get("pcr_oi") is not None else ""]
+        if e0.get("atm_iv_pct") is not None:
+            bits.append(f"ATM 隐含波动率 {e0['atm_iv_pct']}%{k}")
+        if e0.get("max_pain") is not None:
+            bits.append(f"最大痛点 {e0['max_pain']}{k}")
+        ev.append("，".join(b for b in bits if b))
+        if e0.get("pcr_oi") is not None:
+            sc = 1 if e0["pcr_oi"] < .7 else -1 if e0["pcr_oi"] > 1.2 else 0
+    return [e for e in ev if e], sc
+
+
 def rule_technical(data) -> dict:
     q = _find_quote(data)
     if not q or q.get("close") is None:
@@ -251,6 +284,15 @@ def rule_technical(data) -> dict:
         conf = clamp_conf(conf + min(15, abs(gap) * 2))
     summ = {"看多": "价格站上 20 日线且 20 日线在 60 日线上方，趋势偏多", "看空": "价格在 20 日线下且 20 日线低于 60 日线，趋势偏空",
             "中性": "均线纠缠，趋势不明"}[stance]
+    fe, fs = flow_evidence(data)
+    if fe:
+        ev += fe
+        if stance != "中性" and fs == SIGN[stance]:
+            conf = clamp_conf(conf + 3)
+            summ += "，资金面配合"
+        elif stance != "中性" and fs == -SIGN[stance]:
+            conf = clamp_conf(conf - 5)
+            summ += "，但资金面背离"
     return {"stance": stance, "confidence": conf, "summary": summ, "evidence": ev}
 
 
@@ -263,8 +305,13 @@ def _val(fin: dict, *keys):
 
 
 def rule_fundamental(data) -> dict:
-    fin = next((d for d in (data or []) if isinstance(d, dict) and not d.get("error")), None) if isinstance(data, list) else data
-    if not isinstance(fin, dict) or fin.get("error") or not fin:
+    fin = next((d for d in (data or []) if isinstance(d, dict) and not d.get("error") and "passages" not in d and "counts" not in d
+                and "target" not in d), None) if isinstance(data, list) else data
+    cons = _find(data, "target") if isinstance(data, list) else None
+    cmpf = _find(data, "counts") if isinstance(data, list) else None
+    if (not isinstance(fin, dict) or fin.get("error") or not fin) and cons:
+        fin = {}
+    if not isinstance(fin, dict) or fin.get("error") or (not fin and not cons):
         return {"stance": "中性", "confidence": 50, "summary": "取不到财务数据，基本面无法判断。", "evidence": []}
     pe, roe, g = _val(fin, "pe", "市盈率TTM"), _val(fin, "roe", "ROE%"), _val(fin, "revenue_growth", "营收同比%")
     ev, k = [], _c(fin)
@@ -281,6 +328,15 @@ def rule_fundamental(data) -> dict:
         score += 1 if roe >= 15 else -1 if roe < 5 else 0
     if g is not None:
         score += 1 if g >= 10 else -1 if g < 0 else 0
+    if cons:
+        t, k = cons.get("target") or {}, _c(cons)
+        if t.get("low") and t.get("high"):
+            ev.append(f"分析师目标价 {t['low']}–{t['high']}{k}" + (f"，相对现价空间 {cons['upside_pct']:+}%{k}" if cons.get("upside_pct") is not None else ""))
+        if cons.get("upside_pct") is not None:
+            score += 1 if cons["upside_pct"] >= 20 else -1 if cons["upside_pct"] < 0 else 0
+    if cmpf and cmpf.get("counts"):
+        c, k = cmpf["counts"], _c(cmpf)
+        ev.append(f"{cmpf.get('year_b')} 年报风险章节较上年新增 {c.get('added')} 句、删去 {c.get('removed')} 句{k}")
     stance = "看多" if score >= 2 else "看空" if score <= -2 else "中性"
     return {"stance": stance, "confidence": clamp_conf(50 + abs(score) * 6), "evidence": ev,
             "summary": {"看多": "估值合理、盈利能力强", "看空": "估值偏高或盈利走弱", "中性": "估值与盈利没有明显偏向"}[stance]}
@@ -292,6 +348,11 @@ NEG_WORDS = re.compile(r"减持|下调|调查|处罚|亏损|下滑|诉讼|退市
 
 def rule_news(data) -> dict:
     items = []
+    lhb0 = _find(data or [], "listed_recently")
+    if lhb0 and lhb0.get("listed_recently") and not any(isinstance(d, dict) and (d.get("news") or d.get("announcements")) for d in data or []):
+        r0 = lhb0["records"][0]
+        return {"stance": "中性", "confidence": 50, "summary": "最近没有新闻，只有龙虎榜记录。",
+                "evidence": [f"{r0['date']} 上龙虎榜，龙虎榜净买 {r0.get('net_buy_yi')} 亿元{_c(lhb0)}"]}
     for d in data or []:
         if isinstance(d, dict):
             for key in ("news", "announcements"):
@@ -302,6 +363,10 @@ def rule_news(data) -> dict:
     neg = sum(bool(NEG_WORDS.search(x.get("title", ""))) for x in items)
     stance = "看多" if pos > neg else "看空" if neg > pos else "中性"
     ev = [f"{str(x.get('time') or x.get('date') or '')[:10]} {x.get('title', '')}{_c(x)}" for x in items[:3]]
+    lhb = _find(data, "listed_recently")
+    if lhb and lhb.get("listed_recently") and lhb.get("records"):
+        r0 = lhb["records"][0]
+        ev.append(f"{r0['date']} 上龙虎榜（{(r0.get('reason') or '')[:24]}），龙虎榜净买 {r0.get('net_buy_yi')} 亿元{_c(lhb)}")
     return {"stance": stance, "confidence": clamp_conf(50 + abs(pos - neg) * 6, hi=75), "evidence": ev,
             "summary": f"最近 {len(items)} 条资讯里偏正面 {pos} 条、偏负面 {neg} 条。"}
 
@@ -381,13 +446,14 @@ STRICT = {"通过": 0, "降级": 1, "否决": 2}
 class Debate:
     def __init__(self, llm, symbol: str, name: str = "", question: str = "", tools=None, rounds: int = 1,
                  budget: Budget | None = None, user_entries: list[str] | None = None, sources: cite.Sources | None = None,
-                 mode: str = "live", snapshot_payload: dict | None = None, horizon: int = 20, on_step=None):
+                 mode: str = "live", snapshot_payload: dict | None = None, horizon: int = 20, on_step=None, flow_payload: dict | None = None):
         self.llm, self.symbol, self.name, self.question = llm, symbol, name or symbol, question
         self.tools, self.rounds, self.mode = tools, max(1, min(3, int(rounds))), mode
         self.budget = budget or Budget()
         self.user_entries = user_entries or []
         self.sources = sources or cite.Sources()
         self.payload, self.horizon, self.on_step = snapshot_payload, int(horizon), on_step
+        self.flow_payload = flow_payload  # 回测：按决策日截断的资金流（只有 --with-flow 时才有）
         self.id = f"{datetime.now(CN_TZ):%Y%m%d-%H%M%S}-{uuid.uuid4().hex[:4]}"
         self.roles: dict[str, dict] = {}
         self.lock = threading.Lock()
@@ -421,18 +487,62 @@ class Debate:
         return re.sub(r"\n\n注：标「未核实」.*$", "", t, flags=re.S), bad
 
     # -------------------------------------------------- 分析师
+    def market(self) -> str:
+        s = self.symbol.upper()
+        return "A" if re.fullmatch(r"\d{6}(\.(SS|SZ|BJ|SH))?", s) else "HK" if s.endswith(".HK") else "IDX" if s.startswith("^") else "US"
+
+    def filing_brief(self):
+        """基本面分析师用：最近两年年报「风险因素」对比。首次要下载解析两份报告，限时 FILING_TIMEOUT 秒，超时就跳过（后台继续缓存）。"""
+        import os
+        if os.getenv("DEBATE_FILINGS", "on").lower() in ("off", "0", "false"):
+            return None
+        y = datetime.now(CN_TZ).year - 1
+        box = {}
+
+        def go():
+            for yb in (y, y - 1):
+                r = self.tool("compare_filings", {"symbol": self.symbol, "year_a": yb - 1, "year_b": yb, "section": "risk"})
+                box["r"] = r
+                if not (isinstance(r, dict) and r.get("error") and "找不到" in str(r.get("error"))):
+                    break
+
+        th = threading.Thread(target=go, daemon=True)
+        th.start()
+        th.join(float(os.getenv("DEBATE_FILING_TIMEOUT") or 25))
+        if th.is_alive():
+            return {"error": "年报对比超时（首次需下载两份年报），已跳过；后台继续缓存，下次深度分析可用"}
+        r = box.get("r")
+        if isinstance(r, dict) and not r.get("error"):  # 只给分析师看关键句，控制篇幅
+            return {k: r.get(k) for k in ("symbol", "section_name", "year_a", "year_b", "counts", "unchanged_ratio", "_cite")} | {
+                "added": (r.get("added") or [])[:4], "removed": (r.get("removed") or [])[:3]}
+        return r
+
     def gather(self, key) -> list:
         s = self.symbol
         if key == "technical":
             if self.mode == "backtest":
-                return [self.payload]
-            return [self.tool("get_quotes", {"symbols": [s]})]
+                return [self.payload] + ([self.flow_payload] if getattr(self, "flow_payload", None) else [])
+            out = [self.tool("get_quotes", {"symbols": [s]})]
+            if self.market() == "A":
+                out.append(self.tool("get_fund_flow", {"symbol": s, "days": 10}))
+            elif self.market() == "US":
+                out.append(self.tool("get_options", {"symbol": s}))
+            return out
         if self.mode == "backtest":
             return []
         if key == "fundamental":
-            return [self.tool("get_financials", {"symbol": s})]
+            out = [self.tool("get_financials", {"symbol": s})]
+            if self.market() != "IDX":
+                out.append(self.tool("get_consensus", {"symbol": s}))
+                fb = self.filing_brief()
+                if fb is not None:
+                    out.append(fb)
+            return out
         if key == "news":
-            return [self.tool("get_news", {"symbol": s, "limit": 6}), self.tool("get_announcements", {"symbol": s, "limit": 6})]
+            out = [self.tool("get_news", {"symbol": s, "limit": 6}), self.tool("get_announcements", {"symbol": s, "limit": 6})]
+            if self.market() == "A":
+                out.append(self.tool("get_dragon_tiger", {"symbol": s, "limit": 3}))
+            return out
         if key == "macro":
             return [self.tool("market_overview", {}), self.tool("web_search", {"query": f"{self.name} 行业 政策 最新", "limit": 4})]
         return []
@@ -445,8 +555,11 @@ class Debate:
         if key == "technical":
             self._quote = _find_quote(data)
         usable = [d for d in data if d and not (isinstance(d, dict) and d.get("error") and len(d) <= 2)]
-        tools_used = {"technical": ["get_quotes"], "fundamental": ["get_financials"], "news": ["get_news", "get_announcements"],
-                      "macro": ["market_overview", "web_search"]}[key] if self.mode != "backtest" else ["截断行情"]
+        mk = self.market()
+        tools_used = {"technical": ["get_quotes"] + (["get_fund_flow"] if mk == "A" else ["get_options"] if mk == "US" else []),
+                      "fundamental": ["get_financials"] + (["get_consensus", "compare_filings"] if mk != "IDX" else []),
+                      "news": ["get_news", "get_announcements"] + (["get_dragon_tiger"] if mk == "A" else []),
+                      "macro": ["market_overview", "web_search"]}[key] if self.mode != "backtest" else (["截断行情"] + (["截断资金流"] if getattr(self, "flow_payload", None) else []))
         if not usable:
             out = RULES[key](data)
             return self._rec(key, status="no_data", note="数据源没有返回可用数据", tools=tools_used, seconds=round(time.time() - t0, 2), **out)
@@ -728,7 +841,7 @@ class DebateBTAgent:
     """backtest --agent debate：每个决策点跑一场「回测版」辩论（只有截断行情，其它角色禁用）。"""
 
     def __init__(self, llm=None, blind: bool = True, rounds: int = 1, max_calls: int = 600, per_debate_calls: int = 8,
-                 role_timeout: float = 60, cache=None, band: float = 1.5):
+                 role_timeout: float = 60, cache=None, band: float = 1.5, flow: bool = False, flow_loader=None):
         if llm is None:
             from .agent import load_cfg
             from .providers import Router
@@ -742,9 +855,27 @@ class DebateBTAgent:
                       "tokens_in_est": 0, "seconds": 0.0}
         self.lock = threading.Lock()
         self.seen: list = []  # 测试用：每场辩论实际拿到的行情（检查未来泄漏）
+        self.flow = flow  # 回测里唯一开放的新数据：资金流历史日线，按决策日严格截断（见 backtest.BT_TOOL_POLICY）
+        self.flow_loader = flow_loader
+        self.flow_hist: dict = {}
+        self.flow_seen: list = []  # 测试用：(决策日, 实际用到的资金流最后日期)
+
+    def flow_for(self, snap):
+        if not self.flow:
+            return None
+        from .backtest import bt_tool
+        with self.lock:
+            if snap.symbol not in self.flow_hist:
+                from . import marketdata
+                self.flow_hist[snap.symbol] = (self.flow_loader or (lambda s: marketdata.flow_history(s)[0]))(snap.symbol)
+        fp = bt_tool("get_fund_flow", {"rows": self.flow_hist[snap.symbol]}, snap.date)
+        if fp:
+            self.flow_seen.append((snap.date, fp.pop("_last_date")))
+            fp["_cite"] = 2
+        return fp
 
     def key(self, snap) -> str:
-        raw = f"{VERSION}|{self.model}|{snap.symbol}|{snap.date:%Y-%m-%d}|{snap.horizon}|{int(self.blind)}|{self.rounds}"
+        raw = f"{VERSION}|{self.model}|{snap.symbol}|{snap.date:%Y-%m-%d}|{snap.horizon}|{int(self.blind)}|{self.rounds}" + ("|flow" if self.flow else "")
         return hashlib.sha1(raw.encode()).hexdigest()
 
     def __call__(self, snap) -> dict | None:
@@ -765,11 +896,15 @@ class DebateBTAgent:
         src = cite.Sources()
         src.new("截断行情（回测）", as_of="T", tool="backtest")
         src.bind(payload, 1)
+        fp = self.flow_for(snap)
+        if fp:
+            src.new("截断资金流（回测）", as_of="T", tool="backtest")
+            src.bind(fp, 2)
         budget = Budget(self.per, 40000, self.role_timeout)
         t0 = time.time()
         try:
             d = Debate(self.llm, snap.symbol, "某股票", "", tools=None, rounds=self.rounds, budget=budget, sources=src,
-                       mode="backtest", snapshot_payload=payload, horizon=snap.horizon)
+                       mode="backtest", snapshot_payload=payload, horizon=snap.horizon, flow_payload=fp)
             rec = d.run(record=False, save=False)
         except Exception as e:
             with self.lock:

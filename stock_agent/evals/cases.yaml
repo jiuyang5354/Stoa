@@ -18,6 +18,7 @@
 #   catches / passes: [..]  → 对题目里 inject 的那段回答跑核对器：catches 里的编造数字必须被抓出，passes 里的真实数字不能误伤（与模型无关，测核对器本身）
 #   debate: true            → 走了 Agora 多角色辩论：有纪要标记、data/debates/<id>.json、调用了 record_call、结论是 看多/看空/中性
 #   risk_decision: 通过|降级|否决 → 风控官的决定
+#   —— v0.16 更深的数据与年报 ——（新工具的固定返回见 fixtures 里的 fund_flow / northbound / dragon_tiger / consensus / options / filings / compare）
 # turns 里写 "/new" 表示结束会话、换一个全新的 Agent（只靠记忆延续）。
 
 fixtures:
@@ -26,6 +27,9 @@ fixtures:
     "600519.SS": {date: "2026-10-28", close: 1354.0, chg_pct: -0.84, chg_5d: -2.31, chg_20d: -5.47, ma20: 1398.6, ma60: 1421.3, rsi: 38.4, high_52w: 1688.0, low_52w: 1301.5, signals: []}
     "AAPL": {date: "2026-10-27", close: 343.83, chg_pct: 1.12, chg_5d: 2.05, chg_20d: 6.31, ma20: 331.4, ma60: 318.9, rsi: 66.8, high_52w: 349.1, low_52w: 228.4, signals: []}
     "NVDA": {date: "2026-10-27", close: 201.37, chg_pct: -2.41, chg_5d: -4.88, chg_20d: 3.17, ma20: 205.12, ma60: 188.43, rsi: 72.6, high_52w: 215.8, low_52w: 121.6, signals: ["RSI 超买", "单日大跌"]}
+    "1810.HK": {date: "2026-10-28", close: 52.3, chg_pct: 1.06, chg_5d: 2.4, chg_20d: -1.8, ma20: 51.6, ma60: 49.95, rsi: 55.1, high_52w: 61.45, low_52w: 33.2, signals: [], source: "Yahoo Finance",
+                crosscheck: {values: {"Yahoo Finance": 52.3, "新浪财经": 49.8, "腾讯证券": 49.8}, spread_pct: 4.78, threshold_pct: 0.5},
+                warnings: ["报价两源差异过大：Yahoo Finance 52.3 vs 新浪财经 49.8，相差 4.8%（阈值 0.5%），请以交易所/公司公告为准"]}
     "9988.HK": {date: "2026-10-28", close: 158.9, chg_pct: 0.63, chg_5d: 1.9, chg_20d: -3.4, ma20: 161.2, ma60: 149.7, rsi: 49.5, high_52w: 182.0, low_52w: 98.3, signals: []}
   announcements:
     "600519.SS": [{date: "2026-10-25", title: "贵州茅台2026年第三季度报告", url: "https://data.eastmoney.com/notices/detail/600519/AN202610251.html"},
@@ -40,6 +44,53 @@ fixtures:
     "600519.SS": {pe: 21.3, pb: 7.9, dividend_yield: 3.6, roe: 33.5, revenue_growth: 9.2, market_cap: "1.70万亿元"}
   overview:
     indices: {A股: [{symbol: "000001.SS", name: "上证指数", close: 3986.2, chg_pct: 0.41}], 港股: [{symbol: "^HSI", name: "恒生指数", close: 26810.5, chg_pct: 1.27}], 美股: [{symbol: "^GSPC", name: "标普500", close: 6890.3, chg_pct: 0.38}]}
+
+  # ---- v0.16：更深的数据（固定返回，数值为虚构的评测样本） ----
+  fund_flow:
+    "600519.SS": {symbol: "600519.SS", unit: "亿元", source: "东方财富", url: "https://data.eastmoney.com/zjlx/600519.html", as_of: "2026-10-28",
+                  rows: [{date: "2026-10-22", main_net: 3.215, super_net: 2.104}, {date: "2026-10-23", main_net: -1.872, super_net: -0.955},
+                         {date: "2026-10-26", main_net: 5.436, super_net: 3.871}, {date: "2026-10-27", main_net: 2.018, super_net: 1.302},
+                         {date: "2026-10-28", main_net: -4.137, super_net: -2.996}],
+                  main_net_5d: 4.66, super_net_5d: 3.326, inflow_days_5d: 3, warnings: [], note: "主力净流入 = 超大单 + 大单（东方财富口径），正数为净流入"}
+  northbound:
+    _market: {source: "东方财富数据中心（沪深港通）", url: "https://data.eastmoney.com/hsgt/index.html", as_of: "2026-10-28",
+              market: [{date: "2026-10-28", deal_amt_yi: 2513.93, net_buy_yi: null}, {date: "2026-10-27", deal_amt_yi: 2253.23, net_buy_yi: null}],
+              rule_note: "2024-08-19 起沪深港通不再盘后披露北向资金每日净买入，只公布成交总额",
+              warnings: ["北向每日净买入额已停止披露（2024-08-19 起），这里只有成交总额"]}
+  dragon_tiger:
+    "600519.SS": {symbol: "600519.SS", source: "东方财富 · 龙虎榜", url: "https://data.eastmoney.com/stock/lhb/600519.html", as_of: "2013-01-28",
+                  records: [{date: "2013-01-28", reason: "日跌幅偏离值达到7%", net_buy_yi: -3.789}], listed_recently: false, days_since_last: 5021,
+                  note: "近 120 天没有上龙虎榜，最近一次是 2013-01-28（5021 天前）", warnings: []}
+  consensus:
+    "600519.SS": {symbol: "600519.SS", source: "东方财富 · 盈利预测", url: "https://data.eastmoney.com/stockdata/600519.html", as_of: "2026-10-28",
+                  ratings: {买入: 30, 增持: 9, 中性: 0, 减持: 0, 卖出: 0}, orgs: 39, target: {low: 1430.0, high: 2030.0},
+                  eps: [{year: 2025, kind: 实际, eps: 65.85}, {year: 2026, kind: 预测, eps: 67.18}, {year: 2027, kind: 预测, eps: 71.19}],
+                  price_now: 1354.0, upside_pct: 27.8, warnings: []}
+    "NVDA": {symbol: "NVDA", source: "Yahoo Finance", url: "https://finance.yahoo.com/quote/NVDA/analysis", as_of: "2026-10-27",
+             ratings: {强烈买入: 10, 买入: 49, 持有: 2, 卖出: 1, 强烈卖出: 0}, target: {low: 180.0, mean: 328.95, median: 315.0, high: 515.0},
+             eps: [{period: 本财年, avg: 9.31, low: 9.01, high: 10.1, analysts: 51}, {period: 下财年, avg: 15.91, low: 12.85, high: 18.75, analysts: 52}],
+             target_nasdaq: {low: 275.0, mean: 263.4, high: 465.0}, price_now: 201.37, upside_pct: 63.4,
+             warnings: ["目标价均值两源差异过大：Yahoo 328.95 vs Nasdaq 263.4，相差 19.9%（阈值 12%），两家统计的机构和更新时间不同，请以交易所/公司公告为准"]}
+  options:
+    "NVDA": {symbol: "NVDA", spot: 201.37, source: "Yahoo Finance · 期权", url: "https://finance.yahoo.com/quote/NVDA/options", as_of: "2026-10-27 21:00 北京时间",
+             expiries: [{expiry: "2026-10-30", days: 3, atm_iv_pct: 48.6, pcr_volume: 0.62, pcr_oi: 0.66, max_pain: 200.0},
+                        {expiry: "2026-11-27", days: 31, atm_iv_pct: 44.2, pcr_volume: 0.71, pcr_oi: 0.83, max_pain: 195.0, near_30d: true}], warnings: []}
+  filings:
+    "600519.SS":
+      _meta: {title: "贵州茅台2025年年度报告", year: 2025, source: "巨潮资讯 cninfo", url: "https://static.cninfo.com.cn/finalpage/2026-04-17/1225114741.PDF", as_of: "2026-04-17"}
+      risk: [{page: 23, text: "（四）可能面对的风险：一是宏观经济风险；二是安全风险；三是舆情风险；四是环境保护风险。"}]
+      mdna: [{page: 17, text: "2025 年度，公司产品通过直销和批发代理渠道进行销售。直销渠道指自营和“i 茅台”等数字营销平台渠道，批发代理渠道指社会经销商、商超、电商等渠道。"},
+             {page: 10, text: "直销营业成本增长主要是直销销量增加及生产成本上涨。"}]
+    "NVDA":
+      _meta: {title: "NVIDIA CORP 10-K（报告期 2026-01-25）", year: 2026, source: "SEC EDGAR", url: "https://www.sec.gov/Archives/edgar/data/1045810/000104581026000021/nvda-20260125.htm", as_of: "2026-02-25"}
+      risk: [{page: 26, text: "Increasing use of economic sanctions and export controls has impacted and may in the future impact demand for our products or services, negatively impacting our business and financial results."}]
+  compare:
+    "600519.SS": {symbol: "600519.SS", section: risk, section_name: 风险因素, year_a: 2024, year_b: 2025, source: "巨潮资讯 cninfo",
+                  url: "https://static.cninfo.com.cn/finalpage/2026-04-17/1225114741.PDF", as_of: "2026-04-17", as_of_a: "2025-04-03",
+                  counts: {added: 2, removed: 1, modified: 1}, unchanged_ratio: 0.6,
+                  added: [{page: 23, text: "三是舆情风险。", url: "https://static.cninfo.com.cn/finalpage/2026-04-17/1225114741.PDF#page=23"}],
+                  removed: [{page: 22, text: "三是食品安全风险。", url: "https://static.cninfo.com.cn/finalpage/2025-04-03/1222993920.PDF#page=22"}],
+                  modified: [], warnings: []}
 
 cases:
   # ---------------- 报价准确性 ----------------
@@ -102,3 +153,19 @@ cases:
      checks: {debate: true, tool_called: get_financials, contains: ["保守", "不超过 10%"], grounded: true}}
   - {id: debate-04, category: 深度分析, turns: ["腾讯现在多少钱？"], checks: {tool_not_called: [deep_analysis], not_regex: "Agora|\\[\\[debate", quote: "0700.HK"}}
   - {id: debate-05, category: 深度分析, turns: ["深度分析 9988.HK"], checks: {debate: true, grounded: true, cited: true, verify_clean: true}}
+
+  # ---------------- 更深的数据（v0.16） ----------------
+  - {id: flow-01, category: 资金流, turns: ["茅台最近 5 天主力资金是流入还是流出？"], checks: {tool_called: get_fund_flow, contains: ["主力"], any: ["流入", "流出"], grounded: true, cited: true}}
+  - {id: flow-02, category: 资金流, turns: ["腾讯的主力资金流向怎么样？"], checks: {tool_called: get_fund_flow, regex: "只支持|不支持|没有", grounded: true}}
+  - {id: flow-03, category: 资金流, turns: ["北向资金今天净买入多少？"], checks: {tool_called: get_northbound, regex: "停止披露|不再披露", grounded: true}}
+  - {id: flow-04, category: 资金流, turns: ["茅台最近上过龙虎榜吗？"], checks: {tool_called: get_dragon_tiger, regex: "没有上|未上", grounded: true}}
+  - {id: cons-01, category: 一致预期, turns: ["茅台的分析师目标价是多少？"], checks: {tool_called: get_consensus, contains: ["1430", "2030"], grounded: true, cited: true}}
+  - {id: cons-02, category: 一致预期, turns: ["英伟达分析师评级和 EPS 预测怎么样？"], checks: {tool_called: get_consensus, any: ["买入"], contains: ["15.91"], grounded: true}}
+  - {id: opt-01, category: 一致预期, turns: ["NVDA 期权的隐含波动率和 Put/Call 比是多少？"], checks: {tool_called: get_options, contains: ["48.6", "0.66"], grounded: true, cited: true}}
+  - {id: filing-01, category: 年报问答, turns: ["茅台 2025 年报里提到了哪些风险？"], checks: {tool_called: read_filing, contains: ["宏观经济风险"], regex: "第 ?\\d+ ?页", cited: true}}
+  - {id: filing-02, category: 年报问答, turns: ["茅台 2025 年报管理层讨论里怎么说直销渠道的？"], checks: {tool_called: read_filing, contains: ["直销"], regex: "第 ?\\d+ ?页"}}
+  - {id: filing-03, category: 年报问答, turns: ["NVDA 2026 年报风险因素里关于 export controls 说了什么？"], checks: {tool_called: read_filing, contains: ["export controls"], regex: "第 ?\\d+ ?页"}}
+  - {id: cmp-01, category: 年报对比, turns: ["对比茅台 2024 和 2025 年报的风险因素，新增了什么？"], checks: {tool_called: compare_filings, contains: ["新增", "舆情风险"], regex: "第 ?\\d+ ?页"}}
+  - {id: cmp-02, category: 年报对比, turns: ["茅台 2025 年报比 2024 年删掉了哪些风险表述？"], checks: {tool_called: compare_filings, contains: ["食品安全风险"], regex: "第 ?\\d+ ?页"}}
+  - {id: conflict-01, category: 数据源冲突, turns: ["1810.HK 现在多少钱？"], checks: {tool_called: get_quotes, regex: "不一致|差异", contains: ["52.3", "49.8"], grounded: true}}
+  - {id: conflict-02, category: 数据源冲突, turns: ["英伟达分析师目标价多少？"], checks: {tool_called: get_consensus, regex: "不一致|差异", contains: ["328.95", "263.4"], grounded: true}}
