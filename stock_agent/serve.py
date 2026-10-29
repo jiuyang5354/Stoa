@@ -191,6 +191,34 @@ class Web(BaseHTTPRequestHandler):
             return self._send(200, updater.check(force="force" in self.path))
         if self.path.split("?")[0] == "/api/alerts":
             return self._send(200, alerts.listing())
+        if self.path.split("?")[0] == "/api/backtests":
+            from . import backtest
+            return self._send(200, {"items": backtest.listing()})
+        if self.path.startswith("/api/backtests/"):
+            from . import backtest
+            name = self.path.split("?")[0].rsplit("/", 1)[-1]
+            if name.endswith(".png"):
+                f = backtest.bt_dir() / re.sub(r"[^A-Za-z0-9_.-]", "", name)
+                data = f.read_bytes() if f.exists() else b""
+                self.send_response(200 if data else 404)
+                self.send_header("Content-Type", "image/png")
+                self.send_header("Content-Length", str(len(data)))
+                self.end_headers()
+                return self.wfile.write(data)
+            j = backtest.load(name)
+            return self._send(200 if j else 404, j or {"error": "not found"})
+        if self.path.split("?")[0] == "/api/evals":
+            from . import evals
+            hist = evals.history()
+            latest = None
+            if hist:
+                f = evals.evals_dir() / f"{hist[-1]['id']}.json"
+                if f.exists():
+                    j = json.loads(f.read_text(encoding="utf-8"))
+                    latest = {k: j.get(k) for k in ("id", "created", "version", "llm", "summary", "previous")}
+                    latest["failed"] = [{"id": r["id"], "category": r["category"], "checks": [c for c in r["checks"] if not c["pass"]]}
+                                        for r in j.get("results", []) if r["score"] < 1]
+            return self._send(200, {"history": hist, "latest": latest})
         if self.path == "/api/memory":
             return self._send(200, {"user": MEM.entries("user"), "memory": MEM.entries("memory"),
                                     "usage": {"user": MEM.usage("user"), "memory": MEM.usage("memory")},
@@ -290,6 +318,15 @@ class Web(BaseHTTPRequestHandler):
                     return self._send(400, {"error": "target"})
                 text = str(body.get("text", ""))[:600]
                 return self._send(200, {"msg": MEM.add(t, text) if path.endswith("add") else MEM.remove(t, text)})
+        if path == "/api/backtest":
+            if not self._local_ok():
+                return self._send(403, {"error": "回测只能在本机发起，或先设 WEB_TOKEN"})
+            from . import backtest
+            body = self._body()
+            running = [x for x in backtest.listing(10) if x.get("status") == "running"]
+            if running:
+                return self._send(409, {"error": "已有一个回测在跑", "id": running[0]["id"]})
+            return self._send(200, {"id": backtest.run_async(body), "status": "running"})
         if path in ("/v1/chat/completions", "/chat/completions"):
             return self._openai(self._body())
         if path == "/mcp":
