@@ -170,12 +170,11 @@ def _shrink(o, lc: int, sc: int, depth: int = 0):
                 out[k] = v
             else:
                 out[k] = _shrink(v, lc, sc, depth + 1)
+                if isinstance(v, list) and len(v) > lc:  # 省略条数写在旁边的键里，不往列表里塞字符串，结构不变
+                    out[f"_{k}_omitted"] = len(v) - lc
         return out
     if isinstance(o, list):
-        keep = [_shrink(x, lc, sc, depth + 1) for x in o[:lc]]
-        if len(o) > lc:
-            keep.append(f"…另有 {len(o) - lc} 条已省略")
-        return keep
+        return [_shrink(x, lc, sc, depth + 1) for x in o[:lc]]
     if isinstance(o, str) and len(o) > sc:
         return o[:sc] + "…"
     return o

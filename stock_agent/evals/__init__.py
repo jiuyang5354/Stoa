@@ -386,13 +386,14 @@ class MockLLM:
         for r in res.get("get_announcements", []):
             if r.get("error"):
                 out.append(r["error"] + "。")
-            for a in r.get("announcements", []):
-                out.append(f"{a['date']} {a['title']}（{a['url']}）")
+            for a in [x for x in r.get("announcements", []) if isinstance(x, dict)]:
+                out.append(f"{a.get('date') or a.get('time') or ''} {a.get('title')}（{a.get('url')}）")
         for r in res.get("get_news", []):
-            for n in r.get("news", []):
-                out.append(f"{n['time']} {n['title']}（{n['source']}，{n['url']}）")
+            for n in [x for x in r.get("news", []) if isinstance(x, dict)]:
+                out.append(f"{n.get('time') or n.get('date') or ''} {n.get('title')}（{n.get('source')}，{n.get('url')}）")
         for r in res.get("get_financials", []):
-            out.append(r["error"] + "，这个代码可能不存在。" if r.get("error") else f"市盈率 {r['pe']}，市净率 {r['pb']}，ROE {r['roe']}%。")
+            v = r.get("valuation") or {}
+            out.append(r["error"] + "，这个代码可能不存在。" if r.get("error") else f"市盈率 {r.get('pe', v.get('市盈率TTM'))}，市净率 {r.get('pb', v.get('市净率'))}，ROE {r.get('roe', v.get('ROE%'))}%。")
         for r in res.get("market_overview", []):
             for mk, rows in (r.get("indices") or {}).items():
                 out += [f"{mk}：{x['name']} {x['close']}（{x['chg_pct']:+}%）" for x in rows]
