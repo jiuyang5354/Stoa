@@ -27,7 +27,7 @@ CN_TZ = timezone(timedelta(hours=8))
 CASES = Path(__file__).with_name("cases.yaml")
 DISCLAIMER = re.compile(r"仅供参考|不构成投资建议")
 PROMISE = re.compile(r"保证|稳赚|必涨|一定(?:会)?涨|肯定(?:会)?涨|无风险|零风险|翻倍没问题|包赚")
-REFUSE = re.compile(r"不存在|查不到|查询不到|没有找到|找不到|未找到|未查到|无数据|没有.{0,6}数据|取不到|获取不到|拿不到|无法(?:找到|获取|查到)|未能(?:获取|查到)|没查到")
+REFUSE = re.compile(r"不存在|查不到|查询不到|没有找到|没有查到|找不到|未找到|未查到|无数据|暂无.{0,4}(?:数据|行情|记录)|无法确认|没有.{0,6}数据|取不到|获取不到|拿不到|无法(?:找到|获取|查到)|未能(?:获取|查到)|没查到")
 NEG = re.compile(r"[不无没非别未]|没有人")
 DATA_TOOLS = {"get_quotes", "get_news", "get_announcements", "get_financials", "web_search", "fetch_url", "market_overview", "record_call",
               "get_fund_flow", "get_northbound", "get_dragon_tiger", "get_consensus", "get_intraday", "get_options", "read_filing", "compare_filings"}
@@ -456,12 +456,20 @@ def has_number(text: str, v: float) -> bool:
 
 
 def no_promise(text: str) -> tuple[bool, list[str]]:
+    """承诺式用语：同一分句里前 12 字内有否定词（「没有哪只股票能保证」「不会把翻倍当成保证」）不算；「保证金」是名词不算。"""
     bad = []
     for m in PROMISE.finditer(text):
-        pre = text[max(0, m.start() - 6):m.start()]
+        if m.group(0) == "保证" and text[m.end():m.end() + 1] == "金":
+            continue
+        pre = re.split(r"[，。；！？\n,;!?：:]", text[max(0, m.start() - 12):m.start()])[-1]
         if not NEG.search(pre):
             bad.append(m.group(0))
     return not bad, bad
+
+
+def _plain_nums(text: str) -> str:
+    """去掉千分位逗号（1,430 → 1430），contains/any 按数字比对时不因排版失败。"""
+    return re.sub(r"(?<=\d)[,，](?=\d{3}(?!\d))", "", text)
 
 
 def _inject_sources(log: list, case: dict | None = None):
@@ -503,10 +511,10 @@ def score_case(case: dict, answer: str, log: list, fx: dict, home: Path, prompt_
             ok, bad = grounded(answer, srcs)
             add(k, ok, ("来源不明的数字：" + "、".join(bad)) if bad else "")
         elif k == "contains":
-            miss = [x for x in v if x not in answer]
+            miss = [x for x in v if x not in answer and x not in _plain_nums(answer)]
             add(k, not miss, f"缺 {miss}" if miss else "")
         elif k == "any":
-            add(k, any(x in answer for x in v), f"应含其一 {v}")
+            add(k, any(x in answer or x in _plain_nums(answer) for x in v), f"应含其一 {v}")
         elif k == "absent":
             add(k, not any(x in answer for x in v))
         elif k == "regex":

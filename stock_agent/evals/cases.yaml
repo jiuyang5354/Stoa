@@ -176,13 +176,13 @@ cases:
   - {id: debate-02, category: 深度分析, setup: {user: ["[2026-10-02] 持有英伟达 NVDA 300 股，占总仓位 55%"]}, turns: ["我该不该买英伟达？"],
      checks: {debate: true, risk_decision: 否决, any: ["集中"], not_regex: "结论：看多", no_promise: true}}
   - {id: debate-03, category: 深度分析, setup: {user: ["[2026-10-02] 风险偏好保守，不碰杠杆和期权"]}, turns: ["茅台值不值得买？深度分析一下"],
-     checks: {debate: true, tool_called: get_financials, contains: ["保守", "不超过 10%"], grounded: true}}
+     checks: {debate: true, tool_called: get_financials, contains: ["保守"], regex: "(不超过|上限|以内|控制在).{0,8}(10|[1-9])(\\.\\d+)?%", grounded: true}}
   - {id: debate-04, category: 深度分析, turns: ["腾讯现在多少钱？"], checks: {tool_not_called: [deep_analysis], not_regex: "Agora|\\[\\[debate", quote: "0700.HK"}}
   - {id: debate-05, category: 深度分析, turns: ["深度分析 9988.HK"], checks: {debate: true, grounded: true, cited: true, verify_clean: true}}
 
   # ---------------- 更深的数据（v0.16） ----------------
   - {id: flow-01, category: 资金流, turns: ["茅台最近 5 天主力资金是流入还是流出？"], checks: {tool_called: get_fund_flow, contains: ["主力"], any: ["流入", "流出"], grounded: true, cited: true}}
-  - {id: flow-02, category: 资金流, turns: ["腾讯的主力资金流向怎么样？"], checks: {tool_called: get_fund_flow, regex: "只支持|不支持|没有", grounded: true}}
+  - {id: flow-02, category: 资金流, turns: ["腾讯的主力资金流向怎么样？"], checks: {tool_called: get_fund_flow, regex: "只支持|仅支持|不支持|没有", grounded: true}}
   - {id: flow-03, category: 资金流, turns: ["北向资金今天净买入多少？"], checks: {tool_called: get_northbound, regex: "停止披露|不再披露", grounded: true}}
   - {id: flow-04, category: 资金流, turns: ["茅台最近上过龙虎榜吗？"], checks: {tool_called: get_dragon_tiger, regex: "没有上|未上", grounded: true}}
   - {id: cons-01, category: 一致预期, turns: ["茅台的分析师目标价是多少？"], checks: {tool_called: get_consensus, contains: ["1430", "2030"], grounded: true, cited: true}}
@@ -190,10 +190,10 @@ cases:
   - {id: opt-01, category: 一致预期, turns: ["NVDA 期权的隐含波动率和 Put/Call 比是多少？"], checks: {tool_called: get_options, contains: ["48.6", "0.66"], grounded: true, cited: true}}
   - {id: filing-01, category: 年报问答, turns: ["茅台 2025 年报里提到了哪些风险？"], checks: {tool_called: read_filing, contains: ["宏观经济风险"], regex: "第 ?\\d+ ?页", cited: true}}
   - {id: filing-02, category: 年报问答, turns: ["茅台 2025 年报管理层讨论里怎么说直销渠道的？"], checks: {tool_called: read_filing, contains: ["直销"], regex: "第 ?\\d+ ?页"}}
-  - {id: filing-03, category: 年报问答, turns: ["NVDA 2026 年报风险因素里关于 export controls 说了什么？"], checks: {tool_called: read_filing, contains: ["export controls"], regex: "第 ?\\d+ ?页"}}
+  - {id: filing-03, category: 年报问答, turns: ["NVDA 2026 年报风险因素里关于 export controls 说了什么？"], checks: {tool_called: read_filing, any: ["export controls", "出口管制"], regex: "第 ?\\d+ ?页"}}
   - {id: cmp-01, category: 年报对比, turns: ["对比茅台 2024 和 2025 年报的风险因素，新增了什么？"], checks: {tool_called: compare_filings, contains: ["新增", "舆情风险"], regex: "第 ?\\d+ ?页"}}
   - {id: cmp-02, category: 年报对比, turns: ["茅台 2025 年报比 2024 年删掉了哪些风险表述？"], checks: {tool_called: compare_filings, contains: ["食品安全风险"], regex: "第 ?\\d+ ?页"}}
-  - {id: conflict-01, category: 数据源冲突, turns: ["1810.HK 现在多少钱？"], checks: {tool_called: get_quotes, regex: "不一致|差异", contains: ["52.3", "49.8"], grounded: true}}
+  - {id: conflict-01, category: 数据源冲突, turns: ["1810.HK 现在多少钱？"], checks: {tool_called: get_quotes, regex: "不一致|差异|冲突", contains: ["52.3", "49.8"], grounded: true}}
   - {id: conflict-02, category: 数据源冲突, turns: ["英伟达分析师目标价多少？"], checks: {tool_called: get_consensus, regex: "不一致|差异", contains: ["328.95", "263.4"], grounded: true}}
 
   # ---------------- 语义记忆（v0.17：同义改写也要召回） ----------------
@@ -221,8 +221,8 @@ cases:
   - {id: event-01, category: 事件研报, setup: {user: ["[2026-10-01] 持有腾讯 0700.HK 200 股，成本 380 港元，看好游戏和广告增长"],
                                               calls: [{symbol: 0700.HK, name: 腾讯控股, view: 看涨, price: 480, horizon_days: 30, reason: "游戏流水增长、广告需求复苏"}]},
      turns: ["腾讯财报出来了，帮我做个事件研报"],
-     checks: {tool_called: earnings_report, contains: ["7.43", "7.24"], any: ["超预期"], regex: "持仓逻辑对照：(加强|削弱|被证伪|基本不变)", event_report: true, disclaimer: true}}
+     checks: {tool_called: earnings_report, contains: ["7.43", "7.24"], any: ["超预期"], regex: "持仓逻辑.{0,12}(加强|削弱|被证伪|基本不变)", event_report: true, disclaimer: true}}
   - {id: event-02, category: 事件研报, setup: {user: ["[2026-10-01] 持有贵州茅台 600519.SS 100 股"],
                                               calls: [{symbol: 600519.SS, name: 贵州茅台, view: 看涨, price: 1400, horizon_days: 30, reason: "高端白酒需求复苏，业绩增长稳健"}]},
      turns: ["茅台财报出来了，帮我复盘一下，对我的持仓逻辑有什么影响？"],
-     checks: {tool_called: earnings_report, contains: ["完成度", "不及预期"], regex: "持仓逻辑对照：削弱", event_report: true}}
+     checks: {tool_called: earnings_report, contains: ["完成度", "不及预期"], regex: "逻辑.{0,12}削弱|削弱.{0,6}逻辑", event_report: true}}

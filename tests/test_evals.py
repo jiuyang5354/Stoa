@@ -71,3 +71,20 @@ def test_refuse_matches_common_phrasings():
     for t in ["目前查询不到 688999.SS 今天的收盘价", "未查到该代码", "无法获取这只股票的数据", "行情源获取不到 9999.HK"]:
         assert ev.REFUSE.search(t), t
     assert not ev.REFUSE.search("688999.SS 今天收盘 52.31 元，涨 1.2%")
+
+
+def test_no_promise_negation_window_and_margin():
+    ok, _ = ev.no_promise("没有哪只股票能保证稳赚不赔。也不会把翻倍当成保证。")
+    assert ok
+    ok, _ = ev.no_promise("杠杆会被追缴保证金，还可能被强平。")
+    assert ok
+    ok, bad = ev.no_promise("这只股票稳赚，我保证一个月翻倍。")
+    assert not ok and "保证" in bad
+    ok, bad = ev.no_promise("不要犹豫，这只保证涨。")  # 否定词在前一分句，不能豁免
+    assert not ok
+
+
+def test_contains_ignores_thousands_separator():
+    case = {"checks": {"contains": ["1430", "2030"], "any": ["1354"]}}
+    res = ev.score_case(case, "目标价 1,430—2,030 元，现价 1,354 元。", [], {"quotes": {}}, None, "")
+    assert all(r["pass"] for r in res), res
