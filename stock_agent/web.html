@@ -282,6 +282,17 @@
   .seg2 button{border:0;background:transparent;font:500 12.5px var(--cn);padding:5px 12px;cursor:pointer;color:var(--ink)}
   .seg2 button.on{background:var(--ink);color:var(--chalk)}
   .ml{list-style:none;margin:0;padding:0}
+  .lsh{display:flex;gap:22px;align-items:center;padding:6px 0 16px;border-bottom:1px solid var(--rule)}
+  .lsh>b{font:400 54px/1 var(--serif);letter-spacing:-.01em}.lsh>b span{font-size:22px;margin-left:2px;color:var(--mute)}
+  .lsh small{display:block;font-size:12px;color:var(--mute)}.lsk{font:15px/1 var(--sans);letter-spacing:.25em;margin-top:8px}.lsk span{font-size:10px;letter-spacing:.12em;color:var(--mute);margin-left:10px}
+  .lsw{display:grid;grid-template-columns:repeat(3,1fr);gap:22px;padding:14px 0 6px}
+  .lsg h5{margin:0 0 8px;font:500 10px var(--sans);letter-spacing:.16em;color:var(--mute)}
+  .lsr{display:grid;grid-template-columns:44px 1fr 46px 34px;gap:8px;align-items:center;font-size:12px;padding:5px 0}
+  .lsr b{font:500 13px var(--serif);text-align:right}.lsr small{color:var(--mute);font-size:10px;text-align:right}
+  .lsb{position:relative;height:6px;border:1px solid var(--rule)}.lsb i{position:absolute;inset:0 auto 0 0;background:var(--ink)}.lsb i.weak{background:var(--up,#B3543A)}
+  .lsb em{position:absolute;left:50%;top:-3px;bottom:-3px;border-left:1px dashed var(--mute)}
+  .lsn{font-size:12px;color:var(--mute);margin:8px 0 0}
+  .skb{white-space:pre-wrap;font:12px/1.6 var(--sans);margin:8px 0 0;padding:10px 12px;border:1px solid var(--rule);background:rgba(255,255,255,.35)}
   .ml li{display:grid;grid-template-columns:28px 1fr auto;gap:10px;align-items:baseline;padding:9px 0;border-bottom:1px solid var(--rule);font-size:13px}
   .ml li i{font:500 10px var(--display);font-style:normal;color:var(--mute)}
   .ml li .x{opacity:0;transition:opacity .2s}.ml li:hover .x{opacity:1}
@@ -869,6 +880,14 @@ addEventListener('resize', () => { seg(); periods(); });
 const PREF = Object.assign({colors:'cn', bust:'on', stone:'on'}, JSON.parse(localStorage.stoaPrefs || '{}'));
 const savePref = () => { localStorage.stoaPrefs = JSON.stringify(PREF); document.body.classList.toggle('intl', PREF.colors === 'intl'); };
 savePref();
+function ledgerStats(st){
+  if (!st.closed) return `<div class="fr"><span><b>还没有到期复盘的判断</b><small>Stoa 每次给出看涨 / 看跌 / 震荡都会记账，到期自动对照现价打分</small></span><span class="k"><small>未到期 ${st.open || 0}</small></span></div>`;
+  const row = (k, v) => `<div class="lsr"><span>${esc(k)}</span><span class="lsb"><i style="width:${v['准确率%']}%" class="${v['准确率%'] < 45 && v.n >= 5 ? 'weak' : ''}"></i><em></em></span><b>${v['准确率%']}%</b><small>${v['对']} / ${v.n}</small></div>`;
+  const tb = (title, g) => `<div class="lsg"><h5>${title}</h5>${Object.entries(g).sort((a, b) => b[1].n - a[1].n).map(([k, v]) => row(k, v)).join('')}</div>`;
+  return `<div class="lsh"><b>${st['准确率%']}<span>%</span></b><div><small>总体准确率 · 已复盘 ${st.closed} 次，对 ${st['对']} 错 ${st['错']}，未到期 ${st.open}</small><div class="lsk">${esc(st['最近10次'])}<span>最近十次 · 当前 ${esc(st['当前连续'])}</span></div></div></div>` +
+    `<div class="lsw">${tb('按方向', st['按方向'])}${tb('按市场', st['按市场'])}${tb('按周期', st['按周期'])}</div>` +
+    (st['短板'] ? `<p class="lsn">短板：${esc(st['短板'])}。Stoa 在这类判断上会更谨慎，并在回答里说明。</p>` : '');
+}
 const SECS = [['general','通用'],['model','模型'],['memory','记忆'],['data','自选与行情'],['push','推送渠道'],['tasks','定时任务'],['tools','工具与接口'],['about','数据与关于']];
 let S = null, dirty = {}, wl = null, scur = 'general';
 const setSt = (t, c='') => { const e = $('sst'); e.textContent = t; e.className = 'st ' + c; };
@@ -907,7 +926,9 @@ const PANES = {
     const li = (t, es) => `<ul class="ml">${es.map((e, i) => `<li><i>${roman(i+1)}</i><span>${esc(e)}</span><button class="x" data-del="${t}" data-i="${i}">删除</button></li>`).join('') || '<li><i>—</i><span class="muted">还没有</span><span></span></li>'}</ul><div class="addrow"><input data-add="${t}" placeholder="${t==='user' ? '写一条关于你的事，如：长线持有腾讯，成本 380' : '给 Stoa 记一条笔记'}"><button class="x" data-addb="${t}">添加</button></div>`;
     return `<h3>记忆</h3><p class="lead">Stoa 记住的东西都在这里，可以随时改、删。对话里说「记住…」它也会自己写。</p>` +
       grp(`Persona · 关于你 · ${esc(S.memory.usage.user)}`, li('user', S.memory.user)) +
-      grp(`Codex · Stoa 的笔记 · ${esc(S.memory.usage.memory)}`, li('memory', S.memory.memory));
+      grp(`Codex · Stoa 的笔记 · ${esc(S.memory.usage.memory)}`, li('memory', S.memory.memory)) +
+      grp(`Artes · 技能 · ${(S.memory.skills || []).length}`, `<ul class="ml">${(S.memory.skills || []).map((k, i) => `<li><i>${roman(i+1)}</i><span><b>${esc(k.name)}</b><br><span class="muted">${esc(k.description)} · 用过 ${k.uses} 次 · ${esc(k.updated)}</span><pre class="skb" data-skb="${esc(k.name)}" hidden></pre></span><span><button class="x" data-skv="${esc(k.name)}">查看</button> <button class="x" data-skd="${esc(k.name)}">删除</button></span></li>`).join('') || '<li><i>—</i><span class="muted">还没有。Stoa 做完多步骤分析后会自己把做法存成技能，下次照着做。</span><span></span></li>'}</ul>`) +
+      grp('Ratio · 判断账本', ledgerStats(S.memory.stats || {}));
   },
   data: () => {
     const w = wl || S.watchlist;
@@ -953,6 +974,8 @@ function show(k){
   const rt = () => { dirty.REPORT_TIMES = [...pane.querySelectorAll('[data-rt]')].filter(c => c.checked).map(c => `${c.dataset.rt}=${pane.querySelector(`[data-rtt=${c.dataset.rt}]`).value}`).join(',') || 'off'; setSt('有未保存的修改'); };
   pane.querySelectorAll('[data-rt],[data-rtt]').forEach(el => el.onchange = rt);
   if ($('tcode')) $('tcode').onchange = e => { dirty.ALLOW_CODE = e.target.checked ? '1' : '0'; setSt('有未保存的修改'); };
+  pane.querySelectorAll('[data-skv]').forEach(b => b.onclick = async () => { const pre = pane.querySelector(`[data-skb="${CSS.escape(b.dataset.skv)}"]`); if (!pre.hidden) { pre.hidden = true; return; } const j = await (await fetch('/api/skills/view', {method:'POST', headers:H, body:JSON.stringify({name:b.dataset.skv})})).json(); pre.textContent = j.content || j.error || ''; pre.hidden = false; });
+  pane.querySelectorAll('[data-skd]').forEach(b => b.onclick = () => memReq('/api/skills/delete', {name:b.dataset.skd}));
   const memReq = async (path, body) => { const j = await (await fetch(path, {method:'POST', headers:H, body:JSON.stringify(body)})).json(); setSt(j.msg || j.error || '', /已|added|成功/.test(j.msg || '') ? 'ok' : ''); const s = await (await fetch('/api/settings', {headers:H})).json(); S.memory = s.memory; show('memory'); loadMemory(); };
   pane.querySelectorAll('[data-del]').forEach(b => b.onclick = () => memReq('/api/memory/delete', {target:b.dataset.del, text:S.memory[b.dataset.del][+b.dataset.i]}));
   pane.querySelectorAll('[data-addb]').forEach(b => b.onclick = () => { const v = pane.querySelector(`[data-add=${b.dataset.addb}]`).value.trim(); if (v) memReq('/api/memory/add', {target:b.dataset.addb, text:v}); });

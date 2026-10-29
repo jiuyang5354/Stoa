@@ -6,6 +6,7 @@
 - calls 表：Agent 给出的判断记账，到期自动复盘，对错沉淀进 MEMORY.md。
 """
 import json
+import re
 import os
 import sqlite3
 from datetime import datetime, timedelta, timezone
@@ -70,8 +71,18 @@ class Memory:
         self._path(target).write_text(text + ("\n" if text else ""), encoding="utf-8")
         return None
 
+    @staticmethod
+    def dated(content: str) -> str:
+        """每条记忆带日期，方便判断新旧、过时就清理。"""
+        content = " ".join(content.split())
+        if re.match(r"^\[?\d{4}-\d{2}-\d{2}", content):
+            return content
+        return f"[{now()[:10]}] {content}"
+
     def add(self, target: str, content: str) -> str:
-        content = content.strip()
+        content = self.dated(content)
+        if any(e.split("] ", 1)[-1] == content.split("] ", 1)[-1] for e in self.entries(target)):
+            return "已存在，未重复写入。"
         es = self.entries(target)
         if content in es:
             return "已存在，未重复写入。"
@@ -83,7 +94,7 @@ class Memory:
         hits = [i for i, e in enumerate(es) if old_text in e]
         if len(hits) != 1:
             return f"old_text 匹配到 {len(hits)} 条，需要恰好 1 条。"
-        es[hits[0]] = content.strip()
+        es[hits[0]] = self.dated(content)
         err = self._write(target, es)
         return err or f"已更新（{self.usage(target)}）。"
 
@@ -100,12 +111,25 @@ class Memory:
         n = len(SEP.join(self.entries(target)))
         return f"{n}/{LIMITS[target]} 字"
 
+    def fill(self, target: str) -> float:
+        return len(SEP.join(self.entries(target))) / LIMITS[target]
+
+    def overwrite(self, target: str, entries: list[str]) -> str | None:
+        """整理记忆时整体改写（先备份到 memory/backup/）。"""
+        p = self._path(target)
+        if p.exists():
+            b = self.mem_dir / "backup"
+            b.mkdir(exist_ok=True)
+            (b / f"{FILES[target]}.{now()[:10]}.bak").write_text(p.read_text(encoding="utf-8"), encoding="utf-8")
+        return self._write(target, [self.dated(e) for e in entries if e.strip()])
+
     def snapshot(self) -> str:
         parts = []
         for t, title in (("user", "关于用户（USER.md）"), ("memory", "你的笔记（MEMORY.md）")):
             es = self.entries(t)
             body = "\n".join(f"- {e}" for e in es) if es else "（空）"
-            parts.append(f"## {title} · {self.usage(t)}\n{body}")
+            warn = "（快满了：先合并相近条目、删掉过时的）" if self.fill(t) > .8 else ""
+            parts.append(f"## {title} · {self.usage(t)}{warn}\n{body}")
         return "\n\n".join(parts)
 
     # ---------- 会话检索 ----------
@@ -166,6 +190,40 @@ class Memory:
         return [dict(zip(cols, r)) for r in rows][::-1]
 
     def call_stats(self) -> dict:
-        rows = self.db.execute("SELECT verdict, COUNT(*) FROM calls WHERE status='closed' GROUP BY verdict").fetchall()
+        """判断账本：总体准确率，并按方向、市场、周期拆开，找出自己哪里常错。"""
         open_n = self.db.execute("SELECT COUNT(*) FROM calls WHERE status='open'").fetchone()[0]
-        return {"open": open_n, **{v: n for v, n in rows}}
+        rows = self.db.execute("SELECT ts, symbol, view, horizon_days, result_pct, verdict FROM calls WHERE status='closed' ORDER BY ts").fetchall()
+        if not rows:
+            return {"open": open_n, "closed": 0}
+
+        def mk(sym):
+            s = sym.upper()
+            return "A股" if s.endswith((".SS", ".SZ", ".BJ")) else "港股" if s.endswith(".HK") else "美股"
+
+        def hz(d):
+            return "≤5天" if d <= 5 else "6-20天" if d <= 20 else ">20天"
+
+        def agg(rs):
+            n = len(rs)
+            right = sum(r[5] == "对" for r in rs)
+            return {"n": n, "对": right, "错": n - right, "准确率%": round(right / n * 100, 1), "平均涨跌%": round(sum(r[4] or 0 for r in rs) / n, 2)}
+
+        def group(key):
+            g = {}
+            for r in rows:
+                g.setdefault(key(r), []).append(r)
+            return {k: agg(v) for k, v in g.items()}
+
+        last = rows[-10:]
+        streak, sv = 0, rows[-1][5]
+        for r in reversed(rows):
+            if r[5] != sv:
+                break
+            streak += 1
+        out = {"open": open_n, "closed": len(rows), **agg(rows),
+               "按方向": group(lambda r: r[2]), "按市场": group(lambda r: mk(r[1])), "按周期": group(lambda r: hz(r[3] or 0)),
+               "最近10次": "".join("✓" if r[5] == "对" else "✗" for r in last), "当前连续": f"{streak}次{sv}"}
+        weak = [f"{k}={v['准确率%']}%" for grp in ("按方向", "按市场", "按周期") for k, v in out[grp].items() if v["n"] >= 5 and v["准确率%"] < 45]
+        if weak:
+            out["短板"] = "、".join(weak)
+        return out

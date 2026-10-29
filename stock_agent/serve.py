@@ -14,7 +14,7 @@ from pathlib import Path
 
 import requests
 
-from . import notify, settings
+from . import notify, settings, skills
 from .agent import Agent, load_cfg
 from .memory import Memory, home
 
@@ -207,7 +207,7 @@ class Web(BaseHTTPRequestHandler):
             body = self._body()
             reply = chat("web:" + str(body.get("session", "default"))[:40], str(body.get("text", ""))[:4000])
             return self._send(200, {"reply": reply})
-        if path.startswith("/api/settings") or path in ("/api/memory/delete", "/api/memory/add"):
+        if path.startswith("/api/settings") or path in ("/api/memory/delete", "/api/memory/add", "/api/skills/delete", "/api/skills/view"):
             if not self._local_ok():
                 return self._send(403, {"error": "设置页只能在本机打开，或先设 WEB_TOKEN"})
             body = self._body()
@@ -217,6 +217,10 @@ class Web(BaseHTTPRequestHandler):
                 return self._send(200, out)
             if path == "/api/settings/test":
                 return self._send(200, settings.test_push() if body.get("what") == "push" else settings.test_llm())
+            if path == "/api/skills/delete":
+                return self._send(200, {"msg": skills.delete(str(body.get("name", "")))})
+            if path == "/api/skills/view":
+                return self._send(200, skills.view(str(body.get("name", "")), count=False))
             if path.startswith("/api/memory/"):
                 t = body.get("target")
                 if t not in ("user", "memory"):

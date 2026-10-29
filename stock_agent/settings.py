@@ -12,6 +12,7 @@ import zipfile
 from . import __version__
 from .agent import load_cfg, save_watchlist
 from .memory import home
+from . import skills
 from .providers import PRESETS, LOCAL
 
 # key: (所属分栏, 中文名, 是否密钥, 说明)
@@ -105,7 +106,8 @@ def get(mem) -> dict:
         "watchlist": cfg.get("watchlist") or [],
         "alerts": cfg.get("alerts") or {},
         "memory": {"user": mem.entries("user"), "memory": mem.entries("memory"),
-                   "usage": {"user": mem.usage("user"), "memory": mem.usage("memory")}},
+                   "usage": {"user": mem.usage("user"), "memory": mem.usage("memory")},
+                   "skills": skills.list_skills(), "stats": mem.call_stats()},
     }
 
 
@@ -163,7 +165,7 @@ def export_zip() -> bytes:
     buf = io.BytesIO()
     h = home()
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
-        for rel in ("config.yaml", "memory", "data", "reports"):
+        for rel in ("config.yaml", "memory", "skills", "data", "reports"):
             p = h / rel
             if p.is_file():
                 z.write(p, rel)

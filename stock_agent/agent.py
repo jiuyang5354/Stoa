@@ -6,7 +6,7 @@ import uuid
 import requests
 import yaml
 
-from . import data, indicators, research
+from . import data, indicators, research, skills
 from . import sandbox
 from .memory import Memory, config_path, now
 from .providers import Router
@@ -29,10 +29,22 @@ SYSTEM = """你是「Stoa」，用户的长期股市助手，覆盖 A股、港�
 - 用户透露了以后还用得上的信息，当场用 memory 工具保存；信息变了就 replace，过时就 remove。
 - 不要存：一次性的行情数字、闲聊、能随时再查到的东西。条目要短、可独立理解，带日期。
 - 用户提到「上次」「之前说过」时，先用 session_search 查历史对话。
+- 每条记忆开头有日期。旧条目和新信息冲突时以新为准，replace 掉旧的；快满时先合并相近条目。
+
+技能（程序性记忆）：
+- 做完一件多步骤（用了 4 次以上工具）、以后还会再做的分析，用 skill_save 把做法写成步骤清单：用哪些工具、按什么顺序、看哪些指标、怎么下结论、踩过什么坑。不写具体数字。
+- 接到任务先看下面的技能索引，有对口的就先 skill_view 照着做；做的过程中发现更好的办法，就 skill_save 覆盖更新。
+
+判断账本：
+- 给方向性判断前，参考下面的账本统计；某类判断（方向/市场/周期）准确率偏低时，要更谨慎，并在回答里说明。
 
 当前时间：{now}（北京时间）
 
 {memory}
+
+{skills}
+
+{ledger}
 
 {reviews}"""
 
@@ -66,7 +78,12 @@ TOOLS = [
                     "required": ["symbol", "view", "horizon_days", "reason"]}},
     {"name": "run_python", "description": "在隔离沙箱里运行一段 Python 做自定义分析（已装 pandas、yfinance、numpy）。用 print 输出结果；可以在当前目录读写文件，文件会保留。超时 60 秒。",
      "parameters": {"type": "object", "properties": {"code": {"type": "string"}}, "required": ["code"]}},
-    {"name": "call_stats", "description": "查看历史判断的胜率统计。", "parameters": {"type": "object", "properties": {}}},
+    {"name": "call_stats", "description": "判断账本统计：总体准确率，按方向、市场、周期拆开的准确率，最近 10 次对错，短板。", "parameters": {"type": "object", "properties": {}}},
+    {"name": "skill_view", "description": "读取一个技能的完整步骤。", "parameters": {"type": "object", "properties": {"name": {"type": "string"}}, "required": ["name"]}},
+    {"name": "skill_save", "description": "新建或覆盖一个技能：name 用简短中文或英文，description 一句话说明什么时候用，content 写步骤清单（Markdown）。",
+     "parameters": {"type": "object", "properties": {"name": {"type": "string"}, "description": {"type": "string"}, "content": {"type": "string"}},
+                    "required": ["name", "description", "content"]}},
+    {"name": "skill_delete", "description": "删除一个过时或无用的技能。", "parameters": {"type": "object", "properties": {"name": {"type": "string"}}, "required": ["name"]}},
 ]
 
 
@@ -125,7 +142,10 @@ class Agent:
         if reviews:
             rv = ("## 刚到期的判断复盘\n" + "\n".join(f"- {r}" for r in reviews) +
                   "\n请在本次对话开头简要告诉用户复盘结果；判断错了的，想清楚错在哪，把可复用的教训用 memory 工具写进 MEMORY.md。")
-        return SYSTEM.format(now=now(), memory=self.mem.snapshot(), reviews=rv)
+        st = self.mem.call_stats()
+        ledger = "## 判断账本\n" + (f"已复盘 {st['closed']} 次，准确率 {st['准确率%']}%，最近：{st['最近10次']}，未到期 {st['open']} 次。"
+                                   + (f" 短板：{st['短板']}。" if st.get("短板") else "") if st.get("closed") else f"还没有复盘过的判断，未到期 {st['open']} 次。")
+        return SYSTEM.format(now=now(), memory=self.mem.snapshot(), skills=skills.index(), ledger=ledger, reviews=rv)
 
     # ----- 工具 -----
     def run_tool(self, name: str, args: dict):
@@ -158,11 +178,20 @@ class Agent:
         m = self.mem
         if name == "memory":
             a, t = args["action"], args["target"]
-            if a == "add":
-                return m.add(t, args.get("content", ""))
-            if a == "replace":
-                return m.replace(t, args.get("old_text", ""), args.get("content", ""))
-            return m.remove(t, args.get("old_text", ""))
+            if a == "remove":
+                return m.remove(t, args.get("old_text", ""))
+            do = (lambda: m.add(t, args.get("content", ""))) if a == "add" else (lambda: m.replace(t, args.get("old_text", ""), args.get("content", "")))
+            res = do()
+            if "超出上限" in res:  # 满了：自动整理一次再写
+                note = self.consolidate(t)
+                res = do() + f"（{note}）"
+            return res
+        if name == "skill_view":
+            return skills.view(args["name"])
+        if name == "skill_save":
+            return skills.save(args["name"], args.get("description", ""), args.get("content", ""))
+        if name == "skill_delete":
+            return skills.delete(args["name"])
         if name == "session_search":
             return m.search(args["query"])
         if name == "watchlist":
@@ -187,6 +216,26 @@ class Agent:
             return sandbox.run_python(args["code"])
         return f"未知工具 {name}"
 
+    def consolidate(self, target: str) -> str:
+        """记忆快满时让模型合并、去重、删过时条目，压到上限的六成左右。"""
+        from .memory import LIMITS, FILES
+        es = self.mem.entries(target)
+        if not es:
+            return "无需整理"
+        prompt = (f"下面是 {FILES[target]} 的全部条目（每条开头是日期）。请整理成更少、更精炼的条目：合并重复和相近的，"
+                  f"新旧冲突以较新的日期为准，删掉过时的一次性信息，保留日期（合并后用最新日期）。总字数控制在 {int(LIMITS[target] * .6)} 字以内。"
+                  "只输出 JSON 字符串数组，不要别的文字。\n\n" + json.dumps(es, ensure_ascii=False))
+        try:
+            msg = self.llm.chat([{"role": "user", "content": prompt}], None)
+            txt = (msg.get("content") or "").strip()
+            new = json.loads(txt[txt.index("["):txt.rindex("]") + 1])
+            if not isinstance(new, list) or not all(isinstance(x, str) for x in new) or not new:
+                raise ValueError("格式不对")
+            err = self.mem.overwrite(target, new)
+            return err or f"已自动整理 {FILES[target]}：{len(es)} 条 → {len(new)} 条，{self.mem.usage(target)}"
+        except Exception as e:
+            return f"自动整理失败：{str(e)[:60]}"
+
     # ----- 模型调用 -----
     def _chat(self, messages):
         return self.llm.chat(messages, self.tools)
@@ -197,6 +246,10 @@ class Agent:
         content = text
         if self.turns % NUDGE_EVERY == 0:
             content += "\n\n[系统提醒：回顾最近几轮，有没有值得写进 USER.md 或 MEMORY.md 的长期信息？有就顺手存，没有就忽略这条提醒。]"
+        if getattr(self, "_heavy", False):
+            content += "\n\n[系统提醒：上一轮你用了很多步工具。如果那套做法以后还用得上，先用 skill_save 存成技能（或更新已有技能），再回答这条。]"
+            self._heavy = False
+        n_tools, saved = 0, False
         self.messages.append({"role": "user", "content": content})
         for _ in range(8):
             msg = self._chat(self.messages)
@@ -205,7 +258,10 @@ class Agent:
             if not calls:
                 reply = msg.get("content") or ""
                 self.mem.log(self.session, "assistant", reply)
+                self._heavy = n_tools >= 4 and not saved
                 return reply
+            n_tools += len(calls)
+            saved = saved or any(c["function"]["name"] == "skill_save" for c in calls)
             for c in calls:
                 name = c["function"]["name"]
                 args = {}
