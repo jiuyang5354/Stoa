@@ -276,8 +276,7 @@
   .gmid{display:flex;flex-direction:column;min-width:0;min-height:0;padding:22px 10px 14px;position:relative}
   .gmid .grays{position:absolute;left:50%;top:6px;width:120%;max-width:900px;aspect-ratio:2/1;transform:translateX(-50%);pointer-events:none;opacity:.55}
   .gcv{position:relative;flex:1;overflow:hidden;cursor:grab;border:1px solid var(--ink);border-radius:999px 999px 0 0/360px 360px 0 0;
-    background:#121110 url(/assets/mnemosyne.jpg) center 85%/auto 108% no-repeat;box-shadow:0 0 0 5px #EEEAE1,0 0 0 6px var(--ink)}
-  .gcv::before{content:"";position:absolute;inset:0;pointer-events:none;z-index:0;background:linear-gradient(180deg,rgba(14,14,13,.35),rgba(14,14,13,.62) 55%,rgba(14,14,13,.8))}
+    background:#121110 radial-gradient(ellipse at 50% 38%,#24221f,#121110 72%);box-shadow:0 0 0 5px #EEEAE1,0 0 0 6px var(--ink)}
   .gcv::after{content:"";position:absolute;inset:0;pointer-events:none;opacity:.18;mix-blend-mode:screen;background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 1.6 -.75'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E")}
   .gcv canvas{position:relative;z-index:1;display:block;width:100%;height:100%}
   .gcv.drag{cursor:grabbing}
@@ -1473,7 +1472,7 @@ function gcard(){
   if (!n) {
     const c = G.counts || {}, calls = G.nodes.filter(x => x.type === 'call' && (x.verdict === '对' || x.verdict === '错')), ok = calls.filter(x => x.verdict === '对').length;
     const top = G.nodes.filter(x => x.type === 'symbol' || x.type === 'theme').sort((a, b) => b.deg - a.deg).slice(0, 8);
-    el.innerHTML = `<div class="gk"><span>Catalogus · 总览</span><span>${G.nodes.length} 件</span></div><div class="gbig" style="font-size:44px">MEMORIA</div><h4>你的记忆</h4><div class="gdeity">ΜΝΗΜΟΣΥΝΗ</div><div class="gepi">谟涅摩叙涅，记忆女神，九位缪斯的母亲。没有记忆，就没有诗、历史，也没有复盘。</div>
+    el.innerHTML = `<div class="gk"><span>Catalogus · 总览</span><span>${G.nodes.length} 件</span></div><div class="gbig" style="font-size:38px">MEMORIA</div><h4>你的记忆</h4><div class="gdeity">ΜΝΗΜΟΣΥΝΗ</div><div class="gepi">谟涅摩叙涅，记忆女神，九位缪斯的母亲。没有记忆，就没有诗、历史，也没有复盘。</div>
       <div class="gstw"><span><b>${(c.user || 0) + (c.note || 0)}</b>条记忆</span><span><b>${c.skill || 0}</b>项技能</span><span><b>${c.call || 0}</b>次判断</span><span><b>${calls.length ? Math.round(ok * 100 / calls.length) + '%' : '—'}</b>复盘准确率</span></div>
       <span class="label glbl">${GSTAR}Clarissima · 最亮的星与神</span><ul>${top.map(x => `<li data-gn="${esc(x.id)}"><i>${GT[x.type].g}</i>${esc(x.label)}<small>${x.deg} 条</small></li>`).join('')}</ul>`;
   } else {
@@ -1484,7 +1483,7 @@ function gcard(){
       stats = `<div class="gstw"><span><b>${nb.filter(x => x.type === 'user' || x.type === 'note').length}</b>条记忆</span><span><b>${nb.filter(x => x.type === 'chat').length}</b>段对话</span><span><b>${cs.length}</b>次判断</span><span><b>${done.length ? Math.round(ok * 100 / done.length) + '%' : '—'}</b>${done.length ? `对 ${ok} / ${done.length}` : '尚无复盘'}</span></div>`; }
     const dei = GDEI[n.label] && (n.type === 'theme' || n.type === 'market') ? GDEI[n.label] : null;
     const sub = [n.symbol && n.symbol !== n.label ? n.symbol : '', n.date, n.verdict ? `<span class="v-${esc(n.verdict)}">${esc(n.verdict)}</span>` : '', n.uses ? `用过 ${n.uses} 次` : ''].filter(Boolean).join(' · ');
-    el.innerHTML = `<div class="gk"><span>${GT[n.type].k} · ${GT[n.type].t}</span><span><a href="#" id="gback" style="color:inherit">总览</a></span></div>${dei ? `<div class="gbig" style="font-size:${Math.min(46, Math.floor(400 / (GLAT[dei[0]] || 'X').length))}px">${GLAT[dei[0]] || ''}</div>` : n.type === 'symbol' && n.symbol ? `<div class="gbig num" style="font-size:${Math.min(40, Math.floor(400 / n.symbol.length))}px">${esc(n.symbol.replace('^', ''))}</div>` : ''}<h4>${esc(n.type === 'call' || n.type === 'chat' || hub || n.type === 'skill' ? n.label : n.label.slice(0, 40))}</h4>${dei ? `<div class="gdeity">${dei[0]}</div>` : ''}${sub ? `<div class="gsub">${sub}</div>` : ''}${dei ? `<div class="gepi">${dei[1]}：${dei[2]}</div>` : ''}
+    el.innerHTML = `<div class="gk"><span>${GT[n.type].k} · ${GT[n.type].t}</span><span><a href="#" id="gback" style="color:inherit">总览</a></span></div>${dei ? `<div class="gbig" style="font-size:${Math.min(40, Math.floor(330 / (GLAT[dei[0]] || "X").length))}px">${GLAT[dei[0]] || ''}</div>` : n.type === 'symbol' && n.symbol ? `<div class="gbig num" style="font-size:${Math.min(40, Math.floor(400 / n.symbol.length))}px">${esc(n.symbol.replace('^', ''))}</div>` : ''}<h4>${esc(n.type === 'call' || n.type === 'chat' || hub || n.type === 'skill' ? n.label : n.label.slice(0, 40))}</h4>${dei ? `<div class="gdeity">${dei[0]}</div>` : ''}${sub ? `<div class="gsub">${sub}</div>` : ''}${dei ? `<div class="gepi">${dei[1]}：${dei[2]}</div>` : ''}
       ${stats}${n.text && !hub ? `<p>${esc(n.text)}</p>` : ''}
       ${n.type === 'chat' ? `<button class="x ask" id="gopen" type="button">打开这段对话</button>` : ''}
       ${hub && n.type !== 'market' ? `<button class="x dark ask" id="gask" type="button">${GSTAR}求问神谕 · ${esc(n.label)}${GSTAR}</button>` : ''}
