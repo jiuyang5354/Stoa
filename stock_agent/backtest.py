@@ -4,6 +4,8 @@
   python -m stock_agent backtest --agent llm --max-calls 200
   python -m stock_agent backtest --symbols AAPL,0700.HK --start 2025-06-01 --end 2026-06-01 --step 10 --horizons 5,20
   python -m stock_agent backtest --synthetic             # 不联网，用合成行情跑通管线
+  python -m stock_agent backtest --agent debate --rounds 1 --max-calls 600   # Agora 多角色辩论（只给技术面截断行情）
+  python -m stock_agent backtest --agent debate --llm mock --synthetic       # 无密钥：mock 角色跑通辩论回测管线
 
 未来数据屏蔽（最要紧）：
 - 行情：PointInTime.asof(symbol, date) 只返回 date 当天及以前的收盘价副本；Agent 拿到的 Snapshot 里只有这份截断序列。
@@ -422,7 +424,7 @@ def by_market(rows, horizons, band5):
 
 def run(symbols=None, start=None, end=None, step=5, horizons=(5, 20), agent="baseline", synthetic=False,
         concurrency=4, max_calls=300, blind=True, band5=1.5, seed=7, llm=None, price_in=0.0, price_out=0.0,
-        run_id=None, save=True, closes=None, progress=None) -> dict:
+        run_id=None, save=True, closes=None, progress=None, rounds=1, llm_kind="auto", agent_obj=None) -> dict:
     horizons = sorted({int(h) for h in horizons})
     today = pd.Timestamp.now().normalize()
     end = pd.Timestamp(end) if end else today - pd.Timedelta(days=int(max(horizons) * 1.6) + 3)
@@ -446,6 +448,14 @@ def run(symbols=None, start=None, end=None, step=5, horizons=(5, 20), agent="bas
         if hasattr(llm_agent.llm, "ready") and not llm_agent.llm.ready:
             raise SystemExit("没有可用的大模型：设置 LLM_PROVIDER / LLM_API_KEY，或用 --agent baseline。")
         main_fn, conc = llm_agent, concurrency
+    elif agent == "debate":
+        from .debate import DebateBTAgent, MockRoleLLM
+        if llm is None and llm_kind == "mock":
+            llm, max_calls = MockRoleLLM(), max(max_calls, 10 ** 9)  # mock 不花钱，不设上限
+        llm_agent = agent_obj or DebateBTAgent(llm=llm, blind=blind, rounds=rounds, max_calls=max_calls, band=band5)
+        if hasattr(llm_agent.llm, "ready") and not llm_agent.llm.ready:
+            raise SystemExit("没有可用的大模型：设置 LLM_PROVIDER / LLM_API_KEY，或加 --llm mock 只跑通管线。")
+        main_fn, conc = llm_agent, concurrency
     else:
         main_fn, conc = rule_agent, 1
     if progress:
@@ -460,7 +470,8 @@ def run(symbols=None, start=None, end=None, step=5, horizons=(5, 20), agent="bas
             preds_main = rows
     out = {"id": run_id, "status": "done", "created": datetime.now(CN_TZ).strftime("%Y-%m-%d %H:%M"),
            "params": {"symbols": list(pit.symbols), "requested": list(symbols), "start": f"{start:%Y-%m-%d}", "end": f"{end:%Y-%m-%d}",
-                      "step": step, "horizons": horizons, "agent": agent, "blind": blind if agent == "llm" else None,
+                      "step": step, "horizons": horizons, "agent": agent, "blind": blind if agent in ("llm", "debate") else None,
+                      "rounds": rounds if agent == "debate" else None, "llm_kind": llm_kind if agent == "debate" else None,
                       "band5%": band5, "seed": seed, "data": source,
                       "missing": [s for s in symbols if s not in pit.symbols]},
            "results": results, "predictions": preds_main,
@@ -557,7 +568,7 @@ def load(run_id: str) -> dict | None:
 
 def run_async(params: dict) -> str:
     """网页 POST /api/backtest：后台线程跑，先写一份 running 状态。"""
-    agent = params.get("agent", "baseline") if params.get("agent") in ("baseline", "llm") else "baseline"
+    agent = params.get("agent", "baseline") if params.get("agent") in ("baseline", "llm", "debate") else "baseline"
     run_id = f"{datetime.now(CN_TZ):%Y%m%d-%H%M%S}-{agent}"
     f = bt_dir() / f"{run_id}.json"
     base = {"id": run_id, "status": "running", "created": datetime.now(CN_TZ).strftime("%Y-%m-%d %H:%M"), "params": {"agent": agent}}
@@ -569,7 +580,8 @@ def run_async(params: dict) -> str:
                 else [s.strip() for s in str(params.get("symbols") or "").split(",") if s.strip()]
             run(symbols=syms or None, start=params.get("start") or None, end=params.get("end") or None,
                 step=int(params.get("step") or 5), horizons=[int(x) for x in (params.get("horizons") or [5, 20])],
-                agent=agent, max_calls=int(params.get("max_calls") or 200), run_id=run_id)
+                agent=agent, max_calls=int(params.get("max_calls") or (600 if agent == "debate" else 200)), run_id=run_id,
+                rounds=int(params.get("rounds") or 1))
         except BaseException as e:
             f.write_text(json.dumps({**base, "status": "error", "error": str(e)[:300]}, ensure_ascii=False), encoding="utf-8")
 
@@ -613,7 +625,9 @@ def main(argv=None):
     p.add_argument("--end")
     p.add_argument("--step", type=int, default=5, help="每隔几个交易日做一次判断")
     p.add_argument("--horizons", default="5,20", help="持有期（交易日），逗号分隔，第一个是主周期")
-    p.add_argument("--agent", choices=["baseline", "llm"], default="baseline")
+    p.add_argument("--agent", choices=["baseline", "llm", "debate"], default="baseline")
+    p.add_argument("--rounds", type=int, default=1, help="debate 模式的多空辩论轮数（1–3）")
+    p.add_argument("--llm", dest="llm_kind", choices=["auto", "mock"], default="auto", help="debate 模式：mock = 无密钥用规则扮演各角色，只验证管线")
     p.add_argument("--synthetic", action="store_true", help="用合成行情（离线）")
     p.add_argument("--concurrency", type=int, default=4, help="LLM 并发上限")
     p.add_argument("--max-calls", type=int, default=300, help="本次最多调用 LLM 次数（缓存命中不算）")
@@ -628,7 +642,8 @@ def main(argv=None):
     settings.load_env_file()
     res = run(symbols=[s.strip() for s in a.symbols.split(",")] if a.symbols else None, start=a.start, end=a.end, step=a.step,
               horizons=[int(x) for x in a.horizons.split(",")], agent=a.agent, synthetic=a.synthetic, concurrency=a.concurrency,
-              max_calls=a.max_calls, blind=not a.no_blind, band5=a.band, seed=a.seed, price_in=a.price_in, price_out=a.price_out)
+              max_calls=a.max_calls, blind=not a.no_blind, band5=a.band, seed=a.seed, price_in=a.price_in, price_out=a.price_out,
+              rounds=a.rounds, llm_kind=a.llm_kind)
     if a.json:
         print(json.dumps({k: v for k, v in res.items() if k != "predictions"}, ensure_ascii=False, indent=1))
     else:
