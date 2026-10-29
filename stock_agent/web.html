@@ -238,6 +238,55 @@
   @media(max-width:560px){.arch{width:118px}.fig{margin-top:66px;padding:10px}.burst{width:96px;top:-66px}.stem{top:-18px;height:30px}figcaption{margin-top:20px}.poster{font-size:46px}}
   @media(max-width:560px){.temple{inset:6px}.chips{grid-template-columns:1fr}.chip:nth-child(odd){border-right:0}.chip:nth-child(even){padding-left:2px}h1{font-size:22px}}
   @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+  /* ---- 设置（分栏参考 ChatGPT / Claude 桌面版、Cherry Studio、Hermes Dashboard：左侧分栏 + 右侧表单，Ctrl+, 打开） ---- */
+  .gear{position:absolute;right:22px;top:24px;display:flex;align-items:center;gap:7px;border:1px solid var(--rule-2);background:transparent;color:var(--ink);font:500 9.5px var(--sans);letter-spacing:.2em;text-transform:uppercase;padding:7px 11px;cursor:pointer;transition:background .25s,border-color .25s}
+  .gear:hover{background:var(--ink);color:var(--chalk);border-color:var(--ink)}
+  .gear svg{transition:transform .6s var(--ease)}.gear:hover svg{transform:rotate(90deg)}
+  .set{position:fixed;inset:0;z-index:50;display:grid;place-items:center;background:rgba(24,23,21,.32);backdrop-filter:blur(3px);animation:fadein .25s ease both}
+  .set[hidden]{display:none}
+  @keyframes fadein{from{opacity:0}}
+  .sw{width:min(980px,94vw);height:min(680px,90vh);display:grid;grid-template-columns:220px 1fr;background:#F6F4EF;border:1px solid var(--ink);box-shadow:6px 6px 0 -1px #F6F4EF,6px 6px 0 0 var(--ink);position:relative;animation:rise .45s var(--ease) both}
+  .sw::before{content:"PLATE · SETTINGS";position:absolute;right:14px;top:-17px;font:500 8.5px var(--sans);letter-spacing:.22em;color:var(--chalk);background:var(--ink);padding:3px 7px}
+  .rail{border-right:1px solid var(--rule-2);padding:22px 0;display:flex;flex-direction:column;overflow:auto}
+  .rail h2{font:500 17px/1 var(--display);letter-spacing:.18em;text-transform:uppercase;margin:0 22px 18px}
+  .rail button{display:grid;grid-template-columns:30px 1fr;align-items:baseline;text-align:left;border:0;background:transparent;color:var(--ink);font:500 13.5px var(--cn);padding:9px 22px;cursor:pointer;letter-spacing:.04em;transition:background .2s,padding .3s var(--ease)}
+  .rail button i{font:500 10.5px var(--display);font-style:normal;color:var(--mute);letter-spacing:.06em}
+  .rail button:hover{background:var(--marble-2);padding-left:26px}
+  .rail button.on{background:var(--ink);color:var(--chalk)}.rail button.on i{color:var(--chalk)}
+  .rail .ver{margin-top:auto;padding:14px 22px 0;font:500 8.5px var(--sans);letter-spacing:.18em;color:var(--mute);text-transform:uppercase}
+  .pane{overflow:auto;padding:26px 34px 90px;scrollbar-width:thin;scrollbar-color:var(--rule-2) transparent}
+  .pane h3{font:500 22px/1.2 var(--cn);margin:0 0 4px;letter-spacing:.04em}
+  .pane .lead{font:italic 16px/1.5 var(--serif);color:var(--mute);margin:0 0 20px}
+  .grp{border-top:1px solid var(--ink);margin:0 0 26px}
+  .grp>.label{display:block;padding:9px 0 2px}
+  .fr{display:grid;grid-template-columns:150px 1fr;gap:6px 18px;align-items:center;padding:11px 0;border-bottom:1px solid var(--rule)}
+  .fr>span b{display:block;font:500 13.5px var(--cn)}.fr>span small{display:block;font:11px/1.45 var(--sans);color:var(--mute)}
+  .fr input[type=text],.fr input[type=password],.fr input[type=time],.fr select{width:100%;box-sizing:border-box;border:0;border-bottom:1px solid var(--rule-2);background:transparent;font:400 14px var(--sans);color:var(--ink);padding:6px 2px;outline:0;border-radius:0}
+  .fr input:focus,.fr select:focus{border-bottom-color:var(--ink)}
+  .fr .k{display:flex;gap:8px;align-items:center}
+  .fr .k em{font:italic 13px var(--serif);color:var(--mute);white-space:nowrap}
+  .x{border:1px solid var(--rule-2);background:transparent;font:500 9px var(--sans);letter-spacing:.16em;padding:5px 8px;cursor:pointer;color:var(--ink);text-transform:uppercase;white-space:nowrap}
+  .x:hover{border-color:var(--ink)}
+  .x.dark{background:var(--ink);color:var(--chalk);border-color:var(--ink)}
+  .tg{appearance:none;width:36px;height:18px;border:1px solid var(--ink);border-radius:999px;position:relative;cursor:pointer;margin:0;background:transparent;transition:background .25s}
+  .tg::after{content:"";position:absolute;left:2px;top:2px;width:12px;height:12px;border-radius:50%;background:var(--ink);transition:transform .3s var(--spring),background .25s}
+  .tg:checked{background:var(--ink)}.tg:checked::after{transform:translateX(18px);background:var(--chalk)}
+  .seg2{display:inline-flex;border:1px solid var(--ink)}
+  .seg2 button{border:0;background:transparent;font:500 12.5px var(--cn);padding:5px 12px;cursor:pointer;color:var(--ink)}
+  .seg2 button.on{background:var(--ink);color:var(--chalk)}
+  .ml{list-style:none;margin:0;padding:0}
+  .ml li{display:grid;grid-template-columns:28px 1fr auto;gap:10px;align-items:baseline;padding:9px 0;border-bottom:1px solid var(--rule);font-size:13px}
+  .ml li i{font:500 10px var(--display);font-style:normal;color:var(--mute)}
+  .ml li .x{opacity:0;transition:opacity .2s}.ml li:hover .x{opacity:1}
+  .addrow{display:flex;gap:8px;padding:10px 0}
+  .addrow input{flex:1;border:0;border-bottom:1px solid var(--rule-2);background:transparent;font:italic 15px var(--serif);outline:0;padding:4px 2px;color:var(--ink)}
+  .ep{font:12.5px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace;background:var(--marble-2);padding:4px 7px;user-select:all}
+  .sfoot{position:absolute;left:220px;right:0;bottom:0;display:flex;align-items:center;gap:12px;justify-content:flex-end;padding:12px 34px;border-top:1px solid var(--rule-2);background:rgba(246,244,239,.96)}
+  .sfoot .st{margin-right:auto;font:italic 14px var(--serif);color:var(--mute)}
+  .sfoot .st.ok{color:var(--olive)}.sfoot .st.bad{color:var(--terracotta)}
+  .sclose{position:absolute;right:12px;top:10px;border:0;background:transparent;font:300 26px/1 var(--serif);cursor:pointer;color:var(--ink)}
+  body.intl{--up:var(--olive);--down:var(--terracotta)}
+  @media(max-width:720px){.sw{grid-template-columns:1fr}.rail{flex-direction:row;overflow-x:auto;padding:10px 0;border-right:0;border-bottom:1px solid var(--rule-2)}.rail h2,.rail .ver{display:none}.rail button{white-space:nowrap}.sfoot{left:0}.fr{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
@@ -250,6 +299,7 @@
     <span class="label">Agora · 上海 · 香港 · 纽约 · Est. MMXXVI</span>
     <h1>Stoa · 股市</h1>
     <em>A stoic market agent that remembers.</em>
+    <button class="gear" id="gear" type="button" aria-label="设置（Ctrl+,）"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="3.2"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1"/></svg>Settings</button>
   </header>
   <div id="log"></div>
   <div class="composer">
@@ -265,6 +315,14 @@
     <div class="label disclaim">仅供参考 · 不构成投资建议 · Non consilium, sed observatio</div>
   </div>
 </div></main>
+<div class="set" id="set" hidden role="dialog" aria-modal="true" aria-label="设置">
+  <div class="sw">
+    <nav class="rail" id="rail"><h2>Settings</h2><span class="ver" id="sver"></span></nav>
+    <div class="pane" id="pane"></div>
+    <div class="sfoot"><span class="st" id="sst"></span><button class="x" id="scancel">取消</button><button class="x dark" id="ssave">保存</button></div>
+    <button class="sclose" id="sx" aria-label="关闭">×</button>
+  </div>
+</div>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
   <pattern id="dotup" width="3" height="3" patternUnits="userSpaceOnUse"><circle cx="1.5" cy="1.5" r=".75" fill="#B3543A"/></pattern>
   <pattern id="dotdn" width="3" height="3" patternUnits="userSpaceOnUse"><circle cx="1.5" cy="1.5" r=".75" fill="#56684F"/></pattern>
@@ -327,7 +385,7 @@ const TRAV = '/assets/travertine009_';
     g.putImageData(C, 0, 0);
     const url = URL.createObjectURL(await new Promise(r => cv.toBlob(r, 'image/jpeg', .9)));
     document.body.style.setProperty('--wall', `url(${url})`);
-    document.body.classList.add('stone');
+    if (JSON.parse(localStorage.stoaPrefs || '{}').stone !== 'off') document.body.classList.add('stone');
   } catch (e) { /* 贴图拿不到就保留程序生成的岩壁 */ }
 })();
 const COLS = [18,34,50,66,82].map(x => `<rect x="${x-4.2}" y="78" width="8.4" height="58" fill="url(#col)"/>` + [-2.4,0,2.4].map(d => `<line x1="${x+d}" x2="${x+d}" y1="80" y2="134" stroke="#181715" stroke-opacity=".18" stroke-width=".35"/>`).join('') + `<rect x="${x-5.6}" y="75.5" width="11.2" height="2.6" fill="#D8D1C2" stroke="#181715" stroke-opacity=".35" stroke-width=".3"/>`).join('');
@@ -439,7 +497,7 @@ function empty(){
     <div><span class="label">Stoa Poikile · 今日之问</span><div class="poster"><em>the</em>STOA</div><h2>今天想看什么？</h2><p class="lead">它记得你的持仓与偏好；每一次判断都刻进账本，到期自行复盘。</p><div class="chips">${
     SUGGEST.map((s,i)=>`<button class="chip" style="animation-delay:${120+i*60}ms" data-q="${esc(s)}"><i>${roman(i+1)}</i><span>${esc(s)}</span></button>`).join('')}</div></div></div>`;
   log.querySelectorAll('.chip').forEach(c => c.onclick = () => send(c.dataset.q));
-  temple3d(log.querySelector('.arch'));
+  if (JSON.parse(localStorage.stoaPrefs || '{}').bust !== 'off') temple3d(log.querySelector('.arch'));
 }
 let turn = 0;
 function add(role, html){
@@ -452,6 +510,7 @@ function add(role, html){
 let busy = false;
 async function send(text){
   text = (text ?? input.value).trim(); if (!text || busy) return;
+  if (text === '/settings') { input.value = ''; sync(); return openSettings(); }
   input.value = ''; sync(); busy = true; $('b').disabled = true;
   add('u', esc(text));
   const seed = turn * 131 + Date.now() % 97;
@@ -798,6 +857,122 @@ $('tq').oninput = terrain;
 periods(); seg(); loadIndices(); loadMemory();
 setInterval(loadIndices, 10*60*1000);
 addEventListener('resize', () => { seg(); periods(); });
+
+/* ---------- 设置：通用 · 模型 · 记忆 · 自选与行情 · 推送 · 定时 · 工具与接口 · 数据与关于 ---------- */
+const PREF = Object.assign({colors:'cn', bust:'on', stone:'on'}, JSON.parse(localStorage.stoaPrefs || '{}'));
+const savePref = () => { localStorage.stoaPrefs = JSON.stringify(PREF); document.body.classList.toggle('intl', PREF.colors === 'intl'); };
+savePref();
+const SECS = [['general','通用'],['model','模型'],['memory','记忆'],['data','自选与行情'],['push','推送渠道'],['tasks','定时任务'],['tools','工具与接口'],['about','数据与关于']];
+let S = null, dirty = {}, wl = null, scur = 'general';
+const setSt = (t, c='') => { const e = $('sst'); e.textContent = t; e.className = 'st ' + c; };
+function openSettings(sec){
+  $('set').hidden = false; dirty = {}; wl = null; setSt('');
+  $('rail').querySelectorAll('button').forEach(b => b.remove());
+  SECS.forEach(([k, n], i) => { const b = document.createElement('button'); b.dataset.k = k; b.innerHTML = `<i>${roman(i+1)}</i><span>${n}</span>`; b.onclick = () => show(k); $('sver').before(b); });
+  fetch('/api/settings', {headers:H}).then(r => r.json()).then(j => { if (j.error) { $('pane').innerHTML = `<h3>设置</h3><p class="lead">${esc(j.error)}</p>`; return; } S = j; $('sver').textContent = 'Stoa v' + j.version; show(sec || scur); })
+    .catch(e => $('pane').innerHTML = `<p class="lead">读取失败：${esc(e)}</p>`);
+}
+function closeSettings(){ $('set').hidden = true; }
+function field(k){
+  const f = S.env[k]; if (!f) return '';
+  const v = dirty[k] !== undefined ? (dirty[k] ?? '') : (f.secret ? '' : f.value);
+  const ph = f.secret ? (f.set ? f.value + ' · 已设置，留空不改' : '未设置') : (f.hint || '');
+  const clr = f.secret && f.set ? `<button class="x" data-clr="${k}">清除</button>` : '';
+  return `<label class="fr"><span><b>${esc(f.label)}</b>${f.hint && !f.secret ? '' : `<small>${esc(f.hint)}</small>`}</span><span class="k"><input type="${f.secret ? 'password' : 'text'}" data-env="${k}" value="${esc(v)}" placeholder="${esc(ph)}" autocomplete="off" spellcheck="false">${clr}</span></label>`;
+}
+function grp(title, inner){ return `<div class="grp"><span class="label">${title}</span>${inner}</div>`; }
+function sseg(name, opts){ return `<span class="seg2" data-pref="${name}">${opts.map(([v,t]) => `<button type="button" data-v="${v}" class="${PREF[name]===v?'on':''}">${t}</button>`).join('')}</span>`; }
+const PANES = {
+  general: () => `<h3>通用</h3><p class="lead">外观与动效，只存在这台电脑上。</p>` + grp('Appearance · 外观',
+    `<div class="fr"><span><b>涨跌配色</b><small>A股习惯红涨绿跌</small></span><span>${sseg('colors', [['cn','赤涨 · 橄榄跌'],['intl','橄榄涨 · 赤跌']])}</span></div>
+     <div class="fr"><span><b>首页 3D 胸像</b><small>老电脑卡顿时关掉</small></span><span>${sseg('bust', [['on','开'],['off','关']])}</span></div>
+     <div class="fr"><span><b>石灰华岩壁</b><small>背景石材纹理</small></span><span>${sseg('stone', [['on','开'],['off','关']])}</span></div>`) +
+    grp('Shortcuts · 快捷键', `<div class="fr"><span><b>打开设置</b></span><span class="ep">Ctrl + ,</span></div><div class="fr"><span><b>新对话</b><small>先整理这次的记忆</small></span><span class="ep">/new</span></div><div class="fr"><span><b>查看记忆</b></span><span class="ep">/memory</span></div>`),
+  model: () => {
+    const pv = dirty.LLM_PROVIDER ?? S.env.LLM_PROVIDER.value, p = S.providers.find(x => x.id === pv) || {};
+    return `<h3>模型</h3><p class="lead">Stoa 用哪个大模型思考。国内直连推荐 DeepSeek、通义、Kimi；也能接本地 Ollama。</p>` +
+    grp('Provider · 服务商', `<label class="fr"><span><b>服务商</b><small>${p.local ? '本地模型，不需要密钥' : esc(p.base || '')}</small></span><select data-env="LLM_PROVIDER">${S.providers.map(x => `<option value="${x.id}" ${x.id===pv?'selected':''}>${x.id}</option>`).join('')}</select></label>` +
+      field('LLM_API_KEY') + field('LLM_MODEL').replace('placeholder="留空用服务商默认"', `placeholder="留空用默认 ${esc(p.model || '')}"`) + field('LLM_BASE_URL')) +
+    grp('Fallback · 备用', field('LLM_FALLBACK')) +
+    `<button class="x" id="tllm">测试连接</button>`;
+  },
+  memory: () => {
+    const li = (t, es) => `<ul class="ml">${es.map((e, i) => `<li><i>${roman(i+1)}</i><span>${esc(e)}</span><button class="x" data-del="${t}" data-i="${i}">删除</button></li>`).join('') || '<li><i>—</i><span class="muted">还没有</span><span></span></li>'}</ul><div class="addrow"><input data-add="${t}" placeholder="${t==='user' ? '写一条关于你的事，如：长线持有腾讯，成本 380' : '给 Stoa 记一条笔记'}"><button class="x" data-addb="${t}">添加</button></div>`;
+    return `<h3>记忆</h3><p class="lead">Stoa 记住的东西都在这里，可以随时改、删。对话里说「记住…」它也会自己写。</p>` +
+      grp(`Persona · 关于你 · ${esc(S.memory.usage.user)}`, li('user', S.memory.user)) +
+      grp(`Codex · Stoa 的笔记 · ${esc(S.memory.usage.memory)}`, li('memory', S.memory.memory));
+  },
+  data: () => {
+    const w = wl || S.watchlist;
+    return `<h3>自选与行情</h3><p class="lead">自选股会出现在右栏和早晚报里。代码用 Yahoo 格式：600519.SS、0700.HK、NVDA。</p>` +
+    grp('Watchlist · 自选股', `<ul class="ml" id="wl">${w.map((x, i) => `<li><i>${roman(i+1)}</i><span><b>${esc(x.name)}</b> <span class="muted">${esc(x.symbol)}</span></span><button class="x" data-wdel="${i}">移除</button></li>`).join('') || '<li><i>—</i><span class="muted">还没有自选股</span><span></span></li>'}</ul>
+      <div class="addrow"><input id="wsym" placeholder="代码，如 0700.HK" style="flex:.7"><input id="wname" placeholder="名称，如 腾讯控股"><button class="x" id="wadd">添加</button></div>`) +
+    grp('Sources · 行情源', field('DATA_PROVIDERS') + ['TUSHARE_TOKEN','FINNHUB_API_KEY','ALPHAVANTAGE_API_KEY','POLYGON_API_KEY','TWELVEDATA_API_KEY','TIINGO_API_KEY','FMP_API_KEY','DATA_CUSTOM_URL'].map(field).join(''));
+  },
+  push: () => `<h3>推送渠道</h3><p class="lead">早晚报和提醒推到哪里。填哪个推哪个，可以同时开几个。</p>` +
+    grp('WeChat · 微信', ['SERVERCHAN_KEY','PUSHPLUS_TOKEN','WECOM_WEBHOOK'].map(field).join('')) +
+    grp('Work · 办公', ['FEISHU_WEBHOOK','DINGTALK_WEBHOOK','SLACK_WEBHOOK','DISCORD_WEBHOOK'].map(field).join('')) +
+    grp('Phone · 手机', ['BARK_KEY','NTFY_TOPIC','TELEGRAM_BOT_TOKEN','TELEGRAM_CHAT_ID'].map(field).join('')) +
+    grp('Other · 其它', field('WEBHOOK_URL')) + `<button class="x" id="tpush">发一条测试推送</button>`,
+  tasks: () => {
+    const rt = (dirty.REPORT_TIMES ?? S.env.REPORT_TIMES.value) || '', t = Object.fromEntries(rt.split(',').filter(s => s.includes('=')).map(s => s.split('=').map(x => x.trim())));
+    const row = (k, n, d, def) => `<div class="fr"><span><b>${n}</b><small>${d}</small></span><span class="k"><input type="checkbox" class="tg" data-rt="${k}" ${t[k] ? 'checked' : ''}><input type="time" data-rtt="${k}" value="${t[k] || def}" style="max-width:130px"></span></div>`;
+    return `<h3>定时任务</h3><p class="lead">工作日按北京时间自动生成报告，并推到你开的渠道。Stoa 窗口开着才会运行。</p>` +
+      grp('Reports · 报告', row('morning', '早报', 'A股 / 港股盘前 + 美股隔夜', '08:30') + row('evening', '晚报', 'A股 / 港股收盘 + 美股盘前', '21:00'));
+  },
+  tools: () => {
+    const code = (dirty.ALLOW_CODE ?? S.env.ALLOW_CODE.value) === '1', o = location.origin;
+    return `<h3>工具与接口</h3><p class="lead">Stoa 能用的工具，以及把它接进别的软件的地址。</p>` +
+    grp('Tools · 工具', `<div class="fr"><span><b>允许写代码分析</b><small>在沙箱里跑 Python 算指标、回测</small></span><span><input type="checkbox" class="tg" id="tcode" ${code ? 'checked' : ''}></span></div>`) +
+    grp('Endpoints · 对外接口', `<div class="fr"><span><b>OpenAI 兼容</b><small>Cherry Studio、LobeChat 等填这个地址，模型名 stoa</small></span><span class="k"><span class="ep">${o}/v1</span><button class="x" data-copy="${o}/v1">复制</button></span></div>
+      <div class="fr"><span><b>MCP</b><small>Claude、Cursor、Hermes 可直接调用 Stoa 的工具</small></span><span class="k"><span class="ep">${o}/mcp</span><button class="x" data-copy="${o}/mcp">复制</button></span></div>`) +
+    grp('Access · 访问', field('WEB_TOKEN') + field('CORS_ORIGIN'));
+  },
+  about: () => `<h3>数据与关于</h3><p class="lead">所有数据都在你自己的电脑上，Stoa 不上传任何东西。</p>` +
+    grp('Data · 数据', `<div class="fr"><span><b>数据目录</b><small>记忆、账本、配置、密钥</small></span><span class="k"><span class="ep">${esc(S.home)}</span><button class="x" data-copy="${esc(S.home)}">复制</button></span></div>
+      <div class="fr"><span><b>导出备份</b><small>记忆、判断账本、自选股和报告，不含密钥</small></span><span><button class="x" id="exp">导出 .zip</button></span></div>`) +
+    grp('About · 关于', `<div class="fr"><span><b>版本</b></span><span>Stoa v${esc(S.version)}</span></div><div class="fr"><span><b>源代码</b></span><span><a href="https://github.com/jiuyang5354/Stoa" target="_blank" rel="noopener" style="color:var(--ink)">github.com/jiuyang5354/Stoa</a></span></div>
+      <div class="fr"><span><b>声明</b></span><span class="muted">仅供参考，不构成投资建议。</span></div>`),
+};
+function show(k){
+  scur = k; $('rail').querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.k === k));
+  const pane = $('pane'); pane.innerHTML = PANES[k](); pane.scrollTop = 0;
+  pane.querySelectorAll('[data-env]').forEach(el => el.oninput = el.onchange = () => { dirty[el.dataset.env] = el.value; if (el.dataset.env === 'LLM_PROVIDER') show('model'); setSt('有未保存的修改'); });
+  pane.querySelectorAll('[data-clr]').forEach(b => b.onclick = e => { e.preventDefault(); dirty[b.dataset.clr] = null; S.env[b.dataset.clr].set = false; S.env[b.dataset.clr].value = ''; show(k); setSt('有未保存的修改'); });
+  pane.querySelectorAll('[data-pref]').forEach(g => g.querySelectorAll('button').forEach(b => b.onclick = () => { PREF[g.dataset.pref] = b.dataset.v; savePref(); show(k); setSt(g.dataset.pref === 'colors' ? '已切换' : '刷新后生效', 'ok'); }));
+  pane.querySelectorAll('[data-copy]').forEach(b => b.onclick = () => { navigator.clipboard?.writeText(b.dataset.copy); b.textContent = '已复制'; });
+  const rt = () => { dirty.REPORT_TIMES = [...pane.querySelectorAll('[data-rt]')].filter(c => c.checked).map(c => `${c.dataset.rt}=${pane.querySelector(`[data-rtt=${c.dataset.rt}]`).value}`).join(',') || 'off'; setSt('有未保存的修改'); };
+  pane.querySelectorAll('[data-rt],[data-rtt]').forEach(el => el.onchange = rt);
+  if ($('tcode')) $('tcode').onchange = e => { dirty.ALLOW_CODE = e.target.checked ? '1' : '0'; setSt('有未保存的修改'); };
+  const memReq = async (path, body) => { const j = await (await fetch(path, {method:'POST', headers:H, body:JSON.stringify(body)})).json(); setSt(j.msg || j.error || '', /已|added|成功/.test(j.msg || '') ? 'ok' : ''); const s = await (await fetch('/api/settings', {headers:H})).json(); S.memory = s.memory; show('memory'); loadMemory(); };
+  pane.querySelectorAll('[data-del]').forEach(b => b.onclick = () => memReq('/api/memory/delete', {target:b.dataset.del, text:S.memory[b.dataset.del][+b.dataset.i]}));
+  pane.querySelectorAll('[data-addb]').forEach(b => b.onclick = () => { const v = pane.querySelector(`[data-add=${b.dataset.addb}]`).value.trim(); if (v) memReq('/api/memory/add', {target:b.dataset.addb, text:v}); });
+  if ($('wadd')) {
+    const w = () => wl || (wl = S.watchlist.map(x => ({...x})));
+    $('wadd').onclick = () => { const s = $('wsym').value.trim(); if (!s) return; w().push({symbol:s, name:$('wname').value.trim() || s}); show('data'); setSt('有未保存的修改'); };
+    pane.querySelectorAll('[data-wdel]').forEach(b => b.onclick = () => { w().splice(+b.dataset.wdel, 1); show('data'); setSt('有未保存的修改'); });
+  }
+  const test = (id, what) => { if ($(id)) $(id).onclick = async () => { if (Object.keys(dirty).length) await saveSettings(true); setSt('测试中…'); const j = await (await fetch('/api/settings/test', {method:'POST', headers:H, body:JSON.stringify({what})})).json(); setSt(j.msg, j.ok ? 'ok' : 'bad'); }; };
+  test('tllm', 'llm'); test('tpush', 'push');
+  if ($('exp')) $('exp').onclick = async () => { const b = await (await fetch('/api/export', {headers:H})).blob(); const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = `stoa-backup-${new Date().toISOString().slice(0,10)}.zip`; a.click(); setSt('已导出', 'ok'); };
+}
+async function saveSettings(quiet){
+  const body = {env: dirty}; if (wl) body.watchlist = wl;
+  if (!Object.keys(dirty).length && !wl) { if (!quiet) closeSettings(); return; }
+  setSt('保存中…');
+  const j = await (await fetch('/api/settings', {method:'POST', headers:H, body:JSON.stringify(body)})).json();
+  if (!j.ok) { setSt(j.error || '保存失败', 'bad'); return; }
+  const s = await (await fetch('/api/settings', {headers:H})).json(); S = s; dirty = {}; wl = null;
+  setSt('已保存，立即生效', 'ok'); if (body.watchlist) loadIndices(); if (!quiet) show(scur);
+}
+$('gear').onclick = () => openSettings();
+$('sx').onclick = $('scancel').onclick = closeSettings;
+$('ssave').onclick = () => saveSettings();
+$('set').onclick = e => { if (e.target === $('set')) closeSettings(); };
+addEventListener('keydown', e => {
+  if ((e.ctrlKey || e.metaKey) && e.key === ',') { e.preventDefault(); $('set').hidden ? openSettings() : closeSettings(); }
+  if (e.key === 'Escape' && !$('set').hidden) closeSettings();
+});
 </script>
 </body>
 </html>

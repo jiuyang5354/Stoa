@@ -94,6 +94,10 @@ def window_webview(url: str, home: Path) -> bool:
         print("pywebview 不可用:", e)
         return False
     try:
+        try:
+            webview.settings["ALLOW_DOWNLOADS"] = True  # 设置页「导出备份」
+        except Exception:
+            pass
         webview.create_window("Stoa · 股市", url, width=1440, height=920, min_size=(960, 640),
                               background_color="#EFECE6", text_select=True)
         kw = {"private_mode": False, "storage_path": str(home / "webview")}

@@ -14,7 +14,7 @@ from pathlib import Path
 
 import requests
 
-from . import notify
+from . import notify, settings
 from .agent import Agent, load_cfg
 from .memory import Memory, home
 
@@ -94,6 +94,20 @@ def indices() -> list[dict]:
         return out
 
 
+def apply_settings(watchlist: bool = False):
+    """设置保存后：已开的会话换上新模型，自选股变了就清行情缓存。"""
+    from .providers import Router
+    with LOCK:
+        for sess in SESSIONS.values():
+            try:
+                sess["agent"].llm = Router(load_cfg().get("llm", {}))
+            except Exception as e:
+                log("apply settings", e)
+    if watchlist:
+        with _IDX_LOCK:
+            _IDX.update(ts=0, data=None)
+
+
 # ---------------- 网页 ----------------
 class Web(BaseHTTPRequestHandler):
     def log_message(self, *a):
@@ -130,6 +144,10 @@ class Web(BaseHTTPRequestHandler):
     def _body(self):
         return json.loads(self.rfile.read(int(self.headers.get("Content-Length", 0))) or b"{}")
 
+    def _local_ok(self) -> bool:
+        """设置接口能改密钥：没设口令时只允许本机访问。"""
+        return bool(os.getenv("WEB_TOKEN")) or self.client_address[0] in ("127.0.0.1", "::1", "::ffff:127.0.0.1")
+
     def do_GET(self):
         if self.path.split("?")[0] in ("/", "/index.html"):
             return self._send(200, UI, "text/html")
@@ -158,6 +176,20 @@ class Web(BaseHTTPRequestHandler):
                 return self._send(200, {"items": indices(), "updated": datetime.now(CN_TZ).strftime("%H:%M")})
             except Exception as e:
                 return self._send(200, {"items": [], "error": str(e)})
+        if self.path == "/api/settings":
+            if not self._local_ok():
+                return self._send(403, {"error": "设置页只能在本机打开，或先设 WEB_TOKEN"})
+            return self._send(200, settings.get(MEM))
+        if self.path.startswith("/api/export"):
+            if not self._local_ok():
+                return self._send(403, {"error": "forbidden"})
+            data = settings.export_zip()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/zip")
+            self.send_header("Content-Disposition", f'attachment; filename="stoa-backup-{datetime.now(CN_TZ):%Y%m%d}.zip"')
+            self.send_header("Content-Length", str(len(data)))
+            self.end_headers()
+            return self.wfile.write(data)
         if self.path == "/v1/models":
             return self._send(200, {"object": "list", "data": [{"id": "stoa", "object": "model", "owned_by": "stoa"}]})
         if self.path == "/api/report":
@@ -173,6 +205,22 @@ class Web(BaseHTTPRequestHandler):
             body = self._body()
             reply = chat("web:" + str(body.get("session", "default"))[:40], str(body.get("text", ""))[:4000])
             return self._send(200, {"reply": reply})
+        if path.startswith("/api/settings") or path in ("/api/memory/delete", "/api/memory/add"):
+            if not self._local_ok():
+                return self._send(403, {"error": "设置页只能在本机打开，或先设 WEB_TOKEN"})
+            body = self._body()
+            if path == "/api/settings":
+                out = settings.save(body)
+                apply_settings(watchlist="watchlist" in body)
+                return self._send(200, out)
+            if path == "/api/settings/test":
+                return self._send(200, settings.test_push() if body.get("what") == "push" else settings.test_llm())
+            if path.startswith("/api/memory/"):
+                t = body.get("target")
+                if t not in ("user", "memory"):
+                    return self._send(400, {"error": "target"})
+                text = str(body.get("text", ""))[:600]
+                return self._send(200, {"msg": MEM.add(t, text) if path.endswith("add") else MEM.remove(t, text)})
         if path in ("/v1/chat/completions", "/chat/completions"):
             return self._openai(self._body())
         if path == "/mcp":
@@ -252,12 +300,17 @@ def telegram():
 
 
 # ---------------- 定时早晚报 ----------------
+def report_times() -> dict:
+    """REPORT_TIMES=morning=08:30,evening=21:00；设成 off 就关掉。每轮重读，设置页改了立即生效。"""
+    return {s.split("=")[0].strip(): s.split("=")[1].strip()
+            for s in os.getenv("REPORT_TIMES", "morning=08:30,evening=21:00").split(",") if "=" in s}
+
+
 def scheduler():
-    times = {s.split("=")[0]: s.split("=")[1] for s in os.getenv("REPORT_TIMES", "morning=08:30,evening=21:00").split(",") if "=" in s}
     done = set()
-    log("定时报告：", times, "（北京时间，工作日）")
+    log("定时报告：", report_times(), "（北京时间，工作日）")
     while True:
-        now = datetime.now(CN_TZ)
+        now, times = datetime.now(CN_TZ), report_times()
         if now.weekday() < 5:
             for session, hhmm in times.items():
                 key = (now.date(), session)
@@ -269,6 +322,7 @@ def scheduler():
 
 
 def main():
+    settings.load_env_file()
     port, host = int(os.getenv("PORT", "8080")), os.getenv("HOST", "0.0.0.0")
     for fn in (reaper, telegram, scheduler):
         threading.Thread(target=fn, daemon=True).start()
