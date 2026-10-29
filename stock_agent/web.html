@@ -5,23 +5,23 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Stoa · 股市 Agent</title>
 <!--
-  风格：古希腊神庙 / 博物馆展签。Cinzel 铭文标题 + Cormorant Garamond 数字与斜体 + Inter 展签小字。
+  风格：古希腊神庙 / 博物馆展签。字体全部来自 dafont.com（100% Free / OFL）：Optimus Princeps 铭文标题 + Linux Libertine 数字与斜体 + Alte Haas Grotesk 展签小字 + Archeologicaps 海报大字；中文 Noto Serif SC。
   控件交互参考 21st.dev（Ticker #19171 · Market Snapshot #22249 · Sparkline #35038 · AI Chat Input #2015 ·
   Suggestions #26546 · Text Dots #28400），原生重写，无构建步骤。
 -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500;600&family=Instrument+Serif:ital@0;1&family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&family=Inter:wght@400;500;600&family=Noto+Serif+SC:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
   :root{
     --marble:#F5F2EB;--marble-2:#EFECE6;--travertine:#E5E0D5;--ink:#181715;--mute:#5F5A52;--rule:rgba(24,23,21,.12);--rule-2:rgba(24,23,21,.22);
     --bronze:#9E7B56;--ink-2:#4A4640;--terracotta:#B3543A;--olive:#56684F;
     --up:var(--terracotta);--down:var(--olive);
-    --display:"Cinzel","Noto Serif SC","Songti SC",serif;
-    --serif:"Cormorant Garamond","Noto Serif SC","Songti SC",serif;
-    --poster:"Instrument Serif","Bodoni Moda","Didot",Georgia,serif;--slate:#121211;--chalk:#E9E6DF;
+    --display:"Optimus Princeps","Noto Serif SC","Songti SC",serif;
+    --serif:"Linux Libertine","Noto Serif SC","Songti SC",serif;
+    --poster:"Linux Libertine",Georgia,serif;--slate:#121211;--chalk:#E9E6DF;
     --cn:"Noto Serif SC","Songti SC",serif;
-    --sans:"Inter","Plus Jakarta Sans","PingFang SC","Noto Sans SC",sans-serif;
+    --sans:"Alte Haas Grotesk","PingFang SC","Noto Sans SC",sans-serif;
     --ease:cubic-bezier(.16,1,.3,1);--spring:cubic-bezier(.34,1.3,.64,1);
   }
   *{box-sizing:border-box}
@@ -96,6 +96,13 @@
   @keyframes spin{to{transform:translateX(-50%) rotate(360deg)}}
   .stem{position:absolute;left:50%;top:-26px;height:42px;border-left:1px solid var(--ink);z-index:1}
   @font-face{font-family:"Archeologicaps";src:url(/assets/archeologicaps.woff2) format("woff2");font-display:swap}
+  @font-face{font-family:"Optimus Princeps";src:url(/assets/optimus-princeps.woff2) format("woff2");font-weight:300 550;font-display:swap}
+  @font-face{font-family:"Optimus Princeps";src:url(/assets/optimus-princeps-semibold.woff2) format("woff2");font-weight:551 900;font-display:swap}
+  @font-face{font-family:"Linux Libertine";src:url(/assets/libertine-regular.woff2) format("woff2");font-weight:300 550;font-display:swap}
+  @font-face{font-family:"Linux Libertine";src:url(/assets/libertine-bold.woff2) format("woff2");font-weight:551 900;font-display:swap}
+  @font-face{font-family:"Linux Libertine";src:url(/assets/libertine-italic.woff2) format("woff2");font-style:italic;font-weight:300 900;font-display:swap}
+  @font-face{font-family:"Alte Haas Grotesk";src:url(/assets/alte-haas-grotesk.woff2) format("woff2");font-weight:300 550;font-display:swap}
+  @font-face{font-family:"Alte Haas Grotesk";src:url(/assets/alte-haas-grotesk-bold.woff2) format("woff2");font-weight:551 900;font-display:swap}
   .poster{font:400 82px/.92 "Archeologicaps",var(--poster);letter-spacing:.02em;margin:12px 0 18px;color:var(--ink);white-space:nowrap}
   .poster em{font:italic 400 .5em/1 var(--poster);letter-spacing:-.01em;vertical-align:.92em;margin-right:.12em}
   .arch svg,.arch canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
@@ -210,7 +217,7 @@
   .cap svg{position:absolute;inset:0;width:100%;height:100%;display:block}
   .cap .vine{fill:none;stroke:var(--chalk);stroke-width:.9;stroke-linecap:round;stroke-dasharray:var(--l);stroke-dashoffset:var(--l);animation:grow 1.6s var(--ease) forwards}
   .cap .leaf,.cap .star,.cap .berry{fill:var(--chalk);transform-box:fill-box;transform-origin:center;transform:scale(0);animation:bud .5s var(--spring) forwards}
-  .cap .glyph{font:400 46px/1 "Archeologicaps","Cinzel",serif;fill:var(--chalk);paint-order:stroke;stroke:var(--ink);stroke-width:5px;opacity:0;animation:inkin .5s .9s var(--ease) forwards}
+  .cap .glyph{font:400 46px/1 "Archeologicaps","Optimus Princeps",serif;fill:var(--chalk);paint-order:stroke;stroke:var(--ink);stroke-width:5px;opacity:0;animation:inkin .5s .9s var(--ease) forwards}
   .cap.cn .glyph{font:600 34px/1 var(--cn)}
   .cap.think .vine{animation-duration:4.5s;animation-iteration-count:infinite;animation-direction:alternate}
   .cap.think .leaf,.cap.think .star{animation-iteration-count:infinite;animation-direction:alternate;animation-duration:2.2s}
@@ -483,7 +490,7 @@ function terrain(){
     return `<rect data-i="${i}" x="${(i*gw+.6).toFixed(1)}" y="${(Hh-12-h).toFixed(1)}" width="${Math.max(gw-1.6,1.5).toFixed(1)}" height="${h.toFixed(1)}" fill="${fill}" stroke="var(--ink)" stroke-width=".5" class="${on?'':'dim'}"/>`;
   }).join('');
   const months = []; LEDGER.forEach((c, i) => { const m = (c.ts||'').slice(0,7); if (m && (!months.length || months[months.length-1][1] !== m)) months.push([i, m]); });
-  el.innerHTML = `<svg viewBox="0 0 320 ${Hh}" preserveAspectRatio="none"><defs><pattern id="hatch" width="3" height="3" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="3" stroke="#181715" stroke-width=".8"/></pattern></defs>${bars}<line x1="0" x2="320" y1="${Hh-12}" y2="${Hh-12}" stroke="var(--ink)"/>${months.map(([i,m]) => `<text x="${(i*gw).toFixed(1)}" y="${Hh-2}" font-size="7" font-family="Inter" letter-spacing=".8" fill="var(--mute)">${m.replace('-','.')}</text>`).join('')}</svg>`;
+  el.innerHTML = `<svg viewBox="0 0 320 ${Hh}" preserveAspectRatio="none"><defs><pattern id="hatch" width="3" height="3" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="3" stroke="#181715" stroke-width=".8"/></pattern></defs>${bars}<line x1="0" x2="320" y1="${Hh-12}" y2="${Hh-12}" stroke="var(--ink)"/>${months.map(([i,m]) => `<text x="${(i*gw).toFixed(1)}" y="${Hh-2}" font-size="7" font-family="Alte Haas Grotesk" letter-spacing=".8" fill="var(--mute)">${m.replace('-','.')}</text>`).join('')}</svg>`;
   $('tqn').textContent = q ? `${hit} / ${n}` : `${n} 条`;
   el.querySelectorAll('rect').forEach(b => { b.onpointerenter = e => {
     const c = LEDGER[+b.dataset.i]; el.querySelector('.tcard')?.remove();
@@ -785,7 +792,7 @@ function chart(){
   $('bar').style.background = col;
   $('svg').innerHTML = [.33,.66].map(p => `<line x1="8" x2="${W-8}" y1="${8+p*(HH-18)}" y2="${8+p*(HH-18)}" stroke="var(--rule)" stroke-dasharray="1 4"/>`).join('')
     + `<path class="ar" d="${line} L${x(data.length-1)} ${HH} L8 ${HH}Z" fill="url(#${data[data.length-1] >= data[0]?'dotup':'dotdn'})" mask="url(#fade)"/><path class="ln" id="ln" d="${line}" stroke="${col}"/><g id="hv"></g>`
-    + (short ? `<text x="${W/2}" y="${HH/2}" text-anchor="middle" font-size="13" font-style="italic" font-family="Cormorant Garamond, serif" fill="var(--mute)">历史数据不足，只显示最新价</text>` : '');
+    + (short ? `<text x="${W/2}" y="${HH/2}" text-anchor="middle" font-size="13" font-style="italic" font-family="Linux Libertine, serif" fill="var(--mute)">历史数据不足，只显示最新价</text>` : '');
   const ln = $('ln'), L = ln.getTotalLength();
   ln.style.strokeDasharray = L; ln.style.strokeDashoffset = L;
   ln.getBoundingClientRect(); ln.style.transition = 'stroke-dashoffset .65s var(--ease)'; ln.style.strokeDashoffset = 0;
