@@ -14,6 +14,7 @@
 - 自动更新（v0.9）：启动时检查 GitHub 新版本，设置 → 数据与关于 →「更新并重启」一键换新（数据不动，STOA_UPDATE=off 关闭）；每次发版先在 GitHub 的 Windows 机器上真机自检（双击 Stoa.exe、开独立窗口、静默卸载），过了才挂包
 - 价格预警与公告提醒（v0.9）：对话里说「腾讯跌破 450 提醒我」就设好；支持涨到/跌到某价、单日涨跌超某百分比、有新公告；自选股默认有新公告就提醒；约每 5 分钟检查（ALERT_INTERVAL），推到已开的渠道，网页开着会弹出提示
 - 记忆会整理（v0.8）：每条记忆带日期，快满时自动合并去重（改写前备份）；做完多步骤分析会把做法存成技能，下次照着做；判断账本按方向、市场、周期统计准确率，找出短板
+- 回测与评测（v0.14 · Probatio）：时间穿越回测（严格屏蔽未来数据，分市场的方向胜率、置信度校准、多空组合 vs 买入持有 vs 随机 / 一直看多 / 动量基线）+ 32 道固定评测题（报价准确、拒绝编造、风控、记忆、工具选择），没有大模型密钥也能跑，详见下文
 - 信号：单日大涨大跌、RSI 超买超卖、上穿 / 跌破 20 日线、52 周新高新低
 - AI 点评与对话：DeepSeek、通义、Kimi、智谱、豆包、Claude、Gemini、Ollama 等二十多家模型，行情源可接 Tushare、Twelve Data 等，对外提供 OpenAI 兼容接口和 MCP
 - 定时：GitHub Actions 每个工作日北京时间 08:30、21:00 自动跑，报告存进 `reports/`
@@ -124,6 +125,36 @@ python -m stock_agent review   # 手动复盘到期的判断
 ```
 
 对话里能做的：查行情和技术指标、看新闻和公告、查财报估值、联网搜索并读原文、增删自选股、记住你的持仓、搜以前聊过的内容、给判断并记账、看历史胜率。
+
+## 回测与评测（v0.14 · Probatio）
+
+给 Stoa 的每一次改进一把尺子：同一套题、同一段历史，改前改后各跑一次，看分数变没变。
+
+**时间穿越回测**：回到历史上每个时点，只把截至那天的收盘价给 Agent，让它说 看多 / 看空 / 中性 + 置信度，再用之后 N 个交易日的真实收盘价打分。
+
+```bash
+python -m stock_agent backtest                    # 规则 Agent（均线），默认 12 只 A/港/美股，近一年，每 5 个交易日，持有 5/20 日
+python -m stock_agent backtest --agent llm --max-calls 200 --concurrency 4
+python -m stock_agent backtest --symbols 600519.SS,0700.HK,NVDA --start 2025-06-01 --end 2026-06-01 --step 10 --horizons 5,20
+python -m stock_agent backtest --synthetic        # 离线：合成行情跑通管线
+```
+
+- **未来数据屏蔽**：行情序列按决策日截断后才交给 Agent；新闻、公告、财报、联网搜索、记忆、对话检索、判断账本在回测里全部不给。大模型 Agent 默认「盲测」：隐去代码和日期、价格归一化到 100，减少它凭训练记忆「背答案」（`--no-blind` 关闭）。
+- **指标**（A股 / 港股 / 美股 分开）：方向胜率（不含中性）、含中性的命中率（中性 = 涨跌在 ±1.5%×√(h/5) 内）、按置信度分组的胜率（校准）、多空组合累计收益、买入持有、最大回撤；同时跑三条基线：随机、一直看多、20 日动量。「全部」组合按市场等额分仓，避免不同交易日历的持有期重复计算。
+- **大模型**：同一时点 + 同一标的 + 同一模型只调用一次（缓存在 `data/backtests/llm_cache.db`），`--max-calls` 封顶、`--concurrency` 限并发，结果里有调用数、缓存命中、估算 token 与费用（`--price-in/--price-out` 或 `LLM_PRICE_IN/OUT`，每百万 token 美元）。
+- 结果：`data/backtests/<id>.json`；装了 matplotlib（`pip install -r requirements-dev.txt`）还会出一张 `<id>.png`。网页：设置 → 回测与评测，或右栏账本下的「Probatio · 回测」，能看最近一次的核心数字、分市场曲线，并在后台发起新回测。
+
+**评测集**：`stock_agent/evals/cases.yaml` 32 道固定题，覆盖报价准确性（回答里的数字要和工具返回一致）、拒绝编造（问不存在的代码）、风控（不承诺收益、有免责）、记忆（记得持仓，跨会话）、工具选择（该查公告时查公告）。工具返回用固定数据，在临时数据目录里跑真正的 Agent，规则打分。
+
+```bash
+python -m stock_agent eval            # 有密钥用当前模型，没有就用 mock 跑通管线（mock 分数不代表模型水平）
+python -m stock_agent eval --only 记忆 -v
+python -m stock_agent eval --judge    # 另请大模型评委给每题 1–5 分（不计入规则总分）
+```
+
+结果存 `data/evals/<id>.json`，摘要追加到 `data/evals/history.jsonl`，输出里会和上一次同模型的分数对比。接口：`GET /api/backtests`、`GET /api/backtests/<id>`（`<id>.png` 为图）、`POST /api/backtest`（后台线程，仅本机或带 WEB_TOKEN）、`GET /api/evals`。
+
+测试：`pip install -r requirements-dev.txt && python -m pytest -q tests`。
 
 ## 本地运行
 
