@@ -494,7 +494,11 @@ def span_pages(pages: list[str], lo: int, hi: int, head: str = "") -> list[tuple
             txt = txt[txt.index(head) + len(head):]
             txt = head + txt
         body = txt[len(head):] if pno == lo and head and txt.startswith(head) else txt
-        m = re.search(r"(?im)^\s*(第[一二三四五六七八九十]+节|item\s*\d+[a-z]?\.)\s*\S", body)
+        sub = re.match(r"^\s*[（(][一二三四五六七八九十]+[)）]", head or "")  # 「(四)可能面对的风险」这类小节：到下一个同级或上级标号为止
+        stop = r"(?im)^\s*(第[一二三四五六七八九十]+节|item\s*\d+[a-z]?\.)\s*\S"
+        if sub:
+            stop = r"(?m)(?:^|\s)(?:[（(][一二三四五六七八九十]+[)）]|[一二三四五六七八九十]+、|第[一二三四五六七八九十]+节)\s*\S"
+        m = re.search(stop, body)
         if m and head and not body[m.start():].strip().startswith(head):
             cut = (len(txt) - len(body)) + m.start()
             if txt[:cut].strip():
@@ -509,7 +513,7 @@ def chunks(pages: list[str], lo: int = 1, hi: int | None = None, size: int = 520
     hi = hi or len(pages)
     out = []
     for pno, txt in span_pages(pages, lo, hi, head):
-        txt = re.sub(r"[ \t]+", " ", txt)
+        txt = re.sub(r"[ \t]+", " ", re.sub(r"[√□]\s?适用\s?[√□]\s?不适用", "", txt))
         paras = [x.strip() for x in re.split(r"\n(?=\S)", txt) if x.strip()]
         cur = ""
         for para in paras:

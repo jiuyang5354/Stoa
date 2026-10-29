@@ -270,7 +270,7 @@ class MockLLM:
             if r.get("target_nasdaq"):
                 out.append(f"Nasdaq 统计的目标价均值是 {r['target_nasdaq'].get('mean')}。")
             for w in r.get("warnings") or []:
-                out.append(f"注意：两个数据源不一致——{w}")
+                out.append(f"注意：两个数据源不一致——{w}" if "差异" in w or "不一致" in w else f"注意：{w}")
         for r in res.get("get_options", []):
             if r.get("error"):
                 out.append(r["error"] + "。")
