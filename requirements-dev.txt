@@ -1,0 +1,2 @@
+matplotlib>=3.7   # 回测出图（可选，没装就不出 PNG）
+pytest>=7
