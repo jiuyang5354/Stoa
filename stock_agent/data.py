@@ -223,6 +223,10 @@ def _yahoo(symbols: list[str], period: str) -> dict[str, pd.Series]:
     return out
 
 
+SOURCE_NAMES = {"eastmoney": "东方财富", "tushare": "Tushare", "finnhub": "Finnhub", "alphavantage": "Alpha Vantage", "polygon": "Polygon",
+                "twelvedata": "Twelve Data", "tiingo": "Tiingo", "fmp": "FMP", "custom": "自定义数据源"}
+
+
 def provider_order() -> list[str]:
     names = [x.strip().lower() for x in os.getenv("DATA_PROVIDERS", "yahoo,eastmoney").split(",") if x.strip()]
     return [n for n in names if n == "yahoo" or n in PROVIDERS] or ["yahoo", "eastmoney"]
@@ -235,9 +239,10 @@ def fetch_closes(symbols: list[str], period: str = "1y") -> dict[str, pd.Series]
     order = provider_order()
     best: dict[str, pd.Series] = {}
 
-    def keep(s, ser):
+    def keep(s, ser, src=""):
         if ser is not None and len(ser) > len(best.get(s, [])):
-            best[s] = ser.iloc[-(days + 1):]
+            best[s] = ser.iloc[-(days + 1):].copy()
+            best[s].attrs["source"] = src  # 引用用：这只标的的行情来自哪个数据源
 
     for name in order:
         todo = [s for s in symbols if len(best.get(s, [])) < MIN_ROWS]
@@ -245,16 +250,16 @@ def fetch_closes(symbols: list[str], period: str = "1y") -> dict[str, pd.Series]
             break
         if name == "yahoo":
             for s, ser in _yahoo(todo, period).items():
-                keep(s, ser)
+                keep(s, ser, "Yahoo Finance")
             continue
         for s in todo:
             try:
-                keep(s, PROVIDERS[name](s, days))
+                keep(s, PROVIDERS[name](s, days), SOURCE_NAMES.get(name, name))
             except Exception:
                 pass
     for s in symbols:
         if len(best.get(s, [])) < 2:
-            keep(s, _prev_close_series(s))
+            keep(s, _prev_close_series(s), "Yahoo 报价（仅昨收）")
     return best
 
 

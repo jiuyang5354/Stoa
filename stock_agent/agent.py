@@ -119,7 +119,16 @@ def save_watchlist(wl: list[dict]):
 def quotes(symbols: list[str]) -> dict:
     cfg = load_cfg()
     closes = data.fetch_closes(symbols)
-    return {s: indicators.analyze(closes[s], cfg.get("alerts", {})) if s in closes else "无数据" for s in symbols}
+    out = {}
+    for s in symbols:
+        if s not in closes:
+            out[s] = "无数据"
+            continue
+        a = indicators.analyze(closes[s], cfg.get("alerts", {}))
+        if a and closes[s].attrs.get("source"):
+            a["source"] = closes[s].attrs["source"]
+        out[s] = a
+    return out
 
 
 def review_due(mem: Memory) -> list[str]:
