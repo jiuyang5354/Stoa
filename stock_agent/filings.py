@@ -513,7 +513,7 @@ def chunks(pages: list[str], lo: int = 1, hi: int | None = None, size: int = 520
     hi = hi or len(pages)
     out = []
     for pno, txt in span_pages(pages, lo, hi, head):
-        txt = re.sub(r"[ \t]+", " ", re.sub(r"[√□]\s?适用\s?[√□]\s?不适用", "", txt))
+        txt = re.sub(r"[ \t]+", " ", re.sub(r"[√□]\s*适用\s*[√□]\s*不适用", "", txt))
         paras = [x.strip() for x in re.split(r"\n(?=\S)", txt) if x.strip()]
         cur = ""
         for para in paras:
@@ -606,6 +606,7 @@ KEY_WORDS = re.compile(r"风险|下降|下滑|不确定|监管|竞争|关税|诉
 def sentences(pages: list[str], lo: int, hi: int, head: str = "") -> list[dict]:
     out = []
     for pno, raw in span_pages(pages, lo, hi, head):
+        raw = re.sub(r"[√□]\s*适用\s*[√□]\s*不适用", "", raw)
         txt = re.sub(r"\s*\n\s*", "", raw) if re.search(r"[\u4e00-\u9fff]", raw) else re.sub(r"\s+", " ", raw)
         for s in SENT_SPLIT.split(txt):
             s = s.strip()
@@ -706,7 +707,8 @@ def compare_filings(symbol: str, year_a: int | None = None, year_b: int | None =
             "added": fmt(key_rank(d["added"], n=n), mb), "removed": fmt(key_rank(d["removed"], n=n), ma),
             "modified": [{"before": _clip(x["before"], 200), "after": _clip(x["after"], 200), "page_a": x["page_a"], "page_b": x["page_b"],
                           "url": page_url(mb, x["page_b"], x["after"])} for x in key_rank(d["modified"], key="after", n=min(5, n))],
-            "warnings": warn, "note": f"added = {yb} 年新出现的句子（页码是 {yb} 年报告），removed = {ya} 年有、{yb} 年删掉的（页码是 {ya} 年报告）；按风险关键词排序取关键句"}
+            "warnings": warn + ([f"两年「{SECTIONS[sec]}」的文字完全相同（共 {len(sb)} 句），没有新增或删除"] if not (d["added"] or d["removed"] or d["modified"]) else []),
+            "note": f"added = {yb} 年新出现的句子（页码是 {yb} 年报告），removed = {ya} 年有、{yb} 年删掉的（页码是 {ya} 年报告）；按风险关键词排序取关键句"}
 
 
 def cached_list() -> list[dict]:
