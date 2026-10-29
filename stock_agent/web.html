@@ -227,6 +227,71 @@
   .pen-layer{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible}
   .pen-layer path{fill:none;stroke:var(--terracotta);stroke-width:1.3;stroke-linecap:round;stroke-linejoin:round;opacity:.85;stroke-dasharray:var(--l);stroke-dashoffset:var(--l);animation:grow .7s var(--ease) forwards}
   mark.pen{background:none;color:inherit}
+  /* ---- Citatio · 引用角标与来源 ---- */
+  :root{--gold:#B09259;--ivory:#F6F3EC}
+  sup.ct{font:600 9.5px/1 var(--serif);color:var(--bronze);margin:0 1px 0 1px;padding:1px 2px;border-bottom:1px solid rgba(176,146,89,.55);cursor:pointer;vertical-align:super;font-variant-numeric:lining-nums;transition:color .2s,background .2s}
+  sup.ct:hover,sup.ct.on{color:var(--ink);background:rgba(176,146,89,.14)}
+  .unv{display:inline-block;margin:0 2px;padding:0 5px;font:500 9.5px/1.6 var(--sans);letter-spacing:.08em;color:var(--terracotta);border:1px solid rgba(179,84,58,.5);vertical-align:1px}
+  .srcs{white-space:normal;margin-top:16px;padding-top:10px;border-top:1px solid var(--gold);font:12px/1.55 var(--sans);color:var(--mute)}
+  .srcs .label{display:block;margin-bottom:6px;color:var(--bronze)}
+  .srcs ol{list-style:none;margin:0;padding:0;display:grid;gap:3px}
+  .srcs li{display:grid;grid-template-columns:22px 1fr;gap:4px;align-items:baseline}
+  .srcs li i{font:italic 12px var(--serif);color:var(--bronze)}
+  .srcs li.on{color:var(--ink)}
+  .srcs a{color:inherit;text-decoration:none;border-bottom:1px solid var(--rule-2);word-break:break-all}.srcs a:hover{color:var(--ink);border-color:var(--ink)}
+  .ctip{position:absolute;z-index:30;width:280px;background:var(--ivory);border:1px solid var(--gold);box-shadow:0 14px 30px -18px rgba(24,23,21,.45);padding:10px 12px 9px;white-space:normal;font:12.5px/1.5 var(--sans);color:var(--ink-2);pointer-events:auto;animation:rise .25s var(--ease) both}
+  .ctip small{display:block;font:500 8.5px var(--sans);letter-spacing:.16em;text-transform:uppercase;color:var(--bronze);margin-bottom:4px}
+  .ctip b{display:block;font:500 13.5px/1.4 var(--serif);color:var(--ink)}
+  .ctip em{display:block;margin-top:3px;font:italic 12px var(--serif);color:var(--mute)}
+  .ctip a{display:inline-block;margin-top:5px;font-size:11.5px;color:var(--ink);word-break:break-all}
+  /* ---- Agora · 辩论纪要（象牙白、古典衬线、金色细线） ---- */
+  .agb{white-space:normal;display:flex;align-items:center;gap:12px;margin-top:16px;width:100%;border:0;border-top:1px solid var(--gold);border-bottom:1px solid var(--gold);background:transparent;padding:9px 2px;cursor:pointer;color:var(--ink);font:inherit;text-align:left}
+  .agb .agt{font:500 13px/1 var(--display);letter-spacing:.32em}
+  .agb em{font:italic 14px var(--serif);color:var(--mute)}
+  .agb .arr{margin-left:auto;font:13px var(--serif);color:var(--bronze);transition:transform .35s var(--ease)}
+  .agb.open .arr{transform:rotate(90deg)}
+  .agora{position:relative;white-space:normal;background:var(--ivory);border:1px solid rgba(176,146,89,.55);border-top:0;padding:22px 26px 24px;font:13px/1.65 var(--sans);color:var(--ink-2);animation:rise .45s var(--ease) both}
+  .agora header{display:flex;align-items:baseline;gap:14px;padding-bottom:12px;border-bottom:1px solid var(--gold)}
+  .agora header .agt{font:500 22px/1 var(--display);letter-spacing:.34em;color:var(--ink)}
+  .agora header em{font:italic 15px var(--serif);color:var(--ink-2)}
+  .agora header small{margin-left:auto;font:500 8.5px var(--sans);letter-spacing:.16em;text-transform:uppercase;color:var(--mute);text-align:right}
+  .agsec{padding:16px 0 4px}
+  .agsec h5{margin:0 0 12px;display:flex;align-items:baseline;gap:10px;font:500 8.5px var(--sans);letter-spacing:.2em;text-transform:uppercase;color:var(--bronze)}
+  .agsec h5 i{font:italic 15px var(--serif);letter-spacing:0;color:var(--ink);text-transform:none}
+  .agsec h5::after{content:"";flex:1;border-top:1px solid rgba(176,146,89,.45);transform:translateY(-3px)}
+  .aggrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0;border-top:1px solid var(--rule);border-left:1px solid var(--rule)}
+  .agc{padding:12px 14px 12px;border-right:1px solid var(--rule);border-bottom:1px solid var(--rule)}
+  .agc .hd{display:flex;align-items:baseline;gap:8px}
+  .agc b{font:500 15px var(--serif);color:var(--ink)}
+  .agc .en{font:italic 12px var(--serif);color:var(--mute)}
+  .agc .stn{margin-left:auto;font:500 13px var(--serif);white-space:nowrap}
+  .agc p{margin:6px 0 4px;color:var(--ink-2)}
+  .agc ul,.agv ul,.agrisk ul{margin:0;padding:0;list-style:none}
+  .agc li,.agv li,.agrisk li{position:relative;padding-left:12px;font-size:12.5px}
+  .agc li::before,.agv li::before,.agrisk li::before{content:"·";position:absolute;left:2px;color:var(--gold)}
+  .stx{display:inline-block;margin-top:6px;font:500 8.5px var(--sans);letter-spacing:.14em;text-transform:uppercase;color:var(--terracotta)}
+  .stx.off{color:var(--mute)}
+  .agc.st-disabled,.agc.st-no_data{opacity:.62}
+  .s-up{color:var(--terracotta)}.s-down{color:var(--olive)}.s-flat{color:var(--mute)}
+  .agr{display:grid;grid-template-columns:54px 1fr 1fr;gap:0 18px;padding:10px 0;border-bottom:1px solid var(--rule)}
+  .agr:last-child{border-bottom:0}
+  .agr .rn{font:italic 14px var(--serif);color:var(--bronze);padding-top:1px}
+  .agr .side b{display:block;font:500 8.5px var(--sans);letter-spacing:.18em;text-transform:uppercase;margin-bottom:3px}
+  .agr .bull b{color:var(--terracotta)}.agr .bear b{color:var(--olive)}
+  .agr .side p{margin:0 0 4px;color:var(--ink-2)}
+  .agr .reb{font:italic 13px/1.55 var(--serif);color:var(--mute);border-left:1px solid var(--gold);padding-left:9px}
+  .agrisk{display:grid;grid-template-columns:auto 1fr;gap:4px 18px;align-items:baseline}
+  .agrisk .dec{font:500 22px/1 var(--serif);color:var(--ink)}
+  .agrisk .dec.d-veto{color:var(--terracotta)}.agrisk .dec.d-down{color:var(--bronze)}
+  .agrisk .kv{grid-column:2;font-size:12.5px;color:var(--mute)}
+  .agv{display:grid;grid-template-columns:auto 1fr;gap:6px 22px;align-items:start}
+  .agv .big{font:400 40px/1 var(--serif);color:var(--ink);letter-spacing:.04em}
+  .agv .cf{display:block;margin-top:6px;font:500 8.5px var(--sans);letter-spacing:.16em;text-transform:uppercase;color:var(--mute)}
+  .agv .cf b{font:500 15px var(--serif);letter-spacing:0;color:var(--ink)}
+  .agv .inv{margin-top:8px;padding:8px 0 0;border-top:1px solid var(--rule);font:italic 13.5px/1.55 var(--serif);color:var(--ink-2)}
+  .agv .inv span{font:500 8.5px var(--sans);font-style:normal;letter-spacing:.16em;text-transform:uppercase;color:var(--bronze);margin-right:8px}
+  .agfoot{margin-top:14px;padding-top:9px;border-top:1px solid var(--gold);font:italic 12px var(--serif);color:var(--mute);display:flex;gap:16px;flex-wrap:wrap}
+  @media (max-width:760px){.aggrid{grid-template-columns:1fr}.agr{grid-template-columns:1fr}.agora{padding:16px}}
   .terrain{position:relative;margin:2px 0 10px}
   .terrain svg{width:100%;height:96px;display:block;overflow:visible}
   .terrain rect{transition:opacity .3s,fill .3s}
@@ -682,13 +747,88 @@ function annotate(body, seed){
 const penRO = new ResizeObserver(es => es.forEach(e => { const b = e.target; clearTimeout(b._t); b._t = setTimeout(() => {
   b.querySelectorAll('.pen-layer path').forEach(p => p.style.animation = 'none'); annotate(b, +b.dataset.seed);
   b.querySelectorAll('.pen-layer path').forEach(p => { p.style.animation = 'none'; p.style.strokeDashoffset = 0; }); }, 120); }));
+/* ---------- Citatio：回答末尾「—— 来源 ——」清单 → 数字后的 [n] 变成可悬停/点开的小角标 ---------- */
+const SRC_HEAD = '—— 来源 ——';
+function splitCites(text){
+  let t = String(text), deb = null;
+  t = t.replace(/\n?\[\[debate:([\w.-]+)\]\]/g, (_, id) => { deb = id; return ''; });
+  const i = t.indexOf(SRC_HEAD), src = {};
+  if (i >= 0){ t.slice(i + SRC_HEAD.length).split('\n').forEach(l => { const m = l.match(/^\[(\d+)\]\s+(.+)$/); if (!m) return;
+      const parts = m[2].split(' · '), url = /^https?:\/\//.test(parts[parts.length-1]) ? parts.pop() : '';
+      const asOf = parts.length && /^截至 /.test(parts[parts.length-1]) ? parts.pop().slice(3) : '';
+      src[m[1]] = {name: parts.join(' · '), as_of: asOf, url}; });
+    t = t.slice(0, i).trimEnd(); }
+  return {text: t, src, debate: deb};
+}
+function citeHTML(html, src){
+  return html.replace(/\[(\d+)\]/g, (m, n) => src[n] ? `<sup class="ct" data-n="${n}">${n}</sup>` : m)
+             .replace(/（未核实）/g, '<span class="unv" title="本轮工具数据里找不到这个数字的出处">未核实</span>');
+}
+function srcList(src){
+  const ks = Object.keys(src); if (!ks.length) return '';
+  return `<div class="srcs"><span class="label">Fontes · 来源 ${ks.length}</span><ol>${ks.map(n => { const s = src[n];
+    return `<li data-n="${n}"><i>${n}</i><span>${esc(s.name)}${s.as_of ? ` · 截至 ${esc(s.as_of)}` : ''}${s.url ? ` · <a href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.url.replace(/^https?:\/\//, '').slice(0, 52))}</a>` : ''}</span></li>`; }).join('')}</ol></div>`;
+}
+function bindCites(host, src){
+  host.querySelectorAll('sup.ct').forEach(sp => {
+    const s = src[sp.dataset.n]; if (!s) return;
+    const show = () => { host.querySelectorAll('.ctip').forEach(x => x.remove()); host.querySelectorAll('.srcs li.on,sup.ct.on').forEach(x => x.classList.remove('on'));
+      const B = host.getBoundingClientRect(), r = sp.getBoundingClientRect();
+      const tip = document.createElement('div'); tip.className = 'ctip';
+      tip.innerHTML = `<small>Fons ${roman(+sp.dataset.n)} · 来源 [${sp.dataset.n}]</small><b>${esc(s.name)}</b>${s.as_of ? `<em>截至 ${esc(s.as_of)}</em>` : ''}${s.url ? `<a href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.url)}</a>` : ''}`;
+      tip.style.left = Math.max(0, Math.min(r.left - B.left - 12, host.clientWidth - 290)) + 'px'; tip.style.top = (r.bottom - B.top + 8) + 'px';
+      host.append(tip); sp.classList.add('on'); host.querySelector(`.srcs li[data-n="${sp.dataset.n}"]`)?.classList.add('on'); };
+    const hide = () => setTimeout(() => { const tip = host.querySelector('.ctip'); if (tip && !tip.matches(':hover') && !sp.matches(':hover')) { tip.remove(); sp.classList.remove('on'); host.querySelectorAll('.srcs li.on').forEach(x => x.classList.remove('on')); } }, 260);
+    sp.onpointerenter = show; sp.onpointerleave = hide;
+    sp.onclick = e => { e.stopPropagation(); if (s.url) window.open(s.url, '_blank', 'noopener'); else show(); };
+  });
+  host.addEventListener('pointerleave', () => host.querySelectorAll('.ctip').forEach(x => x.remove()));
+}
 function render(out, text, seed){
+  const c = splitCites(text);
   // 首字花饰跳过开头的 Markdown 记号（# 标题、> 引用、** 加粗），避免把「*」画成首字
-  const raw = String(text).trim(), lead = raw.match(/^[#>\-\s]*(\*\*)?/);
+  const raw = c.text.trim(), lead = raw.match(/^[#>\-\s]*(\*\*)?/);
   let t = raw.slice(lead[0].length); if (lead[1]) t = t.replace('**', '');
   const ch = Array.from(t)[0] || '', rest = t.slice(ch.length);
-  out.innerHTML = dropcap(ch, seed) + penMark(md(rest));
+  out.innerHTML = dropcap(ch, seed) + citeHTML(penMark(md(rest)), c.src) + srcList(c.src) +
+    (c.debate ? `<button class="agb" data-id="${esc(c.debate)}"><span class="agt">AGORA</span><em>辩论纪要 · 分析师、多空交锋、风控与裁决</em><span class="arr">›</span></button>` : '');
+  bindCites(out, c.src);
+  const ab = out.querySelector('.agb'); if (ab) ab.onclick = () => toggleAgora(ab);
   out.dataset.seed = seed; requestAnimationFrame(() => { annotate(out, seed); penRO.observe(out); });
+}
+/* ---------- Agora：展开辩论纪要 ---------- */
+const STC = v => v === '看多' ? 's-up' : v === '看空' ? 's-down' : 's-flat';
+const STX = {degraded: '降级 · 规则摘要', no_data: '无数据', disabled: '回测禁用', failed: '未能发言', timeout: '超时'};
+async function toggleAgora(btn){
+  const nx = btn.nextElementSibling;
+  if (nx && nx.classList.contains('agora')) { nx.remove(); btn.classList.remove('open'); return; }
+  btn.classList.add('open');
+  let d; try { d = await (await fetch('/api/debates/' + encodeURIComponent(btn.dataset.id), {headers:H})).json(); } catch (e) { d = {error: String(e)}; }
+  const sec = document.createElement('section'); sec.className = 'agora';
+  sec.innerHTML = d.error ? `<p class="muted">纪要读取失败：${esc(d.error)}</p>` : agoraHTML(d);
+  btn.after(sec);
+  const src = {}; (d.sources || []).forEach(s => src[s.id] = s); bindCites(sec, src);
+  sec.scrollIntoView({block: 'nearest', behavior: 'smooth'});
+}
+function agoraHTML(d){
+  const src = {}; (d.sources || []).forEach(s => src[s.id] = s);
+  const C = s => citeHTML(esc(s || ''), src), b = d.budget || {}, v = d.verdict || {}, r = d.risk || {};
+  const st = x => x && x !== 'ok' ? `<span class="stx${x === 'disabled' || x === 'no_data' ? ' off' : ''}">${STX[x] || x}</span>` : '';
+  const an = (d.analysts || []).map(a => `<article class="agc st-${a.status}"><div class="hd"><b>${esc(a.title)}</b><span class="en">${esc(a.en || '')}</span><span class="stn ${STC(a.stance)}">${esc(a.stance || '—')} ${a.status === 'disabled' ? '' : `<small>${a.confidence ?? ''}</small>`}</span></div>
+    ${a.summary ? `<p>${C(a.summary)}</p>` : a.note ? `<p class="muted">${esc(a.note)}</p>` : ''}${(a.evidence || []).length ? `<ul>${a.evidence.map(e => `<li>${C(e)}</li>`).join('')}</ul>` : ''}${st(a.status)}${a.error ? ` <small class="muted">${esc(a.error)}</small>` : ''}</article>`).join('');
+  const side = (x, cls, zh) => `<div class="side ${cls}"><b>${zh}</b>${x && x.status === 'ok' ? `<p>${C(x.argument)}</p>${x.rebuttal ? `<p class="reb">${C(x.rebuttal)}</p>` : ''}` : `<p class="muted">未能发言${x && x.error ? '：' + esc(x.error) : ''}</p>`}</div>`;
+  const rounds = (d.debate || []).map(x => `<div class="agr"><span class="rn">Rd. ${roman(x.round)}</span>${side(x.bull, 'bull', '多方 · Bull')}${side(x.bear, 'bear', '空方 · Bear')}</div>`).join('') || '<p class="muted">没有进行辩论。</p>';
+  const dc = r.decision === '否决' ? 'd-veto' : r.decision === '降级' ? 'd-down' : '';
+  const notes = [...(r.findings || []), ...(r.notes || [])];
+  return `<header><span class="agt">AGORA</span><em>${esc(d.name || d.symbol)}${d.name && d.name !== d.symbol ? ' · ' + esc(d.symbol) : ''}</em><small>${esc(d.created || '')}<br>LLM ${b.calls ?? '—'}/${b.max_calls ?? '—'} 次 · ≈${((b.tokens_est || 0) / 1000).toFixed(1)}k token · ${d.seconds ?? '—'}s</small></header>
+  <div class="agsec"><h5><i>I</i>分析师 · Analysts</h5><div class="aggrid">${an}</div></div>
+  <div class="agsec"><h5><i>II</i>多空辩论 · Disputatio</h5>${rounds}</div>
+  <div class="agsec"><h5><i>III</i>风控 · Nemesis</h5><div class="agrisk"><span class="dec ${dc}">${esc(r.decision || '—')}</span><div>${notes.length ? `<ul>${notes.map(n => `<li>${C(n)}</li>`).join('')}</ul>` : '<span class="muted">没有发现需要拦截的风险。</span>'}</div>
+    <span class="kv">单票仓位 ≤ ${esc(r.max_position_pct ?? '—')}% · 止损：${C(r.stop_loss || '—')}${r.status && r.status !== 'ok' ? ' · ' + (STX[r.status] || r.status) : ''}</span></div></div>
+  <div class="agsec"><h5><i>IV</i>裁决 · Sententia</h5><div class="agv"><div><span class="big ${STC(v.view)}">${esc(v.view || '—')}</span><span class="cf">置信度 <b>${v.confidence ?? '—'}%</b></span><span class="cf">周期 <b>${v.horizon_days ?? '—'}</b> 日</span></div>
+    <div>${v.summary ? `<p style="margin:0 0 6px">${C(v.summary)}</p>` : ''}${(v.key_points || []).length ? `<ul>${v.key_points.map(k => `<li>${C(k)}</li>`).join('')}</ul>` : ''}
+    ${v.invalidation ? `<div class="inv"><span>失效条件</span>${C(v.invalidation)}</div>` : ''}${v.risk_override ? `<div class="inv"><span>风控</span>${esc(v.risk_override)}</div>` : ''}</div></div></div>
+  <div class="agfoot"><span>${esc(d.version || '')} · ${esc(d.mode === 'backtest' ? '回测' : '实盘')}</span>${(d.degraded || []).length ? `<span>降级：${esc(d.degraded.join('、'))}</span>` : '<span>全部角色正常发言</span>'}${d.record_call ? `<span>${esc(d.record_call)}</span>` : ''}<span>${esc(d.id)}</span></div>`;
 }
 /* ---------- 账本地形：每条判断一根石柱，按日期排列，可搜索 ---------- */
 let LEDGER = [];
@@ -1265,7 +1405,7 @@ const PANES = {
           return `<tr><td>${m}</td><td>${f1(a.horizons[h]['hit_dir%'])}%<small>${a.horizons[h].n_dir}</small></td>${h2 ? `<td>${f1(a.horizons[h2]['hit_dir%'])}%</td>` : ''}<td>${sg(a.portfolio['long_short%'])}</td><td>${sg(a.portfolio['buy_hold%'])}</td><td>${f1(b.horizons[h]['hit_dir%'])}%</td></tr>`; }).join('')}</table>` +
         `<div class="lsw" style="grid-template-columns:1fr">${(() => { const c = r.results.agent['全部'].horizons[h].calibration; return `<div class="lsg"><h5>校准 · 置信度 → 方向胜率</h5>${c.map(x => `<div class="lsr"><span>${x.bucket}</span><span class="lsb"><i style="width:${x['hit%'] || 0}%"></i><em></em></span><b>${x['hit%'] == null ? '—' : x['hit%'] + '%'}</b><small>${x.n}</small></div>`).join('')}</div>`; })()}</div>`);
     }
-    const run = grp('Novum · 新回测', `<div class="fr"><span><b>判断者</b><small>规则 Agent 不需要模型；大模型 Agent 每个时点调用一次（有缓存，最多 200 次）</small></span><span>${sseg('pbAgent', [['baseline','规则'],['llm','大模型']])}</span></div>
+    const run = grp('Novum · 新回测', `<div class="fr"><span><b>判断者</b><small>规则 Agent 不需要模型；大模型 Agent 每个时点调用一次（有缓存，最多 200 次）；辩论 = Agora 回测版，每个时点约 5 次调用（只给截断行情，最多 600 次）</small></span><span>${sseg('pbAgent', [['baseline','规则'],['llm','大模型'],['debate','辩论']])}</span></div>
       <div class="fr"><span><b>标的</b><small>留空用默认 12 只 A / 港 / 美股</small></span><input type="text" id="pbsym" placeholder="600519.SS, 0700.HK, NVDA"></div>
       <div class="addrow" style="justify-content:space-between"><small class="muted">近一年 · 每 5 个交易日 · 持有 5 / 20 日；未来数据一律屏蔽</small><button class="x dark" id="pbrun">开始回测</button></div>`);
     const hist = grp('Historia · 记录', `<ul class="ml pbr">${L.map((x, i) => `<li data-pb="${esc(x.id)}" class="${r && x.id === r.id ? 'on' : ''}"><i>${roman(L.length - i)}</i><span>${esc(x.created || '')} · ${esc(AG[x.agent] || x.agent || '')} <em>${x.status === 'done' && x.headline ? `胜率 ${f1(x.headline['hit_dir%'])}% · 多空 ${sg(x.headline['long_short%'])}` : x.status === 'running' ? '进行中' : '失败'}</em></span><span></span></li>`).join('') || '<li><i>—</i><span class="muted">还没有</span><span></span></li>'}</ul>`);

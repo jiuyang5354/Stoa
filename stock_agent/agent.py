@@ -159,6 +159,9 @@ class Agent:
         self.mem = mem or Memory()
         cfg = load_cfg().get("llm", {})
         self.llm = Router(cfg)
+        if os.getenv("STOA_MOCK_LLM") == "1":  # 仅供测试/截图：真实工具 + 确定性的假模型（evals.MockLLM）
+            from .evals import MockLLM
+            self.llm = MockLLM()
         self.session = session or (f"{channel}-" + now().replace(" ", "_") + "-" + uuid.uuid4().hex[:4])
         self.refresh_tools()
         self.turns = 0
