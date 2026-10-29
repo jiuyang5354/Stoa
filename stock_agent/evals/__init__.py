@@ -263,16 +263,19 @@ def no_promise(text: str) -> tuple[bool, list[str]]:
     return not bad, bad
 
 
-def _inject_sources(log: list):
-    """按本题的工具记录重建一份来源登记（给 catches/passes 检查用）。"""
+def _inject_sources(log: list, case: dict | None = None):
+    """按本题的工具记录 + 提问 + 预置记忆重建一份来源登记（给 catches/passes 检查用，和 agent 内部同口径）。"""
     from ..cite import Sources
     src = Sources()
+    if case:
+        src.add_context(" ".join(case.get("turns") or []), "你的提问", "user")
+        src.add_context(json.dumps(case.get("setup") or {}, ensure_ascii=False), "Stoa 记忆", "memory")
     for x in log:
         src.add(x["tool"], x.get("args") or {}, x["result"])
     return src
 
 
-def score_case(case: dict, answer: str, log: list, fx: dict, home: Path, prompt_text: str, meta: dict | None = None) -> list[dict]:
+def score_case(case: dict, answer: str, log: list, fx: dict, home: Path, prompt_text: str, meta: dict | None = None, sources=None) -> list[dict]:
     from .. import cite
     ck, res = case.get("checks") or {}, []
     meta = meta or {}
@@ -318,24 +321,25 @@ def score_case(case: dict, answer: str, log: list, fx: dict, home: Path, prompt_
             add(k, REFUSE.search(answer))
         elif k == "cited":  # 有出处的关键数字都带 [n]，且末尾列了来源
             srcs = cite.parse_sources(full)
-            nums = [n for n in cite.verify(answer, _inject_sources(log))["numbers"] if n["sids"]]
-            plain = [n["text"] for n in nums if not re.match(r"\s?\[\d+\]", answer[n["end_num"]:n["end_num"] + 2])
-                     and not all((_inject_sources(log).get(s) or {}).get("kind") == "user" for s in n["sids"])]
+            src = sources or _inject_sources(log, case)
+            nums = [n for n in cite.verify(answer, src)["numbers"] if n["sids"]]
+            plain = [n["text"] for n in nums if not cite.has_marker(answer, n["end_num"])
+                     and not all((src.get(s) or {}).get("kind") == "user" for s in n["sids"])]
             refs = {int(x) for x in re.findall(r"\[(\d+)\]", answer)}
             add(k, bool(srcs) and not plain and refs <= set(srcs), f"来源 {len(srcs)} 条；缺角标 {plain}" if plain or not srcs else f"来源 {len(srcs)} 条")
         elif k == "sources_min":
             srcs = cite.parse_sources(full)
             add(k, len(srcs) >= int(v) and all("截至" in t for t in srcs.values() if t.startswith("行情")), f"来源 {len(srcs)} 条")
         elif k == "catches":  # 核对器对 inject 的回答：这些数字必须被抓出来
-            bad = cite.verify(case["inject"], _inject_sources(log))["unverified"]
+            bad = cite.verify(case["inject"], _inject_sources(log, case))["unverified"]
             miss = [x for x in v if not any(x == b.strip() or x in b for b in bad)]
             add(k, not miss, f"抓到 {bad}；漏 {miss}" if miss else f"抓到 {bad}")
         elif k == "passes":  # 核对器对 inject 的回答：这些真实数字不能被误伤
-            bad = cite.verify(case["inject"], _inject_sources(log))["unverified"]
+            bad = cite.verify(case["inject"], _inject_sources(log, case))["unverified"]
             wrong = [x for x in v if any(x in b for b in bad)]
             add(k, not wrong, f"误伤 {wrong}" if wrong else "")
         elif k == "verify_clean":  # 最终回答里没有「既找不到出处、又没标未核实」的数字
-            add(k, cite.verify(answer, _inject_sources(log))["ok"] or "未核实" in answer, "")
+            add(k, cite.verify(answer, sources or _inject_sources(log, case))["ok"] or "未核实" in answer, "")
         elif k == "debate":  # 走了 Agora：有纪要标记、辩论文件、记账
             did = re.search(r"\[\[debate:([^\]]+)\]\]", full)
             from .. import debate as db
@@ -390,7 +394,7 @@ def run_case(case, fx, llm_kind, real_home: Path):
                 continue
             answer = agent.ask(turn)
         checks = score_case(case, answer, log, fx, tmp, " ".join(case["turns"]) + " " + json.dumps(case.get("setup") or {}, ensure_ascii=False),
-                            getattr(agent, "last_meta", None))
+                            getattr(agent, "last_meta", None), getattr(agent, "sources", None))
         meta = getattr(agent, "last_meta", None) or {}
     except Exception as e:
         err, checks = f"{type(e).__name__}: {e}"[:300], [{"check": "run", "pass": False, "note": "运行出错"}]

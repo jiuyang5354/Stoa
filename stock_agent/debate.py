@@ -600,6 +600,9 @@ class Debate:
                                                  "horizon_days": verdict["horizon_days"], "reason": f"Agora 辩论 {self.id}：{verdict['summary'][:60]}"})
             except Exception as e:
                 call = f"记账失败：{e}"
+        sid = self.sources.new("Agora 辩论纪要 · 本次结论", "", cite.today(), kind="debate", tool="deep_analysis")
+        self.sources.bind({"confidence": verdict["confidence"], "horizon": verdict["horizon_days"], "cap": risk.get("max_position_pct"),
+                           "risk": risk.get("findings"), "rounds": len(rounds)}, sid)
         answer = self.compose(rounds, risk, verdict, call)
         answer = self.fix(answer)
         rec = {"id": self.id, "version": VERSION, "created": datetime.now(CN_TZ).strftime("%Y-%m-%d %H:%M"), "mode": self.mode,
@@ -823,7 +826,7 @@ class MockRoleLLM:
             mine = [r for r in reps if r.get("判断") == want]
             ev = [e for r in mine for e in (r.get("证据") or [])][:2]
             if mine:
-                arg = f"{'、'.join(r['分析师'] for r in mine)}偏{want[-1]}：" + "；".join(r.get("摘要") or "" for r in mine)
+                arg = f"{'、'.join(r['分析师'] for r in mine)}偏{want[-1]}：" + "；".join((r.get("摘要") or "").rstrip("。") for r in mine)
             else:
                 arg = f"没有分析师给出{want}结论，{'多方' if role == 'bull' else '空方'}论据有限。"
             reb = "对方的论据主要来自单一维度，持续性存疑。" if "对方上一轮" in user else ""
@@ -846,7 +849,7 @@ class MockRoleLLM:
                 or [f"{r['分析师']}：{r.get('摘要')}" for r in reps if r.get("摘要")][:3]
             tech = next((r for r in reps if r.get("分析师") == "技术面"), {})
             ma = next((e for e in tech.get("证据") or [] if "60 日均线" in e), "")
-            inv = (f"若{'跌破' if view == '看多' else '站上'}{ma.split('，')[-1]}，结论失效" if ma and view != "中性" else "若出现与上述依据相反的新数据或事件，结论失效")
+            inv = (f"若{'跌破' if view == '看多' else '站上'} {ma.split('，')[-1]}，结论失效" if ma and view != "中性" else "若出现与上述依据相反的新数据或事件，结论失效")
             return json.dumps({"view": view, "confidence": clamp_conf(50 + abs(s) * 40, hi=80), "horizon_days": h,
                                "summary": f"综合各分析师，倾向{view}。", "key_points": pts, "invalidation": inv}, ensure_ascii=False)
         if role == "editor":

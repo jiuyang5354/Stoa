@@ -23,6 +23,7 @@ UNIT = {"万亿": 1e12, "亿": 1e8, "万": 1e4, "千": 1e3}
 NUM_RE = re.compile(r"(?<![\w.\[/#])([-+−]?\d[\d,]*(?:\.\d+)?)(?:(\s?)(%|％|万亿|亿|万|千))?")
 # 跟在数字后面就不算「行情/财务数字」的量词
 SKIP_AFTER = re.compile(r"^\s?(?:个?交易日|日|天|个|周|月|年|只|条|次|股|手|轮|位|名|小时|分钟|秒|季度|季|期|家|项|点钟|号|岁|页|题|步|倍杠杆)")
+SKIP_SRC = re.compile(r"^\s?(?:个?交易日|日|天|周|个月|月|年|季度|小时|分钟)")
 DATEISH_AFTER = set("-/:年月日号时")
 DATEISH_BEFORE = set("-/:.")
 URL_RE = re.compile(r"https?://\S+")
@@ -62,7 +63,10 @@ def numbers_in(obj, out: list | None = None) -> list[float]:
         out.append(float(obj))
     elif isinstance(obj, str):
         s = URL_RE.sub(" ", obj)
-        for m in re.finditer(r"(-?\d[\d,]*(?:\.\d+)?)\s?(万亿|亿|万|千)?", s):
+        s = re.sub(r"\d{4}[-/年]\d{1,2}[-/月]\d{1,2}日?|\d{1,2}:\d{2}(?::\d{2})?", " ", s)  # 日期、时刻不是数据
+        for m in re.finditer(r"((?<![\d.])-?\d[\d,]*(?:\.\d+)?)\s?(万亿|亿|万|千)?", s):
+            if not m.group(2) and "." not in m.group(1) and SKIP_SRC.match(s[m.end(1):m.end(1) + 6]):
+                continue  # 「20 日线」「第十日」里的窗口长度不是数据
             try:
                 v = float(m.group(1).replace(",", ""))
             except ValueError:
@@ -182,9 +186,14 @@ class Sources:
         def close(s):
             return abs(av - abs(s)) <= max(abs(s) * .005, tol_abs)
 
-        for s, sid in pairs:  # 原值、小数↔百分数
-            if close(s) or (abs(s) < 5 and close(s * 100)):
-                return [sid]
+        rank = {"tool": 0, "debate": 1, "memory": 2, "user": 3}
+        direct = []
+        for s, sid in pairs:  # 原值、小数↔百分数；多个来源都对得上时，取最接近的、再按 工具 > 辩论 > 记忆 > 提问
+            for cand in (s, s * 100 if abs(s) < 5 else None):
+                if cand is not None and close(cand):
+                    direct.append((abs(av - abs(cand)) > 1e-9, rank.get((self.get(sid) or {}).get("kind"), 4), sid))
+        if direct:
+            return [min(direct)[2]]
         uniq = {}
         for s, sid in pairs:
             uniq.setdefault(s, sid)
@@ -214,6 +223,11 @@ class Sources:
 
 
 # ====================================================================== 回答侧
+def has_marker(body: str, end: int) -> bool:
+    """数字后面（同一短语内）已经有 [n] 角标。"""
+    return bool(re.search(r"\[\d+\]", re.split(r"[，。；,;\n]", body[end:end + 14])[0]))
+
+
 def split_sources(text: str) -> tuple[str, str]:
     i = text.find(SOURCES_HEAD)
     return (text[:i].rstrip(), text[i:]) if i >= 0 else (text, "")
@@ -239,7 +253,7 @@ def key_numbers(text: str) -> list[dict]:
             continue
         if not unit and SKIP_AFTER.match(masked[m.end(1):m.end(1) + 6]):
             continue
-        if re.match(r"^[A-Za-z]", masked[m.end(1):m.end(1) + 1] or " "):  # 10-Q、5G、Q3 之类
+        if re.match(r"^\.?[A-Za-z]", masked[m.end(1):m.end(1) + 2] or " "):  # 10-Q、5G、0700.HK 之类
             continue
         if s and re.match(r"[A-Za-z]", before):
             continue
@@ -302,6 +316,9 @@ def finalize(text: str, src: Sources) -> tuple[str, list[dict]]:
             continue
         rest = body[n["end_num"]:]
         if re.match(r"\s?\[\d+\]", rest):
+            continue
+        near = re.split(r"[，。；,;\n]", rest[:14])[0]
+        if all(f"[{x}]" in near for x in sids[:2]):  # 同一短语末尾已有同一个角标
             continue
         body = body[:n["end_num"]] + "".join(f"[{s}]" for s in sids[:2]) + rest
     order = list(dict.fromkeys(int(x) for x in re.findall(r"\[(\d+)\]", body)))
