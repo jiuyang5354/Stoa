@@ -28,7 +28,7 @@ from pathlib import Path
 from . import cite
 
 CN_TZ = timezone(timedelta(hours=8))
-VERSION = "agora-1"
+VERSION = "agora-2"  # agora-2：置信度按证据强度分档（CONF_TIERS）
 VIEWS = ("看多", "看空", "中性")
 SIGN = {"看多": 1, "看空": -1, "中性": 0}
 DEEP_RE = re.compile(r"深度分析|深入分析|全面分析|深度研究|该不该(?:买|卖|加仓|减仓|入手|清仓|抄底)|值不值得(?:买|入手|投资)|多空辩论|辩论一下|deep\s*analysis", re.I)
@@ -179,7 +179,12 @@ PROMPTS = {
     "news": "看最近新闻和公告：有没有回购、业绩、监管、减持、重大合同等会改变预期的事件，市场情绪偏向哪边；A股看最近有没有上龙虎榜、席位是机构还是游资。没有新闻就判中性。",
     "macro": "看大盘与指数环境、行业与政策动向（来自搜索结果），判断外部环境对这只股票是顺风还是逆风。",
 }
-ANALYST_OUT = '只输出 JSON：{"stance": "看多|看空|中性", "confidence": 50-95 的整数, "summary": "不超过 80 字的判断", "evidence": ["证据1（带数字和 [编号]）", "证据2", "证据3"]}'
+CONF_TIERS = """confidence 按证据强度分档（同样强度给同样的分，档位之间要拉开，不要习惯性一律给 50–55）：
+  50–54 信号互相矛盾、很弱或数据不足，接近抛硬币；
+  55–62 只有一类信号支持（如只有趋势，或只有超买/超卖），或有明显反向信号；
+  63–72 两类以上独立信号同向（如趋势 + 动量 + 资金/事件/基本面），没有明显反向信号；
+  73–85 多类强信号同向且幅度大、证据有出处，少用；85 以上几乎不用。"""
+ANALYST_OUT = CONF_TIERS + '\n只输出 JSON：{"stance": "看多|看空|中性", "confidence": 50-95 的整数, "summary": "不超过 80 字的判断", "evidence": ["证据1（带数字和 [编号]）", "证据2", "证据3"]}'
 
 BULL = """你是多方研究员，立场是找出买入的理由。基于分析师报告{rebut}写出你的论点。要有证据，不要夸大，不许承诺收益。
 只输出 JSON：{{"argument": "不超过 120 字的多方论点", "points": ["要点1", "要点2"], "rebuttal": "对空方的反驳（第一轮可留空）"}}
@@ -194,6 +199,7 @@ RISK = """你是风控官。根据用户持仓与风险偏好、规则检查结�
 [ROLE:risk]"""
 PM = """你是基金经理（主持人），综合分析师报告、多空辩论和风控意见，给出最终结论。
 - view：看多/看空/中性（预计 {h} 个交易日内的方向）；confidence 50–95，要诚实，分歧大就低。
+{tiers}
 - 风控否决时不能给看多；风控降级时置信度要相应下调。
 - key_points 写 3 条最关键的依据（带数字和 [编号]）；invalidation 写清楚「什么情况下这个结论失效」（如跌破某价位、某事件发生）。
 只输出 JSON：{{"view": "看多|看空|中性", "confidence": 整数, "horizon_days": {h}, "summary": "不超过 80 字", "key_points": ["…", "…", "…"], "invalidation": "…"}}
@@ -663,7 +669,7 @@ class Debate:
         return {"view": view, "confidence": clamp_conf(50 + abs(s) * 40, hi=80), "score": round(s, 3)}
 
     def pm(self, rounds, risk) -> dict:
-        sys = PM.format(h=self.horizon)
+        sys = PM.format(h=self.horizon, tiers=CONF_TIERS)
         user = (f"标的：{self.name if self.mode != 'backtest' else '某股票'}\n用户问题：{self.question or '深度分析'}\n分析师报告：{self.reports_text()}\n"
                 f"多空辩论：{_short(rounds, 3000)}\n风控意见：{_short({k: risk.get(k) for k in ('decision', 'findings', 'notes', 'max_position_pct', 'stop_loss')})}")
         v = self.vote()

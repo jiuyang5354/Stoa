@@ -38,7 +38,7 @@ import pandas as pd
 from . import indicators
 
 CN_TZ = timezone(timedelta(hours=8))
-PROMPT_VERSION = "bt-1"
+PROMPT_VERSION = "bt-2"  # bt-2：置信度按证据强度分档
 MIN_HISTORY = 60  # 至少有这么多天历史才出判断
 VIEWS = ("看多", "看空", "中性")
 SIGN = {"看多": 1, "看空": -1, "中性": 0}
@@ -201,7 +201,10 @@ def random_baseline(seed: int):
 BT_SYSTEM = """你是「Stoa」的回测模式。现在是历史上的某一天，你只能看到下面给出的、截至这一天的价格数据，没有新闻、公告和其它资料。
 任务：判断这只标的在之后 {h} 个交易日的方向。
 - 看多：预计上涨超过 {band}% ；看空：预计下跌超过 {band}% ；中性：涨跌在 ±{band}% 以内。
-- confidence 是你对这个判断的把握，50 = 抛硬币，100 = 完全确定；要诚实，别习惯性给高分。
+- confidence 是你对这个判断的把握，50 = 抛硬币，100 = 完全确定；按证据强度分档，同样强度给同样的分，档位之间要拉开：
+  50–54 信号互相矛盾或很弱；55–62 只有一类信号（趋势、动量、RSI 超买超卖、52 周位置之一）支持，或有明显反向信号；
+  63–72 两类以上独立信号同向且没有明显反向信号；73–85 多类强信号同向且幅度大，少用；85 以上几乎不用。
+  诚实：纯价格数据对短期方向的预测力有限，但不要因此把所有判断都压在 50–55。
 - 不要猜这是哪只股票、哪一年；只看数据。
 只输出一行 JSON：{{"view": "看多|看空|中性", "confidence": 50-100 的整数, "reason": "不超过 40 字"}}"""
 
@@ -358,10 +361,85 @@ def attach_returns(preds: list[dict], pit: PointInTime, horizons: list[int], ste
         for h in horizons:
             f = pit.forward(p["symbol"], p["date"], h)
             q[f"ret{h}"] = round((f[1] / p["close"] - 1) * 100, 4) if f else None
+            q[f"exit{h}"] = f"{f[0]:%Y-%m-%d}" if f else None  # 结果揭晓日：事后校准只能用揭晓日 ≤ 决策日的历史
         f = pit.forward(p["symbol"], p["date"], step)
         q["ret_step"] = round((f[1] / p["close"] - 1) * 100, 4) if f else None
         out.append(q)
     return out
+
+
+CAL_BINS = ((50, 55), (55, 60), (60, 70), (70, 101))
+
+
+def calibrate(rows: list[dict], horizons, band5: float = 1.5, m: float = 20.0) -> list[dict]:
+    """事后校准（像翻判断账本）：每条方向性判断的 pcal{h} = 过去同置信度档的实际命中率，向过去总体命中率收缩（m 条伪样本），
+    总体再向 50% 收缩。严格只用「结果揭晓日 ≤ 本次决策日」的判断（同一天揭晓的收盘价在决策时已知），不碰未来。不改原列表。"""
+    out = [dict(r) for r in rows]
+    for h in horizons:
+        band = band_for(h, band5)
+        done = sorted([(r[f"exit{h}"], r) for r in out if r.get(f"exit{h}") and r.get(f"ret{h}") is not None and r["view"] != "中性"],
+                      key=lambda x: x[0])
+        for r in out:
+            if r["view"] == "中性":
+                continue
+            past = [x for e, x in done if e <= r["date"]]
+            hits_all = sum(hit(x["view"], x[f"ret{h}"], band) for x in past)
+            p_all = (hits_all + m * .5) / (len(past) + m)
+            lo, hi = next(b for b in CAL_BINS if b[0] <= r["confidence"] < b[1])
+            same = [x for x in past if lo <= x["confidence"] < hi]
+            hb = sum(hit(x["view"], x[f"ret{h}"], band) for x in same)
+            r[f"pcal{h}"] = round((hb + m * p_all) / (len(same) + m) * 100, 2)
+            r[f"pcal{h}_n"] = len(past)
+    return out
+
+
+def _binom_p(k: int, n: int) -> float | None:
+    """单边二项检验 P(X ≥ k | n, 0.5)。"""
+    if not n:
+        return None
+    return round(sum(math.comb(n, i) for i in range(k, n + 1)) / 2 ** n, 4)
+
+
+def _boot_ci(pairs: list[tuple[str, bool]], reps: int = 2000, seed: int = 7) -> list[float] | None:
+    """按决策日整块重抽（同一天各标的同涨同跌，不能当独立样本），给方向胜率的 95% 区间。"""
+    if len(pairs) < 10:
+        return None
+    import random
+    by = {}
+    for d, ok in pairs:
+        by.setdefault(d, []).append(ok)
+    days = list(by)
+    rnd, vals = random.Random(seed), []
+    for _ in range(reps):
+        k = n = 0
+        for d in (rnd.choice(days) for _ in days):
+            k += sum(by[d])
+            n += len(by[d])
+        vals.append(k / n * 100 if n else 50)
+    vals.sort()
+    return [round(vals[int(reps * .025)], 1), round(vals[int(reps * .975) - 1], 1)]
+
+
+def _calib_stats(d: list[dict], h: int, band: float) -> dict:
+    """Brier 分（越小越好，恒给 50% = 0.25）与 ECE；raw = 模型自报置信度，cal = 事后校准。"""
+    res = {}
+    for name, f in (("raw", lambda r: r["confidence"] / 100), ("cal", lambda r: r.get(f"pcal{h}", 50) / 100)):
+        if not d or (name == "cal" and not any(f"pcal{h}" in r for r in d)):
+            continue
+        ps = [f(r) for r in d]
+        ys = [1.0 if hit(r["view"], r[f"ret{h}"], band) else 0.0 for r in d]
+        brier = sum((p - y) ** 2 for p, y in zip(ps, ys)) / len(d)
+        ece, bins = 0.0, {}
+        for p, y in zip(ps, ys):
+            bins.setdefault(min(int(p * 20), 19), []).append((p, y))  # 5 个百分点一档
+        for b in bins.values():
+            ece += len(b) / len(d) * abs(sum(p for p, _ in b) / len(b) - sum(y for _, y in b) / len(b))
+        res[f"brier_{name}"], res[f"ece_{name}"] = round(brier, 4), round(ece * 100, 2)
+    sel = [r for r in d if r.get(f"pcal{h}", 0) >= 55]
+    if any(f"pcal{h}" in r for r in d):
+        res["selective"] = {"rule": "pcal≥55", "n": len(sel),
+                            "hit%": round(sum(hit(r["view"], r[f"ret{h}"], band) for r in sel) / len(sel) * 100, 1) if sel else None}
+    return res
 
 
 def _curve(rows: list[dict], weight) -> list[tuple[str, float]]:
@@ -402,6 +480,8 @@ def metrics(rows: list[dict], horizons: list[int], band5: float = 1.5) -> dict:
         out["horizons"][str(h)] = {
             "n": len(rs), "n_dir": len(d), "band%": round(band, 2),
             "hit_dir%": round(sum(hits_d) / len(hits_d) * 100, 1) if hits_d else None,
+            "p_binom": _binom_p(sum(hits_d), len(hits_d)), "ci95": _boot_ci([(r["date"], x) for r, x in zip(d, hits_d)]),
+            **_calib_stats(d, h, band),
             "hit_all%": round(sum(hits_all) / len(hits_all) * 100, 1) if hits_all else None,
             "avg_signed_ret%": round(sum(SIGN[r["view"]] * r[f"ret{h}"] for r in d) / len(d), 3) if d else None,
             "calibration": cal}
@@ -494,6 +574,8 @@ def run(symbols=None, start=None, end=None, step=5, horizons=(5, 20), agent="bas
     for name, fn in contenders.items():
         preds = predict(pit, fn, start, end, step, h0, conc if name == "agent" else 1)
         rows = attach_returns(preds, pit, horizons, step)
+        if name == "agent":
+            rows = calibrate(rows, horizons, band5)
         results[name] = by_market(rows, horizons, band5)
         if name == "agent":
             preds_main = rows
@@ -640,6 +722,13 @@ def print_report(res: dict):
             print(f"  {name:12}{cells}{_f(pf['long_short%'], '+'):>12}{_f(pf['buy_hold%'], '+'):>12}{_f(pf['mdd%']):>9}")
         cal = res["results"]["agent"][m]["horizons"][hs[0]]["calibration"]
         print("  校准（置信度 → 方向胜率）：" + "  ".join(f"{c['bucket']}:{_f(c['hit%'])}({c['n']})" for c in cal))
+        for h in hs:
+            x = res["results"]["agent"][m]["horizons"][h]
+            if x.get("p_binom") is not None:
+                sel = x.get("selective") or {}
+                print(f"  {h}日：方向 {x['n_dir']} 题，单边二项 p={x['p_binom']}，按日自助 95% 区间 {x.get('ci95')}；"
+                      f"Brier 自报 {x.get('brier_raw')} / 事后校准 {x.get('brier_cal')}（恒 50% = 0.25），ECE {x.get('ece_raw')} / {x.get('ece_cal')} 个百分点"
+                      + (f"；pcal≥55 的 {sel.get('n')} 题胜率 {_f(sel.get('hit%'))}" if sel else ""))
     if res.get("llm"):
         print("\nLLM：", json.dumps(res["llm"], ensure_ascii=False))
     if res.get("usage"):

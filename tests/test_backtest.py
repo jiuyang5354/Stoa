@@ -221,3 +221,44 @@ def test_end_to_end_synthetic_writes_json():
     saved = bt.load(res["id"])
     assert saved and saved["headline"]["n"] > 0
     assert bt.listing()[0]["id"] == res["id"]
+
+
+# ---- 第二轮：事后校准不偷看未来、显著性
+def _row(d, conf, view, ret, exit_):
+    return {"symbol": "X", "market": "美股", "date": d, "close": 100, "view": view, "confidence": conf, "ret5": ret, "exit5": exit_}
+
+
+def test_calibrate_uses_only_resolved_past():
+    from stock_agent import backtest as bt
+    rows = [_row(f"2026-01-{i:02d}", 70, "看多", 1.0, f"2026-01-{i + 5:02d}") for i in range(1, 11)]
+    a = bt.calibrate(rows, [5])
+    # 第 1–5 天决策时还没有任何结果揭晓 → 先验 50
+    assert all(r["pcal5"] == 50 and r["pcal5_n"] == 0 for r in a[:5])
+    # 第 6 天：只有第 1 天（01-06 揭晓）可用
+    assert a[5]["pcal5_n"] == 1 and a[5]["pcal5"] > 50
+    # 改动「未来」结果，不影响之前的校准值
+    rows2 = [dict(r) for r in rows]
+    for r in rows2[5:]:
+        r["ret5"] = -5.0
+    b = bt.calibrate(rows2, [5])
+    assert [r["pcal5"] for r in a[:6]] == [r["pcal5"] for r in b[:6]]
+    assert rows[0].get("pcal5") is None  # 不改原列表
+
+
+def test_calibrate_learns_overconfidence():
+    from stock_agent import backtest as bt
+    rows = []
+    for i in range(80):  # 自报 75 但只对一半，校准后应接近 50
+        d = f"2026-{1 + i // 28:02d}-{1 + i % 28:02d}"
+        rows.append(_row(d, 75, "看多", 1.0 if i % 2 else -1.0, d))
+    a = bt.calibrate(rows, [5])
+    assert abs(a[-1]["pcal5"] - 50) < 6
+    st = bt._calib_stats(a, 5, 1.5)
+    assert st["brier_cal"] < st["brier_raw"]
+
+
+def test_binom_and_boot():
+    from stock_agent import backtest as bt
+    assert bt._binom_p(5, 10) > .5 and bt._binom_p(60, 100) < .05
+    ci = bt._boot_ci([(f"d{i % 30}", i % 2 == 0) for i in range(300)])
+    assert ci[0] < 50 < ci[1]
