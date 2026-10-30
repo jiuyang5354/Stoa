@@ -858,7 +858,7 @@ class Debate:
 
         def add(text, kind):
             t = (text or "").strip()
-            k = re.sub(r"\[\d+\]|\s", "", t)[:40]
+            k = re.sub(r"\[\d+\]|\s", "", re.sub(r"^[^：:]{1,8}[：:]", "", t))[:30]  # 去掉「技术面：」这类前缀再比，免得同一条依据出现两次
             if t and k not in seen:
                 seen.add(k)
                 check.append({"text": t, "kind": kind, "cited": has_cite(t)})

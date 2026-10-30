@@ -320,6 +320,25 @@
   .agv .inv{margin-top:8px;padding:8px 0 0;border-top:1px solid var(--rule);font:italic 13.5px/1.55 var(--serif);color:var(--ink-2)}
   .agv .inv span{font:500 8.5px var(--sans);font-style:normal;letter-spacing:.16em;text-transform:uppercase;color:var(--bronze);margin-right:8px}
   .agfoot{margin-top:14px;padding-top:9px;border-top:1px solid var(--gold);font:italic 12px var(--serif);color:var(--mute);display:flex;gap:16px;flex-wrap:wrap}
+  .agchk{margin:0;padding:0;list-style:none;counter-reset:ck}
+  .agchk li{counter-increment:ck;display:grid;grid-template-columns:22px 64px 1fr;gap:0 10px;padding:7px 0;border-bottom:1px solid var(--rule);align-items:baseline}
+  .agchk li::before{content:counter(ck,upper-roman);font:italic 13px var(--serif);color:var(--bronze)}
+  .agchk .k,.agrl .lv{font:500 8.5px var(--sans);letter-spacing:.14em;text-transform:uppercase;color:var(--mute);white-space:nowrap}
+  .agchk .tbd{margin-left:8px;font:normal 500 8.5px var(--sans);letter-spacing:.12em;color:var(--terracotta)}
+  .agchk li.nc>span:last-child{color:var(--mute)}
+  .aggap{margin:8px 0 0;font-size:12.5px;color:var(--mute)}.aggap span,.agpos .dec{font:500 8.5px var(--sans);letter-spacing:.16em;text-transform:uppercase;color:var(--bronze);margin-right:10px}
+  .agrl{margin:0;padding:0;list-style:none}
+  .agrl li{display:grid;grid-template-columns:64px 1fr;gap:0 10px;padding:6px 0 6px 10px;border-left:2px solid var(--rule);margin-bottom:3px;align-items:baseline}
+  .agrl li.lv-red{border-left-color:var(--terracotta)}.agrl li.lv-red .lv{color:var(--terracotta)}
+  .agrl li.lv-risk{border-left-color:var(--bronze)}.agrl li.lv-bear{border-left-color:var(--olive)}.agrl li.lv-inv{border-left-color:var(--gold)}
+  .agpos{margin:10px 0 0;display:flex;flex-wrap:wrap;gap:4px 16px;font-size:12.5px;color:var(--mute)}
+  .agpos .dec.d-veto{color:var(--terracotta)}
+  .agminor h5 small{font:italic 11.5px var(--serif);letter-spacing:0;text-transform:none;color:var(--mute)}
+  .aglean{margin:0;font:14px var(--serif);color:var(--ink-2)}
+  .agmore{margin-top:12px;border-top:1px solid var(--rule)}
+  .agmore summary{cursor:pointer;padding:9px 0 2px;font:italic 13px var(--serif);color:var(--mute);list-style:none}
+  .agmore summary::before{content:"› ";color:var(--bronze)}.agmore[open] summary::before{content:"⌄ "}
+  @media (max-width:760px){.agchk li{grid-template-columns:22px 1fr}.agchk .k{display:none}.agrl li{grid-template-columns:1fr}}
   @media (max-width:760px){.aggrid{grid-template-columns:1fr}.agr{grid-template-columns:1fr}.agora{padding:16px}}
   .terrain{position:relative;margin:2px 0 10px}
   .terrain svg{width:100%;height:96px;display:block;overflow:visible}
@@ -864,7 +883,7 @@ function render(out, text, seed){
   let t = raw.slice(lead[0].length); if (lead[1]) t = t.replace('**', '');
   const ch = Array.from(t)[0] || '', rest = t.slice(ch.length);
   out.innerHTML = dropcap(ch, seed) + citeHTML(penMark(md(rest)), c.src) + (c.cards ? `<div class="dcards" data-id="${esc(c.cards)}"></div>` : '') + srcList(c.src) +
-    (c.debate ? `<button class="agb" data-id="${esc(c.debate)}"><span class="agt">AGORA</span><em>辩论纪要 · 分析师、多空交锋、风控与裁决</em><span class="arr">›</span></button>` : '');
+    (c.debate ? `<button class="agb" data-id="${esc(c.debate)}"><span class="agt">AGORA</span><em>查证要点 · 风险清单 · 辩论过程</em><span class="arr">›</span></button>` : '');
   bindCites(out, c.src);
   const dcb = out.querySelector('.dcards'); if (dcb) loadCards(dcb, c.src);
   const ab = out.querySelector('.agb'); if (ab) ab.onclick = () => toggleAgora(ab);
@@ -982,16 +1001,25 @@ function agoraHTML(d){
   const side = (x, cls, zh) => `<div class="side ${cls}"><b>${zh}</b>${x && x.status === 'ok' ? `<p>${C(x.argument)}</p>${x.rebuttal ? `<p class="reb">${C(x.rebuttal)}</p>` : ''}` : `<p class="muted">未能发言${x && x.error ? '：' + esc(x.error) : ''}</p>`}</div>`;
   const rounds = (d.debate || []).map(x => `<div class="agr"><span class="rn">Rd. ${roman(x.round)}</span>${side(x.bull, 'bull', '多方 · Bull')}${side(x.bear, 'bear', '空方 · Bear')}</div>`).join('') || '<p class="muted">没有进行辩论。</p>';
   const dc = r.decision === '否决' ? 'd-veto' : r.decision === '降级' ? 'd-down' : '';
-  const notes = [...(r.findings || []), ...(r.notes || [])];
+  const chk = d.checklist || (v.key_points || []).map(t => ({text: t, kind: '依据', cited: /\[\d+\]/.test(t)}));
+  const facts = chk.filter(c => c.kind !== '数据缺口'), gaps = chk.filter(c => c.kind === '数据缺口');
+  const risks = d.risks || [...(r.findings || []).map(t => ({text: t, level: '风控'})), ...(v.invalidation ? [{text: v.invalidation, level: '失效条件'}] : [])];
+  const LV = {'红线': 'lv-red', '风控': 'lv-risk', '空方': 'lv-bear', '失效条件': 'lv-inv'};
+  const rulesOnly = r.mode === 'rules_only' && r.status === 'rules';
   return `<header><span class="agt">AGORA</span><em>${esc(d.name || d.symbol)}${d.name && d.name !== d.symbol ? ' · ' + esc(d.symbol) : ''}</em><small>${esc(d.created || '')}<br>LLM ${b.calls ?? '—'}/${b.max_calls ?? '—'} 次 · ≈${((b.tokens_est || 0) / 1000).toFixed(1)}k token · ${d.seconds ?? '—'}s</small></header>
-  <div class="agsec"><h5><i>I</i>分析师 · Analysts</h5><div class="aggrid">${an}</div></div>
-  <div class="agsec"><h5><i>II</i>多空辩论 · Disputatio</h5>${rounds}</div>
-  <div class="agsec"><h5><i>III</i>风控 · Nemesis</h5><div class="agrisk"><span class="dec ${dc}">${esc(r.decision || '—')}</span><div>${notes.length ? `<ul>${notes.map(n => `<li>${C(n)}</li>`).join('')}</ul>` : '<span class="muted">没有发现需要拦截的风险。</span>'}</div>
-    <span class="kv">单票仓位 ≤ ${esc(r.max_position_pct ?? '—')}% · 止损：${C(r.stop_loss || '—')}${r.status && r.status !== 'ok' ? ' · ' + (STX[r.status] || r.status) : ''}</span></div></div>
-  <div class="agsec"><h5><i>IV</i>裁决 · Sententia</h5><div class="agv"><div><span class="big ${STC(v.view)}">${esc(v.view || '—')}</span><span class="cf">置信度 <b>${v.confidence ?? '—'}%</b></span><span class="cf">周期 <b>${v.horizon_days ?? '—'}</b> 日</span></div>
-    <div>${v.summary ? `<p style="margin:0 0 6px">${C(v.summary)}</p>` : ''}${(v.key_points || []).length ? `<ul>${v.key_points.map(k => `<li>${C(k)}</li>`).join('')}</ul>` : ''}
-    ${v.invalidation ? `<div class="inv"><span>失效条件</span>${C(v.invalidation)}</div>` : ''}${v.risk_override ? `<div class="inv"><span>风控</span>${esc(v.risk_override)}</div>` : ''}</div></div></div>
-  <div class="agfoot"><span>${esc(d.version || '')} · ${esc(d.mode === 'backtest' ? '回测' : '实盘')}</span>${(d.degraded || []).length ? `<span>降级：${esc(d.degraded.join('、'))}</span>` : '<span>全部角色正常发言</span>'}${d.record_call ? `<span>${esc(d.record_call)}</span>` : ''}<span>${esc(d.id)}</span><span>方向判断经回测不具统计显著性，仅供参考</span></div>`;
+  <div class="agsec"><h5><i>I</i>查证要点 · Verificanda</h5>
+    <ol class="agchk">${facts.map(c => `<li class="${c.cited ? '' : 'nc'}"><span class="k">${esc(c.kind)}</span><span>${C(c.text)}${c.cited ? '' : '<em class="tbd">待核 · 无出处</em>'}</span></li>`).join('') || '<li class="nc"><span class="k">—</span><span class="muted">没有可核对的具体依据。</span></li>'}</ol>
+    ${gaps.length ? `<p class="aggap"><span>数据缺口</span>${gaps.map(g => esc(g.text)).join('；')}</p>` : ''}</div>
+  <div class="agsec"><h5><i>II</i>风险清单 · Pericula</h5>
+    <ul class="agrl">${risks.map(x => `<li class="${LV[x.level] || ''}"><span class="lv">${esc(x.level)}</span><span>${C(x.text)}</span></li>`).join('') || '<li><span class="lv">—</span><span class="muted">没有发现需要特别提示的风险。</span></li>'}</ul>
+    <p class="agpos"><span class="dec ${dc}">风控 ${esc(r.decision || '—')}</span>${rulesOnly ? '<span>无持仓信息 · 只做红线检查（' + esc((r.checked || []).join('、')) + '）</span>' : ''}<span>单票仓位 ≤ ${esc(r.max_position_pct ?? '—')}%</span><span>止损：${C(r.stop_loss || '—')}</span></p></div>
+  <div class="agsec agminor"><h5><i>III</i>倾向 · Inclinatio <small>次要信息 · 择时判断经回测不具统计显著性</small></h5>
+    <p class="aglean"><span class="${STC(v.view)}">${esc(v.view || '—')}</span> · 置信度 ${v.confidence ?? '—'}% · 约 ${v.horizon_days ?? '—'} 个交易日${v.risk_override ? ' · ' + esc(v.risk_override) : ''}</p>
+    ${v.summary ? `<p class="muted" style="margin:2px 0 0">${C(v.summary)}</p>` : ''}</div>
+  <details class="agmore"><summary>辩论过程 · 分析师与多空交锋</summary>
+    <div class="agsec"><h5><i>IV</i>分析师 · Analysts</h5><div class="aggrid">${an}</div></div>
+    <div class="agsec"><h5><i>V</i>多空辩论 · Disputatio</h5>${rounds}</div></details>
+  <div class="agfoot"><span>${esc(d.version || '')} · ${esc(d.mode === 'backtest' ? '回测' : '实盘')}</span>${(d.degraded || []).length ? `<span>降级：${esc(d.degraded.join('、'))}</span>` : '<span>全部角色正常发言</span>'}${d.record_call ? `<span>${esc(d.record_call)}</span>` : ''}<span>${esc(d.id)}</span></div>`;
 }
 /* ---------- 账本地形：每条判断一根石柱，按日期排列，可搜索 ---------- */
 let LEDGER = [];
