@@ -109,7 +109,9 @@
     background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='18' height='9' viewBox='0 0 18 9'%3E%3Cpath d='M0 8.5h4.5v-7h9v5h-4.5v-2.5h2v1' fill='none' stroke='%23181715' stroke-width='.8'/%3E%3C/svg%3E") repeat-x 0 0}
 
   .wrap{flex:1;display:flex;min-height:0;margin:0 4px 4px}
-  main{flex:1;display:flex;flex-direction:column;min-width:0;padding:0 clamp(24px,5vw,72px)}
+  main{flex:1;display:flex;flex-direction:column;min-width:0;padding:0 clamp(24px,5vw,72px);container-type:inline-size}
+  @container (max-width:880px){header>.label{visibility:hidden}}
+  @container (max-width:640px){.gear{font-size:0;gap:0;padding:7px 9px}.gear.hlg{left:66px}.gear.gl{right:66px}}
   .inner{width:100%;max-width:760px;margin:0 auto;display:flex;flex-direction:column;min-height:0;flex:1}
   header{padding:26px 0 18px;text-align:center;border-bottom:1px solid var(--rule);position:relative}
   header .label{display:block}
@@ -446,7 +448,7 @@
   .gear:hover{background:var(--ink);color:var(--chalk);border-color:var(--ink)}
   .gear.hl{right:auto;left:22px}.gear.hl:hover svg{transform:none}
   /* ---- 记忆图谱 · Mnemosyne（参考用户 2026-10-29 给的希腊神祇海报组：旧纸底、拱门里的铜版雕刻、巨大衬线标题、竖排小字、四芒星、月相、月桂、细线框） ---- */
-  .gear.hl2{right:auto;left:132px}
+  .gear.hlg{right:auto;left:132px}
   .gph{position:fixed;inset:0;z-index:46;background:rgba(24,23,21,.32);animation:fadein .2s ease both;display:flex;align-items:center;justify-content:center}
   .gph[hidden]{display:none}
   .gw{position:relative;width:min(1260px,96vw);height:min(860px,94vh);border:1px solid var(--rule-2);box-shadow:0 30px 80px -30px rgba(24,23,21,.35);display:grid;grid-template-columns:210px 1fr 310px;grid-template-rows:auto 1fr;overflow:hidden;background:#F6F3EC}
@@ -770,7 +772,7 @@
     <h1>Stoa · 股市</h1>
     <em>A stoic market agent that remembers.</em>
     <button class="gear hl" id="histb" type="button" aria-label="对话历史（Ctrl+J）"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 5h16M4 10h16M4 15h10M4 20h7"/></svg>History</button>
-    <button class="gear hl hl2" id="graphb" type="button" aria-label="记忆图谱（Ctrl+G）"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="5" cy="6" r="2.2"/><circle cx="19" cy="7" r="2.2"/><circle cx="12" cy="18" r="2.6"/><path d="M7 7l10 0M6.5 8l4.5 8M17.6 9l-4.4 7"/></svg>Graph</button>
+    <button class="gear hl hlg" id="graphb" type="button" aria-label="记忆图谱（Ctrl+G）"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="5" cy="6" r="2.2"/><circle cx="19" cy="7" r="2.2"/><circle cx="12" cy="18" r="2.6"/><path d="M7 7l10 0M6.5 8l4.5 8M17.6 9l-4.4 7"/></svg>Graph</button>
     <button class="gear gl" id="ldgb" type="button" aria-label="账本与记忆（Ctrl+L）"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M5 3h11l3 3v15H5zM9 9h7M9 13h7M9 17h4"/></svg>Ledger</button>
     <button class="gear" id="gear" type="button" aria-label="设置（Ctrl+,）"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="3.2"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1"/></svg>Settings</button>
   </header>
