@@ -1158,30 +1158,31 @@ const FT = 'font-family="Alte Haas Grotesk"';
 function bigN(v){ const a = Math.abs(v); return a >= 1e12 ? (v / 1e12).toFixed(2) + '万亿' : a >= 1e8 ? (v / 1e8).toFixed(2) + '亿' : a >= 1e4 ? (v / 1e4).toFixed(1) + '万' : (+v).toFixed(2); }
 function cardLevels(c){
   const p = c.points || []; if (p.length < 2) return '';
-  const S = c.supports || [], R = c.resistances || [], W = 300, H = 96;
+  const S = c.supports || [], R = c.resistances || [], W = 620, H = 150;
   const vs = p.map(x => x[1]).concat(S.map(x => x.price), R.map(x => x.price)), a = Math.min(...vs), b = Math.max(...vs), sp = (b - a) || 1;
-  const X = i => 4 + i / (p.length - 1) * (W - 44), Y = v => 6 + (b - v) / sp * (H - 12);
+  const X = i => 4 + i / (p.length - 1) * (W - 60), Y = v => 8 + (b - v) / sp * (H - 16);
   const d = p.map((x, i) => `${i ? 'L' : 'M'}${X(i).toFixed(1)} ${Y(x[1]).toFixed(1)}`).join(' ');
-  const ln = (x, col) => `<line x1="0" x2="${W - 40}" y1="${Y(x.price).toFixed(1)}" y2="${Y(x.price).toFixed(1)}" stroke="${col}" stroke-width="${.5 + Math.min(x.touches, 6) * .15}" stroke-dasharray="4 3" opacity=".8"/><text x="${W - 38}" y="${(Y(x.price) + 2.6).toFixed(1)}" font-size="7.5" fill="${col}" ${FT}>${N(x.price, 2)}</text>`;
+  const LY = {}; [...R, ...S].map(x => [x.price, Y(x.price)]).sort((u, v) => u[1] - v[1]).reduce((prev, [k, y]) => { const yy = Math.max(y, prev + 11); LY[k] = yy; return yy; }, -99);
+  const ln = (x, col) => `<line x1="0" x2="${W - 56}" y1="${Y(x.price).toFixed(1)}" y2="${Y(x.price).toFixed(1)}" stroke="${col}" stroke-width="${.5 + Math.min(x.touches, 6) * .15}" stroke-dasharray="4 3" opacity=".8"/><text x="${W - 52}" y="${(LY[x.price] + 3.5).toFixed(1)}" font-size="10" fill="${col}" ${FT}>${N(x.price, 2)}</text>`;
   return `<div class="dc wide"><h6>支撑与阻力<i>Limites</i><small>${esc(c.symbol || '')} · 现价 ${N(c.last, 2)}${csup(c.cite)}</small></h6>
-    <svg viewBox="0 0 ${W} ${H + 10}">${R.map(x => ln(x, 'var(--terracotta)')).join('')}${S.map(x => ln(x, 'var(--olive)')).join('')}
+    <svg viewBox="0 0 ${W} ${H + 14}">${R.map(x => ln(x, 'var(--terracotta)')).join('')}${S.map(x => ln(x, 'var(--olive)')).join('')}
     <path d="${d}" fill="none" stroke="var(--ink)" stroke-width="1.1"/><circle cx="${X(p.length - 1).toFixed(1)}" cy="${Y(p[p.length - 1][1]).toFixed(1)}" r="2" fill="var(--gold)"/>
-    <text x="2" y="${H + 9}" font-size="7.5" fill="var(--mute)" ${FT}>${esc(p[0][0])}</text><text x="${W - 42}" y="${H + 9}" text-anchor="end" font-size="7.5" fill="var(--mute)" ${FT}>${esc(p[p.length - 1][0])}</text></svg>
+    <text x="2" y="${H + 10}" font-size="10" fill="var(--mute)" ${FT}>${esc(p[0][0])}</text><text x="${W - 58}" y="${H + 10}" text-anchor="end" font-size="10" fill="var(--mute)" ${FT}>${esc(p[p.length - 1][0])}</text></svg>
     <table><tr><th>阻力</th><th>距现价</th><th>触碰</th><th>支撑</th><th>距现价</th><th>触碰</th></tr>${Array.from({length: Math.max(R.length, S.length)}, (_, i) => `<tr><td>${R[i] ? N(R[i].price, 2) : ''}</td><td>${R[i] ? sgn(R[i].dist_pct) + '%' : ''}</td><td>${R[i] ? R[i].touches : ''}</td><td>${S[i] ? N(S[i].price, 2) : ''}</td><td>${S[i] ? sgn(S[i].dist_pct) + '%' : ''}</td><td>${S[i] ? S[i].touches : ''}</td></tr>`).join('')}</table>${dcFoot(c)}</div>`;
 }
 function cardBridge(c){
   const st = c.steps || []; if (!st.length) return '';
-  const W = 300, H = 110, bw = (W - 8) / st.length;
+  const W = 620, H = 130, bw = (W - 8) / st.length;
   let run = 0; const bars = st.map(x => { let y0, y1; if (x.kind === 'total') { y0 = 0; y1 = x.value; run = x.value; } else { y0 = run; y1 = run + x.value; run = y1; } return {...x, y0, y1}; });
   const top = Math.max(...bars.map(x => Math.max(x.y0, x.y1)), 1), lo = Math.min(0, ...bars.map(x => Math.min(x.y0, x.y1))), sp = top - lo;
-  const Y = v => 12 + (top - v) / sp * (H - 24);
+  const Y = v => 16 + (top - v) / sp * (H - 28);
   const rects = bars.map((x, i) => { const yA = Y(Math.max(x.y0, x.y1)), h = Math.max(1, Math.abs(Y(x.y0) - Y(x.y1))), col = x.kind === 'total' ? 'var(--ink)' : x.kind === 'neg' ? 'var(--terracotta)' : 'var(--olive)';
-    return `<rect x="${(6 + i * bw).toFixed(1)}" y="${yA.toFixed(1)}" width="${(bw - 8).toFixed(1)}" height="${h.toFixed(1)}" fill="${col}" opacity="${x.kind === 'total' ? .85 : .7}"/>
-      <text x="${(6 + i * bw + (bw - 8) / 2).toFixed(1)}" y="${(yA - 3).toFixed(1)}" text-anchor="middle" font-size="7.5" fill="var(--ink-2)" ${FT}>${bigN(x.value)}</text>
-      <text x="${(6 + i * bw + (bw - 8) / 2).toFixed(1)}" y="${H + 8}" text-anchor="middle" font-size="7.5" fill="var(--mute)">${esc(x.label)}</text>`; }).join('');
+    return `<rect x="${(6 + i * bw).toFixed(1)}" y="${yA.toFixed(1)}" width="${(bw - 28).toFixed(1)}" height="${h.toFixed(1)}" fill="${col}" opacity="${x.kind === 'total' ? .85 : .7}"/>
+      <text x="${(6 + i * bw + (bw - 28) / 2).toFixed(1)}" y="${(yA - 4).toFixed(1)}" text-anchor="middle" font-size="10.5" fill="var(--ink-2)" ${FT}>${bigN(x.value)}</text>
+      <text x="${(6 + i * bw + (bw - 28) / 2).toFixed(1)}" y="${H + 12}" text-anchor="middle" font-size="10.5" fill="var(--mute)">${esc(x.label)}</text>`; }).join('');
   const r = Object.entries(c.ratios || {}).filter(([, v]) => v != null);
   return `<div class="dc wide"><h6>利润瀑布<i>Cascata</i><small>${esc(c.name || c.symbol || '')} · ${esc(c.period || '')}${csup(c.cite)}</small></h6>
-    <svg viewBox="0 0 ${W} ${H + 12}">${rects}</svg>${r.length ? `<div class="kv">${r.map(([k, v]) => `<span>${esc(k.replace('%', ''))} <b>${N(v, 2)}%</b></span>`).join('')}</div>` : ''}${dcFoot(c)}</div>`;
+    <svg viewBox="0 0 ${W} ${H + 16}">${rects}</svg>${r.length ? `<div class="kv">${r.map(([k, v]) => `<span>${esc(k.replace('%', ''))} <b>${N(v, 2)}%</b></span>`).join('')}</div>` : ''}${dcFoot(c)}</div>`;
 }
 function cardPayoff(c){
   const p = c.points || []; if (p.length < 2) return '';
@@ -1197,14 +1198,14 @@ function cardPayoff(c){
 }
 function cardReplay(c){
   const f = c.fan || []; if (f.length < 2) return '';
-  const W = 300, H = 96, all = f.flatMap(x => [x[1], x[3]]).concat([c.stop, c.target, c.entry]), a = Math.min(...all), b = Math.max(...all), sp = (b - a) || 1;
-  const X = i => 4 + i / f.length * (W - 8), Y = v => 6 + (b - v) / sp * (H - 12);
+  const W = 620, H = 140, all = f.flatMap(x => [x[1], x[3]]).concat([c.stop, c.target, c.entry]), a = Math.min(...all), b = Math.max(...all), sp = (b - a) || 1;
+  const X = i => 4 + i / f.length * (W - 8), Y = v => 8 + (b - v) / sp * (H - 16);
   const band = `M${X(0)} ${Y(c.entry)} ` + f.map((x, i) => `L${X(i + 1).toFixed(1)} ${Y(x[3]).toFixed(1)}`).join(' ') + ' ' + f.slice().reverse().map((x, i) => `L${X(f.length - i).toFixed(1)} ${Y(x[1]).toFixed(1)}`).join(' ') + 'Z';
-  const sm = (c.sample || []).map(s => `<path d="M${X(0)} ${Y(c.entry)} ${s.map((v, i) => `L${X(i + 1).toFixed(1)} ${Y(v).toFixed(1)}`).join(' ')}" fill="none" stroke="var(--bronze)" stroke-width=".4" opacity=".35"/>`).join('');
+  const sm = (c.sample || []).map(s => `<path d="M${X(0)} ${Y(c.entry)} ${s.map((v, i) => `L${X(i + 1).toFixed(1)} ${Y(v).toFixed(1)}`).join(' ')}" fill="none" stroke="var(--bronze)" stroke-width=".6" opacity=".35"/>`).join('');
   const med = `M${X(0)} ${Y(c.entry)} ` + f.map((x, i) => `L${X(i + 1).toFixed(1)} ${Y(x[2]).toFixed(1)}`).join(' ');
-  const hl = (v, col, t) => `<line x1="0" x2="${W}" y1="${Y(v).toFixed(1)}" y2="${Y(v).toFixed(1)}" stroke="${col}" stroke-dasharray="4 3" stroke-width=".8"/><text x="${W - 2}" y="${(Y(v) - 2).toFixed(1)}" text-anchor="end" font-size="7.5" fill="${col}" ${FT}>${t} ${N(v, 2)}</text>`;
+  const hl = (v, col, t) => `<line x1="0" x2="${W}" y1="${Y(v).toFixed(1)}" y2="${Y(v).toFixed(1)}" stroke="${col}" stroke-dasharray="4 3" stroke-width=".8"/><text x="${W - 2}" y="${(Y(v) - 2).toFixed(1)}" text-anchor="end" font-size="10" fill="${col}" ${FT}>${t} ${N(v, 2)}</text>`;
   return `<div class="dc wide"><h6>行情重放<i>Machina temporis</i><small>${esc(c.symbol || '')} · ${c.n} 条路径 · ${c.horizon} 个交易日${csup(c.cite)}</small></h6>
-    <svg viewBox="0 0 ${W} ${H + 4}"><path d="${band}" fill="var(--gold)" opacity=".14"/>${sm}<path d="${med}" fill="none" stroke="var(--ink)" stroke-width="1.1"/>
+    <svg viewBox="0 0 ${W} ${H + 4}" style="overflow:hidden"><path d="${band}" fill="var(--gold)" opacity=".14"/>${sm}<path d="${med}" fill="none" stroke="var(--ink)" stroke-width="1.1"/>
     ${hl(c.target, 'var(--terracotta)', '目标')}${hl(c.stop, 'var(--olive)', '止损')}${hl(c.entry, 'var(--mute)', '入场')}</svg>
     <div class="kv"><span>先到目标 <b>${N(c.p_target_first, 1)}%</b></span><span>先到止损 <b>${N(c.p_stop_first, 1)}%</b></span><span>都没到 <b>${N(c.p_neither, 1)}%</b></span><span>期望 <b>${sgn(c.exp_return_pct)}%</b></span>${c.exp_R != null ? `<span>期望 R <b>${N(c.exp_R, 2)}</b></span>` : ''}</div>${dcFoot(c)}</div>`;
 }

@@ -97,6 +97,10 @@ def levels_from_closes(closes, window: int = 5, tol: float = 0.015, k: int = 3) 
     score = lambda cl: cl[1] + cl[2] / n  # 触碰越多、越近越重要
     sup = sorted([cl for cl in clusters if cl[0] < last * (1 - tol / 3)], key=lambda cl: -score(cl))[:k]
     res = sorted([cl for cl in clusters if cl[0] > last * (1 + tol / 3)], key=lambda cl: -score(cl))[:k]
+    if not sup:  # 创新低时没有下方摆动点：用区间最低收盘兜底
+        sup = [[float(c.min()), 1, int(c.argmin())]] if c.min() < last else []
+    if not res:
+        res = [[float(c.max()), 1, int(c.argmax())]] if c.max() > last else []
     fmt = lambda cl: {"price": round(float(cl[0]), 3), "touches": int(cl[1]), "dist_pct": round(float(cl[0] / last - 1) * 100, 2), "last_touch_bars_ago": int(n - 1 - cl[2])}
     return {"supports": [fmt(x) for x in sorted(sup, key=lambda cl: -cl[0])], "resistances": [fmt(x) for x in sorted(res, key=lambda cl: cl[0])]}
 
@@ -198,7 +202,7 @@ def option_payoff(legs: list[dict], spot: float, multiplier: float = 1) -> dict:
     strikes = [float(l.get("strike") or 0) for l in legs if l.get("strike")]
     if strikes:
         lo, hi = min(lo, min(strikes) * 0.85), max(hi, max(strikes) * 1.15)
-    xs = np.linspace(lo, hi, 161)
+    xs = np.concatenate([[0.0], np.linspace(lo, hi, 161)])  # 第 0 个点=价格归零，用来算真实最大亏损
     pnl = np.zeros_like(xs)
     for l in legs:
         t = str(l.get("type", "call")).lower()
@@ -212,11 +216,12 @@ def option_payoff(legs: list[dict], spot: float, multiplier: float = 1) -> dict:
         else:
             leg = np.maximum(xs - k, 0) - prem
         pnl += sgn * q * leg * multiplier
+    p0, xs, pnl = pnl[0], xs[1:], pnl[1:]
     be = [round(float(xs[i] - pnl[i] * (xs[i + 1] - xs[i]) / (pnl[i + 1] - pnl[i])), 3) for i in range(len(xs) - 1) if pnl[i] == 0 or pnl[i] * pnl[i + 1] < 0]
     slope_hi = pnl[-1] - pnl[-2]
     return {"spot": spot, "legs": legs, "multiplier": multiplier, "breakevens": be,
             "max_profit": "无上限" if slope_hi > 1e-9 else round(float(pnl.max()), 2),
-            "max_loss": "无下限" if slope_hi < -1e-9 else round(float(pnl.min()), 2),
+            "max_loss": "无下限" if slope_hi < -1e-9 else round(float(min(pnl.min(), p0)), 2),
             "pnl_at_spot": round(float(np.interp(spot, xs, pnl)), 2),
             "points": [[round(float(x), 3), round(float(p), 3)] for x, p in zip(xs[::4], pnl[::4])], "source": "代码计算（到期收益，不含手续费）"}
 
