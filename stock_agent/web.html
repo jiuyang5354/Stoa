@@ -1503,12 +1503,15 @@ function add(role, html){
   d.innerHTML = `<div class="who"><span class="rn">${role === 'u' ? roman(turn) : '—'}</span><span class="label">${role === 'u' ? 'Quaestio' : 'Responsum'}</span></div><div class="body">${html}</div>`;
   log.append(d); stick(role === 'u'); return d.querySelector('.body');
 }
-let busy = false, ctl = null, stopped = false;
+/* 每个对话各跑各的：切到别的对话，这边照样查完、写完；回来接着看，没回来就弹提醒 */
+const RUNS = {};
+Object.defineProperty(window, 'busy', {get: () => !!RUNS[sid]});
+Object.defineProperty(window, 'stopped', {get: () => !!(RUNS[sid] && RUNS[sid].stopped)});
 /* 随时停止：前端立刻收手，后端在下一个检查点（模型返回 / 工具开始前）停下，不再继续查数据 */
 function stopChat(){
-  if (!busy || stopped) return; stopped = true;
+  const R = RUNS[sid]; if (!R || R.stopped) return; R.stopped = true; sync();
   fetch('/api/chat/stop', {method:'POST', headers:H, body:JSON.stringify({session:sid})}).catch(() => {});
-  if (ctl) ctl.abort();
+  R.ctl.abort();
 }
 async function send(text){
   text = (text ?? input.value).trim(); if (!text || busy) return;
@@ -1519,10 +1522,12 @@ async function send(text){
     if (!r) { if (input.value === text) { input.value = ''; sync(); } return; }
     text = r.text; if (r.show) shown = r.show;
   }
-  input.value = ''; sync(); busy = true; $('b').disabled = true;
-  add('u', shown);
+  const mySid = sid, R = RUNS[mySid] = {ctl: new AbortController(), stopped: false, q: text, nodes: []};
+  input.value = ''; sync(); $('b').disabled = true;
+  R.nodes.push(add('u', shown).parentElement);
   const seed = turn * 131 + Date.now() % 97, t0 = performance.now();
   const out = add('a', `<div class="thinking">${dropcap('', seed, true)}<span class="dots"><b class="tw">翻阅行情</b><i>.</i><i>.</i><i>.</i></span><ol class="steps"></ol></div>`);
+  R.nodes.push(out.parentElement);
   /* 还没有真实步骤时轮换的话；一旦收到工具事件就改成显示当前在做的那一步 */
   const TW = ['翻阅行情', '查证数据', '回看记忆', '权衡利弊', '落笔'];
   let twi = 0, live = false; const twT = setInterval(() => { const el = out.querySelector('.tw'); if (!el || live || twi >= TW.length - 1) return; el.textContent = TW[++twi]; }, 2600);
@@ -1549,11 +1554,11 @@ async function send(text){
       const li = out.querySelector(`.steps li[data-i="${CSS.escape(ev.id)}"]`); if (li) li.outerHTML = stepLi(s);
       if (steps.every(x => x.done)) { const tw = out.querySelector('.tw'); if (tw) tw.textContent = '落笔'; }
     }
-    stick();
+    if (sid === mySid) stick();
   };
-  stopped = false; ctl = new AbortController(); sync();
+  const ctl = R.ctl; sync();
   try {
-    const r = await fetch('/api/chat', {method:'POST', headers:H, signal: ctl.signal, body:JSON.stringify({text, session:sid, model: MDL.pick || undefined, stream: true, lang: I18N.lang})});
+    const r = await fetch('/api/chat', {method:'POST', headers:H, signal: ctl.signal, body:JSON.stringify({text, session:mySid, model: MDL.pick || undefined, stream: true, lang: I18N.lang})});
     let j;
     if ((r.headers.get('content-type') || '').includes('event-stream') && r.body) {
       const rd = r.body.getReader(), dec = new TextDecoder(); let buf = '';
@@ -1576,13 +1581,15 @@ async function send(text){
     if (j.need_model) openSettings('model');
     if (j.archived) placeArchive(j.archived, null);
   } catch (e) {
-    if (stopped) {
+    if (R.stopped) {
       const st = steps.filter(x => x.done);
       out.innerHTML = `<p class="stopnote">已停止${st.length ? `，停止前查完了 ${st.length} 步` : ''}。</p>` +
         (st.length ? `<details class="stepsum"><summary>${st.length} 步 · ${fmtMs(performance.now() - t0)}</summary><ol class="steps">${st.map((x, i) => stepLi({...x, id: 's' + i})).join('')}</ol></details>` : '');
     } else out.textContent = '请求失败：' + e;
   }
-  clearInterval(twT); ctl = null; busy = false; sync(); stick(); loadMemory();
+  clearInterval(twT); delete RUNS[mySid]; sync(); loadMemory();
+  if (sid === mySid) { if (!out.isConnected) openSession(mySid, true); else stick(); }
+  else if (!R.stopped) toast({time: '', kind: 'reply', title: `「${R.q.slice(0, 24)}${R.q.length > 24 ? '…' : ''}」答完了。`, session: mySid});
 }
 function fmtMs(ms){ ms = Math.max(0, ms || 0); return ms < 1000 ? Math.round(ms) + ' ms' : ms < 60000 ? (ms / 1000).toFixed(1) + ' 秒' : Math.floor(ms / 60000) + ' 分 ' + Math.round(ms % 60000 / 1000) + ' 秒'; }
 
@@ -2005,10 +2012,11 @@ function toast(e){
   let box = document.getElementById('toasts');
   if (!box) { box = document.createElement('div'); box.id = 'toasts'; document.body.appendChild(box); }
   const t = document.createElement('div'); t.className = 'toast';
-  const lab = {announcement: 'NOTICE · 公告', update: 'RENOVATIO · 更新', earnings_report: 'EVENTUS · 财报研报', earnings_soon: 'EVENTUS · 财报将至', inquiry: 'INQUISITIO · 研究课题'}[e.kind] || 'VIGILIA · 价格提醒';
-  t.innerHTML = `<span class="label">${lab}${e.time ? ' · ' + esc(e.time.slice(11)) : ''}</span><p>${esc(e.title)}</p>${e.inquiry ? `<a href="#" data-iq="${esc(e.inquiry)}">看课题 →</a>` : e.report ? `<a href="#" data-ev="${esc(e.report)}">读研报 →</a>` : e.changelog || (e.kind === 'update' && e.url) ? `<a href="#" data-cl="1">看更新内容 →</a>` : e.url ? `<a href="${esc(e.url)}" target="_blank" rel="noopener">读原文 →</a>` : ''}<button aria-label="关闭">×</button>`;
+  const lab = {announcement: 'NOTICE · 公告', update: 'RENOVATIO · 更新', earnings_report: 'EVENTUS · 财报研报', earnings_soon: 'EVENTUS · 财报将至', inquiry: 'INQUISITIO · 研究课题', reply: 'RESPONSUM · 回答'}[e.kind] || 'VIGILIA · 价格提醒';
+  t.innerHTML = `<span class="label">${lab}${e.time ? ' · ' + esc(e.time.slice(11)) : ''}</span><p>${esc(e.title)}</p>${e.session ? `<a href="#" data-ss="${esc(e.session)}">打开对话 →</a>` : e.inquiry ? `<a href="#" data-iq="${esc(e.inquiry)}">看课题 →</a>` : e.report ? `<a href="#" data-ev="${esc(e.report)}">读研报 →</a>` : e.changelog || (e.kind === 'update' && e.url) ? `<a href="#" data-cl="1">看更新内容 →</a>` : e.url ? `<a href="${esc(e.url)}" target="_blank" rel="noopener">读原文 →</a>` : ''}<button aria-label="关闭">×</button>`;
   t.querySelector('button').onclick = () => t.remove();
   const ev = t.querySelector('[data-ev]'); if (ev) ev.onclick = x => { x.preventDefault(); openEvent(ev.dataset.ev); };
+  const ss = t.querySelector('[data-ss]'); if (ss) ss.onclick = x => { x.preventDefault(); t.remove(); openSession(ss.dataset.ss); };
   const cl = t.querySelector('[data-cl]'); if (cl) cl.onclick = x => { x.preventDefault(); t.remove(); openChangelog(); };
   const iq = t.querySelector('[data-iq]'); if (iq) iq.onclick = x => { x.preventDefault(); openInquiry(iq.dataset.iq); };
   if (e.kind === 'inquiry') loadInquiries();
@@ -2393,18 +2401,24 @@ async function saveSettings(quiet){
 }
 /* ---------- 多会话 ---------- */
 function newChat(){
-  if (busy) return;
-  sid = localStorage.sid = newSid(); turn = 0; empty(); closeHist(); input.focus();
+  sid = localStorage.sid = newSid(); turn = 0; empty(); closeHist(); sync(); input.focus();
 }
 async function openSession(id, quiet){
-  if (busy) return;
   let j; try { j = await (await fetch('/api/sessions/' + encodeURIComponent(id), {headers:H})).json(); } catch (_) { return; }
   const ms = (j.messages || []).filter(m => m.role === 'user' || m.role === 'assistant');
-  if (!ms.length) { if (!quiet) { sid = localStorage.sid = id; turn = 0; empty(); } return; }
+  const R = RUNS[id];
+  if (!ms.length && !R && !j.running) { if (!quiet) { sid = localStorage.sid = id; turn = 0; empty(); sync(); } return; }
   sid = localStorage.sid = id; turn = 0; log.innerHTML = '';
   ms.forEach((m, i) => { if (m.role === 'user') add('u', esc(m.text)); else render(add('a', ''), m.text, i * 131 + 7); });
   if (j.digest) placeArchive(ms.filter(m => m.id <= j.digest.upto_id).length, j.digest.text);
-  log.scrollTop = 1e9; closeHist();
+  if (R) { /* 还在跑：把实时那一轮接回来（问题若已存进记录就不重复） */
+    const last = ms[ms.length - 1], saved = last && last.role === 'user' && last.text === R.q;
+    R.nodes.forEach((n, i) => { if (!(i === 0 && saved)) log.append(n); });
+  } else if (j.running) { /* 页面刷新过：后台还在答，等它写完再载入 */
+    const b = add('a', '<p class="stopnote">还在回答，写完自动显示…</p>');
+    const poll = setInterval(async () => { if (sid !== id || !b.isConnected) return clearInterval(poll); let k; try { k = await (await fetch('/api/sessions/' + encodeURIComponent(id), {headers:H})).json(); } catch (_) { return; } if (!k.running) { clearInterval(poll); openSession(id, true); } }, 3000);
+  }
+  log.scrollTop = 1e9; closeHist(); sync();
 }
 let HQT = 0;
 async function loadHist(){

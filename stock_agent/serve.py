@@ -324,7 +324,8 @@ class Web(BaseHTTPRequestHandler):
         if self.path.startswith("/api/sessions/"):
             sid = re.sub(r"[^A-Za-z0-9_-]", "", self.path.split("?")[0].rsplit("/", 1)[-1])[:40]
             d = MEM.digest(f"web-{sid}")
-            return self._send(200, {"id": sid, "messages": MEM.history(f"web-{sid}", limit=2000),
+            _lk = (SESSIONS.get("web:" + sid) or {}).get("lock")
+            return self._send(200, {"id": sid, "messages": MEM.history(f"web-{sid}", limit=2000), "running": bool(_lk and _lk.locked()),
                                     "digest": {k: d[k] for k in ("upto_id", "text", "ts", "n_msgs")} if d else None})
         if self.path.split("?")[0] == "/api/changelog":
             from . import changelog
