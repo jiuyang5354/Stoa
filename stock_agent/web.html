@@ -492,9 +492,16 @@
   .x:hover{border-color:var(--ink)}
   :focus-visible{outline:1px solid var(--gold);outline-offset:2px}
   input:focus-visible,textarea:focus-visible{outline:0}
-  .tolast{position:absolute;left:50%;bottom:12px;transform:translate(-50%,8px);opacity:0;pointer-events:none;border:1px solid var(--ink);background:rgba(246,244,239,.96);font:500 8.5px var(--sans);letter-spacing:.18em;padding:6px 12px;cursor:pointer;color:var(--ink);transition:opacity .25s,transform .35s var(--ease);z-index:5}
+  .tolast{position:absolute;left:50%;bottom:calc(100% + 14px);transform:translate(-50%,8px);opacity:0;pointer-events:none;border:1px solid var(--ink);background:rgba(246,244,239,.96);font:500 8.5px var(--sans);letter-spacing:.18em;padding:6px 12px;cursor:pointer;color:var(--ink);transition:opacity .25s,transform .35s var(--ease);z-index:5}
   .tolast.on{opacity:1;transform:translate(-50%,0);pointer-events:auto}
   .tolast:hover{background:var(--ink);color:var(--chalk)}
+
+  /* 回答落笔：思考区淡出后，正文段落依次浮现；设置分页切换时内容轻轻上浮；历史列表逐条进场 */
+  .landed>*{animation:rise .55s var(--ease) both;animation-delay:calc(var(--k,0) * 45ms)}
+  .pane.swap>*{animation:rise .4s var(--ease) both;animation-delay:calc(var(--k,0) * 30ms)}
+  .hi{animation:rise .4s var(--ease) both;animation-delay:calc(var(--k,0) * 25ms);transition:background .2s,padding .3s var(--ease)}
+  .hi:hover{background:rgba(176,146,89,.07);padding-left:10px}
+  .thinking.leave{animation:fadeout .18s ease both}
   @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
   /* ---- 设置（分栏参考 ChatGPT / Claude 桌面版、Cherry Studio、Hermes Dashboard：左侧分栏 + 右侧表单，Ctrl+, 打开） ---- */
   /* ---- 右栏宽度可拖 ---- */
@@ -1454,7 +1461,8 @@ async function send(text){
       }
     } else j = await r.json();
     j = j || {reply: '（连接中断，回答已存进记录，可在 History 里查看）'};
-    render(out, j.reply || j.error || '（空回复）', seed);
+    const th = out.querySelector('.thinking'); if (th) { th.classList.add('leave'); await new Promise(r => setTimeout(r, 170)); }
+    render(out, j.reply || j.error || '（空回复）', seed); stagger(out, 'landed', 12);
     const st = (j.steps && j.steps.length ? j.steps : steps.filter(x => x.done));
     if (st.length) out.insertAdjacentHTML('beforeend', `<details class="stepsum"><summary>${st.length} 步 · ${fmtMs(performance.now() - t0)}${st.some(x => !x.ok) ? ` · ${st.filter(x => !x.ok).length} 步没取到` : ''}</summary><ol class="steps">${st.map((x, i) => stepLi({...x, id: 's' + i, done: true})).join('')}</ol></details>`);
     if (j.need_model) openSettings('model');
@@ -2232,7 +2240,7 @@ const PANES = {
 };
 function show(k){
   scur = k; $('rail').querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.k === k));
-  const pane = $('pane'); pane.innerHTML = PANES[k](); pane.scrollTop = 0;
+  const pane = $('pane'); pane.innerHTML = PANES[k](); pane.scrollTop = 0; stagger(pane, 'swap', 10);
   pane.querySelectorAll('[data-env]').forEach(el => el.oninput = el.onchange = () => { dirty[el.dataset.env] = el.value; if (el.dataset.env === 'LLM_PROVIDER') { delete dirty.LLM_MODEL; show('model'); } setSt('有未保存的修改'); });
   pane.querySelectorAll('[data-clr]').forEach(b => b.onclick = e => { e.preventDefault(); dirty[b.dataset.clr] = null; S.env[b.dataset.clr].set = false; S.env[b.dataset.clr].value = ''; show(k); setSt('有未保存的修改'); });
   pane.querySelectorAll('[data-pref]').forEach(g => g.querySelectorAll('button').forEach(b => b.onclick = () => { PREF[g.dataset.pref] = b.dataset.v; savePref(); show(k); setSt(g.dataset.pref === 'colors' ? '已切换' : g.dataset.pref === 'pbAgent' ? '' : '刷新后生效', 'ok'); }));
@@ -2299,6 +2307,7 @@ async function loadHist(){
       <span class="ha"><button data-act="pin" title="${s.pinned ? '取消置顶' : '置顶'}">${s.pinned ? '◆' : '◇'}</button><button data-act="ren" title="改名">✎</button><button data-act="del" title="删除">×</button></span></div>`;
   });
   $('hlist').innerHTML = html || `<p class="hempty">${q ? '没有找到相关对话。' : '还没有对话。问 Stoa 一个问题，这里就会出现。'}</p>`;
+  $('hlist').querySelectorAll('.hi').forEach((el, i) => el.style.setProperty('--k', Math.min(i, 14)));
   $('hlist').querySelectorAll('.hi').forEach(el => {
     const id = el.dataset.id, s = ss.find(x => x.id === id);
     el.onclick = e => { if (e.target.closest('.ha') || e.target.tagName === 'INPUT') return; openSession(id); };
@@ -2651,6 +2660,7 @@ loadNews(); setInterval(loadNews, 20 * 60 * 1000);
 
 
 /* ---------- 交互：退场动画 + 只在贴底时跟随滚动 ---------- */
+function stagger(el, cls, n){ [...el.children].forEach((c, i) => c.style.setProperty('--k', Math.min(i, n))); el.classList.remove(cls); void el.offsetWidth; el.classList.add(cls); }
 function animHide(el){
   if (!el || el.hidden || el.classList.contains('out')) return;
   if (matchMedia('(prefers-reduced-motion: reduce)').matches) { el.hidden = true; return; }
