@@ -577,6 +577,23 @@
   /* ---- 记忆图谱 · Mnemosyne（参考用户 2026-10-29 给的希腊神祇海报组：旧纸底、拱门里的铜版雕刻、巨大衬线标题、竖排小字、四芒星、月相、月桂、细线框） ---- */
   .gear.hlg{right:auto;left:132px}
   html.en .sh h3 span{display:none}
+  /* 英文界面：中文排版的字距和字号放到英文上会显得松、大、换行，这里统一收一档 */
+  html.en{--cn:"Linux Libertine","Noto Serif SC","Source Han Serif SC",serif}
+  html.en .empty h2{font-size:24px;letter-spacing:0;line-height:1.25}
+  html.en .empty .lead{font-size:16.5px;line-height:1.55}
+  html.en .chip{font-size:13px;line-height:1.5}
+  html.en .rail button{font-size:14px;letter-spacing:.01em;white-space:nowrap}
+  html.en .pane h3{letter-spacing:.01em}
+  html.en .tk b,html.en .sh h3 span,html.en .snap-h small,html.en .tag dd,html.en .li .n,html.en .pr b{letter-spacing:.01em}
+  html.en .li .n,html.en .pr b{font-size:12.5px}
+  html.en .seg button{letter-spacing:.03em;font-size:13.5px}
+  html.en .slp button{grid-template-columns:92px 1fr auto}
+  html.en .slp button span{font-size:13.5px}
+  html.en .fr>span b{font-size:14px}
+  html.en .fr>span small{font-size:10.5px;line-height:1.4}
+  html.en .fr input[type=text],html.en .fr input[type=password],html.en .fr select{font-size:13px}
+  html.en body{font-size:14px}
+  html.en .tk b{font-size:13px}
   .gear.lg{right:236px;min-width:40px;justify-content:center;letter-spacing:.12em;font-family:var(--serif),var(--cn);font-size:11px;padding:6px 10px}.gear.lg:hover svg{transform:none}
   .gph{position:fixed;inset:0;z-index:46;background:rgba(24,23,21,.32);animation:fadein .2s ease both;display:flex;align-items:center;justify-content:center}
   .gph[hidden]{display:none}
@@ -810,7 +827,7 @@
   .pbr li em{font:italic 13px var(--serif);color:var(--mute);font-style:italic}
   .pbx{display:inline-flex;margin-top:10px;border-color:var(--rule-2)}.pbx:hover{border-color:var(--bronze);color:var(--bronze)}
   .skb{white-space:pre-wrap;font:12px/1.6 var(--sans);margin:8px 0 0;padding:10px 12px;border:1px solid var(--rule);background:rgba(255,255,255,.35)}
-  .ml li{display:grid;grid-template-columns:28px 1fr auto;gap:10px;align-items:baseline;padding:9px 0;border-bottom:1px solid var(--rule);font-size:13px}
+  .ml li{display:grid;grid-template-columns:minmax(28px,max-content) 1fr auto;gap:10px;align-items:baseline;padding:9px 0;border-bottom:1px solid var(--rule);font-size:13px}
   .ml li i{font:500 10px var(--display);font-style:normal;color:var(--mute)}
   .ml li .x{opacity:0;transition:opacity .2s}.ml li:hover .x{opacity:1}
   .addrow{display:flex;gap:8px;padding:10px 0}
