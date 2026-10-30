@@ -13,7 +13,7 @@ from pathlib import Path
 
 CN_TZ = timezone(timedelta(hours=8))
 CARD_TOOLS = {"get_fund_flow", "get_northbound", "get_dragon_tiger", "get_consensus", "get_intraday", "get_options", "read_filing", "compare_filings", "get_quotes",
-              "price_levels", "financial_bridge", "option_payoff", "trade_replay"}
+              "price_levels", "financial_bridge", "option_payoff", "trade_replay", "earnings_quality", "reverse_dcf", "dcf_scenarios"}
 
 
 def cards_dir() -> Path:
@@ -96,6 +96,21 @@ def build(tool: str, args: dict, r) -> list[dict]:
         c.update({k: r.get(k) for k in ("entry", "stop", "target", "n", "horizon", "p_target_first", "p_stop_first", "p_neither",
                                          "exp_return_pct", "exp_R", "fan", "sample")})
         return [c]
+    if tool == "earnings_quality":
+        c = _base(r, "quality")
+        b, p, a = r.get("beneish") or {}, r.get("piotroski") or {}, r.get("altman") or {}
+        c.update(name=r.get("name"), period=r.get("period"), dupont=r.get("dupont"), quality=r.get("quality"), m=b.get("m_score"),
+                 f=p.get("f_score"), fsig=p.get("signals"), z=a.get("z_score"), zv=a.get("verdict"), flags=r.get("flags"),
+                 ties=(r.get("tie_outs") or {}).get("checked"), tiefail=len((r.get("tie_outs") or {}).get("failed") or []))
+        return [c]
+    if tool == "reverse_dcf":
+        c = _base(r, "rdcf")
+        c.update({k: r.get(k) for k in ("name", "implied_initial_growth", "discount_rate", "terminal_growth", "sensitivity_by_discount", "hist_revenue_cagr", "fcf_history", "currency")})
+        return [c]
+    if tool == "dcf_scenarios":
+        c = _base(r, "scen")
+        c.update({k: r.get(k) for k in ("name", "scenarios", "weighted_per_share", "price", "upside_pct", "defaulted_scenarios")})
+        return [c] if r.get("scenarios") else []
     if tool == "get_quotes":  # 只在交叉校验报警时出卡
         out = []
         for sym, v in r.items():

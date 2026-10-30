@@ -329,6 +329,11 @@
   .dc h6 small{margin-left:auto;font:10px var(--sans);color:var(--mute);letter-spacing:.02em}
   .dc svg{display:block;width:100%;height:auto;overflow:visible}
   .dc .kv{display:flex;flex-wrap:wrap;gap:4px 14px;margin-top:6px;font-size:11.5px;color:var(--mute)}
+  .dc .gq{display:grid;grid-template-columns:92px 120px 52px 1fr;align-items:center;gap:8px;font-size:11.5px;color:var(--mute);margin:3px 0}
+  .dc .gq b{font:500 12.5px var(--serif);color:var(--ink);text-align:right}.dc .gq small{font-size:10.5px}
+  .dc .flg{margin:6px 0 0;padding-left:16px;font-size:11.5px;color:var(--terracotta)}.dc .flg li{margin:2px 0}
+  .dc .sb{display:grid;grid-template-columns:34px 1fr 56px 104px;align-items:center;gap:6px;font-size:11.5px;color:var(--mute);margin:4px 0}
+  .dc .sb i{display:block;height:7px;opacity:.75}.dc .sb b{font:500 12.5px var(--serif);color:var(--ink);text-align:right}.dc .sb small{font-size:10.5px}
   .dc .kv b{font:500 12.5px var(--serif);color:var(--ink);font-variant-numeric:lining-nums}
   .dc .ft{margin-top:7px;padding-top:5px;border-top:1px solid var(--rule);font-size:10.5px;color:var(--mute);display:flex;gap:8px;flex-wrap:wrap}
   .dc .ft a{color:inherit;text-decoration:none;border-bottom:1px solid var(--rule-2)}
@@ -1209,7 +1214,39 @@ function cardReplay(c){
     ${hl(c.target, 'var(--terracotta)', '目标')}${hl(c.stop, 'var(--olive)', '止损')}${hl(c.entry, 'var(--mute)', '入场')}</svg>
     <div class="kv"><span>先到目标 <b>${N(c.p_target_first, 1)}%</b></span><span>先到止损 <b>${N(c.p_stop_first, 1)}%</b></span><span>都没到 <b>${N(c.p_neither, 1)}%</b></span><span>期望 <b>${sgn(c.exp_return_pct)}%</b></span>${c.exp_R != null ? `<span>期望 R <b>${N(c.exp_R, 2)}</b></span>` : ''}</div>${dcFoot(c)}</div>`;
 }
-const CARD = {flow: cardFlow, consensus: cardConsensus, intraday: cardIntraday, options: cardOptions, north: cardNorth, lhb: cardLhb, filing: cardFiling, compare: cardCompare, quotecheck: cardQuote, levels: cardLevels, bridge: cardBridge, payoff: cardPayoff, replay: cardReplay};
+function pc(v, d){ return v == null ? '—' : (v * 100).toFixed(d == null ? 1 : d) + '%'; }
+function cardQuality(c){
+  const q = c.quality || {}, dp = c.dupont || {}, fl = c.flags || [];
+  const gauge = (label, v, lo, hi, good, txt) => { if (v == null) return ''; const t = Math.max(0, Math.min(1, (v - lo) / (hi - lo)));
+    return `<div class="gq"><span>${label}</span><svg viewBox="0 0 120 8"><line x1="0" x2="120" y1="4" y2="4" stroke="var(--rule-2)" stroke-width="2"/><circle cx="${(t * 120).toFixed(1)}" cy="4" r="3.2" fill="${good ? 'var(--olive)' : 'var(--terracotta)'}"/></svg><b>${N(v, 2)}</b><small>${esc(txt || '')}</small></div>`; };
+  return `<div class="dc wide"><h6>盈利质量<i>Examen rationum</i><small>${esc(c.name || c.symbol || '')} · ${esc(c.period || '')}${csup(c.cite)}</small></h6>
+    ${gauge('Beneish M', c.m, -4, 0, c.m != null && c.m <= -1.78, c.m == null ? '' : c.m <= -1.78 ? '< −1.78 未见操纵迹象' : '> −1.78 需细查')}
+    ${gauge('Piotroski F', c.f, 0, 9, c.f >= 5, c.f >= 7 ? '强' : c.f <= 3 ? '弱' : '中等')}
+    ${gauge('Altman Z', c.z, 0, 6, c.z > 2.99, c.zv)}
+    <table style="margin-top:6px"><tr><th>杜邦</th><th>净利率</th><th>资产周转</th><th>权益乘数</th><th>ROE</th></tr><tr><td></td><td>${pc(dp['净利率'])}</td><td>${N(dp['总资产周转率'], 2)}</td><td>${N(dp['权益乘数'], 2)}</td><td>${pc(dp['ROE（乘积）'])}</td></tr></table>
+    <div class="kv"><span>现金/净利 <b>${N(q['经营现金流/净利润'], 2)}</b></span><span>营收同比 <b>${pc(q['营收同比'])}</b></span><span>应收同比 <b>${pc(q['应收账款同比'])}</b></span><span>存货同比 <b>${pc(q['存货同比'])}</b></span>${q['非经常性损益占归母净利'] != null ? `<span>非经常性 <b>${pc(q['非经常性损益占归母净利'])}</b></span>` : ''}<span>勾稽 <b>${(c.ties || 0) - (c.tiefail || 0)}/${c.ties || 0}</b></span></div>
+    ${fl.length ? `<ul class="flg">${fl.map(f => `<li>${esc(f)}</li>`).join('')}</ul>` : ''}${dcFoot(c)}</div>`;
+}
+function cardRdcf(c){
+  const sv = Object.entries(c.sensitivity_by_discount || {}); if (c.implied_initial_growth == null) return '';
+  const vs = sv.map(([, v]) => v).filter(v => v != null).concat([c.hist_revenue_cagr || 0, 0]), mx = Math.max(...vs.map(Math.abs), .05);
+  const W = 300, H = 70, bw = W / Math.max(sv.length, 1), Y = v => H / 2 - v / mx * (H / 2 - 8);
+  const bars = sv.map(([k, v], i) => v == null ? '' : `<rect x="${(i * bw + 10).toFixed(1)}" y="${Math.min(Y(v), H / 2).toFixed(1)}" width="${(bw - 20).toFixed(1)}" height="${Math.abs(Y(v) - H / 2).toFixed(1)}" fill="${Math.abs(v - c.implied_initial_growth) < 1e-9 ? 'var(--ink)' : 'var(--bronze)'}" opacity=".8"/><text x="${(i * bw + bw / 2).toFixed(1)}" y="${H + 9}" text-anchor="middle" font-size="7.5" fill="var(--mute)" ${FT}>r ${esc(k)}</text><text x="${(i * bw + bw / 2).toFixed(1)}" y="${(v >= 0 ? Y(v) - 2 : Y(v) + 8).toFixed(1)}" text-anchor="middle" font-size="7.5" fill="var(--ink-2)" ${FT}>${pc(v)}</text>`).join('');
+  const hl = c.hist_revenue_cagr != null ? `<line x1="0" x2="${W}" y1="${Y(c.hist_revenue_cagr).toFixed(1)}" y2="${Y(c.hist_revenue_cagr).toFixed(1)}" stroke="var(--terracotta)" stroke-dasharray="3 3" stroke-width=".8"/>` : '';
+  return `<div class="dc"><h6>反向 DCF<i>Quid pretium sperat</i><small>${esc(c.name || c.symbol || '')}${csup(c.cite)}</small></h6>
+    <svg viewBox="0 0 ${W} ${H + 12}"><line x1="0" x2="${W}" y1="${H / 2}" y2="${H / 2}" stroke="var(--rule-2)" stroke-width=".6"/>${bars}${hl}</svg>
+    <div class="kv"><span>隐含增速 <b>${pc(c.implied_initial_growth)}</b></span><span>折现率 <b>${pc(c.discount_rate)}</b></span><span>永续 <b>${pc(c.terminal_growth)}</b></span><span>历史营收复合 <b style="color:var(--terracotta)">${pc(c.hist_revenue_cagr)}</b></span></div>${dcFoot(c)}</div>`;
+}
+function cardScen(c){
+  const sc = c.scenarios || []; if (!sc.length) return '';
+  const vs = sc.map(x => x.per_share).filter(v => v != null).concat([c.price || 0, c.weighted_per_share || 0]), mx = Math.max(...vs, 1);
+  const row = (label, v, col, sub) => `<div class="sb"><span>${esc(label)}</span><i style="width:${(Math.max(0, v || 0) / mx * 100).toFixed(1)}%;background:${col}"></i><b>${N(v, 2)}</b><small>${esc(sub || '')}</small></div>`;
+  return `<div class="dc"><h6>情景估值<i>Tria fata</i><small>${esc(c.name || c.symbol || '')}${csup(c.cite)}</small></h6>
+    ${sc.map(x => row(x.name, x.per_share, x.name === '悲观' ? 'var(--olive)' : x.name === '乐观' ? 'var(--terracotta)' : 'var(--bronze)', `${Math.round(x.prob * 100)}% · g ${pc(x.growth)}`)).join('')}
+    ${row('加权', c.weighted_per_share, 'var(--ink)', c.upside_pct == null ? '' : `相对现价 ${sgn(c.upside_pct)}%`)}${row('现价', c.price, 'var(--gold)', '')}
+    ${c.defaulted_scenarios ? '<p class="muted" style="margin:4px 0 0;font-size:11px">情景为按历史增速生成的默认值</p>' : ''}${dcFoot(c)}</div>`;
+}
+const CARD = {flow: cardFlow, consensus: cardConsensus, intraday: cardIntraday, options: cardOptions, north: cardNorth, lhb: cardLhb, filing: cardFiling, compare: cardCompare, quotecheck: cardQuote, levels: cardLevels, bridge: cardBridge, payoff: cardPayoff, replay: cardReplay, quality: cardQuality, rdcf: cardRdcf, scen: cardScen};
 async function loadCards(box, src){
   let d; try { d = await (await fetch('/api/cards/' + encodeURIComponent(box.dataset.id), {headers: H})).json(); } catch (e) { box.remove(); return; }
   const html = (d.cards || []).map(c => { try { return (CARD[c.type] || (() => ''))(c); } catch (e) { return ''; } }).join('');

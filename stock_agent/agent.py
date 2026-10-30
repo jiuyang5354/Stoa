@@ -26,6 +26,8 @@ SYSTEM = """你是「Stoa」，用户的长期股市助手，覆盖 A股、港�
 - 行情数字必须来自工具结果，不编造。不知道就说不知道。
 - 数字硬算：占比、增速、差额、倍数、利润率、涨跌空间这类派生数字不要心算，一律用 calc 算（把工具里的原始数字作为 variables 传进去），回答引用 calc 的结果。
   问支撑阻力/关键价位 → price_levels；问利润结构、钱花在哪、收入到净利怎么变 → financial_bridge；期权组合盈亏 → option_payoff；
+  原始三表科目 → get_statements（A股单季已由代码拆好）；利润含金量/造假风险/勾稽 → earnings_quality；现价隐含什么增长 → reverse_dcf；
+  三情景估值 → dcf_scenarios（情景假设要自己写清楚，不要用默认值冒充判断）；问询函/监管/处罚/SEC 意见信 → regulatory_letters。
   用户给了入场/止损/目标想知道胜算 → trade_replay（历史波动压力测试，不是预测）。这几个工具会在回答下方自动画图，不用在文字里重复所有数字。
 - 可以给出你的判断和理由，但每次给出明确的方向性判断（看涨/看跌/区间）时，调用 record_call 记账，方便日后复盘。
 - 问「为什么涨/跌」「发生了什么」：先 get_news 和 get_announcements，必要时 web_search + fetch_url 读原文，再结合行情回答。问估值、基本面、能不能买：先 get_financials。
@@ -161,6 +163,16 @@ TOOLS = [
     {"name": "trade_replay", "description": "行情重放（时光机）：用该股近几年日收益 5 日分块重抽样，模拟上万条未来路径，算这个交易计划先碰目标/先碰止损/都没碰的概率、收益分布和期望 R，并画路径扇形图。entry 默认现价；适合用户给了止损和目标价时做压力测试。",
      "parameters": {"type": "object", "properties": {"symbol": {"type": "string"}, "entry": {"type": "number"}, "stop": {"type": "number"}, "target": {"type": "number"},
                                                      "horizon": {"type": "integer", "description": "持有交易日，默认 20"}, "years": {"type": "integer", "description": "用几年历史，默认 3"}}, "required": ["symbol", "stop", "target"]}},
+    {"name": "get_statements", "description": "三张报表原始科目（营收、营业成本、销售/管理/研发费用、经营利润、净利、扣非；货币资金、应收、存货、固定资产、有息负债、权益；经营/投资/筹资现金流、资本开支、分红、折旧）。A股东方财富原始报表，freq=quarter 时累计口径由代码拆成单季；港美股 Yahoo。",
+     "parameters": {"type": "object", "properties": {"symbol": {"type": "string"}, "freq": {"type": "string", "enum": ["annual", "quarter"]}, "periods": {"type": "integer", "description": "期数，默认 4，最多 12"}}, "required": ["symbol"]}},
+    {"name": "earnings_quality", "description": "盈利质量体检（全部由原始科目计算）：杜邦分解、经营现金流/净利、销售收现/营收、应计比率、应收和存货增速 vs 营收、非经常性损益占比、Beneish M-score、Piotroski F-score、Altman Z、报表勾稽检查，并列出红旗。",
+     "parameters": {"type": "object", "properties": {"symbol": {"type": "string"}}, "required": ["symbol"]}},
+    {"name": "reverse_dcf", "description": "反向 DCF：现在的企业价值（市值+有息负债−现金+少数股东）隐含未来 10 年自由现金流要以多快增长，附折现率敏感性和历史营收复合增速对照。",
+     "parameters": {"type": "object", "properties": {"symbol": {"type": "string"}, "discount": {"type": "number", "description": "折现率，如 0.09；默认 A/港 9%、美股 8.5%"}, "terminal_growth": {"type": "number"}}, "required": ["symbol"]}},
+    {"name": "dcf_scenarios", "description": "三情景 DCF：scenarios 每条 {name, prob, growth(前期增速), discount?, terminal_growth?, fcf_multiplier?(基期现金流倍数，表示利润率变化)}，返回每股价值、概率加权价值和相对现价空间。不给 scenarios 时按历史增速生成默认情景（会注明）。",
+     "parameters": {"type": "object", "properties": {"symbol": {"type": "string"}, "scenarios": {"type": "array", "items": {"type": "object"}}, "discount": {"type": "number"}}, "required": ["symbol"]}},
+    {"name": "regulatory_letters", "description": "监管文件：A股/港股从公告里筛出问询函、关注函、监管函、警示函、监管措施、处罚、立案及回复；美股 SEC 意见信（UPLOAD）和公司回复（CORRESP）。带原文链接。",
+     "parameters": {"type": "object", "properties": {"symbol": {"type": "string"}}, "required": ["symbol"]}},
     {"name": "call_stats", "description": "判断账本统计：总体准确率，按方向、市场、周期拆开的准确率，最近 10 次对错，短板。", "parameters": {"type": "object", "properties": {}}},
     {"name": "alert_set", "description": "设一个提醒，触发后推送到用户开的渠道。kind：above 涨到某价、below 跌到某价、up 单日涨超某百分比、down 单日跌超某百分比（填正数）、announcement 有新公告。默认触发一次就关，repeat=true 则每天最多提醒一次。",
      "parameters": {"type": "object", "properties": {"symbol": {"type": "string"}, "name": {"type": "string"},
@@ -181,7 +193,8 @@ ADVICE_RE = re.compile(r"推荐|稳赚|翻倍|杠杆|融资|借钱|all ?in|满�
 EVENT_TOOLS = {"get_corporate_events", "get_chips", "get_market_mood", "get_insiders", "get_short_volume"}
 DEEP_TOOLS = EVENT_TOOLS | {"get_fund_flow", "get_northbound", "get_dragon_tiger", "get_consensus", "get_intraday", "get_options", "read_filing", "compare_filings"}
 QUANT_TOOLS = {"calc", "price_levels", "financial_bridge", "option_payoff", "trade_replay"}
-BIG_TOOLS = {"read_filing", "compare_filings", "get_consensus", "get_dragon_tiger"}  # 结果允许更长
+FUND_TOOLS = {"get_statements", "earnings_quality", "reverse_dcf", "dcf_scenarios", "regulatory_letters"}
+BIG_TOOLS = {"get_statements", "earnings_quality", "read_filing", "compare_filings", "get_consensus", "get_dragon_tiger"}  # 结果允许更长
 
 
 SIDE_EFFECT_TOOLS = {"memory", "record_call", "alert_set", "alert_delete", "watchlist", "skill_save", "skill_delete", "run_python", "deep_analysis", "earnings_report"}
@@ -193,7 +206,8 @@ TOOL_LABELS = {"get_quotes": "查行情", "market_overview": "看大盘", "get_n
                "call_stats": "看战绩", "alert_set": "设提醒", "alert_list": "看提醒", "alert_delete": "删提醒", "skill_view": "读技能",
                "skill_save": "存技能", "skill_delete": "删技能", "get_corporate_events": "查公司事件", "get_chips": "看筹码两融",
                "get_market_mood": "看市场情绪", "calc": "硬算数字", "price_levels": "算支撑阻力", "financial_bridge": "拆利润结构",
-               "option_payoff": "算期权收益", "trade_replay": "行情重放", "get_insiders": "查内部人交易", "get_short_volume": "看做空"}
+               "option_payoff": "算期权收益", "trade_replay": "行情重放",
+               "get_statements": "读原始报表", "earnings_quality": "查盈利质量", "reverse_dcf": "反向 DCF", "dcf_scenarios": "情景估值", "regulatory_letters": "查问询函", "get_insiders": "查内部人交易", "get_short_volume": "看做空"}
 
 
 def _arg_brief(raw) -> str:
@@ -484,6 +498,21 @@ class Agent:
             return alerts.remove(args["id"])
         if name == "run_python":
             return sandbox.run_python(args["code"])
+        if name in FUND_TOOLS:
+            from . import fundamentals as F
+            try:
+                sym = str(args.get("symbol", "")).strip()
+                if name == "get_statements":
+                    return F.compact(F.statements(sym, args.get("freq") or "annual", int(args.get("periods") or 4)))
+                if name == "earnings_quality":
+                    return F.earnings_quality(sym)
+                if name == "reverse_dcf":
+                    return F.reverse_dcf(sym, args.get("discount"), float(args.get("terminal_growth") or 0.025))
+                if name == "dcf_scenarios":
+                    return F.dcf_scenarios(sym, args.get("scenarios"), args.get("discount"))
+                return F.regulatory_letters(sym)
+            except Exception as e:
+                return {"error": f"{name} 暂时算不了：{str(e)[:120]}"}
         if name in QUANT_TOOLS:
             from . import quant
             try:
