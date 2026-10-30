@@ -110,7 +110,7 @@
     background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='18' height='9' viewBox='0 0 18 9'%3E%3Cpath d='M0 8.5h4.5v-7h9v5h-4.5v-2.5h2v1' fill='none' stroke='%23181715' stroke-width='.8'/%3E%3C/svg%3E") repeat-x 0 0}
 
   .wrap{flex:1;display:flex;min-height:0;margin:0 4px 4px}
-  main{flex:1;display:flex;flex-direction:column;min-width:0;padding:0 clamp(24px,5vw,72px);container-type:inline-size}
+  main{flex:1;display:flex;flex-direction:column;min-width:0;padding:0 clamp(24px,5vw,72px);container-type:inline-size;position:relative}
   @container (max-width:880px){header>.label{visibility:hidden}}
   .inner{width:100%;max-width:760px;margin:0 auto;display:flex;flex-direction:column;min-height:0;flex:1;position:relative}
   header{padding:26px 0 18px;text-align:center;border-bottom:1px solid var(--rule);position:relative}
@@ -121,7 +121,7 @@
   /* Index · 问章刻度：代替对话区的滚动条（参考 21st Message Scroller + Scroll Bars）。
      每一问是一道刻痕，位置按它在全文中的比例；金色细线是当前视口；悬停时附近刻痕按距离伸长，左侧浮出那一问；点刻痕跳过去，按住拖动即滚动 */
   #log.ix{scrollbar-width:none}#log.ix::-webkit-scrollbar{display:none}
-  .ix-r{position:absolute;right:-30px;top:0;height:0;width:22px;opacity:0;pointer-events:none;transition:opacity .35s var(--ease);touch-action:none;cursor:pointer;z-index:4}
+  .ix-r{position:absolute;right:6px;top:0;height:0;width:22px;opacity:0;pointer-events:none;transition:opacity .35s var(--ease);touch-action:none;cursor:pointer;z-index:4}
   .ix-r.on{opacity:1;pointer-events:auto}
   .ix-r::before{content:"";position:absolute;left:4px;top:0;bottom:0;width:1px;background:var(--rule)}
   .ix-v{position:absolute;left:3.5px;width:2px;background:var(--gold);transition:top .12s linear,height .12s linear}
@@ -2747,7 +2747,7 @@ const IX = {el: null, raf: 0, hov: null, drag: false};
 function ixInit(){
   const r = document.createElement('div'); r.className = 'ix-r'; r.setAttribute('aria-hidden', 'true');
   r.innerHTML = '<div class="ix-v"></div><div class="ix-tip"></div>';
-  log.parentElement.append(r); log.classList.add('ix'); IX.el = r;
+  log.closest('main').append(r); log.classList.add('ix'); IX.el = r;
   const pos = e => { const b = r.getBoundingClientRect(); return Math.min(1, Math.max(0, (e.clientY - b.top) / b.height)); };
   const nearest = f => { let best = null, d = 1e9; r.querySelectorAll('.ix-t').forEach(t => { const x = Math.abs(+t.dataset.f - f); if (x < d){ d = x; best = t; } }); return d < .06 ? best : null; };
   r.addEventListener('pointermove', e => {
@@ -2776,7 +2776,7 @@ function ixDraw(){
   const r = IX.el; if (!r) return;
   const H = log.scrollHeight, V = log.clientHeight, over = H > V + 8;
   r.classList.toggle('on', over); if (!over) return;
-  r.style.top = (log.offsetTop + 30) + 'px'; r.style.height = Math.max(80, V - 60) + 'px';
+  r.style.top = (log.getBoundingClientRect().top - r.parentElement.getBoundingClientRect().top + 30) + 'px'; r.style.height = Math.max(80, V - 60) + 'px';
   const qs = [...log.querySelectorAll('.m.u')], ts = [...r.querySelectorAll('.ix-t')];
   while (ts.length < qs.length){ const t = document.createElement('i'); t.className = 'ix-t'; r.append(t); ts.push(t); }
   while (ts.length > qs.length) ts.pop().remove();
