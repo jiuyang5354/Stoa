@@ -124,6 +124,8 @@ class Sources:
             return result
 
     def _add(self, tool, args, result):
+        if tool in NO_NUMBERS:  # 技能说明、写记忆的回执：里面的数字不是数据，不能当出处
+            return result
         if tool == "get_quotes" and isinstance(result, dict):
             out = {}
             for sym, v in result.items():
@@ -245,7 +247,7 @@ class Sources:
             for cand in (s, s * 100 if abs(s) < 5 else None):
                 if cand is not None and close(cand):
                     it = self.get(sid) or {}
-                    direct.append((abs(av - abs(cand)) > 1e-9, rank.get(it.get("kind"), 4), it.get("tool") != "get_quotes", sid))
+                    direct.append((abs(av - abs(cand)) > 1e-9, rank.get(it.get("kind"), 4), it.get("tool") in LOW_PRIORITY, sid))
         if direct:
             return [min(direct)[-1]]
         uniq = {}
@@ -284,6 +286,17 @@ class Sources:
 
 
 # ====================================================================== 回答侧
+NO_NUMBERS = {"skill_view", "skills_list", "skill_manage", "memory", "alert_add", "alert_remove"}
+LOW_PRIORITY = {"get_quotes", "market_overview"}  # 同一个数多处对得上时，行情一览最后考虑
+UNIT_AFTER = re.compile(r"(?:港元|美元|人民币|元|千升|千克|吨|户|股|家|人次|人|辆|台|张|手)")
+
+
+def _round(tok: str) -> bool:
+    """有效数字不超过两位（7%、30%、1.1、0.8、89%）：多半是假设或阈值，凑巧和别处数字相等的概率高，不自动加角标。"""
+    d = re.sub(r"[^\d]", "", tok).lstrip("0").rstrip("0")
+    return len(d) <= 2
+
+
 def has_marker(body: str, end: int) -> bool:
     """数字后面（同一短语内）已经有 [n] 角标。"""
     return bool(re.search(r"\[\d+\]", re.split(r"[，。；,;\n]", body[end:end + 14])[0]))
@@ -327,6 +340,8 @@ def key_numbers(text: str) -> list[dict]:
             continue
         if not has_dec and not unit and re.fullmatch(r"(19|20)\d\d", tok.lstrip("+-")):  # 年份
             continue
+        if not has_dec and not unit and re.fullmatch(r"\d{5,6}", tok) and ((before and before in "（(") or (after and after in "）).") or tok.startswith("0")):
+            continue  # 股票代码 600519、00700
         dec = len(tok.split(".")[1]) if has_dec else 0
         scale = UNIT.get(unit or "", 1) if unit not in ("%", "％") else 1
         out.append({"start": s, "end": e, "end_num": m.end(),
@@ -406,14 +421,16 @@ def finalize(text: str, src: Sources) -> tuple[str, list[dict]]:
         if not sids:
             continue
         at = n["end_num"]
-        cu = re.match(r"(?:港元|美元|人民币|元)", body[at:at + 3]) if n["scale"] != 1 else None  # 「4.66 亿元」角标放在「元」后
+        if _round(n["text"]):
+            continue
+        cu = UNIT_AFTER.match(body[at:at + 3]) if n["scale"] != 1 else None  # 「4.66 亿元」「235.4 万千升」角标放在单位后
         if cu:
             at += cu.end()
         rest = body[at:]
         if re.match(r"\s?\[\d+\]", rest) or re.match(r"\s?\[\d+\]", body[n["end_num"]:]):
             continue
-        near = re.split(r"[，。；,;\n]", rest[:14])[0]
-        if all(f"[{x}]" in near for x in sids[:2]):  # 同一短语末尾已有同一个角标
+        near = re.split(r"[，。；,;\n|、]", rest[:14])[0]
+        if re.search(r"\[\d+\]", near):  # 同一短语末尾模型已经标过角标（如「16.79 倍[29]」）
             continue
         body = body[:at] + "".join(f"[{s}]" for s in sids[:2]) + rest
     body = page_cites(body, src)

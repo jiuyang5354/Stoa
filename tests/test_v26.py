@@ -115,3 +115,18 @@ def test_reg_pattern_and_registration():
     names = {t["name"] for t in agent.TOOLS}
     assert agent.FUND_TOOLS <= names and agent.FUND_TOOLS <= set(agent.TOOL_LABELS)
     assert {"earnings_quality", "reverse_dcf", "dcf_scenarios"} <= cards.CARD_TOOLS
+
+
+def test_cite_no_false_markers():
+    from stock_agent import cite
+    src = cite.Sources()
+    src.add("skill_view", {"name": "x"}, {"content": "折现率 7% 情景 30% 阈值 0.8"})
+    src.add("get_financials", {"symbol": "600519.SS"}, {"symbol": "600519.SS", "pe": 16.79, "revenue_yoy": 1.82, "code": 600519, "out": 2354000})
+    src.add("web_search", {"query": "q"}, {"results": [{"title": "白酒产量", "url": "https://x.com/a", "snippet": "产量 235.4 万千升"}]})
+    text = "贵州茅台（600519）市盈率 16.79 倍[2]，收入增长 1.82%，产量 235.4 万千升，折现率 7%。"
+    out, _ = cite.finalize(text, src)
+    body = cite.strip_sources(out)
+    assert "600519[" not in body and "7%[" not in body
+    assert "16.79 倍[" in body and "16.79[" not in body
+    assert "万千升[" in body and "万[" not in body
+    assert "1.82%[" in body
