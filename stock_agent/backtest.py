@@ -763,6 +763,8 @@ def main(argv=None):
     p.add_argument("--end")
     p.add_argument("--step", type=int, default=5, help="每隔几个交易日做一次判断")
     p.add_argument("--horizons", default="5,20", help="持有期（交易日），逗号分隔，第一个是主周期")
+    p.add_argument("--mode", choices=["timing", "rank"], default="timing", help="timing = 单只择时（默认）；rank = 同批股票相对强弱排序（Rank IC，每个决策日一次调用）")
+    p.add_argument("--with-events", action="store_true", help="rank 模式：另给 point-in-time 公告标题与已披露财报（发布日严格早于决策日）")
     p.add_argument("--agent", choices=["baseline", "llm", "debate"], default="baseline")
     p.add_argument("--rounds", type=int, default=1, help="debate 模式的多空辩论轮数（1–3）")
     p.add_argument("--llm", dest="llm_kind", choices=["auto", "mock"], default="auto", help="debate 模式：mock = 无密钥用规则扮演各角色，只验证管线")
@@ -780,6 +782,17 @@ def main(argv=None):
     a = p.parse_args(argv)
     from . import settings
     settings.load_env_file()
+    if a.mode == "rank":
+        from .rank import print_rank, run_rank
+        hz = [int(x) for x in a.horizons.split(",")] if a.horizons != "5,20" else [20, 5]
+        res = run_rank(symbols=[s.strip() for s in a.symbols.split(",")] if a.symbols else None, start=a.start, end=a.end, step=a.step,
+                       horizons=hz, synthetic=a.synthetic, concurrency=a.concurrency, max_calls=a.max_calls, blind=not a.no_blind,
+                       seed=a.seed, llm_kind=a.llm_kind, events=a.with_events)
+        if a.json:
+            print(json.dumps({k: v for k, v in res.items() if k != "scores"}, ensure_ascii=False, indent=1))
+        else:
+            print_rank(res)
+        return
     res = run(symbols=[s.strip() for s in a.symbols.split(",")] if a.symbols else None, start=a.start, end=a.end, step=a.step,
               horizons=[int(x) for x in a.horizons.split(",")], agent=a.agent, synthetic=a.synthetic, concurrency=a.concurrency,
               max_calls=a.max_calls, blind=not a.no_blind, band5=a.band, seed=a.seed, price_in=a.price_in, price_out=a.price_out,
