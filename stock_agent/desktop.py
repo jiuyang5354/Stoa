@@ -1,7 +1,7 @@
 """桌面模式：Windows 绿色版双击 Stoa.exe 走这里。
 
 - 数据目录默认 %LOCALAPPDATA%\\Stoa（记忆、账本、config.yaml、.env 都在这，升级覆盖程序文件不会丢）
-- 读数据目录里的 .env；首次运行从模板生成并用记事本打开，让用户填模型密钥
+- 读数据目录里的 .env；首次运行从模板生成，但不弹窗：模型和密钥在界面「设置 → 模型」里填
 - 只绑 127.0.0.1，端口被占就顺延
 - 界面开在独立的 Stoa 窗口里：优先 pywebview（Windows 自带的 Edge WebView2 内核），
   不行就用 Edge/Chrome 的 --app 无地址栏窗口，再不行才退回默认浏览器。关窗口即退出。
@@ -222,16 +222,10 @@ def _main(home: Path):
     url = f"http://127.0.0.1:{port}/" + (f"?token={token}" if token else "")
     print(f"Stoa  界面 {url}  数据 {home}")
 
-    no_key = not os.getenv("LLM_API_KEY") and not any(os.getenv(k) for k in ("DEEPSEEK_API_KEY", "OPENAI_API_KEY", "ANTHROPIC_API_KEY", "DASHSCOPE_API_KEY")) and os.getenv("LLM_PROVIDER") not in ("ollama", "lmstudio", "vllm")
-    if no_key:
-        open_file(env)
-
     from .serve import main as serve
     threading.Thread(target=serve, daemon=True).start()
     if not wait_port(port):
         raise RuntimeError(f"本机服务没能在 127.0.0.1:{port} 启动")
-    if no_key and first:
-        threading.Thread(target=msgbox, args=("还没填大模型密钥。\n\n已用记事本打开 .env：填好 LLM_PROVIDER 和 LLM_API_KEY 后保存，关掉 Stoa 再打开即可。\n没填也能看行情，只是不能对话。",), daemon=True).start()
 
     if os.getenv("STOA_SMOKE") == "1":
         smoke(port, home)

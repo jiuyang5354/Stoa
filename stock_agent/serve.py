@@ -36,6 +36,16 @@ def log(*a):
     print(datetime.now(CN_TZ).strftime("%m-%d %H:%M:%S"), *a, flush=True)
 
 
+def llm_ready() -> bool:
+    if os.getenv("STOA_MOCK_LLM") == "1":
+        return True
+    try:
+        from .providers import LLM
+        return LLM(cfg=load_cfg().get("llm", {})).ready
+    except Exception:
+        return True  # 判断不了就交给真正的调用去报错
+
+
 def chat(channel: str, text: str) -> str:
     with LOCK:
         s = SESSIONS.get(channel)
@@ -288,6 +298,8 @@ class Web(BaseHTTPRequestHandler):
         path = self.path.split("?")[0]
         if path == "/api/chat":
             body = self._body()
+            if not llm_ready():  # 没配模型：不报错、不弹窗，前端直接打开「设置 → 模型」
+                return self._send(200, {"reply": "还没配置大模型。已打开「设置 → 模型」：选服务商、填密钥，保存后立即生效，不用重启。行情、早晚报页面不受影响。", "need_model": True})
             sid = re.sub(r"[^A-Za-z0-9_-]", "", str(body.get("session", "default")))[:40] or "default"
             reply = chat("web:" + sid, str(body.get("text", ""))[:4000])
             meta = getattr((SESSIONS.get("web:" + sid) or {}).get("agent"), "last_meta", None) or {}

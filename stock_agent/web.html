@@ -1074,6 +1074,7 @@ async function send(text){
   try {
     const r = await fetch('/api/chat', {method:'POST', headers:H, body:JSON.stringify({text, session:sid})});
     const j = await r.json(); render(out, j.reply || j.error || '（空回复）', seed);
+    if (j.need_model) openSettings('model');
     if (j.archived) placeArchive(j.archived, null);
   } catch (e) { out.textContent = '请求失败：' + e; }
   busy = false; sync(); log.scrollTop = 1e9; loadMemory();
