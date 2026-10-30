@@ -326,6 +326,9 @@ class Web(BaseHTTPRequestHandler):
             d = MEM.digest(f"web-{sid}")
             return self._send(200, {"id": sid, "messages": MEM.history(f"web-{sid}", limit=2000),
                                     "digest": {k: d[k] for k in ("upto_id", "text", "ts", "n_msgs")} if d else None})
+        if self.path.split("?")[0] == "/api/changelog":
+            from . import changelog
+            return self._send(200, changelog.load(updater._CACHE.get("v")))
         if self.path.split("?")[0] == "/api/update":
             return self._send(200, updater.check(force="force" in self.path))
         if self.path.split("?")[0] == "/api/alerts":

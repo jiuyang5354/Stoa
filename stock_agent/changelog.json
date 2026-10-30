@@ -1,0 +1,1184 @@
+[
+ {
+  "version": "0.29.0",
+  "date": "2026-10-31",
+  "title": "Probatio",
+  "items": [
+   {
+    "type": "added",
+    "text": "引用检查埋了三类必须失败的错例：数字改一位、涨跌方向反写、日期错一天。检查器拦不住，测试就失败。",
+    "group": "校验器自己也要被校验"
+   },
+   {
+    "type": "fixed",
+    "text": "补上两个盲区：比数字时不再忽略正负号；日期会和本轮数据日期核对。",
+    "group": "校验器自己也要被校验"
+   },
+   {
+    "type": "added",
+    "text": "回答和 Agora 查证要点分三类标注。〔数据〕必须带出处角标，没有就自动降为〔推断〕；查不到写〔未知〕，不拿推测填空。",
+    "group": "数据 / 推断 / 未知"
+   },
+   {
+    "type": "added",
+    "text": "对话区滚动条换成刻度尺：每一问一道刻痕，金线是当前视口，当前一问旁有罗马数字；悬停浮出那一问，点击跳转，按住拖动滚动。",
+    "group": "问章刻度"
+   }
+  ]
+ },
+ {
+  "version": "0.28.0",
+  "date": "2026-10-30",
+  "title": "Inquisitio",
+  "items": [
+   {
+    "type": "added",
+    "text": "/research 目标 [时长] 开课题，自动拆计划、逐步查证、反思、写结论，过程进账本（Ledger → III Inquisitio），跟踪指标挂成提醒；旧深度研报改为 /dive。",
+    "head": "长程研究"
+   },
+   {
+    "type": "added",
+    "text": "每轮一句为什么查、每步查到什么，模型推理摘要折叠显示（OpenAI / Claude / Gemini）。",
+    "head": "思路可见"
+   },
+   {
+    "type": "added",
+    "text": "设置 → 通用 → 语言，或 /lang。英文界面下 Agent 和课题用英文回答，早晚报仍是中文。",
+    "head": "中英双语"
+   },
+   {
+    "type": "added",
+    "text": "字号统一为 13px × 1.125ⁿ 比例，间距 2px 网格；回答逐段浮现、退场动画、贴底滚动和「回到最新」。",
+    "head": "排版与动效"
+   },
+   {
+    "type": "fixed",
+    "text": "引用角标不再标在技能文本、股票代码和整数假设上。",
+    "head": "修复"
+   }
+  ]
+ },
+ {
+  "version": "0.27.0",
+  "date": "2026-10-30",
+  "title": "",
+  "items": [
+   {
+    "type": "added",
+    "text": "原始报表 get_statements：三表原始科目，A股累计口径自动拆单季"
+   },
+   {
+    "type": "added",
+    "text": "盈利质量 earnings_quality：杜邦分解、现金含量、应计比率、应收/存货 vs 营收、非经常性损益、Beneish M、Piotroski F、Altman Z、报表勾稽与红旗"
+   },
+   {
+    "type": "added",
+    "text": "反向 DCF reverse_dcf：现价隐含的自由现金流增速 + 折现率敏感性"
+   },
+   {
+    "type": "added",
+    "text": "三情景估值 dcf_scenarios：概率加权每股价值（港股自动换算报表币种）"
+   },
+   {
+    "type": "added",
+    "text": "监管文件 regulatory_letters：问询函/监管措施/处罚及回复；美股 SEC 意见信"
+   },
+   {
+    "type": "added",
+    "text": "深度研报技能重写：分歧、驱动因素、事前验尸、失效条件、跟踪指标，结论入账本到期对账"
+   }
+  ]
+ },
+ {
+  "version": "0.26.0",
+  "date": "2026-10-30",
+  "title": "",
+  "items": [
+   {
+    "type": "added",
+    "text": "数字硬算：占比、增速、利润率等派生数字一律由 calc 计算，模型只负责解读"
+   },
+   {
+    "type": "added",
+    "text": "对话内出图：支撑阻力（price_levels）、利润瀑布（financial_bridge）、期权到期收益（option_payoff）"
+   },
+   {
+    "type": "added",
+    "text": "行情重放（trade_replay）：用历史日收益重抽样 1 万条路径，看交易计划先碰目标还是止损——压力测试，不是预测"
+   },
+   {
+    "type": "added",
+    "text": "新内置技能：trade-replay、equity-deep-dive、crowd-pulse、options-strategy"
+   },
+   {
+    "type": "added",
+    "text": "新斜杠命令：/levels /bridge /replay /research /pulse"
+   }
+  ]
+ },
+ {
+  "version": "0.25.0",
+  "date": "2026-10-30",
+  "title": "",
+  "items": [
+   {
+    "type": "added",
+    "text": "行情源默认 腾讯证券 → 东方财富 → 新浪财经（AKShare）→ Yahoo，三家国内源互为备用"
+   },
+   {
+    "type": "added",
+    "text": "交易时段（北京时间工作日 9:15–16:15）右栏指数和自选每分钟用新浪批量实时报价刷新 A股、港股"
+   },
+   {
+    "type": "added",
+    "text": "AKShare 已打进 Windows 包，不用另外安装"
+   }
+  ]
+ },
+ {
+  "version": "0.24.1",
+  "date": "2026-10-30",
+  "title": "",
+  "items": [
+   {
+    "type": "fixed",
+    "text": "包含 v0.24.0 全部内容（国内行情源优先、本地 three.js、对话随时停止），并修复首次启动时多个线程同时读写配置文件导致服务起不来的问题。"
+   }
+  ]
+ },
+ {
+  "version": "0.24.0",
+  "date": "2026-10-30",
+  "title": "",
+  "items": [
+   {
+    "type": "added",
+    "text": "国内网络可用：行情默认 腾讯证券 → 东方财富 → Yahoo 兜底，A股/港股/美股与主要指数都走国内源；three.js 随程序本地分发，Google 字体改为不阻塞加载（连不上自动用本机宋体）"
+   },
+   {
+    "type": "added",
+    "text": "对话随时停止：回答进行中 Ask 变成 Stop（也可按 Esc），后台模型和工具在下一步前收手，已查完的步骤保留"
+   },
+   {
+    "type": "added",
+    "text": "旧配置 DATA_PROVIDERS=yahoo,eastmoney 自动按新默认处理"
+   }
+  ]
+ },
+ {
+  "version": "0.23.0",
+  "date": "2026-10-30",
+  "title": "",
+  "items": [
+   {
+    "type": "added",
+    "text": "新工具：A股公司事件（解禁、业绩预告、机构调研、增减持、回购、质押，自动标出风险项）、两融与股东户数、市场情绪（涨停/炸板/跌停、连板梯队、板块资金）；美股 SEC Form 4 高管买卖、FINRA 空头成交占比"
+   },
+   {
+    "type": "added",
+    "text": "A股交易规则：行情里带下一日涨跌停价、T+1、一手股数，买卖与止损建议按规则说"
+   },
+   {
+    "type": "added",
+    "text": "内置投研流程：个股体检、事件排雷、盘后复盘、策略回测（T+1/手续费/印花税/滑点/涨跌停）、选股筛选、财报季研判；可同名覆盖"
+   },
+   {
+    "type": "added",
+    "text": "Agora 深度分析的消息分析师加入事件与筹码数据，风险清单多出「事件」一档"
+   },
+   {
+    "type": "added",
+    "text": "运行逻辑：同一轮多个查询并行；参数相同的查询直接复用；每个对话独立排队，不再互相阻塞"
+   },
+   {
+    "type": "added",
+    "text": "界面：等待时实时列出每一步（查行情、读公告…及耗时），答完收成「N 步 · 秒数」可展开"
+   }
+  ]
+ },
+ {
+  "version": "0.22.2",
+  "date": "2026-10-30",
+  "title": "",
+  "items": [
+   {
+    "type": "fixed",
+    "text": "对话去掉左侧贯穿的竖线，问题上方用一条细横线分隔每一轮，回答不再占左侧标签列，正文更宽"
+   },
+   {
+    "type": "fixed",
+    "text": "右栏拖宽、主区变窄时，顶部 History / Graph / Ledger / Settings 收成图标，不再压到标题"
+   },
+   {
+    "type": "fixed",
+    "text": "修复市场脉搏表头漂到图表上方的问题"
+   }
+  ]
+ },
+ {
+  "version": "0.22.1",
+  "date": "2026-10-30",
+  "title": "",
+  "items": [
+   {
+    "type": "fixed",
+    "text": "记忆图谱：去掉神话说明文字，左栏换成「最近记下」「待复盘」，右栏总览加记忆容量条和最近 12 次复盘轨迹（点圆点跳到那次判断）、判断后平均涨跌"
+   },
+   {
+    "type": "fixed",
+    "text": "仓库 README 重排：图标、徽章、英文摘要、截图、快速开始表；新增英文 README"
+   }
+  ]
+ },
+ {
+  "version": "0.22.0",
+  "date": "2026-10-30",
+  "title": "",
+  "items": [
+   {
+    "type": "added",
+    "text": "输入框打 / 弹出命令面板：执行模式 /deep /quick /news /earnings /compare /risk /review /brief /remember /alert，界面 /new /history /ledger /graph /backtest /model /settings /memory"
+   },
+   {
+    "type": "added",
+    "text": "↑↓ 选择、Tab 补全、Enter 执行，带参数的命令选中后接着输入"
+   }
+  ]
+ },
+ {
+  "version": "0.21.0",
+  "date": "2026-10-30",
+  "title": "",
+  "items": [
+   {
+    "type": "added",
+    "text": "右侧栏改为市场脉搏（5日/20日涨跌、距一年高点、年化波动）+ A股/港股/美股要闻"
+   },
+   {
+    "type": "added",
+    "text": "判断账本、财报事件、关于你、笔记移到顶部「Ledger」抽屉（Ctrl+L）"
+   },
+   {
+    "type": "added",
+    "text": "右侧栏左边缘可拖动调宽，双击还原"
+   },
+   {
+    "type": "fixed",
+    "text": "修复 Graph 按钮样式错位"
+   }
+  ]
+ },
+ {
+  "version": "0.20.1",
+  "date": "2026-10-30",
+  "title": "",
+  "items": [
+   {
+    "type": "fixed",
+    "text": "等待回答时的文案改为按步骤轮换：翻阅行情 → 查证数据 → 回看记忆 → 权衡利弊 → 落笔"
+   }
+  ]
+ },
+ {
+  "version": "0.20.0",
+  "date": "2026-10-30",
+  "title": "",
+  "items": [
+   {
+    "type": "fixed",
+    "text": "修复自绘标题栏拖不动：改为跟踪鼠标移动窗口，拖动、拉边缩放都重写；拖到屏幕顶边自动最大化"
+   },
+   {
+    "type": "added",
+    "text": "设置 → 模型：模型框自动向服务商检测可用模型，点「选择」直接挑"
+   },
+   {
+    "type": "added",
+    "text": "新增「自定义来源」：填名称、接口地址、密钥，选 OpenAI 兼容 / Anthropic / Gemini 协议，可先检测再保存；保存后在「服务商」里选它，备用链也能写 代号:模型"
+   }
+  ]
+ },
+ {
+  "version": "0.19.6",
+  "date": "2026-10-30",
+  "title": "",
+  "items": [
+   {
+    "type": "fixed",
+    "text": "每次打开 Stoa 都从欢迎页开始，之前的对话在 History 里；同一次运行内刷新页面才接着上次对话"
+   }
+  ]
+ },
+ {
+  "version": "0.19.5",
+  "date": "2026-10-30",
+  "title": "",
+  "items": [
+   {
+    "type": "fixed",
+    "text": "对话框里可以直接选模型：列表来自服务商的 /models 接口和备用模型，只影响当前对话，全局默认仍在「设置 → 模型」"
+   },
+   {
+    "type": "fixed",
+    "text": "滚动条换成无箭头的细线样式，悬停时才加深"
+   }
+  ]
+ },
+ {
+  "version": "0.19.4",
+  "date": "2026-10-30",
+  "title": "",
+  "items": [
+   {
+    "type": "fixed",
+    "text": "顶栏统一：去掉系统白色标题栏，换成和界面同一套石色、STOA 字标和细线按钮的自绘标题栏"
+   },
+   {
+    "type": "fixed",
+    "text": "拖动、拉边缩放、双击最大化、最大化不挡任务栏；Windows 11 圆角阴影"
+   },
+   {
+    "type": "fixed",
+    "text": "如遇异常，设环境变量 STOA_FRAME=native 可换回系统标题栏"
+   }
+  ]
+ },
+ {
+  "version": "0.19.3",
+  "date": "2026-10-30",
+  "title": "",
+  "items": [
+   {
+    "type": "fixed",
+    "text": "一键更新不再弹出黑色终端窗口（更新脚本改为隐藏控制台运行）"
+   },
+   {
+    "type": "fixed",
+    "text": "含 v0.19.2：Windows 11 标题栏与界面同色"
+   },
+   {
+    "type": "fixed",
+    "text": "注意：从旧版更新到本版的这一次仍由旧版更新器执行，可能还会闪一次黑窗，之后不再出现"
+   }
+  ]
+ },
+ {
+  "version": "0.19.2",
+  "date": "2026-10-30",
+  "title": "",
+  "items": [
+   {
+    "type": "fixed",
+    "text": "Windows 11 标题栏改成界面同色的石白（原生 DWM 着色，贴靠布局、拖拽缩放照常）"
+   },
+   {
+    "type": "fixed",
+    "text": "窗口标题简化为「Stoa」"
+   },
+   {
+    "type": "fixed",
+    "text": "Windows 10 不支持标题栏着色，保持系统默认"
+   }
+  ]
+ },
+ {
+  "version": "0.19.1",
+  "date": "2026-10-30",
+  "title": "",
+  "items": [
+   {
+    "type": "fixed",
+    "text": "首次运行不再弹「填写密钥」窗口，也不再用记事本打开 .env"
+   },
+   {
+    "type": "fixed",
+    "text": "没配模型时发第一句话，会自动打开「设置 → 模型」，保存立即生效、不用重启"
+   },
+   {
+    "type": "fixed",
+    "text": "看行情、早晚报不需要模型"
+   }
+  ]
+ },
+ {
+  "version": "0.19.0",
+  "date": "2026-10-30",
+  "title": "",
+  "items": [
+   {
+    "type": "added",
+    "text": "风控：没有持仓/仓位信息时只做红线规则检查（停牌/数据中断、ST/退市、流动性、极端波动、单日异动、杠杆），默认通过，不再请模型；否决只在命中红线时。同一批 52 场回测辩论：降级 35 / 否决 17 → 通过 52。",
+    "group": "v0.19.0 · 风控红线 + 沪深 300 大样本排序 + 新闻前瞻采集 + Agora 查证定位"
+   },
+   {
+    "type": "added",
+    "text": "排序评估：backtest --mode rank --universe csi300 --n 100，股票池取决策期开始前的沪深 300 历史成分（Internet Archive 快照，无幸存者偏差），分组打分、行业中性 IC。结果：20 日 Rank IC −0.030（p=0.52），行业中性 −0.057（p=0.03），≈20 日动量（相关 0.72）——没有正向排序能力。",
+    "group": "v0.19.0 · 风控红线 + 沪深 300 大样本排序 + 新闻前瞻采集 + Agora 查证定位"
+   },
+   {
+    "type": "added",
+    "text": "每日新闻快照：python -m stock_agent news-snapshot，serve 常驻每天 17:30 自动抓（NEWS_SNAPSHOT_TIMES），带抓取时间落盘，供将来无前视回测。",
+    "group": "v0.19.0 · 风控红线 + 沪深 300 大样本排序 + 新闻前瞻采集 + Agora 查证定位"
+   },
+   {
+    "type": "added",
+    "text": "Agora 结论页改为「查证要点 + 风险清单」在前，方向与置信度降为次要信息，辩论过程折叠。",
+    "group": "v0.19.0 · 风控红线 + 沪深 300 大样本排序 + 新闻前瞻采集 + Agora 查证定位"
+   },
+   {
+    "type": "added",
+    "text": "154 个测试通过；mock 评测 100。",
+    "group": "v0.19.0 · 风控红线 + 沪深 300 大样本排序 + 新闻前瞻采集 + Agora 查证定位"
+   },
+   {
+    "type": "added",
+    "text": "方向/排序判断经回测不具统计显著性，仅供参考，不构成投资建议。",
+    "group": "v0.19.0 · 风控红线 + 沪深 300 大样本排序 + 新闻前瞻采集 + Agora 查证定位"
+   }
+  ]
+ },
+ {
+  "version": "0.18.0",
+  "date": "2026-10-30",
+  "title": "排序评估 + point-in-time 公告/财报",
+  "items": [
+   {
+    "type": "added",
+    "text": "相对强弱排序评估（backtest --mode rank）：每个决策日把同一批股票一起交给模型，按未来 20 日相对表现打分。指标：Rank IC（Spearman）、市场中性 IC、IC 均值 / ICIR、Newey–West t 检验、按日块自助区间、头尾多空；基线：动量、反转、随机（含 200 个种子的分布）、60 日动量、低波动；另有配对检验和相似度诊断。"
+   },
+   {
+    "type": "added",
+    "text": "Point-in-time 公告与财报（--with-events）：东方财富公告中心（A/H）、SEC EDGAR、按披露日（不是报告期）取的财报指标，只用决策日之前已发布的；盲测时隐去公司名，年份换成相对说法。一年前的个股新闻拿不到（东方财富、新浪只能回溯约 1–2 个月），所以没有接入。"
+   },
+   {
+    "type": "added",
+    "text": "从「−10，最低 50」改为按比例向 50 收拢，即 50+(c−50)×0.5（可用 DEBATE_DEGRADE_SHRINK 调；收拢到 50 就转中性）。PM 不再自己二次下调。",
+    "head": "Agora 风控降级"
+   },
+   {
+    "type": "added",
+    "text": "报告、对话、Agora 纪要、网页、README 都注明「择时判断不具统计显著性，仅供参考」。",
+    "head": "文案"
+   },
+   {
+    "type": "added",
+    "text": "| 未来 20 日 | Rank IC | 95% 区间 | p(NW) |"
+   },
+   {
+    "type": "added",
+    "text": "|---|---|---|---|"
+   },
+   {
+    "type": "added",
+    "text": "| 模型，只有行情 | +0.055 | [−0.049, +0.188] | 0.36 |"
+   },
+   {
+    "type": "added",
+    "text": "| 模型 + 公告/财报 | −0.005 | [−0.130, +0.106] | 0.93 |"
+   },
+   {
+    "type": "added",
+    "text": "| 20 日动量 | −0.033 | | 0.56 |"
+   },
+   {
+    "type": "added",
+    "text": "| 60 日动量 | +0.044 | | 0.43 |"
+   },
+   {
+    "type": "added",
+    "text": "| 随机 | +0.021 | | 0.64 |"
+   },
+   {
+    "type": "added",
+    "text": "排序结果都不显著。模型分数和 60 日动量的相关是 0.78，基本就是在按中期动量排序。加入公告/财报后没有提升（IC 差 −0.060，p=0.35）。仅供参考，不构成投资建议。"
+   }
+  ]
+ },
+ {
+  "version": "0.17.0",
+  "date": "2026-10-29",
+  "title": "语义记忆、长对话压缩、财报事件研报",
+  "items": [
+   {
+    "type": "changed",
+    "text": "改进计划第 4 步（最后一步）：向量记忆 + 长对话压缩 + 财报事件自动研报。"
+   },
+   {
+    "type": "added",
+    "text": "历史对话、会话纪要、USER.md / MEMORY.md 条目、判断账本理由、Agora 辩论纪要都建向量索引（sessions.db，float32），BM25 关键词 + 向量余弦，RRF 融合。",
+    "group": "语义记忆"
+   },
+   {
+    "type": "added",
+    "text": "嵌入后端可插拔：模型服务商支持 OpenAI 兼容 /embeddings 就用（openai、通义、智谱、硅基流动、Mistral、Ollama…），否则本地 TF-IDF 哈希向量 + 概念词（股票名/代码归一、主题词表、金融同义词表），纯 numpy，Windows 包不变大。",
+    "group": "语义记忆"
+   },
+   {
+    "type": "added",
+    "text": "session_search 改走混合检索，新增 search_memory；memory_links / 记忆图谱用语义相似度补充（金色点线、「回想」搜索），规则匹配兜底。python -m stock_agent memory reindex。",
+    "group": "语义记忆"
+   },
+   {
+    "type": "added",
+    "text": "按模型上下文窗口算 token 预算；超预算把较早的消息滚动摘要成「会话纪要」，关键数字与用户决定原样保留并带来源；恢复会话用纪要替代截断最近 40 条。",
+    "group": "长对话压缩"
+   },
+   {
+    "type": "added",
+    "text": "工具结果按结构收缩，保留引用元数据；工具循环上限默认 12 轮，预算先用完也会优雅收尾。",
+    "group": "长对话压缩"
+   },
+   {
+    "type": "added",
+    "text": "跟踪持仓与自选股的财报日（东方财富业绩预约披露 / Yahoo），财报前提醒（市场预期 + 上次判断回顾），财报后自动生成事件研报：实际 vs 一致预期、同比、管理层指引、与持仓逻辑对照（加强 / 削弱 / 被证伪 / 基本不变），可选跑 Agora；推送 + 网页右栏「Eventus」。",
+    "group": "财报事件"
+   },
+   {
+    "type": "added",
+    "text": "评测 65 题（+8：语义记忆 4、长对话 2、事件研报 2），pytest 108 个全过。沙箱无大模型密钥：评测用 mock 跑通管线，真实模型未测。",
+    "group": "财报事件"
+   }
+  ]
+ },
+ {
+  "version": "0.16.0",
+  "date": "2026-10-29",
+  "title": "更深的数据 + 年报 PDF",
+  "items": [
+   {
+    "type": "changed",
+    "text": "改进计划第 3 步：更深的数据 + 年报解析。"
+   },
+   {
+    "type": "added",
+    "text": "get_fund_flow A股主力/超大单资金流（东方财富 → 新浪 → 东方财富当日分时，两源比对）",
+    "group": "新数据工具（全部免密钥，带来源/链接/时间，接入引用角标；多源交叉校验，差异过大写 warning）"
+   },
+   {
+    "type": "added",
+    "text": "get_northbound 北向成交总额与个股持股（2024-08-19 起每日净买入停止披露，如实返回 null）",
+    "group": "新数据工具（全部免密钥，带来源/链接/时间，接入引用角标；多源交叉校验，差异过大写 warning）"
+   },
+   {
+    "type": "added",
+    "text": "get_dragon_tiger 龙虎榜上榜原因与买卖前五席位",
+    "group": "新数据工具（全部免密钥，带来源/链接/时间，接入引用角标；多源交叉校验，差异过大写 warning）"
+   },
+   {
+    "type": "added",
+    "text": "get_consensus 分析师一致预期：目标价区间、评级分布、EPS 预测（A股东方财富+研报+Yahoo，美股 Yahoo+Nasdaq，港股 Yahoo）",
+    "group": "新数据工具（全部免密钥，带来源/链接/时间，接入引用角标；多源交叉校验，差异过大写 warning）"
+   },
+   {
+    "type": "added",
+    "text": "get_intraday 近 1–5 日分钟线摘要（Yahoo / 东方财富 / 腾讯）",
+    "group": "新数据工具（全部免密钥，带来源/链接/时间，接入引用角标；多源交叉校验，差异过大写 warning）"
+   },
+   {
+    "type": "added",
+    "text": "get_options 美股期权 ATM IV、Put/Call 比、最大痛点（Yahoo，Nasdaq 交叉校验）",
+    "group": "新数据工具（全部免密钥，带来源/链接/时间，接入引用角标；多源交叉校验，差异过大写 warning）"
+   },
+   {
+    "type": "added",
+    "text": "get_quotes 增加新浪/腾讯/Yahoo 实时报价交叉校验（QUOTE_DIFF_PCT，默认 0.5%）",
+    "group": "新数据工具（全部免密钥，带来源/链接/时间，接入引用角标；多源交叉校验，差异过大写 warning）"
+   },
+   {
+    "type": "added",
+    "text": "A股巨潮资讯（退东方财富公告 PDF）、港股披露易、美股 SEC 10-K/10-Q",
+    "group": "年报 / 定期报告（stock_agent/filings.py）"
+   },
+   {
+    "type": "added",
+    "text": "pypdf 抽文本（新主依赖，纯 Python）；港股中文 PDF 字体乱码时用 pdfminer.six（可选）重抽，没装就改读英文版",
+    "group": "年报 / 定期报告（stock_agent/filings.py）"
+   },
+   {
+    "type": "added",
+    "text": "read_filing 按章节（MD&A / 风险因素 / 主要财务数据 / 分部收入）+ BM25 选段，带页码；compare_filings 两年新增/删除/改写句子",
+    "group": "年报 / 定期报告（stock_agent/filings.py）"
+   },
+   {
+    "type": "added",
+    "text": "回答里的「第 N 页」角标直接跳到 PDF#page=N",
+    "group": "年报 / 定期报告（stock_agent/filings.py）"
+   },
+   {
+    "type": "added",
+    "text": "*接入：深度分析的技术面看资金流/期权、消息面看龙虎榜、基本面看一致预期与两年年报风险对比；网页答案下方新增「Tabulae · 数据」小卡（资金流柱、一致预期区间条、分时线、期权表、年报段落与对比）。",
+    "group": "年报 / 定期报告（stock_agent/filings.py）"
+   },
+   {
+    "type": "added",
+    "text": "*回测：新工具默认全部禁用（BT_TOOL_POLICY）；只有资金流历史日线可用 --with-flow 按决策日严格截断开放，测试证明无未来泄漏。",
+    "group": "年报 / 定期报告（stock_agent/filings.py）"
+   },
+   {
+    "type": "added",
+    "text": "*测试：pytest 78 个全过（新增年报 PDF/HTML fixture、交叉校验、资金流降级、期权最大痛点、回测无泄漏）；mock 评测 57 题 100（新增资金流、一致预期、年报问答、年报对比、数据源冲突 14 题，mock 只验证管线）。",
+    "group": "年报 / 定期报告（stock_agent/filings.py）"
+   }
+  ]
+ },
+ {
+  "version": "0.15.0",
+  "date": "2026-10-29",
+  "title": "Agora 多角色辩论 + 数字强制引用",
+  "items": [
+   {
+    "type": "changed",
+    "text": "改进计划第 2 步。"
+   },
+   {
+    "type": "added",
+    "text": "问「深度分析 X」「该不该买 X」时触发（也是工具 deep_analysis）；普通快问仍走单 agent。"
+   },
+   {
+    "type": "added",
+    "text": "四位分析师并行（基本面 / 技术面 / 消息与情绪 / 宏观与行业）→ 多空研究员辩论（1–3 轮，互相反驳）→ 风控官（读 USER.md 持仓：集中度、风险偏好、止损；可降级或否决）→ 基金经理给出 看多/看空/中性 + 置信度 + 关键依据 + 失效条件，自动记账。"
+   },
+   {
+    "type": "added",
+    "text": "预算：总调用数 / 估算 token 上限 / 每角色超时；失败、超时、超预算的角色降级为规则摘要，整体不失败。"
+   },
+   {
+    "type": "added",
+    "text": "每场辩论存 data/debates/<id>.json，网页答案下可展开「AGORA · 辩论纪要」；GET /api/debates(/<id>)。"
+   },
+   {
+    "type": "added",
+    "text": "回测：backtest --agent debate（只给技术面截断行情，其它角色禁用，保持未来屏蔽），可与 baseline / llm 对比；无密钥 --llm mock 跑通管线。"
+   },
+   {
+    "type": "added",
+    "text": "工具数据带来源名、链接、数据时间；回答里的关键数字带 [n] 角标，末尾列来源；网页角标可悬停、点开。"
+   },
+   {
+    "type": "added",
+    "text": "核对器从回答抽取价格/涨跌幅/财务数字，与本轮工具数值比对（允许四舍五入、万/亿换算、百分数、差值、涨跌幅、股数×差价）；找不到出处的数字自动让模型修正一次，仍不改就标「未核实」。"
+   },
+   {
+    "type": "added",
+    "text": "评测 43 题（新增「引用」6 题、「深度分析」5 题）；mock 100/100（只说明管线通）。"
+   },
+   {
+    "type": "added",
+    "text": "pytest 51 个（新增辩论流程与降级、风控否决、路由、回测无未来泄漏、引用核对与修正闭环），全部离线通过。"
+   },
+   {
+    "type": "added",
+    "text": "mock 辩论回测（真实行情，12 只，2025-09-24→2026-09-24，每 5 日）：5 日方向胜率 52.0%，与规则 Agent 一致——mock 角色就是规则，真实模型的数字需要配置密钥后再跑。"
+   }
+  ]
+ },
+ {
+  "version": "0.14.0",
+  "date": "2026-10-29",
+  "title": "回测与评测",
+  "items": [
+   {
+    "type": "added",
+    "text": "回测与评测（Probatio）：给之后的每一次改进一把尺子。"
+   },
+   {
+    "type": "added",
+    "text": "*时间穿越回测 python -m stock_agent backtest"
+   },
+   {
+    "type": "added",
+    "text": "历史上每个时点只把截至那天的行情交给 Agent，新闻、公告、记忆等在回测里全部禁用；大模型默认盲测（隐去代码和日期、价格归一化）"
+   },
+   {
+    "type": "added",
+    "text": "指标按 A股 / 港股 / 美股 分开：方向胜率、置信度校准、多空组合 vs 买入持有 vs 随机 / 一直看多 / 20 日动量基线、回撤"
+   },
+   {
+    "type": "added",
+    "text": "不需要密钥：--agent baseline（均线规则）；--agent llm 有缓存、并发上限、调用数与费用估算；--synthetic 离线跑通"
+   },
+   {
+    "type": "added",
+    "text": "结果存 data/backtests/<id>.json（+ 可选 matplotlib 图）"
+   },
+   {
+    "type": "added",
+    "text": "*评测集 python -m stock_agent eval"
+   },
+   {
+    "type": "added",
+    "text": "32 道固定题：报价准确性、拒绝编造、风控、记忆、工具选择；固定工具数据，规则打分，可选大模型评委；保存历史，和上一次对比"
+   },
+   {
+    "type": "added",
+    "text": "没有密钥时用 mock 模型跑通管线"
+   },
+   {
+    "type": "added",
+    "text": "*网页：设置 → 回测与评测；右栏账本下「Probatio · 回测」。接口 /api/backtests、/api/backtest、/api/evals。"
+   },
+   {
+    "type": "added",
+    "text": "首次基准（真实行情，2025-09-24 → 2026-09-24，12 只股票，每 5 个交易日，持有 5 日）：规则 Agent 方向胜率 52.0%，20 日动量基线 52.0%，随机 50.7%。"
+   }
+  ]
+ },
+ {
+  "version": "0.13.4",
+  "date": "2026-10-29",
+  "title": "开屏动画",
+  "items": [
+   {
+    "type": "fixed",
+    "text": "启动时：一束顶光落下，金线描出拱门，STOA 逐字显形，拱内亮起，随后整幕淡出、主界面浮现（约 3 秒）。每次会话只播一次，点击或任意键跳过；系统开启“减少动态效果”时不播。"
+   }
+  ]
+ },
+ {
+  "version": "0.13.3",
+  "date": "2026-10-29",
+  "title": "图谱过渡动画",
+  "items": [
+   {
+    "type": "fixed",
+    "text": "打开记忆图谱时：顶光自上而下照亮拱门，MNEMOSYNE 逐字显形，金色光环画出，星辰由中心向外依次点亮，侧栏依次升起；关闭时轻轻沉下。系统开启“减少动态效果”时自动关闭动画。"
+   }
+  ]
+ },
+ {
+  "version": "0.13.2",
+  "date": "2026-10-29",
+  "title": "",
+  "items": [
+   {
+    "type": "fixed",
+    "text": "记忆图谱改为简约神殿风：象牙白底、拱门顶光、一圈淡金光环；去掉星空、星盘铭文、月桂、月相与遗迹饰带。设计取 Winckelmann「高贵的单纯，静穆的伟大」。"
+   }
+  ]
+ },
+ {
+  "version": "0.13.1",
+  "date": "2026-10-29",
+  "title": "",
+  "items": [
+   {
+    "type": "fixed",
+    "text": "记忆图谱拱门去掉女神背景图，只留夜空和星盘；右侧大字标题缩小防溢出。"
+   }
+  ]
+ },
+ {
+  "version": "0.13.0",
+  "date": "2026-10-29",
+  "title": "Mnemosyne",
+  "items": [
+   {
+    "type": "added",
+    "text": "记忆图谱换成希腊神话海报风。"
+   },
+   {
+    "type": "added",
+    "text": "拱门里是铜版雕刻风格的记忆女神 Mnemosyne，你的记忆像星图一样铺在她身上"
+   },
+   {
+    "type": "added",
+    "text": "股票是星；每个主题由掌管它的神守护：财报 雅典娜、AI 普罗米修斯、半导体 赫菲斯托斯、降息 克洛诺斯、风控 涅墨西斯……"
+   },
+   {
+    "type": "added",
+    "text": "三个市场是命运三女神：A股 克洛托、港股 拉刻西斯、美股 阿特罗波斯"
+   },
+   {
+    "type": "added",
+    "text": "旧纸底、巨大衬线标题、竖排小字、四芒星、月相、月桂枝、雅典卫城遗迹饰带"
+   },
+   {
+    "type": "added",
+    "text": "判断叫「神谕」：赤陶 = 应验，橄榄 = 落空；按钮「求问神谕」"
+   }
+  ]
+ },
+ {
+  "version": "0.12.0",
+  "date": "2026-10-29",
+  "title": "记忆图谱",
+  "items": [
+   {
+    "type": "added",
+    "text": "把 Stoa 记得的一切按股票和主题串成一张图。"
+   },
+   {
+    "type": "added",
+    "text": "左上角 Graph（Ctrl+G，或输入 /graph）：记忆条目、技能、判断账本、对话，按股票、主题（半导体、AI、降息、财报等）和市场连起来"
+   },
+   {
+    "type": "added",
+    "text": "点一只股票：看到关于它的持仓与笔记、聊过的对话、过去每次判断及对错战绩，一键「问 Stoa」"
+   },
+   {
+    "type": "added",
+    "text": "图例可隐藏某一类；拖动、缩放、搜索（茅台、腾讯、降息都能找到）"
+   },
+   {
+    "type": "added",
+    "text": "Agent 新工具 memory_links：分析一只股票前先顺着图谱把相关记忆和过去的错误一次取齐"
+   },
+   {
+    "type": "added",
+    "text": "全部本地规则抽取，不调用模型、不上传数据"
+   }
+  ]
+ },
+ {
+  "version": "0.11.0",
+  "date": "2026-10-29",
+  "title": "MCP 客户端",
+  "items": [
+   {
+    "type": "added",
+    "text": "Stoa 现在可以接入别人做好的 MCP 服务器，用它们的工具回答问题。"
+   },
+   {
+    "type": "added",
+    "text": "设置 → MCP 服务器：添加、编辑、测试连接、启用/停用，逐个工具开关"
+   },
+   {
+    "type": "added",
+    "text": "支持本地命令（stdio，例如 uvx mcp-server-fetch、npx -y @modelcontextprotocol/server-filesystem 路径）和远程 URL（Streamable HTTP；以 /sse 结尾自动用旧版 SSE）"
+   },
+   {
+    "type": "added",
+    "text": "可直接粘贴 Claude Desktop / Cursor / Cline / Windsurf 的 mcpServers 配置导入"
+   },
+   {
+    "type": "added",
+    "text": "配置保存在数据目录 mcp.json；请求头和环境变量里的 ${变量} 从 .env 读取，密钥不用写进配置"
+   },
+   {
+    "type": "added",
+    "text": "连不上的服务器 5 分钟内不重试，不会拖慢对话；Windows 下启动子进程不弹黑框"
+   },
+   {
+    "type": "added",
+    "text": "本地命令需要电脑上已装对应运行环境（npx → Node.js，uvx → uv）"
+   },
+   {
+    "type": "added",
+    "text": "v0.9.0 以上可在设置 → 数据与关于 →「更新并重启」直接升级。仅供参考，不构成投资建议。"
+   }
+  ]
+ },
+ {
+  "version": "0.10.0",
+  "date": "2026-10-29",
+  "title": "多会话与对话历史",
+  "items": [
+   {
+    "type": "added",
+    "text": "左上角 History（Ctrl+J）打开对话历史抽屉：新对话、按日期分组（置顶 / 今天 / 昨天 / 七天内 / 三十天内 / 更早）"
+   },
+   {
+    "type": "added",
+    "text": "全文搜索所有对话，置顶、改名、删除"
+   },
+   {
+    "type": "added",
+    "text": "关掉 Stoa 再打开，自动回到上次的对话；接着聊旧对话时，Stoa 会带回这段对话最近 40 条问答，记得前面说过什么"
+   },
+   {
+    "type": "added",
+    "text": "输入 /new 新建对话，/history 打开历史"
+   },
+   {
+    "type": "fixed",
+    "text": "修复：回答以 Markdown 加粗开头时，首字花饰画成「*」"
+   },
+   {
+    "type": "added",
+    "text": "用 v0.9.0 的话，设置 → 数据与关于 →「更新并重启」即可升级（第一次实测一键更新）。仅供参考，不构成投资建议。"
+   }
+  ]
+ },
+ {
+  "version": "0.9.0",
+  "date": "2026-10-29",
+  "title": "价格预警、公告提醒、Windows 真机自检、自动更新",
+  "items": [
+   {
+    "type": "added",
+    "text": "对 Stoa 说「腾讯跌破 450 提醒我」「英伟达单日跌超 5% 告诉我」「茅台出公告提醒我」，它会自己设好",
+    "group": "提醒"
+   },
+   {
+    "type": "added",
+    "text": "支持：涨到 / 跌到某价、单日涨超 / 跌超某百分比、有新公告；可设「每天最多提醒一次」，并附一句备注",
+    "group": "提醒"
+   },
+   {
+    "type": "added",
+    "text": "自选股默认有新公告就提醒（ANN_WATCH=0 关闭）",
+    "group": "提醒"
+   },
+   {
+    "type": "added",
+    "text": "约每 5 分钟检查一次（ALERT_INTERVAL），推到你开的推送渠道；Stoa 窗口开着时右下角弹出提示，并发系统通知",
+    "group": "提醒"
+   },
+   {
+    "type": "added",
+    "text": "设置 →「定时与提醒」可查看、添加、删除规则，看最近触发记录",
+    "group": "提醒"
+   },
+   {
+    "type": "added",
+    "text": "启动时检查 GitHub 上的新版本，弹出提示",
+    "group": "更新"
+   },
+   {
+    "type": "added",
+    "text": "设置 → 数据与关于 →「更新并重启」：自动下载、覆盖程序文件、重新打开；记忆和密钥在 %LOCALAPPDATA%\\Stoa，不受影响",
+    "group": "更新"
+   },
+   {
+    "type": "added",
+    "text": "STOA_UPDATE=off 关闭检查",
+    "group": "更新"
+   },
+   {
+    "type": "added",
+    "text": "每次发版先在 GitHub 的 Windows Server 2025 上双击 Stoa.exe：检查本机服务各接口、用 WebView2 打开独立窗口、再静默卸载，全部通过才挂 Windows 包",
+    "group": "Windows 真机自检"
+   },
+   {
+    "type": "added",
+    "text": "「卸载 Stoa.exe」支持 /S（静默、保留数据）和 /S /purge",
+    "group": "Windows 真机自检"
+   }
+  ]
+ },
+ {
+  "version": "0.8.0",
+  "date": "2026-10-29",
+  "title": "记忆会整理、自己写技能、账本会算准确率",
+  "items": [
+   {
+    "type": "added",
+    "text": "参考 Hermes Agent 的自我进化："
+   },
+   {
+    "type": "added",
+    "text": "每条记忆开头记下日期，新旧冲突以新的为准",
+    "head": "记忆带日期"
+   },
+   {
+    "type": "added",
+    "text": "USER.md / MEMORY.md 写不下时，Stoa 自己合并相近条目、删掉过时的，改写前备份到 memory/backup/",
+    "head": "满了自动整理"
+   },
+   {
+    "type": "added",
+    "text": "做完多步骤分析（4 次以上工具调用），Stoa 会把做法存成技能（skills/*.md），下次遇到同类任务先读技能照着做，发现更好的办法会更新",
+    "head": "自己写技能"
+   },
+   {
+    "type": "added",
+    "text": "总体准确率、最近十次对错，按方向、市场、周期拆开统计，准确率低的类别会被标成短板，Stoa 在这类判断上更谨慎",
+    "head": "判断账本会算账"
+   },
+   {
+    "type": "added",
+    "text": "新增「技能」和「判断账本」两栏，技能可查看、删除",
+    "head": "设置 → 记忆"
+   },
+   {
+    "type": "added",
+    "text": "MCP 同步开放 skill_view / skill_save / skill_delete"
+   }
+  ]
+ },
+ {
+  "version": "0.7.0",
+  "date": "2026-10-29",
+  "title": "新闻、公告、财报、联网搜索",
+  "items": [
+   {
+    "type": "added",
+    "text": "Stoa 现在能查资料了，全部免密钥："
+   },
+   {
+    "type": "added",
+    "text": "A股 / 港股看东方财富中文资讯，美股 / 港股另有 Yahoo Finance 英文新闻，带时间、摘要、链接",
+    "head": "个股新闻"
+   },
+   {
+    "type": "added",
+    "text": "A股 / 港股走东方财富公告中心，美股走 SEC EDGAR（10-K、10-Q、8-K 等）",
+    "head": "公司公告"
+   },
+   {
+    "type": "added",
+    "text": "市值、PE、PB、股息率、ROE、增速、分析师目标价，最近四季利润表；A股另有 F10 主要指标（营收、归母净利、扣非、毛利率、同比）",
+    "head": "财报与估值"
+   },
+   {
+    "type": "added",
+    "text": "默认 DuckDuckGo，失败换 Bing；设置 → 工具与接口里可填 Tavily 或 Brave 密钥",
+    "head": "联网搜索"
+   },
+   {
+    "type": "added",
+    "text": "自动提取正文，只允许公网地址",
+    "head": "读网页"
+   },
+   {
+    "type": "added",
+    "text": "问「为什么跌」时，Stoa 会先查新闻和公告再回答，并附来源和链接"
+   },
+   {
+    "type": "added",
+    "text": "MCP 也同步开放这五个新工具"
+   }
+  ]
+ },
+ {
+  "version": "0.6.1",
+  "date": "2026-10-29",
+  "title": "dafont 字体",
+  "items": [
+   {
+    "type": "fixed",
+    "text": "西文字体全部换成 dafont.com 上可免费商用的字体，随软件本地打包，离线也能显示："
+   },
+   {
+    "type": "fixed",
+    "text": "标题：Optimus Princeps（罗马碑刻大写，100% Free）"
+   },
+   {
+    "type": "fixed",
+    "text": "数字与斜体：Linux Libertine（SIL OFL）"
+   },
+   {
+    "type": "fixed",
+    "text": "展签小字：Alte Haas Grotesk（100% Free）"
+   },
+   {
+    "type": "fixed",
+    "text": "海报大字：Archeologicaps（100% Free）"
+   },
+   {
+    "type": "fixed",
+    "text": "中文仍用 Noto Serif SC（dafont 没有中文字体）。"
+   },
+   {
+    "type": "fixed",
+    "text": "授权说明见 stock_agent/assets/licenses。"
+   }
+  ]
+ },
+ {
+  "version": "0.6.0",
+  "date": "2026-10-29",
+  "title": "设置页",
+  "items": [
+   {
+    "type": "added",
+    "text": "新增设置页：右上角 Settings 或 Ctrl+, 打开，分栏参考 ChatGPT / Claude 桌面版、Cherry Studio、Hermes Dashboard。"
+   },
+   {
+    "type": "added",
+    "text": "通用：涨跌配色、3D 胸像、岩壁纹理、快捷键"
+   },
+   {
+    "type": "added",
+    "text": "模型：24 家服务商下拉、密钥（只显示末四位）、模型、接口地址、备用模型、测试连接"
+   },
+   {
+    "type": "added",
+    "text": "记忆：查看、添加、删除「关于你」和 Stoa 的笔记"
+   },
+   {
+    "type": "added",
+    "text": "自选与行情：增删自选股、行情源顺序与密钥"
+   },
+   {
+    "type": "added",
+    "text": "推送渠道：微信 / 办公 / 手机分组，一键测试推送"
+   },
+   {
+    "type": "added",
+    "text": "定时任务：早报、晚报开关与时间"
+   },
+   {
+    "type": "added",
+    "text": "工具与接口：代码分析开关、OpenAI 兼容和 MCP 地址一键复制、访问口令"
+   },
+   {
+    "type": "added",
+    "text": "数据与关于：数据目录、导出备份（不含密钥）、版本"
+   },
+   {
+    "type": "added",
+    "text": "保存立即生效，不用重启；没设口令时设置接口只允许本机访问。"
+   }
+  ]
+ },
+ {
+  "version": "0.5.0",
+  "date": "2026-10-29",
+  "title": "独立窗口",
+  "items": [
+   {
+    "type": "added",
+    "text": "双击 Stoa.exe 直接打开独立的 Stoa 窗口：用 Windows 自带的 WebView2 内核，不开浏览器、没有黑色控制台，关窗口即退出。"
+   },
+   {
+    "type": "added",
+    "text": "没有 WebView2 的老系统自动改用 Edge 无地址栏窗口。"
+   },
+   {
+    "type": "added",
+    "text": "只允许开一个实例；日志写到 %LOCALAPPDATA%\\Stoa\\stoa.log，启动出错会弹框。"
+   },
+   {
+    "type": "added",
+    "text": "仍附带「卸载 Stoa.exe」。"
+   }
+  ]
+ },
+ {
+  "version": "0.4.1",
+  "date": "2026-10-29",
+  "title": "",
+  "items": [
+   {
+    "type": "fixed",
+    "text": "Windows 绿色版新增「卸载 Stoa.exe」：双击后先关掉正在运行的 Stoa，可选是否连数据（记忆、账本、密钥）一起删，再删除整个文件夹。不写注册表、不留服务。"
+   }
+  ]
+ },
+ {
+  "version": "0.4.0",
+  "date": "2026-10-29",
+  "title": "",
+  "items": [
+   {
+    "type": "added",
+    "text": "有记忆的 A股 / 港股 / 美股 Agent。"
+   },
+   {
+    "type": "added",
+    "text": "下载下方 Stoa-Windows.zip，解压后双击 Stoa.exe（几分钟内由 CI 自动打包上传）。",
+    "head": "Windows 绿色版"
+   },
+   {
+    "type": "added",
+    "text": "docker compose up -d，打开 localhost:8080。",
+    "head": "Docker"
+   },
+   {
+    "type": "added",
+    "text": "网页界面、OpenAI 兼容接口（模型名 stoa）、MCP、Telegram 与 11 种推送、工作日早晚报、判断账本自动复盘。"
+   }
+  ]
+ }
+]

@@ -593,6 +593,40 @@
   .gear{position:absolute;right:22px;top:24px;display:flex;align-items:center;gap:8px;border:1px solid var(--rule-2);background:transparent;color:var(--ink);font:500 var(--fsn3) var(--sans);letter-spacing:.2em;text-transform:uppercase;padding:8px 12px;cursor:pointer;transition:background .25s,border-color .25s}
   .gear:hover{background:var(--ink);color:var(--chalk);border-color:var(--ink)}
   .gear.hl{right:auto;left:22px}.gear.hl:hover svg{transform:none}
+
+  /* ---- Fasti · 更新日志（参考 Ovio Changelog Minimal：两栏安静列表、逐行升起；配 Stoa 的金线、罗马字体与留白） ---- */
+  .clx{position:fixed;inset:0;z-index:72;background:rgba(24,23,21,.28);display:grid;place-items:center;padding:24px}
+  .clx[hidden]{display:none}
+  .clx.out{animation:fadeout .22s ease both;pointer-events:none}.clx.out .clw{animation:gwOut .22s ease-in both}
+  .clw{position:relative;width:min(820px,100%);max-height:calc(100vh - 48px);display:flex;flex-direction:column;background:var(--ivory);border:1px solid var(--gold);box-shadow:0 30px 60px -30px rgba(24,23,21,.5);animation:gwIn .45s var(--ease) both;color:var(--ink-2)}
+  .clw>header{display:flex;align-items:baseline;gap:14px;margin:0 40px;padding:30px 0 12px;border-bottom:1px solid var(--gold)}
+  .clw>header .agt{font:500 var(--fs4)/1 var(--display);letter-spacing:.38em;color:var(--ink)}
+  .clw>header em{font:italic var(--fs2) var(--serif);color:var(--ink-2)}
+  .clw>header small{margin-left:auto;font:500 var(--fsn3) var(--sans);letter-spacing:.16em;text-transform:uppercase;color:var(--mute)}
+  .clw>header .sclose{position:static;align-self:center;margin-left:8px}
+  .clf{display:flex;gap:22px;margin:0 40px;padding:12px 0 2px}
+  .clf button{border:0;background:none;padding:2px 0;cursor:pointer;font:500 var(--fsn3) var(--sans);letter-spacing:.2em;text-transform:uppercase;color:var(--mute);border-bottom:1px solid transparent;transition:color .2s,border-color .2s}
+  .clf button:hover{color:var(--ink)}.clf button.on{color:var(--ink);border-color:var(--gold)}
+  .clf button i{font:italic var(--fsn1) var(--serif);letter-spacing:0;text-transform:none;margin-left:4px}
+  .cll{list-style:none;margin:0;padding:6px 40px 8px;overflow:auto;flex:1;min-height:0}
+  .cll>li{display:grid;grid-template-columns:132px minmax(0,1fr);gap:4px 28px;padding:18px 0 16px;border-top:1px solid var(--rule);animation:rise .5s var(--ease) both;animation-delay:calc(var(--i) * 55ms)}
+  .cll>li:first-child{border-top:0}
+  .clv b{display:block;font:400 var(--fs3)/1.1 var(--serif);color:var(--ink);font-variant-numeric:lining-nums tabular-nums}
+  .clv time{display:block;margin-top:4px;font:italic var(--fsn1) var(--serif);color:var(--mute)}
+  .clv .cur,.clv .up{display:inline-block;margin-top:8px;font:500 var(--fsn4) var(--sans);letter-spacing:.24em;text-transform:uppercase;color:var(--bronze);border-top:1px solid var(--gold);padding-top:3px}
+  .clv .up{color:var(--terracotta);border-color:var(--terracotta)}
+  .clb h4{margin:0 0 6px;font:400 var(--fs1)/1.3 "Archeologicaps",var(--display);letter-spacing:.24em;color:var(--ink)}
+  .clb h5{margin:10px 0 2px;font:var(--fsn1)/1.4 var(--cn);color:var(--ink);letter-spacing:.04em}
+  .clb h4+h5{margin-top:2px}
+  .clb ul{list-style:none;margin:0;padding:0}
+  .clb li{display:grid;grid-template-columns:40px minmax(0,1fr);gap:10px;font:var(--fs0)/1.65 var(--cn);color:var(--ink-2);padding:1px 0}
+  .clb li>i{font:500 var(--fsn3)/2.1 var(--sans);font-style:normal;letter-spacing:.14em;color:var(--mute);text-transform:uppercase}
+  .clb li.t-fixed>i{color:var(--olive)}.clb li.t-changed>i{color:var(--bronze)}
+  .clb li b{font-weight:500;color:var(--ink)}
+  .clb a{font:500 var(--fsn3) var(--sans);letter-spacing:.18em;text-transform:uppercase;color:var(--ink);display:inline-block;margin-top:8px}
+  .clw>footer{margin:0 40px;padding:10px 0 18px;border-top:1px solid var(--gold);font:italic var(--fsn1) var(--serif);color:var(--mute);display:flex;justify-content:space-between}
+  .cll .clnone{display:block;padding:40px 0;text-align:center;font:italic var(--fs1) var(--serif);color:var(--mute);border:0}
+  @media (max-width:640px){.cll>li{grid-template-columns:1fr}.clw>header,.clf,.clw>footer{margin:0 20px}.cll{padding:6px 20px}}
   /* ---- 记忆图谱 · Mnemosyne（参考用户 2026-10-29 给的希腊神祇海报组：旧纸底、拱门里的铜版雕刻、巨大衬线标题、竖排小字、四芒星、月相、月桂、细线框） ---- */
   .gear.hlg{right:auto;left:132px}
   html.en .sh h3 span{display:none}
@@ -1005,6 +1039,7 @@
     <div class="gcard" id="gcard"></div>
   </div>
 </div>
+<div class="clx" id="clx" hidden role="dialog" aria-label="更新日志"><div class="clw" id="clw"></div></div>
 <div class="evx" id="evx" hidden role="dialog" aria-label="财报事件研报"><div class="evw" id="evw"></div></div>
 <div class="set" id="set" hidden role="dialog" aria-modal="true" aria-label="设置">
   <div class="sw">
@@ -1950,9 +1985,10 @@ async function checkUpdate(force){
   const row = document.getElementById('uprow');
   if (row) {
     const msg = j.error ? esc(j.error) : j.available ? `新版本 v${esc(j.latest)} · ${esc(j.published || '')}` : `已是最新（最新 v${esc(j.latest || j.current)}）`;
-    row.innerHTML = `<span><b>当前 v${esc(j.current)}</b><small>${msg}</small></span><span class="k">${j.available ? (j.portable ? '<button class="x" id="upgo">更新并重启</button>' : '') + `<a class="x" href="${esc(j.url)}" target="_blank" rel="noopener">看更新内容</a>` : '<button class="x" id="upchk">检查更新</button>'}</span>`;
+    row.innerHTML = `<span><b>当前 v${esc(j.current)}</b><small>${msg}</small></span><span class="k">${j.available ? (j.portable ? '<button class="x" id="upgo">更新并重启</button>' : '') + `<button class="x" id="upnote">看更新内容</button>` : '<button class="x" id="upchk">检查更新</button>'}</span>`;
     const c = document.getElementById('upchk'); if (c) c.onclick = () => checkUpdate(true);
     const g = document.getElementById('upgo'); if (g) g.onclick = applyUpdate;
+    const nb = document.getElementById('upnote'); if (nb) nb.onclick = () => { CL = null; openChangelog(); };
   }
   if (!force && j.available && localStorage.getItem('stoa.upSeen') !== j.latest) {
     localStorage.setItem('stoa.upSeen', j.latest);
@@ -1970,9 +2006,10 @@ function toast(e){
   if (!box) { box = document.createElement('div'); box.id = 'toasts'; document.body.appendChild(box); }
   const t = document.createElement('div'); t.className = 'toast';
   const lab = {announcement: 'NOTICE · 公告', update: 'RENOVATIO · 更新', earnings_report: 'EVENTUS · 财报研报', earnings_soon: 'EVENTUS · 财报将至', inquiry: 'INQUISITIO · 研究课题'}[e.kind] || 'VIGILIA · 价格提醒';
-  t.innerHTML = `<span class="label">${lab}${e.time ? ' · ' + esc(e.time.slice(11)) : ''}</span><p>${esc(e.title)}</p>${e.inquiry ? `<a href="#" data-iq="${esc(e.inquiry)}">看课题 →</a>` : e.report ? `<a href="#" data-ev="${esc(e.report)}">读研报 →</a>` : e.url ? `<a href="${esc(e.url)}" target="_blank" rel="noopener">${e.kind === 'update' ? '看更新内容' : '读原文'} →</a>` : ''}<button aria-label="关闭">×</button>`;
+  t.innerHTML = `<span class="label">${lab}${e.time ? ' · ' + esc(e.time.slice(11)) : ''}</span><p>${esc(e.title)}</p>${e.inquiry ? `<a href="#" data-iq="${esc(e.inquiry)}">看课题 →</a>` : e.report ? `<a href="#" data-ev="${esc(e.report)}">读研报 →</a>` : e.changelog || (e.kind === 'update' && e.url) ? `<a href="#" data-cl="1">看更新内容 →</a>` : e.url ? `<a href="${esc(e.url)}" target="_blank" rel="noopener">读原文 →</a>` : ''}<button aria-label="关闭">×</button>`;
   t.querySelector('button').onclick = () => t.remove();
   const ev = t.querySelector('[data-ev]'); if (ev) ev.onclick = x => { x.preventDefault(); openEvent(ev.dataset.ev); };
+  const cl = t.querySelector('[data-cl]'); if (cl) cl.onclick = x => { x.preventDefault(); t.remove(); openChangelog(); };
   const iq = t.querySelector('[data-iq]'); if (iq) iq.onclick = x => { x.preventDefault(); openInquiry(iq.dataset.iq); };
   if (e.kind === 'inquiry') loadInquiries();
   if (e.kind && e.kind.startsWith('earnings')) loadEvents();
@@ -2308,7 +2345,7 @@ const PANES = {
   about: () => `<h3>数据与关于</h3><p class="lead">所有数据都在你自己的电脑上，Stoa 不上传任何东西。</p>` +
     grp('Data · 数据', `<div class="fr"><span><b>数据目录</b><small>记忆、账本、配置、密钥</small></span><span class="k"><span class="ep">${esc(S.home)}</span><button class="x" data-copy="${esc(S.home)}">复制</button></span></div>
       <div class="fr"><span><b>导出备份</b><small>记忆、判断账本、自选股和报告，不含密钥</small></span><span><button class="x" id="exp">导出 .zip</button></span></div>`) +
-    grp('Renovatio · 更新', `<div class="fr" id="uprow"><span><b>当前 v${esc(S.version)}</b><small>启动时自动检查 GitHub 上的新版本</small></span><span class="k"><button class="x" id="upchk">检查更新</button></span></div>`) +
+    grp('Renovatio · 更新', `<div class="fr" id="uprow"><span><b>当前 v${esc(S.version)}</b><small>启动时自动检查 GitHub 上的新版本</small></span><span class="k"><button class="x" id="upchk">检查更新</button></span></div><div class="fr"><span><b>更新日志</b><small>每个版本改了什么</small></span><span class="k"><button class="x" id="clopen">打开</button></span></div>`) +
     grp('About · 关于', `<div class="fr"><span><b>版本</b></span><span>Stoa v${esc(S.version)}</span></div><div class="fr"><span><b>源代码</b></span><span><a href="https://github.com/jiuyang5354/Stoa" target="_blank" rel="noopener" style="color:var(--ink)">github.com/jiuyang5354/Stoa</a></span></div>
       <div class="fr"><span><b>声明</b></span><span class="muted">仅供参考，不构成投资建议。</span></div>`),
 };
@@ -2326,6 +2363,7 @@ function show(k){
   pane.querySelectorAll('[data-skv]').forEach(b => b.onclick = async () => { const pre = pane.querySelector(`[data-skb="${CSS.escape(b.dataset.skv)}"]`); if (!pre.hidden) { pre.hidden = true; return; } const j = await (await fetch('/api/skills/view', {method:'POST', headers:H, body:JSON.stringify({name:b.dataset.skv})})).json(); pre.textContent = j.content || j.error || ''; pre.hidden = false; });
   pane.querySelectorAll('[data-skd]').forEach(b => b.onclick = () => memReq('/api/skills/delete', {name:b.dataset.skd}));
   if ($('upchk')) $('upchk').onclick = () => checkUpdate(true);
+  if ($('clopen')) $('clopen').onclick = () => openChangelog();
   if (k === 'mcp') bindMcp(pane);
   if (k === 'model') bindModelPane(pane);
   if (k === 'probatio') bindPb(pane);
@@ -2906,6 +2944,40 @@ async function openInquiry(id, keep){
 }
 loadInquiries(); setInterval(loadInquiries, 30000);
 /* ---------- 斜杠命令：执行模式 + 界面操作 ---------- */
+
+/* ---------- Fasti · 更新日志 ---------- */
+const CLT = {added: '新增', fixed: '修复', changed: '改动'};
+let CL = null, CLF = 'all';
+async function openChangelog(){
+  if (!CL) { try { CL = await (await fetch('/api/changelog', {headers:H})).json(); } catch (_) { CL = {current: '', releases: []}; } }
+  CLF = 'all'; drawChangelog(); $('clx').hidden = false;
+  localStorage.setItem('stoa.verSeen', CL.current || '');
+}
+function drawChangelog(){
+  const R = CL.releases || [], n = t => R.reduce((a, r) => a + r.items.filter(i => t === 'all' || i.type === t).length, 0);
+  const rows = R.map(r => ({...r, items: r.items.filter(i => CLF === 'all' || i.type === CLF)})).filter(r => r.items.length);
+  const li = (r, k) => {
+    let g = ''; const items = r.items.map(i => { const h = i.group && i.group !== g ? `</ul><h5 data-noi18n>${esc(g = i.group)}</h5><ul>` : '';
+      return `${h}<li class="t-${i.type}"><i>${CLT[i.type] || ''}</i><span data-noi18n>${i.head ? `<b>${esc(i.head)}</b> · ` : ''}${esc(i.text)}</span></li>`; }).join('');
+    return `<li style="--i:${Math.min(k, 10)}"><div class="clv"><b>v${esc(r.version)}</b><time>${esc(r.date)}</time>${r.upcoming ? '<span class="up">可更新</span>' : r.version === CL.current ? '<span class="cur">当前</span>' : ''}</div>
+      <div class="clb">${r.title ? `<h4>${esc(r.title.toUpperCase())}</h4>` : ''}<ul>${items}</ul>${r.upcoming && r.url ? `<a href="${esc(r.url)}" target="_blank" rel="noopener">GitHub →</a>` : ''}</div></li>`;
+  };
+  $('clw').innerHTML = `<header><span class="agt">FASTI</span><em>更新日志</em><small>当前 v${esc(CL.current || '')} · ${R.length} 个版本</small><button class="sclose" id="clc" aria-label="关闭"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M5 5l14 14M19 5L5 19"/></svg></button></header>
+    <nav class="clf">${['all', 'added', 'fixed', 'changed'].map(t => `<button data-t="${t}" class="${t === CLF ? 'on' : ''}">${t === 'all' ? '全部' : CLT[t]}<i>${n(t)}</i></button>`).join('')}</nav>
+    <ol class="cll">${rows.map(li).join('') || '<li class="clnone">没有这一类的改动。</li>'}</ol>
+    <footer><span>Fasti · 记下每一次改动</span><span>github.com/jiuyang5354/Stoa</span></footer>`;
+  $('clc').onclick = () => animHide($('clx'));
+  $('clw').querySelectorAll('.clf button').forEach(b => b.onclick = () => { CLF = b.dataset.t; drawChangelog(); });
+}
+$('clx').onclick = e => { if (e.target === $('clx')) animHide($('clx')); };
+addEventListener('keydown', e => { if (e.key === 'Escape' && !$('clx').hidden) animHide($('clx')); });
+/* 升级后第一次打开：提示看看改了什么 */
+setTimeout(async () => {
+  const seen = localStorage.getItem('stoa.verSeen'); let cur = '';
+  try { cur = (await (await fetch('/api/changelog', {headers:H})).json()).current; } catch (_) { return; }
+  if (!seen) { localStorage.setItem('stoa.verSeen', cur); return; }
+  if (seen !== cur) toast({time: '', kind: 'update', title: `已更新到 v${cur}。`, changelog: 1});
+}, 2500);
 const CMDS = [
   {c: '/deep', a: '标的', g: '执行模式', d: 'Agora 深度分析：四位分析师 + 多空辩论 + 风控裁决', t: x => `深度分析 ${x}`},
   {c: '/quick', a: '问题', g: '执行模式', d: '快问：一两句话直接答，不展开', t: x => `【快问模式：用两三句话直接回答，不展开、不列长表】${x}`},
@@ -2929,6 +3001,7 @@ const CMDS = [
   {c: '/graph', g: '界面', d: '记忆图谱 · Ctrl+G', run: () => openGraph()},
   {c: '/backtest', g: '界面', d: '回测与评测', run: () => openSettings('probatio')},
   {c: '/model', g: '界面', d: '切换本对话的模型', run: () => { const b = $('mdl'); if (b && !b.hidden) b.click(); else openSettings('model'); }},
+  {c: '/changelog', g: '界面', d: '更新日志 · 每个版本改了什么', run: () => openChangelog()},
   {c: '/lang', g: '界面', d: '切换中文 / English', run: () => setLang(I18N.lang === 'en' ? 'zh' : 'en')},
   {c: '/settings', g: '界面', d: '设置 · Ctrl+,', run: () => openSettings()},
   {c: '/memory', g: '界面', d: '查看 Stoa 记住了什么', t: () => '/memory'},
