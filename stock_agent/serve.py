@@ -75,11 +75,13 @@ def models_list() -> dict:
     return {"provider": cur.name, "current": cur.model, "models": models[:200], "ready": cur.ready}
 
 
-def chat(channel: str, text: str, model: str | None = None) -> str:
+def chat(channel: str, text: str, model: str | None = None, on_event=None) -> str:
+    """全局锁只管会话表；每个会话自己一把锁，一个对话在查数据时，别的对话和 Telegram 不用排队。"""
     with LOCK:
         s = SESSIONS.get(channel)
         if text.strip() in ("/new", "/reset") and s:
-            s["agent"].end_session()
+            with s.setdefault("lock", threading.Lock()):
+                s["agent"].end_session()
             SESSIONS.pop(channel, None)
             return "已整理记忆，开始新对话。"
         if text.strip() == "/memory":
@@ -89,16 +91,23 @@ def chat(channel: str, text: str, model: str | None = None) -> str:
             # 网页每个对话一个 id，存成 web-<id>，重启后接着聊能带回上下文
             s = SESSIONS[channel] = {"agent": Agent(MEM, channel=kind, session=f"web-{sid}" if kind == "web" and sid else None)}
         s["last"] = time.time()
+        lock = s.setdefault("lock", threading.Lock())
+    with lock:
+        ag = s["agent"]
         if model:  # 对话框里选的模型：只换这个对话的主模型，不改全局设置
             try:
-                s["agent"].llm.chain[0].model = model
+                ag.llm.chain[0].model = model
             except Exception:
                 pass
+        ag.on_event = on_event
         try:
-            return s["agent"].ask(text) or "（空回复）"
+            return ag.ask(text) or "（空回复）"
         except Exception as e:
             log("chat error", e)
             return f"出错了：{e}"
+        finally:
+            ag.on_event = None
+            s["last"] = time.time()
 
 
 def reaper():
@@ -106,7 +115,7 @@ def reaper():
         time.sleep(60)
         with LOCK:
             for ch, s in list(SESSIONS.items()):
-                if time.time() - s.get("last", 0) > IDLE_END:
+                if time.time() - s.get("last", 0) > IDLE_END and not (s.get("lock") and s["lock"].locked()):
                     log("end session", ch)
                     try:
                         s["agent"].end_session()
@@ -379,10 +388,45 @@ class Web(BaseHTTPRequestHandler):
                 return self._send(200, {"reply": "还没配置大模型。已打开「设置 → 模型」：选服务商、填密钥，保存后立即生效，不用重启。行情、早晚报页面不受影响。", "need_model": True})
             sid = re.sub(r"[^A-Za-z0-9_-]", "", str(body.get("session", "default")))[:40] or "default"
             model = re.sub(r"[^A-Za-z0-9._:/@+-]", "", str(body.get("model") or ""))[:120] or None
-            reply = chat("web:" + sid, str(body.get("text", ""))[:4000], model)
-            meta = getattr((SESSIONS.get("web:" + sid) or {}).get("agent"), "last_meta", None) or {}
-            return self._send(200, {"reply": reply, "sources": meta.get("sources") or [], "verify": meta.get("verify"), "debate": meta.get("debate"), "cards": meta.get("cards"),
-                                    "compressed": meta.get("compressed"), "archived": meta.get("archived") or 0})
+            def payload(reply):
+                meta = getattr((SESSIONS.get("web:" + sid) or {}).get("agent"), "last_meta", None) or {}
+                return {"reply": reply, "sources": meta.get("sources") or [], "verify": meta.get("verify"), "debate": meta.get("debate"), "cards": meta.get("cards"),
+                        "compressed": meta.get("compressed"), "archived": meta.get("archived") or 0, "steps": meta.get("steps") or []}
+            text = str(body.get("text", ""))[:4000]
+            if not body.get("stream"):
+                return self._send(200, payload(chat("web:" + sid, text, model)))
+            # 流式：边查边把每一步（查行情、读公告…）推给网页，最后一条是完整回答
+            import queue
+            q, box = queue.Queue(), {}
+            th = threading.Thread(target=lambda: (box.__setitem__("r", chat("web:" + sid, text, model, on_event=q.put)), q.put(None)), daemon=True)
+            th.start()
+            self.send_response(200)
+            self.send_header("Content-Type", "text/event-stream; charset=utf-8")
+            self.send_header("Cache-Control", "no-cache")
+            self.send_header("X-Accel-Buffering", "no")
+            self.end_headers()
+            alive = True
+            while True:
+                try:
+                    ev = q.get(timeout=15)
+                except queue.Empty:
+                    ev = {"t": "ping"}
+                if ev is None:
+                    break
+                if alive:
+                    try:
+                        self.wfile.write(f"data: {json.dumps(ev, ensure_ascii=False)}\n\n".encode())
+                        self.wfile.flush()
+                    except (BrokenPipeError, ConnectionResetError):
+                        alive = False  # 页面关了：回答照样算完、存进记录，下次打开 History 能看到
+            if alive:
+                try:
+                    self.wfile.write(f"data: {json.dumps({'t': 'done', **payload(box.get('r') or '（空回复）')}, ensure_ascii=False)}\n\n".encode())
+                    self.wfile.flush()
+                except (BrokenPipeError, ConnectionResetError):
+                    pass
+            self.close_connection = True
+            return
         if path.startswith("/api/settings") or path in ("/api/memory/delete", "/api/memory/add", "/api/skills/delete", "/api/skills/view", "/api/alerts/add", "/api/alerts/delete", "/api/alerts/check", "/api/events/check", "/api/update/apply", "/api/sessions/delete", "/api/sessions/rename") or path.startswith("/api/mcp/"):
             if not self._local_ok():
                 return self._send(403, {"error": "设置页只能在本机打开，或先设 WEB_TOKEN"})

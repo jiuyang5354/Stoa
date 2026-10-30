@@ -2,7 +2,10 @@
 import re
 import json
 import os
+import threading
+import time
 import uuid
+from concurrent.futures import ThreadPoolExecutor
 
 import requests
 import yaml
@@ -29,7 +32,10 @@ SYSTEM = """你是「Stoa」，用户的长期股市助手，覆盖 A股、港�
 - 更深的数据（都带来源与时间，结果里的 warnings 一定要转告用户，不要隐去）：
   资金流/主力/超大单 → get_fund_flow（仅 A股；问港股/美股资金流时直接说明「主力资金流向数据只支持 A股，港股/美股没有可靠的免费逐日数据」，可以提出改查成交额/行情，不要编资金流数字）；北向资金 → get_northbound（2024-08 起不再披露每日净买入，拿不到就如实说）；
   龙虎榜 → get_dragon_tiger；分析师目标价/评级/盈利预测 → get_consensus；盘中/分时/今天几点涨跌 → get_intraday；
-  美股期权、隐含波动率、Put/Call、最大痛点 → get_options。
+  美股期权、隐含波动率、Put/Call、最大痛点 → get_options；
+  解禁、减持、增持、回购、质押、业绩预告、机构调研、美股高管买卖 → get_corporate_events；两融、股东户数、筹码 → get_chips；
+  A股今天情绪、涨停炸板、板块资金 → get_market_mood；美股做空 → get_short_volume。
+- A股规则：get_quotes 的 a_share_rules 给出涨跌停幅度和下一日涨跌停价、T+1、最小买入单位；谈买卖、止损、仓位时按这些规则说（如「今天买明天才能卖」「止损价低于跌停价时当天可能卖不出」）。
 - 年报/季报/10-K：问年报里写了什么、管理层怎么说、风险因素、分部收入 → read_filing（带页码，回答里注明「第 N 页」）；
   问「今年年报比去年多了哪些风险」「两年 MD&A 有什么变化」→ compare_filings。只转述段落里有的内容。
 - 数据源冲突：工具结果的 warnings 里写了两源差异过大时，回答里必须说明「两个数据源不一致」及各自数值，不要只报其中一个当作确定值。
@@ -96,6 +102,16 @@ TOOLS = [
      "parameters": {"type": "object", "properties": {"symbol": {"type": "string"}, "days": {"type": "integer", "description": "1–5"}, "interval": {"type": "integer", "description": "分钟：1/5/15/30/60，默认 5"}}, "required": ["symbol"]}},
     {"name": "get_options", "description": "美股期权：最近几个到期日 + 约 30 天到期的 ATM 隐含波动率、Put/Call 比（成交量/持仓量）、最大痛点（Yahoo，Nasdaq 交叉校验）。只支持美股。",
      "parameters": {"type": "object", "properties": {"symbol": {"type": "string"}, "expiries": {"type": "integer"}}, "required": ["symbol"]}},
+    {"name": "get_corporate_events", "description": "公司事件：A股给未来 180 天限售解禁（占总股本%）、业绩预告、机构调研、股东增减持、回购进度、股权质押比例，并标出值得警惕的项（flags）；美股给 SEC Form 4 内部人交易（谁、买还是卖、金额、是否 10b5-1 计划）。kinds 可只取部分：lockup/forecast/survey/holder/buyback/pledge。",
+     "parameters": {"type": "object", "properties": {"symbol": {"type": "string"}, "kinds": {"type": "array", "items": {"type": "string", "enum": ["lockup", "forecast", "survey", "holder", "buyback", "pledge"]}}}, "required": ["symbol"]}},
+    {"name": "get_chips", "description": "A股筹码与杠杆：近 N 日融资余额/融资买入/融券余额及变化，最近几期股东户数及环比（户数减少=筹码集中）。只支持 A股。",
+     "parameters": {"type": "object", "properties": {"symbol": {"type": "string"}, "days": {"type": "integer"}}, "required": ["symbol"]}},
+    {"name": "get_market_mood", "description": "A股市场情绪（当日或最近交易日）：涨停/炸板/跌停家数、炸板率、最高连板与连板梯队、涨停最多的行业、行业与概念板块主力资金净流入前五/流出前五。问「今天市场情绪」「什么板块在涨」「打板」时用。",
+     "parameters": {"type": "object", "properties": {"date": {"type": "string", "description": "YYYYMMDD，可省略"}}}},
+    {"name": "get_insiders", "description": "美股内部人交易（SEC Form 4）：近 N 天董事/高管/10% 股东的公开市场买入卖出、金额、交易后持股、是否 10b5-1 计划卖出。只支持美股。",
+     "parameters": {"type": "object", "properties": {"symbol": {"type": "string"}, "days": {"type": "integer"}}, "required": ["symbol"]}},
+    {"name": "get_short_volume", "description": "美股 FINRA 日空头成交占比（近 N 个交易日）。看趋势变化，不是空头持仓。只支持美股。",
+     "parameters": {"type": "object", "properties": {"symbol": {"type": "string"}, "days": {"type": "integer"}}, "required": ["symbol"]}},
     {"name": "read_filing", "description": "读年报/定期报告原文（A股巨潮/东方财富 PDF、港股披露易 PDF、美股 SEC 10-K/10-Q）：按章节定位 + 关键词检索，返回相关段落，每段带页码和可跳到该页的链接。section: mdna 管理层讨论与分析 / risk 风险因素 / financial 主要财务数据 / segment 分部或分产品收入 / all 全文。year 是报告期年份（如 2025 年年报填 2025）。首次下载解析需十几秒，之后读缓存。",
      "parameters": {"type": "object", "properties": {"symbol": {"type": "string"}, "year": {"type": "integer"}, "section": {"type": "string", "enum": ["mdna", "risk", "financial", "segment", "all"]},
                                                      "query": {"type": "string", "description": "要找的内容关键词，如「直销 渠道」「export controls」"},
@@ -148,8 +164,33 @@ TOOLS = [
 
 
 ADVICE_RE = re.compile(r"推荐|稳赚|翻倍|杠杆|融资|借钱|all ?in|满仓|梭哈|期权|该不该|能不能买|能买吗|可以买|值得买|买入|卖出|加仓|减仓|抄底|收益|保本", re.I)
-DEEP_TOOLS = {"get_fund_flow", "get_northbound", "get_dragon_tiger", "get_consensus", "get_intraday", "get_options", "read_filing", "compare_filings"}
+EVENT_TOOLS = {"get_corporate_events", "get_chips", "get_market_mood", "get_insiders", "get_short_volume"}
+DEEP_TOOLS = EVENT_TOOLS | {"get_fund_flow", "get_northbound", "get_dragon_tiger", "get_consensus", "get_intraday", "get_options", "read_filing", "compare_filings"}
 BIG_TOOLS = {"read_filing", "compare_filings", "get_consensus", "get_dragon_tiger"}  # 结果允许更长
+
+
+SIDE_EFFECT_TOOLS = {"memory", "record_call", "alert_set", "alert_delete", "watchlist", "skill_save", "skill_delete", "run_python", "deep_analysis", "earnings_report"}
+TOOL_LABELS = {"get_quotes": "查行情", "market_overview": "看大盘", "get_news": "读新闻", "get_announcements": "查公告", "get_financials": "查财报",
+               "web_search": "联网搜索", "fetch_url": "读网页", "get_fund_flow": "看资金流", "get_northbound": "看北向", "get_dragon_tiger": "查龙虎榜",
+               "get_consensus": "查一致预期", "get_intraday": "看分时", "get_options": "看期权", "read_filing": "读年报", "compare_filings": "对比年报",
+               "deep_analysis": "Agora 辩论", "memory_links": "翻记忆", "memory": "写记忆", "session_search": "搜旧对话", "search_memory": "搜记忆",
+               "earnings_calendar": "查财报日", "earnings_report": "写财报研报", "watchlist": "改自选", "record_call": "记账", "run_python": "跑代码",
+               "call_stats": "看战绩", "alert_set": "设提醒", "alert_list": "看提醒", "alert_delete": "删提醒", "skill_view": "读技能",
+               "skill_save": "存技能", "skill_delete": "删技能", "get_corporate_events": "查公司事件", "get_chips": "看筹码两融",
+               "get_market_mood": "看市场情绪", "get_insiders": "查内部人交易", "get_short_volume": "看做空"}
+
+
+def _arg_brief(raw) -> str:
+    """进度条上显示的参数摘要：代码、关键词或技能名，最多 24 字。"""
+    try:
+        a = json.loads(raw or "{}")
+    except Exception:
+        return ""
+    v = a.get("symbol") or a.get("symbols") or a.get("query") or a.get("name") or a.get("url") or ""
+    if isinstance(v, list):
+        v = "、".join(map(str, v[:4])) + ("…" if len(v) > 4 else "")
+    v = str(v)
+    return v[:24] + ("…" if len(v) > 24 else "")
 
 
 def deep_tool(name: str, args: dict):
@@ -167,6 +208,18 @@ def deep_tool(name: str, args: dict):
         return md.intraday(sym, int(args.get("days") or 1), int(args.get("interval") or 5))
     if name == "get_options":
         return md.options(sym, int(args.get("expiries") or 2))
+    if name in EVENT_TOOLS:
+        from . import eventdata as ev
+        if name == "get_corporate_events":
+            return ev.a_events(sym, args.get("kinds")) if md.parse(sym)["market"] == "A" else ev.us_insiders(sym) if md.parse(sym)["market"] == "US" else {"error": "公司事件目前支持 A股（解禁/预告/调研/增减持/回购/质押）和美股（Form 4 内部人交易）"}
+        if name == "get_chips":
+            return ev.a_chips(sym, int(args.get("days") or 10))
+        if name == "get_market_mood":
+            return ev.a_mood(args.get("date"))
+        if name == "get_insiders":
+            return ev.us_insiders(sym, int(args.get("days") or 90))
+        if name == "get_short_volume":
+            return ev.us_short_volume(sym, int(args.get("days") or 5))
     if name == "read_filing":
         return filings.read_filing(sym, args.get("year"), args.get("section") or "all", args.get("query") or "", args.get("kind") or "annual")
     if name == "compare_filings":
@@ -199,6 +252,14 @@ def quotes(symbols: list[str], check: bool = False) -> dict:
         a = indicators.analyze(closes[s], cfg.get("alerts", {}))
         if a and closes[s].attrs.get("source"):
             a["source"] = closes[s].attrs["source"]
+        if isinstance(a, dict) and a.get("close"):
+            try:
+                from .eventdata import a_rules
+                r = a_rules(s, a.get("close"))
+                if r:
+                    a["a_share_rules"] = r
+            except Exception:
+                pass
         out[s] = a
     if check and os.getenv("QUOTE_CROSSCHECK", "on").lower() not in ("off", "0", "false"):
         from concurrent.futures import ThreadPoolExecutor
@@ -472,7 +533,9 @@ class Agent:
         res = self.sources.add(name, args, self.run_tool(name, args))
         if name in cards.CARD_TOOLS:
             try:
-                self.turn_cards += cards.build(name, args, res)
+                built = cards.build(name, args, res)
+                with self.__dict__.setdefault("_card_lock", threading.Lock()):
+                    self.turn_cards += built
             except Exception:
                 pass
         return res
@@ -508,7 +571,8 @@ class Agent:
                 body, tail = cite.split_sources(reply)
                 reply = body.rstrip() + f"\n[[cards:{cid}]]" + ("\n\n" + tail if tail else "")
         self.last_meta = {"sources": used, "verify": verify_meta, "debate": getattr(self, "last_debate", None), "cards": cid,
-                          "compressed": self.compressed, "archived": (self.digest or {}).get("n_msgs") or 0}
+                          "compressed": self.compressed, "archived": (self.digest or {}).get("n_msgs") or 0,
+                          "steps": list(getattr(self, "_steps", None) or [])}
         return reply
 
     def ask(self, text: str, on_tool=None) -> str:
@@ -519,6 +583,8 @@ class Agent:
         self.compressed = None
         self._cur_id = self.mem.log(self.session, "user", text)
         self._cur_text = text
+        self._turn_cache = {}
+        self._steps = []
         self._begin_sources(text)
         # 「深度分析 X」「该不该买 X」：直接开 Agora 辩论，不先绕一圈单 agent
         from . import debate
@@ -527,8 +593,15 @@ class Agent:
             sym = debate.resolve_symbol(text, {w["symbol"]: w.get("name", "") for w in cfg.get("watchlist") or []})
             if sym:
                 self.messages.append({"role": "user", "content": text, "_id": self._cur_id})
+                if getattr(self, "on_event", None):
+                    self.on_event({"t": "tool", "i": 0, "id": "agora", "name": "deep_analysis", "label": TOOL_LABELS["deep_analysis"], "arg": sym})
                 try:
+                    t0 = time.time()
                     rec = debate.run_for_agent(self, sym, text)
+                    self._steps.append({"n": 0, "label": TOOL_LABELS["deep_analysis"], "name": "deep_analysis", "arg": sym, "ok": True, "cached": False,
+                                        "ms": int((time.time() - t0) * 1000)})
+                    if getattr(self, "on_event", None):
+                        self.on_event({"t": "tool_done", "i": 0, "id": "agora", "ok": True, "cached": False, "ms": self._steps[-1]["ms"]})
                     self.last_debate = rec["id"]
                     reply = rec["answer"]
                     vm = {"first_unverified": (rec.get("verify") or {}).get("first_unverified", []), "fixed": (rec.get("verify") or {}).get("fixed", False),
@@ -594,21 +667,58 @@ class Agent:
             rounds += 1
             n_tools += len(calls)
             saved = saved or any(c["function"]["name"] == "skill_save" for c in calls)
-            for c in calls:
+            results = self._run_calls(calls, on_tool)
+            for c, result in zip(calls, results):
                 name = c["function"]["name"]
-                args = {}
-                try:
-                    args = json.loads(c["function"].get("arguments") or "{}")
-                    result = self._tool(name, args)
-                except Exception as e:
-                    result = f"工具出错：{e}"
-                if on_tool:
-                    on_tool(name, args)
                 # 工具结果按剩余预算收缩（结构化：保留 _cite / url / 来源 / 时间，不从 JSON 中间硬切）
                 left = self.budget() - context.total(self.messages)
                 cap = 9000 if name in BIG_TOOLS else 6000
                 limit = max(1200, min(cap, left * 2 // max(1, len(calls))))
                 self.messages.append({"role": "tool", "tool_call_id": c["id"], "content": context.clip_tool(result, limit)})
+
+    def _run_calls(self, calls, on_tool=None) -> list:
+        """同一轮的多个工具调用并行跑（只读取数类），写记忆/账本/提醒/技能这类有副作用的按顺序跑；
+        同一轮对话里参数完全相同的只读调用直接复用结果。顺序与 calls 一致。"""
+        cache = self.__dict__.setdefault("_turn_cache", {})
+        emit = getattr(self, "on_event", None)
+
+        def one(i, c):
+            name = c["function"]["name"]
+            args, t0, hit = {}, time.time(), False
+            if emit:
+                emit({"t": "tool", "i": i, "id": c["id"], "name": name, "label": TOOL_LABELS.get(name, name), "arg": _arg_brief(c["function"].get("arguments"))})
+            try:
+                args = json.loads(c["function"].get("arguments") or "{}")
+                key = name + json.dumps(args, sort_keys=True, ensure_ascii=False)
+                if name not in SIDE_EFFECT_TOOLS and key in cache:
+                    result, hit = cache[key], True
+                else:
+                    result = self._tool(name, args)
+                    if name not in SIDE_EFFECT_TOOLS:
+                        cache[key] = result
+                ok = not (isinstance(result, dict) and result.get("error") and len(result) <= 3)
+            except Exception as e:
+                result, ok = f"工具出错：{e}", False
+            if on_tool:
+                on_tool(name, args)
+            self.__dict__.setdefault("_steps", []).append({"n": len(self._steps), "label": TOOL_LABELS.get(name, name), "name": name,
+                                                           "arg": _arg_brief(c["function"].get("arguments")), "ok": ok, "cached": hit, "ms": int((time.time() - t0) * 1000)})
+            if emit:
+                emit({"t": "tool_done", "i": i, "id": c["id"], "ok": ok, "cached": hit, "ms": int((time.time() - t0) * 1000)})
+            return result
+
+        par = [i for i, c in enumerate(calls) if c["function"]["name"] not in SIDE_EFFECT_TOOLS]
+        out = [None] * len(calls)
+        if len(par) > 1:
+            with ThreadPoolExecutor(min(4, len(par)), thread_name_prefix="tool") as ex:
+                for i, r in zip(par, ex.map(lambda i: one(i, calls[i]), par)):
+                    out[i] = r
+        elif par:
+            out[par[0]] = one(par[0], calls[par[0]])
+        for i, c in enumerate(calls):
+            if i not in par:
+                out[i] = one(i, c)
+        return out
 
     def max_rounds(self) -> int:
         try:

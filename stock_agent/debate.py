@@ -190,7 +190,7 @@ COMMON = """你是 Stoa 投研团队里的「{title}」。只能使用下面给�
 PROMPTS = {
     "fundamental": "看估值（市盈率/市净率/股息率）、盈利能力（ROE、毛利率、净利率）、增长（营收/净利同比）、负债与现金流、分析师一致预期（目标价区间、相对现价空间、评级分布、EPS 预测）；有年报对比时看今年年报新增/删除了哪些风险（写页码）。",
     "technical": "看趋势（价格与 20/60 日均线的位置关系）、动量（5/20 日涨跌幅）、RSI 超买超卖、52 周高低点位置与信号；A股看近 5 日主力/超大单资金流向，美股看期权 Put/Call 比、隐含波动率和最大痛点。",
-    "news": "看最近新闻和公告：有没有回购、业绩、监管、减持、重大合同等会改变预期的事件，市场情绪偏向哪边；A股看最近有没有上龙虎榜、席位是机构还是游资。没有新闻就判中性。",
+    "news": "看最近新闻和公告：有没有回购、业绩、监管、减持、重大合同等会改变预期的事件，市场情绪偏向哪边；A股看最近有没有上龙虎榜、席位是机构还是游资，未来解禁占比、股东减持、回购进度、质押比例、融资余额与股东户数变化；美股看高管公开市场买卖（P/S，10b5-1 计划卖出信号弱）。没有新闻就判中性。",
     "macro": "看大盘与指数环境、行业与政策动向（来自搜索结果），判断外部环境对这只股票是顺风还是逆风。",
 }
 CONF_TIERS = """confidence 按证据强度分档（同样强度给同样的分，档位之间要拉开，不要习惯性一律给 50–55）：
@@ -633,6 +633,11 @@ class Debate:
             out = [self.tool("get_news", {"symbol": s, "limit": 6}), self.tool("get_announcements", {"symbol": s, "limit": 6})]
             if self.market() == "A":
                 out.append(self.tool("get_dragon_tiger", {"symbol": s, "limit": 3}))
+                out.append(self.tool("get_corporate_events", {"symbol": s}))
+                out.append(self.tool("get_chips", {"symbol": s, "days": 10}))
+            elif self.market() == "US":
+                out.append(self.tool("get_insiders", {"symbol": s, "days": 90}))
+            self._event_flags = [f for d in out if isinstance(d, dict) for f in (d.get("flags") or [])]
             return out
         if key == "macro":
             return [self.tool("market_overview", {}), self.tool("web_search", {"query": f"{self.name} 行业 政策 最新", "limit": 4})]
@@ -649,7 +654,7 @@ class Debate:
         mk = self.market()
         tools_used = {"technical": ["get_quotes"] + (["get_fund_flow"] if mk == "A" else ["get_options"] if mk == "US" else []),
                       "fundamental": ["get_financials"] + (["get_consensus", "compare_filings"] if mk != "IDX" else []),
-                      "news": ["get_news", "get_announcements"] + (["get_dragon_tiger"] if mk == "A" else []),
+                      "news": ["get_news", "get_announcements"] + (["get_dragon_tiger", "get_corporate_events", "get_chips"] if mk == "A" else ["get_insiders"] if mk == "US" else []),
                       "macro": ["market_overview", "web_search"]}[key] if self.mode != "backtest" else (["截断行情"] + (["截断资金流"] if getattr(self, "flow_payload", None) else []))
         if not usable:
             out = RULES[key](data)
@@ -883,6 +888,7 @@ class Debate:
         for t in (risk.get("findings") or []) + (risk.get("notes") or []):
             if t not in (risk.get("redlines") or []) and not t.startswith("没有持仓/仓位信息"):
                 risks.append({"text": t, "level": "风控"})
+        risks += [{"text": t, "level": "事件"} for t in getattr(self, "_event_flags", None) or []]
         last = rounds[-1] if rounds else None
         if last and (last.get("bear") or {}).get("status") == "ok":
             b = last["bear"]

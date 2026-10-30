@@ -276,6 +276,23 @@
   .cap.think .leaf,.cap.think .star{animation-iteration-count:infinite;animation-direction:alternate;animation-duration:2.2s}
   @keyframes grow{to{stroke-dashoffset:0}}@keyframes bud{to{transform:scale(1)}}@keyframes inkin{to{opacity:1}}
   .thinking{display:flow-root}.thinking .tw{font-weight:inherit}.thinking .dots{line-height:64px}
+  /* 工具步骤：等待时实时列出正在做什么；答完收成一行「N 步 · 秒数」，点开看每步耗时 */
+  .steps{list-style:none;margin:2px 0 0;padding:0;clear:both;font:12px/1.9 var(--sans);color:var(--mute)}
+  .steps li{display:grid;grid-template-columns:6.5em minmax(0,1fr) auto;gap:12px;align-items:baseline;border-top:1px solid var(--rule);padding:1px 0;animation:stepin .35s var(--ease)}
+  .steps li:first-child{border-top:0}
+  .steps b{font-weight:400;color:var(--ink-2)}.steps span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-variant-numeric:tabular-nums}
+  .steps i{font-style:normal;font-variant-numeric:tabular-nums;color:var(--mute)}
+  .steps li.run i::after{content:'···';letter-spacing:1px;animation:d1 1.4s infinite}
+  .steps li.ok i{color:var(--olive)}.steps li.err i,.steps li.err b{color:var(--terracotta)}
+  @keyframes stepin{from{opacity:0;transform:translateY(-2px)}}
+  .stepsum{margin:10px 0 0;font:12px var(--sans);color:var(--mute)}
+  .stepsum summary{cursor:pointer;list-style:none;display:inline-flex;gap:8px;align-items:center;user-select:none}
+  .stepsum summary::-webkit-details-marker{display:none}
+  .stepsum summary::before{content:'';width:5px;height:5px;border-right:1px solid currentColor;border-bottom:1px solid currentColor;transform:rotate(-45deg);transition:transform .2s var(--ease)}
+  .stepsum[open] summary::before{transform:rotate(45deg)}
+  .stepsum summary:hover{color:var(--ink)}
+  .stepsum .steps{margin-top:6px;max-width:420px}
+  .thinking .steps{max-width:420px}
   .m .body{position:relative}
   .pen-layer{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible}
   .pen-layer path{fill:none;stroke:var(--terracotta);stroke-width:1.3;stroke-linecap:round;stroke-linejoin:round;opacity:.85;stroke-dasharray:var(--l);stroke-dashoffset:var(--l);animation:grow .7s var(--ease) forwards}
@@ -1167,7 +1184,7 @@ function agoraHTML(d){
   const chk = d.checklist || (v.key_points || []).map(t => ({text: t, kind: '依据', cited: /\[\d+\]/.test(t)}));
   const facts = chk.filter(c => c.kind !== '数据缺口'), gaps = chk.filter(c => c.kind === '数据缺口');
   const risks = d.risks || [...(r.findings || []).map(t => ({text: t, level: '风控'})), ...(v.invalidation ? [{text: v.invalidation, level: '失效条件'}] : [])];
-  const LV = {'红线': 'lv-red', '风控': 'lv-risk', '空方': 'lv-bear', '失效条件': 'lv-inv'};
+  const LV = {'红线': 'lv-red', '风控': 'lv-risk', '事件': 'lv-risk', '空方': 'lv-bear', '失效条件': 'lv-inv'};
   const rulesOnly = r.mode === 'rules_only' && r.status === 'rules';
   return `<header><span class="agt">AGORA</span><em>${esc(d.name || d.symbol)}${d.name && d.name !== d.symbol ? ' · ' + esc(d.symbol) : ''}</em><small>${esc(d.created || '')}<br>LLM ${b.calls ?? '—'}/${b.max_calls ?? '—'} 次 · ≈${((b.tokens_est || 0) / 1000).toFixed(1)}k token · ${d.seconds ?? '—'}s</small></header>
   <div class="agsec"><h5><i>I</i>查证要点 · Verificanda</h5>
@@ -1235,19 +1252,51 @@ async function send(text){
   }
   input.value = ''; sync(); busy = true; $('b').disabled = true;
   add('u', shown);
-  const seed = turn * 131 + Date.now() % 97;
-  const out = add('a', `<div class="thinking">${dropcap('', seed, true)}<span class="dots"><b class="tw">翻阅行情</b><i>.</i><i>.</i><i>.</i></span></div>`);
-  /* 等待时轮换的话：大致对应 Stoa 干活的顺序，最后停在「落笔」 */
+  const seed = turn * 131 + Date.now() % 97, t0 = performance.now();
+  const out = add('a', `<div class="thinking">${dropcap('', seed, true)}<span class="dots"><b class="tw">翻阅行情</b><i>.</i><i>.</i><i>.</i></span><ol class="steps"></ol></div>`);
+  /* 还没有真实步骤时轮换的话；一旦收到工具事件就改成显示当前在做的那一步 */
   const TW = ['翻阅行情', '查证数据', '回看记忆', '权衡利弊', '落笔'];
-  let twi = 0; const twT = setInterval(() => { const el = out.querySelector('.tw'); if (!el || twi >= TW.length - 1) return clearInterval(twT); el.textContent = TW[++twi]; }, 2600);
+  let twi = 0, live = false; const twT = setInterval(() => { const el = out.querySelector('.tw'); if (!el || live || twi >= TW.length - 1) return; el.textContent = TW[++twi]; }, 2600);
+  const steps = [];
+  const stepLi = s => `<li class="${s.done ? (s.ok ? 'ok' : 'err') : 'run'}" data-i="${esc(s.id)}"><b>${esc(s.label)}</b><span>${esc(s.arg || '')}</span><i>${s.done ? (s.cached ? '复用' : fmtMs(s.ms)) : ''}</i></li>`;
+  const onEv = ev => {
+    if (ev.t === 'tool') {
+      live = true; const s = {id: ev.id, label: ev.label, arg: ev.arg}; steps.push(s);
+      const ol = out.querySelector('.steps'); if (ol) ol.insertAdjacentHTML('beforeend', stepLi(s));
+      const tw = out.querySelector('.tw'); if (tw) tw.textContent = ev.label;
+    } else if (ev.t === 'tool_done') {
+      const s = steps.find(x => x.id === ev.id); if (!s) return; Object.assign(s, {done: true, ok: ev.ok, ms: ev.ms, cached: ev.cached});
+      const li = out.querySelector(`.steps li[data-i="${CSS.escape(ev.id)}"]`); if (li) li.outerHTML = stepLi(s);
+      if (steps.every(x => x.done)) { const tw = out.querySelector('.tw'); if (tw) tw.textContent = '落笔'; }
+    }
+    log.scrollTop = 1e9;
+  };
   try {
-    const r = await fetch('/api/chat', {method:'POST', headers:H, body:JSON.stringify({text, session:sid, model: MDL.pick || undefined})});
-    const j = await r.json(); render(out, j.reply || j.error || '（空回复）', seed);
+    const r = await fetch('/api/chat', {method:'POST', headers:H, body:JSON.stringify({text, session:sid, model: MDL.pick || undefined, stream: true})});
+    let j;
+    if ((r.headers.get('content-type') || '').includes('event-stream') && r.body) {
+      const rd = r.body.getReader(), dec = new TextDecoder(); let buf = '';
+      for (;;) {
+        const {value, done} = await rd.read(); if (done) break;
+        buf += dec.decode(value, {stream: true}); let k;
+        while ((k = buf.indexOf('\n\n')) >= 0) {
+          const line = buf.slice(0, k); buf = buf.slice(k + 2);
+          if (!line.startsWith('data: ')) continue;
+          let ev; try { ev = JSON.parse(line.slice(6)); } catch (_) { continue; }
+          if (ev.t === 'done') j = ev; else onEv(ev);
+        }
+      }
+    } else j = await r.json();
+    j = j || {reply: '（连接中断，回答已存进记录，可在 History 里查看）'};
+    render(out, j.reply || j.error || '（空回复）', seed);
+    const st = (j.steps && j.steps.length ? j.steps : steps.filter(x => x.done));
+    if (st.length) out.insertAdjacentHTML('beforeend', `<details class="stepsum"><summary>${st.length} 步 · ${fmtMs(performance.now() - t0)}${st.some(x => !x.ok) ? ` · ${st.filter(x => !x.ok).length} 步没取到` : ''}</summary><ol class="steps">${st.map((x, i) => stepLi({...x, id: 's' + i, done: true})).join('')}</ol></details>`);
     if (j.need_model) openSettings('model');
     if (j.archived) placeArchive(j.archived, null);
   } catch (e) { out.textContent = '请求失败：' + e; }
   clearInterval(twT); busy = false; sync(); log.scrollTop = 1e9; loadMemory();
 }
+function fmtMs(ms){ ms = Math.max(0, ms || 0); return ms < 1000 ? Math.round(ms) + ' ms' : ms < 60000 ? (ms / 1000).toFixed(1) + ' 秒' : Math.floor(ms / 60000) + ' 分 ' + Math.round(ms % 60000 / 1000) + ' 秒'; }
 
 /* ---------- 会话纪要：较早的消息已滚动摘要，原文仍在记录里，只是不再放进模型上下文 ---------- */
 function placeArchive(n, text){

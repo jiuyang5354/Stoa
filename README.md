@@ -56,6 +56,9 @@ A stock-market agent with memory for China A-shares, Hong Kong and US stocks —
 - 指数：上证、深证成指、创业板指、恒生、恒生科技、标普500、纳斯达克、道琼斯
 - 自选股：在 `config.yaml` 里随便加
 - 每只标的：收盘、单日 / 5 日 / 20 日涨跌、RSI、20/60 日均线
+- 公司事件与筹码（v0.23）：A股限售解禁（未来 180 天、占总股本）、业绩预告、机构调研、股东增减持、回购进度、股权质押、融资融券、股东户数；涨停/炸板/跌停与连板梯队、行业与概念板块资金；美股 SEC Form 4 高管买卖、FINRA 日空头成交占比。行情里带 A股涨跌停价、T+1 与一手股数
+- 内置投研流程（v0.23）：个股体检、事件排雷、盘后复盘、策略回测（按 T+1、手续费、印花税、滑点、涨跌停）、选股筛选、财报季研判，Agent 遇到同类问题先按流程查数据再下结论；可以同名覆盖成自己的版本
+- 对话里实时显示每一步在查什么（查行情、读公告…），同一轮的多个查询并行跑，答完收成「N 步 · 秒数」可展开看耗时
 - 研究资料（v0.7，免密钥）：个股新闻（东方财富 + Yahoo）、公司公告（东方财富公告中心、美股 SEC EDGAR）、财报与估值（东方财富 F10 + Yahoo Finance）、联网搜索（DuckDuckGo / Bing，可选 Tavily、Brave）、读网页正文
 - 记忆图谱（v0.12，v0.13 改为简约神殿风：象牙白拱门、顶光与一圈淡金光环，股票是星，每个主题由掌管它的神守护——财报是雅典娜、AI 是普罗米修斯、降息是克洛诺斯，三个市场是命运三女神）：左上 Graph / Ctrl+G / 输入 /graph。把 USER/MEMORY 条目、技能、判断账本、网页对话按股票、主题（板块与宏观词表）、市场串成力导向图；点股票看相关记忆、对话和判断对错战绩，一键「问 Stoa」。Agent 新工具 memory_links：分析前顺着图谱一次取齐相关记忆。接口 GET /api/graph。全部规则抽取，不调模型
 - MCP 客户端（v0.11）：设置 → MCP 服务器，接入本地命令（stdio，如 `uvx mcp-server-fetch`、`npx -y @modelcontextprotocol/server-filesystem`）或远程 URL（Streamable HTTP，/sse 结尾走旧版 SSE），工具在对话里直接可用（mcp__服务器__工具）。可粘贴 Claude Desktop / Cursor 的 mcpServers 配置导入，逐个工具开关；配置存数据目录 mcp.json，`${变量}` 读 .env；失败的服务器 5 分钟内不重试；MCP_TIMEOUT 默认 60 秒

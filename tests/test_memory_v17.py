@@ -301,7 +301,8 @@ def test_tool_rounds_capped_with_graceful_finish(monkeypatch):
     llm = LoopLLM()
     a = ev.make_agent(ev.load_cases()["fixtures"], Memory(), llm, log)
     ans = a.ask("腾讯现在多少钱？")
-    assert sum(x["tool"] == "get_quotes" for x in log) == 3 and llm.final_calls == 1
+    # 同一轮里参数相同的只读调用复用结果：模型连调 3 次，工具实际只跑 1 次
+    assert sum(x["tool"] == "get_quotes" for x in log) == 1 and llm.final_calls == 1
     assert "512.4" in ans and "工具调用次数过多" not in ans
     assert a.last_meta["verify"]["stopped"].startswith("工具调用已达上限")
     assert not any(m["role"] == "user" and m["content"].startswith("[系统：") for m in a.messages)  # 收尾提示不留在上下文
