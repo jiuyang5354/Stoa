@@ -68,6 +68,9 @@ SYSTEM = """你是「Stoa」，用户的长期股市助手，覆盖 A股、港�
 - 用户说「跌破/涨到多少提醒我」「出公告告诉我」「大跌提醒」时，用 alert_set 设好，并说明触发后推到哪里（没开推送渠道就提醒用户去设置 → 推送渠道开一个；网页开着也会弹出）。
 - 自选股默认有新公告就提醒。
 
+长程研究课题：
+- 用户要「长期研究 / 持续研究 / 花一两个小时研究」某个目标时，用 start_inquiry 开课题（后台跑，不占这轮对话），告诉用户课题号和预算，进度在 Ledger 或 /research 查看。问进度用 inquiry_status。
+
 判断账本：
 - 给方向性判断前，参考下面的账本统计；某类判断（方向/市场/周期）准确率偏低时，要更谨慎，并在回答里说明。
 
@@ -173,6 +176,10 @@ TOOLS = [
      "parameters": {"type": "object", "properties": {"symbol": {"type": "string"}, "scenarios": {"type": "array", "items": {"type": "object"}}, "discount": {"type": "number"}}, "required": ["symbol"]}},
     {"name": "regulatory_letters", "description": "监管文件：A股/港股从公告里筛出问询函、关注函、监管函、警示函、监管措施、处罚、立案及回复；美股 SEC 意见信（UPLOAD）和公司回复（CORRESP）。带原文链接。",
      "parameters": {"type": "object", "properties": {"symbol": {"type": "string"}}, "required": ["symbol"]}},
+    {"name": "start_inquiry", "description": "开一个长程研究课题（后台跑几十分钟到几小时）：自动拆子问题、逐个查证、补问题，收尾写报告、记账、设失效提醒，之后有新财报或到复查期自动续研。用户说「长期研究/持续跟踪研究/花一两个小时研究 X」时用；普通问题不要用。",
+     "parameters": {"type": "object", "properties": {"goal": {"type": "string", "description": "研究目标，原话即可"}, "minutes": {"type": "integer", "description": "时长预算，默认 60，最多 480"},
+                                                     "every_days": {"type": "integer", "description": "完成后每隔几天复查一次，默认 7，0 表示只在新财报或失效条件触发时续研"}}, "required": ["goal"]}},
+    {"name": "inquiry_status", "description": "查研究课题：不给 id 列出最近的课题和进度；给 id 返回子问题、报告和续研记录。", "parameters": {"type": "object", "properties": {"id": {"type": "string"}}}},
     {"name": "call_stats", "description": "判断账本统计：总体准确率，按方向、市场、周期拆开的准确率，最近 10 次对错，短板。", "parameters": {"type": "object", "properties": {}}},
     {"name": "alert_set", "description": "设一个提醒，触发后推送到用户开的渠道。kind：above 涨到某价、below 跌到某价、up 单日涨超某百分比、down 单日跌超某百分比（填正数）、announcement 有新公告。默认触发一次就关，repeat=true 则每天最多提醒一次。",
      "parameters": {"type": "object", "properties": {"symbol": {"type": "string"}, "name": {"type": "string"},
@@ -197,13 +204,13 @@ FUND_TOOLS = {"get_statements", "earnings_quality", "reverse_dcf", "dcf_scenario
 BIG_TOOLS = {"get_statements", "earnings_quality", "read_filing", "compare_filings", "get_consensus", "get_dragon_tiger"}  # 结果允许更长
 
 
-SIDE_EFFECT_TOOLS = {"memory", "record_call", "alert_set", "alert_delete", "watchlist", "skill_save", "skill_delete", "run_python", "deep_analysis", "earnings_report"}
+SIDE_EFFECT_TOOLS = {"start_inquiry", "memory", "record_call", "alert_set", "alert_delete", "watchlist", "skill_save", "skill_delete", "run_python", "deep_analysis", "earnings_report"}
 TOOL_LABELS = {"get_quotes": "查行情", "market_overview": "看大盘", "get_news": "读新闻", "get_announcements": "查公告", "get_financials": "查财报",
                "web_search": "联网搜索", "fetch_url": "读网页", "get_fund_flow": "看资金流", "get_northbound": "看北向", "get_dragon_tiger": "查龙虎榜",
                "get_consensus": "查一致预期", "get_intraday": "看分时", "get_options": "看期权", "read_filing": "读年报", "compare_filings": "对比年报",
                "deep_analysis": "Agora 辩论", "memory_links": "翻记忆", "memory": "写记忆", "session_search": "搜旧对话", "search_memory": "搜记忆",
                "earnings_calendar": "查财报日", "earnings_report": "写财报研报", "watchlist": "改自选", "record_call": "记账", "run_python": "跑代码",
-               "call_stats": "看战绩", "alert_set": "设提醒", "alert_list": "看提醒", "alert_delete": "删提醒", "skill_view": "读技能",
+               "call_stats": "看战绩", "start_inquiry": "开研究课题", "inquiry_status": "看研究课题", "alert_set": "设提醒", "alert_list": "看提醒", "alert_delete": "删提醒", "skill_view": "读技能",
                "skill_save": "存技能", "skill_delete": "删技能", "get_corporate_events": "查公司事件", "get_chips": "看筹码两融",
                "get_market_mood": "看市场情绪", "calc": "硬算数字", "price_levels": "算支撑阻力", "financial_bridge": "拆利润结构",
                "option_payoff": "算期权收益", "trade_replay": "行情重放",
@@ -489,6 +496,11 @@ class Agent:
             return f"已记账 #{cid}：{args['view']}，基准价 {q['close']}，{args['horizon_days']} 天后复盘。"
         if name == "call_stats":
             return m.call_stats()
+        if name in ("start_inquiry", "inquiry_status"):
+            from . import inquiry
+            if name == "start_inquiry" and getattr(self, "_no_debate", False):
+                return {"error": "研究课题内部不能再开课题"}
+            return inquiry.for_agent("start" if name == "start_inquiry" else "status", args, m)
         if name == "alert_set":
             return alerts.add(args["symbol"], args["kind"], args.get("value"), args.get("name", ""), args.get("repeat", False), args.get("note", ""))
         if name == "alert_list":
@@ -667,6 +679,7 @@ class Agent:
 
     def _ask(self, text: str, on_tool=None) -> str:
         self._cur_id = None
+        self.last_tail = ""
         if self.turns:
             self.refresh_tools()
         self.turns += 1
@@ -679,7 +692,7 @@ class Agent:
         self._begin_sources(text)
         # 「深度分析 X」「该不该买 X」：直接开 Agora 辩论，不先绕一圈单 agent
         from . import debate
-        if debate.wants_debate(text):
+        if debate.wants_debate(text) and not getattr(self, "_no_debate", False):
             cfg = load_cfg()
             sym = debate.resolve_symbol(text, {w["symbol"]: w.get("name", "") for w in cfg.get("watchlist") or []})
             if sym:
@@ -746,6 +759,10 @@ class Agent:
             calls = msg.get("tool_calls") or []
             if not calls:
                 reply = msg.get("content") or ""
+                if "<<<META" in reply:  # 研究课题要的结构化尾巴：拿走，不参与引用核对、不给用户看
+                    reply, _, tail = reply.partition("<<<META")
+                    self.last_tail = "<<<META" + tail
+                    reply = reply.rstrip()
                 v = cite.verify(reply, self.sources)
                 if not v["ok"] and not retried:  # 有无出处的数字：打回让模型修正一次
                     retried, first_bad = True, v["unverified"]

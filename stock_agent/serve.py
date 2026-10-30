@@ -299,6 +299,13 @@ class Web(BaseHTTPRequestHandler):
             d = earnings.load()
             return self._send(200, {"tracked": sorted(d["items"].values(), key=lambda x: ((x.get("next") or {}).get("date") or "9999")),
                                     "reports": d["reports"][-30:][::-1], "updated": d.get("updated")})
+        if self.path.split("?")[0] == "/api/inquiries":
+            from . import inquiry
+            return self._send(200, {"items": inquiry.listing(), "running": inquiry.RUNNER.cur})
+        if self.path.startswith("/api/inquiries/"):
+            from . import inquiry
+            st = inquiry.load(self.path.split("?")[0].rsplit("/", 1)[-1])
+            return self._send(200 if st else 404, {**st, "summary": inquiry.summary(st)} if st else {"error": "not found"})
         if self.path.startswith("/api/events/report/"):
             from . import earnings
             j = earnings.load_report(self.path.split("?")[0].rsplit("/", 1)[-1])
@@ -534,6 +541,31 @@ class Web(BaseHTTPRequestHandler):
                     return self._send(400, {"error": "target"})
                 text = str(body.get("text", ""))[:600]
                 return self._send(200, {"msg": MEM.add(t, text) if path.endswith("add") else MEM.remove(t, text)})
+        if path == "/api/inquiries" or path.startswith("/api/inquiries/"):
+            from . import inquiry
+            body = self._body()
+            if path == "/api/inquiries":
+                if not llm_ready():
+                    return self._send(200, {"error": "还没配置大模型", "need_model": True})
+                goal, mins = inquiry.parse_minutes(str(body.get("goal") or "")[:500])
+                if not goal:
+                    return self._send(400, {"error": "研究目标不能为空"})
+                st = inquiry.start(goal, body.get("minutes") or mins, body.get("every_days"), MEM)
+                return self._send(200, inquiry.summary(st))
+            iid, _, act = path[len("/api/inquiries/"):].partition("/")
+            if act == "stop":
+                return self._send(200, {"ok": inquiry.RUNNER.cancel(iid)})
+            if act == "resume":
+                return self._send(200, {"ok": inquiry.resume(iid)})
+            if act == "followup":
+                inquiry.RUNNER.mem = MEM
+                return self._send(200, {"ok": inquiry.RUNNER.submit(iid, "followup", ["用户手动续研"])})
+            if act == "watch":
+                st = inquiry.set_watch(iid, bool(body.get("on", True)), body.get("every_days"))
+                return self._send(200 if st else 404, inquiry.summary(st) if st else {"error": "not found"})
+            if act == "delete":
+                return self._send(200, {"ok": inquiry.delete(iid)})
+            return self._send(404, {"error": "unknown"})
         if path == "/api/backtest":
             if not self._local_ok():
                 return self._send(403, {"error": "回测只能在本机发起，或先设 WEB_TOKEN"})
@@ -647,8 +679,8 @@ def main():
     settings.load_env_file()
     port, host = int(os.getenv("PORT", "8080")), os.getenv("HOST", "0.0.0.0")
     from . import vectors
-    from . import newsdaily
-    for fn in (reaper, telegram, scheduler, lambda: alerts.loop(log), lambda: vectors.indexer_loop(MEM, log), lambda: newsdaily.loop(log)):
+    from . import newsdaily, inquiry
+    for fn in (reaper, telegram, scheduler, lambda: inquiry.loop(log, MEM), lambda: alerts.loop(log), lambda: vectors.indexer_loop(MEM, log), lambda: newsdaily.loop(log)):
         threading.Thread(target=fn, daemon=True).start()
     log(f"Stoa 已启动：http://{host}:{port}  数据目录 {home()}")
     from .data import provider_order

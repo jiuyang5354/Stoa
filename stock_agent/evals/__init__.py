@@ -159,6 +159,9 @@ class MockLLM:
         return list(dict.fromkeys(out))
 
     def chat(self, messages, tools=None, temperature=0.3, timeout=120):
+        first = str((messages[0].get("content") if messages else "") or "")
+        if first.startswith("[INQ:"):  # 研究课题的规划/复盘/抽取（直连模型、无工具）
+            return {"role": "assistant", "content": self.inquiry(first), "tool_calls": None}
         if messages and "[ROLE:" in (messages[0].get("content") or ""):  # Agora 辩论里的各角色
             from ..debate import MockRoleLLM
             return MockRoleLLM().chat(messages, tools, temperature, timeout)
@@ -188,10 +191,28 @@ class MockLLM:
                 except Exception:
                     pass
         ans = self.answer(q, res, system)
+        if q.startswith("[长程研究课题") and "收尾" not in q.split("\n", 1)[0]:
+            nq = [{"text": "追问：资金面怎么样", "why": "补充"}] if "q1" in q.split("本步子问题", 1)[-1][:8] else []
+            ans += "\n<<<META " + json.dumps({"strength": "强", "new_questions": nq, "goal_met": False}, ensure_ascii=False) + ">>>"
+        elif q.startswith("[研究课题") and "续研" in q.split("\n", 1)[0]:
+            ans += '\n<<<META {"verdict":"削弱","one_line":"合同负债继续下降"}>>>'
         if not fixing and re.search(r"估一下|估个|大概估", q):
             # 模拟一次「模型幻觉」：先编一个数字，用来验证引用核对器能抓到并让模型改掉
             ans = ans.replace("仅供参考", "我估计大概在 18.6 倍左右。\n仅供参考")
         return {"role": "assistant", "content": ans, "tool_calls": None}
+
+    def inquiry(self, prompt):
+        if prompt.startswith("[INQ:PLAN]"):
+            g = prompt.split("研究目标：", 1)[1].split("\n", 1)[0]
+            syms = self.symbols(g)
+            return json.dumps({"symbols": syms, "criteria": "给出带证据的结论",
+                               "questions": [{"text": f"{g} 最新行情和走势", "why": "打底"}, {"text": f"{g} 最近的新闻和公告", "why": "时效"},
+                                             {"text": f"{g} 的财务与估值", "why": "量化"}]}, ensure_ascii=False)
+        if prompt.startswith("[INQ:REFLECT]"):
+            return json.dumps({"order": [], "drop": [], "add": [], "goal_met": False, "why": "继续"}, ensure_ascii=False)
+        return json.dumps({"one_line": "质量强但现价安全边际不足", "view": "震荡", "horizon_days": 90,
+                           "tracking": [{"symbol": "600519.SS", "metric": "合同负债", "condition": "连续两季下降"}],
+                           "price_alerts": [{"symbol": "600519.SS", "kind": "below", "value": 1200, "note": "跌破则估值逻辑需重估"}]}, ensure_ascii=False)
 
     def plan(self, q):
         syms, calls, system = self.symbols(q), [], getattr(self, "_sys", "")
