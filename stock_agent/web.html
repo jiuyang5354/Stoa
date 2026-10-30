@@ -598,7 +598,6 @@
   html.en .fr input[type=text],html.en .fr input[type=password],html.en .fr select{font-size:var(--fs0)}
   html.en body{font-size:var(--fs1)}
   html.en .tk b{font-size:var(--fs0)}
-  .gear.lg{right:236px;min-width:40px;justify-content:center;letter-spacing:.12em;font-family:var(--serif),var(--cn);font-size:var(--fsn1);padding:6px 10px}.gear.lg:hover svg{transform:none}
   .gph{position:fixed;inset:0;z-index:46;background:rgba(24,23,21,.32);animation:fadein .2s ease both;display:flex;align-items:center;justify-content:center}
   .gph[hidden]{display:none}
   .gw{position:relative;width:min(1260px,96vw);height:min(860px,94vh);border:1px solid var(--rule-2);box-shadow:0 30px 80px -30px rgba(24,23,21,.35);display:grid;grid-template-columns:210px 1fr 310px;grid-template-rows:auto 1fr;overflow:hidden;background:#F6F3EC}
@@ -693,7 +692,7 @@
   .hfoot{padding:10px 22px 0;color:var(--mute)}
   .hempty{padding:22px 4px;color:var(--mute);font-size:var(--fs0)}
   /* 窄栏：顶部按钮收成图标，免得压到标题（必须写在 .gear 规则之后） */
-  @container (max-width:700px){.gear{font-size:0;gap:0;padding:8px 10px}.gear.hlg{left:66px}.gear.gl{right:66px}.gear.lg{right:110px;font-size:var(--fsn1);padding:6px 8px}}
+  @container (max-width:700px){.gear{font-size:0;gap:0;padding:8px 10px}.gear.hlg{left:66px}.gear.gl{right:66px}}
   @container (max-width:430px){header{padding-top:62px}}
   .gear svg{transition:transform .6s var(--ease)}.gear:hover svg{transform:rotate(90deg)}
   .set{position:fixed;inset:0;z-index:50;display:grid;place-items:center;background:rgba(24,23,21,.32);backdrop-filter:blur(3px);animation:fadein .25s ease both}
@@ -927,7 +926,6 @@
     <button class="gear hl" id="histb" type="button" aria-label="对话历史（Ctrl+J）"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 5h16M4 10h16M4 15h10M4 20h7"/></svg>History</button>
     <button class="gear hl hlg" id="graphb" type="button" aria-label="记忆图谱（Ctrl+G）"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="5" cy="6" r="2.2"/><circle cx="19" cy="7" r="2.2"/><circle cx="12" cy="18" r="2.6"/><path d="M7 7l10 0M6.5 8l4.5 8M17.6 9l-4.4 7"/></svg>Graph</button>
     <button class="gear gl" id="ldgb" type="button" aria-label="账本与记忆（Ctrl+L）"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M5 3h11l3 3v15H5zM9 9h7M9 13h7M9 17h4"/></svg>Ledger</button>
-    <button class="gear lg" id="langb" type="button" aria-label="切换语言 · Language" data-noi18n>EN</button>
     <button class="gear" id="gear" type="button" aria-label="设置（Ctrl+,）"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="3.2"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1"/></svg>Settings</button>
   </header>
   <div id="log"></div>
@@ -2148,7 +2146,7 @@ function bindMcp(pane){
 function grp(title, inner){ return `<div class="grp"><span class="label">${title}</span>${inner}</div>`; }
 function sseg(name, opts){ return `<span class="seg2" data-pref="${name}">${opts.map(([v,t]) => `<button type="button" data-v="${v}" class="${PREF[name]===v?'on':''}">${t}</button>`).join('')}</span>`; }
 const PANES = {
-  general: () => `<h3>通用</h3><p class="lead">外观与动效，只存在这台电脑上。</p>` + grp('Appearance · 外观',
+  general: () => `<h3>通用</h3><p class="lead">语言与外观，只存在这台电脑上。</p>` + grp('Lingua · 语言', `<div class="fr"><span><b>界面语言</b><small>Agent 和长程研究也用这种语言回答；早晚报仍是中文</small></span><span><span class="seg2" id="langseg" data-noi18n><button type="button" data-l="zh" class="${I18N.lang==='zh'?'on':''}">中文</button><button type="button" data-l="en" class="${I18N.lang==='en'?'on':''}">English</button></span></span></div>`) + grp('Appearance · 外观',
     `<div class="fr"><span><b>涨跌配色</b><small>A股习惯红涨绿跌</small></span><span>${sseg('colors', [['cn','赤涨 · 橄榄跌'],['intl','橄榄涨 · 赤跌']])}</span></div>
      <div class="fr"><span><b>首页 3D 胸像</b><small>老电脑卡顿时关掉</small></span><span>${sseg('bust', [['on','开'],['off','关']])}</span></div>
      <div class="fr"><span><b>石灰华岩壁</b><small>背景石材纹理</small></span><span>${sseg('stone', [['on','开'],['off','关']])}</span></div>`) +
@@ -2295,6 +2293,7 @@ function show(k){
   const pane = $('pane'); pane.innerHTML = PANES[k](); pane.scrollTop = 0; stagger(pane, 'swap', 10);
   pane.querySelectorAll('[data-env]').forEach(el => el.oninput = el.onchange = () => { dirty[el.dataset.env] = el.value; if (el.dataset.env === 'LLM_PROVIDER') { delete dirty.LLM_MODEL; show('model'); } setSt('有未保存的修改'); });
   pane.querySelectorAll('[data-clr]').forEach(b => b.onclick = e => { e.preventDefault(); dirty[b.dataset.clr] = null; S.env[b.dataset.clr].set = false; S.env[b.dataset.clr].value = ''; show(k); setSt('有未保存的修改'); });
+  pane.querySelectorAll('#langseg button').forEach(b => b.onclick = async () => { if (b.dataset.l === I18N.lang) return; await setLang(b.dataset.l); show(k); });
   pane.querySelectorAll('[data-pref]').forEach(g => g.querySelectorAll('button').forEach(b => b.onclick = () => { PREF[g.dataset.pref] = b.dataset.v; savePref(); show(k); setSt(g.dataset.pref === 'colors' ? '已切换' : g.dataset.pref === 'pbAgent' ? '' : '刷新后生效', 'ok'); }));
   pane.querySelectorAll('[data-copy]').forEach(b => b.onclick = () => { navigator.clipboard?.writeText(b.dataset.copy); b.textContent = '已复制'; });
   const rt = () => { dirty.REPORT_TIMES = [...pane.querySelectorAll('[data-rt]')].filter(c => c.checked).map(c => `${c.dataset.rt}=${pane.querySelector(`[data-rtt=${c.dataset.rt}]`).value}`).join(',') || 'off'; setSt('有未保存的修改'); };
@@ -2850,6 +2849,7 @@ const CMDS = [
   {c: '/graph', g: '界面', d: '记忆图谱 · Ctrl+G', run: () => openGraph()},
   {c: '/backtest', g: '界面', d: '回测与评测', run: () => openSettings('probatio')},
   {c: '/model', g: '界面', d: '切换本对话的模型', run: () => { const b = $('mdl'); if (b && !b.hidden) b.click(); else openSettings('model'); }},
+  {c: '/lang', g: '界面', d: '切换中文 / English', run: () => setLang(I18N.lang === 'en' ? 'zh' : 'en')},
   {c: '/settings', g: '界面', d: '设置 · Ctrl+,', run: () => openSettings()},
   {c: '/memory', g: '界面', d: '查看 Stoa 记住了什么', t: () => '/memory'},
 ];
@@ -2967,7 +2967,6 @@ async function i18nLoad(){
 async function setLang(l, save = true){
   I18N.lang = l; if (save) localStorage.stoaLang = l;
   document.documentElement.lang = l === 'en' ? 'en' : 'zh-CN'; document.documentElement.classList.toggle('en', l === 'en');
-  const lb = document.getElementById('langb'); if (lb) lb.textContent = l === 'en' ? '中' : 'EN';
   if (l === 'en') {
     await i18nLoad(); i18nNode(document.body);
     if (!I18N.obs) { I18N.obs = new MutationObserver(ms => { if (I18N.busy || I18N.lang !== 'en') return;
@@ -2981,7 +2980,6 @@ async function setLang(l, save = true){
   }
 }
 
-$('langb').onclick = () => setLang(I18N.lang === 'en' ? 'zh' : 'en');
 if (I18N.lang === 'en') setLang('en', false);
 </script>
 </body>
