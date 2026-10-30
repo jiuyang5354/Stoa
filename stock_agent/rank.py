@@ -201,6 +201,33 @@ def reversal_scores(day, closes, **_):
     return {s: -float(c.iloc[-1] / c.iloc[-6] - 1) for s, c in closes.items()}
 
 
+def momentum60_scores(day, closes, **_):
+    return {s: float(c.iloc[-1] / c.iloc[-61] - 1) for s, c in closes.items()}
+
+
+def lowvol_scores(day, closes, **_):
+    return {s: -float(c.pct_change().tail(20).std()) for s, c in closes.items()}
+
+
+BASELINES = {"momentum20": momentum_scores, "reversal5": reversal_scores, "momentum60": momentum60_scores, "lowvol20": lowvol_scores}
+
+
+def similarity(agent_rows, xs) -> dict:
+    """模型分数与各基线分数的逐日 Spearman 均值：看模型是不是在复述某个简单因子。"""
+    cl = {d: c for d, c, _ in xs}
+    out = {}
+    for name, fn in BASELINES.items():
+        v = []
+        for d, sc, _ in agent_rows:
+            b = fn(d, cl[d])
+            k = [s for s in sc if s in b]
+            r = spearman([sc[s] for s in k], [b[s] for s in k])
+            if r is not None:
+                v.append(r)
+        out[name] = round(sum(v) / len(v), 3) if v else None
+    return out
+
+
 def random_scores(seed: int):
     def f(day, closes, **_):
         return {s: int(hashlib.md5(f"{seed}|{s}|{day:%Y-%m-%d}".encode()).hexdigest()[:8], 16) for s in closes}
@@ -455,8 +482,7 @@ def run_rank(symbols=None, start=None, end=None, step=5, horizons=(20, 5), synth
         got = [one(x) for x in xs]
     agent_rows = [(d, s, f) for d, s, f in got if s]
     methods = {"agent": agent_rows,
-               "momentum20": [(d, momentum_scores(d, c), f) for d, c, f in xs],
-               "reversal5": [(d, reversal_scores(d, c), f) for d, c, f in xs],
+               **{k: [(d, fn(d, c), f) for d, c, f in xs] for k, fn in BASELINES.items()},
                "random": [(d, random_scores(seed)(d, c), f) for d, c, f in xs]}
     ok_days = {d for d, _, _ in agent_rows}
     results = {k: evaluate([r for r in v if r[0] in ok_days] if k != "agent" else v, horizons, step) for k, v in methods.items()}
@@ -484,7 +510,7 @@ def run_rank(symbols=None, start=None, end=None, step=5, horizons=(20, 5), synth
                       "step": step, "horizons": horizons, "agent": agent_name, "blind": blind, "events": bool(events), "top_k": TOP_K,
                       "decision_days": len(xs), "scored_days": len(agent_rows), "seed": seed, "data": source, "llm_kind": llm_kind,
                       "missing": [s for s in symbols if s not in pit.symbols]},
-           "results": results, "random_dist": dist, "paired": pairs,
+           "results": results, "random_dist": dist, "paired": pairs, "similarity": similarity(agent_rows, xs),
            "scores": [{"date": f"{d:%Y-%m-%d}", "scores": {k: round(v, 4) for k, v in s.items()},
                        "fwd": {k: {str(h): (round(x, 3) if x is not None else None) for h, x in v.items()} for k, v in f.items()}} for d, s, f in agent_rows],
            "llm": ranker.summary() if hasattr(ranker, "summary") else None, "seconds": round(time.time() - t0, 1),
@@ -501,7 +527,9 @@ def print_rank(res: dict):
     for h in [str(x) for x in p["horizons"]]:
         print(f"\n【未来 {h} 日】NW 滞后 {res['results']['agent'][h]['nw_lag']}，自助块长 {res['results']['agent'][h]['block']}")
         print(f"  {'':11}{'IC均值':>8}{'ICIR':>7}{'t(NW)':>8}{'p(NW)':>8}{'IC>0':>7}  {'95%区间':<18}{'中性IC':>8}{'p':>7}{'多空%':>8}{'p':>7}")
-        for k in ("agent", "momentum20", "reversal5", "random"):
+        for k in ("agent", "momentum20", "reversal5", "random", "momentum60", "lowvol20"):
+            if k not in res["results"]:
+                continue
             r = res["results"][k][h]
             ic, mn, ls = r["ic"], r["ic_mkt_neutral"], r["long_short%"]
             if ic.get("n", 0) < 3:
@@ -514,6 +542,8 @@ def print_rank(res: dict):
         for k, v in res["paired"][h].items():
             if v.get("n", 0) >= 3:
                 print(f"  配对 {k}：逐日 IC 差均值 {v['mean']}，NW t={v['t_nw']}，p={v['p_nw']}")
+    if res.get("similarity"):
+        print("\n模型分数与基线分数的逐日 Spearman 均值：", json.dumps(res["similarity"], ensure_ascii=False))
     if res.get("llm"):
         print("\nLLM：", json.dumps(res["llm"], ensure_ascii=False))
     print("接口用量：", json.dumps(res.get("usage"), ensure_ascii=False), f" 耗时 {res['seconds']} s")
