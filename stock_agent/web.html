@@ -111,7 +111,8 @@
   .wrap{flex:1;display:flex;min-height:0;margin:0 4px 4px}
   main{flex:1;display:flex;flex-direction:column;min-width:0;padding:0 clamp(24px,5vw,72px);container-type:inline-size}
   @container (max-width:880px){header>.label{visibility:hidden}}
-  @container (max-width:640px){.gear{font-size:0;gap:0;padding:7px 9px}.gear.hlg{left:66px}.gear.gl{right:66px}}
+  @container (max-width:880px){.gear{font-size:0;gap:0;padding:7px 9px}.gear.hlg{left:66px}.gear.gl{right:66px}}
+  @container (max-width:430px){header{padding-top:62px}}
   .inner{width:100%;max-width:760px;margin:0 auto;display:flex;flex-direction:column;min-height:0;flex:1}
   header{padding:26px 0 18px;text-align:center;border-bottom:1px solid var(--rule);position:relative}
   header .label{display:block}
@@ -119,12 +120,15 @@
   header em{font:italic 400 16px var(--serif);color:var(--mute)}
   #log{flex:1;overflow:auto;padding:26px 0 20px;}
 
-  .m{display:grid;grid-template-columns:64px 1fr;gap:0 18px;margin:0 0 26px;animation:rise .6s var(--ease) both}
+  /* 对话：去掉左侧贯穿的竖线，每一轮以问题开头、上方一条细横线分隔，像书里的章节 */
+  .m{display:block;margin:0 0 22px;animation:rise .6s var(--ease) both}
   @keyframes rise{from{opacity:0;transform:translateY(8px)}}
-  .who{text-align:right;padding-top:3px;border-right:1px solid var(--rule);padding-right:16px}
-  .who .rn{display:block;font:500 15px/1 var(--display);letter-spacing:.08em;color:var(--ink)}
-  .who .label{display:block;margin-top:6px;font-size:8.5px}
-  .m.u .who .rn{color:var(--terracotta)}
+  .who{display:flex;align-items:baseline;gap:10px;margin:0 0 8px}
+  .who .rn{font:500 12px/1 var(--display);letter-spacing:.1em;color:var(--terracotta)}
+  .who .label{font-size:8.5px;margin:0}
+  .m.u{padding-top:24px;border-top:1px solid var(--rule);margin-bottom:14px}
+  .m.u:first-child{border-top:0;padding-top:4px}
+  .m:not(.u) .who{display:none}
   .body{white-space:pre-wrap;word-break:break-word;font-size:14.5px}
   .m.u .body{font:italic 400 19px/1.55 var(--serif),var(--cn)}
   .m.u .body{font-family:var(--serif)}
