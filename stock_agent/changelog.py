@@ -71,7 +71,7 @@ def parse(tag: str, name: str, body: str, published: str = "") -> dict:
         if not text:
             continue
         it = {"type": "fixed" if head.startswith("修") else _kind(head or text, version), "text": text}
-        if head:
+        if head and head not in ("修复", "新增", "改动", "修正"):
             it["head"] = head
         if group:
             it["group"] = group
