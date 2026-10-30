@@ -143,7 +143,26 @@ def test_risk_veto_overrides_bullish_pm():
 def test_risk_downgrade_cuts_confidence():
     d, _ = make(AlwaysBull(), symbol="NVDA", name="英伟达", user=["[2026-10-02] 持有 NVDA，占仓位 30%"])
     rec = d.run()
-    assert rec["risk"]["decision"] == "降级" and rec["verdict"]["confidence"] == 75
+    assert rec["risk"]["decision"] == "降级" and rec["verdict"]["raw_confidence"] == 85
+    assert rec["verdict"]["confidence"] == 68 and rec["verdict"]["view"] == "看多"  # 50+(85−50)×0.5
+
+
+def test_degrade_conf_shrinks_toward_50_not_floor(monkeypatch):
+    monkeypatch.delenv("DEBATE_DEGRADE_SHRINK", raising=False)
+    got = [db.degrade_conf(c) for c in (50, 52, 55, 58, 60, 65, 70, 80, 95)]
+    assert got == [50, 51, 53, 54, 55, 58, 60, 65, 73]
+    assert len(set(db.degrade_conf(c) for c in range(55, 61))) >= 3  # 旧版 55–60 全变 50，现在保留区分度
+    assert all(db.degrade_conf(c) <= c for c in range(50, 96))  # 只降不升
+    monkeypatch.setenv("DEBATE_DEGRADE_SHRINK", "0")
+    assert db.degrade_conf(80) == 50
+    assert db.degrade_conf(70, shrink=1.0) == 70
+
+
+def test_degrade_to_no_conviction_turns_neutral(monkeypatch):
+    monkeypatch.setenv("DEBATE_DEGRADE_SHRINK", "0")
+    d, _ = make(AlwaysBull(), symbol="NVDA", name="英伟达", user=["[2026-10-02] 持有 NVDA，占仓位 30%"])
+    rec = d.run()
+    assert rec["verdict"]["view"] == "中性" and "中性" in rec["verdict"]["risk_override"]
 
 
 def test_holdings_check_conservative_and_stop():

@@ -17,6 +17,7 @@ from __future__ import annotations
 import hashlib
 import json
 import math
+import os
 import re
 import threading
 import time
@@ -28,7 +29,7 @@ from pathlib import Path
 from . import cite
 
 CN_TZ = timezone(timedelta(hours=8))
-VERSION = "agora-2"  # agora-2：置信度按证据强度分档（CONF_TIERS）
+VERSION = "agora-3"  # agora-2：置信度按证据强度分档（CONF_TIERS）；agora-3：风控降级改为按比例向 50 收拢，PM 不再自行二次下调
 VIEWS = ("看多", "看空", "中性")
 SIGN = {"看多": 1, "看空": -1, "中性": 0}
 DEEP_RE = re.compile(r"深度分析|深入分析|全面分析|深度研究|该不该(?:买|卖|加仓|减仓|入手|清仓|抄底)|值不值得(?:买|入手|投资)|多空辩论|辩论一下|deep\s*analysis", re.I)
@@ -141,6 +142,19 @@ def norm_view(v) -> str:
     return v if v in VIEWS else "中性"
 
 
+def degrade_conf(c, shrink: float | None = None) -> int:
+    """风控降级：置信度按比例向 50 收拢 50+(c−50)×shrink（默认 0.5，DEBATE_DEGRADE_SHRINK 可调，0 = 降级即中性置信度）。
+    旧做法「−10、下限 50」会把 55–60 全压成 50，第二轮基准里 209 个方向判断有 146 个=50，置信度失去区分度。"""
+    if shrink is None:
+        try:
+            shrink = float(os.getenv("DEBATE_DEGRADE_SHRINK") or 0.5)
+        except ValueError:
+            shrink = 0.5
+    shrink = max(0.0, min(1.0, shrink))
+    c = clamp_conf(c)
+    return clamp_conf(math.floor(50 + (c - 50) * shrink + 0.5))
+
+
 def clamp_conf(x, lo=50, hi=95) -> int:
     try:
         return int(max(lo, min(hi, float(x))))
@@ -200,7 +214,7 @@ RISK = """你是风控官。根据用户持仓与风险偏好、规则检查结�
 PM = """你是基金经理（主持人），综合分析师报告、多空辩论和风控意见，给出最终结论。
 - view：看多/看空/中性（预计 {h} 个交易日内的方向）；confidence 50–95，要诚实，分歧大就低。
 {tiers}
-- 风控否决时不能给看多；风控降级时置信度要相应下调。
+- 风控否决时不能给看多；风控降级时系统会按比例把置信度向 50 收拢，你按证据强度给原始置信度即可，不要自己再下调。
 - key_points 写 3 条最关键的依据（带数字和 [编号]）；invalidation 写清楚「什么情况下这个结论失效」（如跌破某价位、某事件发生）。
 只输出 JSON：{{"view": "看多|看空|中性", "confidence": 整数, "horizon_days": {h}, "summary": "不超过 80 字", "key_points": ["…", "…", "…"], "invalidation": "…"}}
 [ROLE:pm]"""
@@ -690,7 +704,11 @@ class Debate:
         if dec == "否决" and out["view"] == "看多":
             out["view"], out["confidence"], out["risk_override"] = "中性", min(out["confidence"], 55), "风控否决：不给看多结论"
         elif dec == "降级":
-            out["confidence"], out["risk_override"] = clamp_conf(out["confidence"] - 10), "风控降级：置信度下调 10"
+            raw = out["confidence"]
+            out["confidence"] = degrade_conf(raw)
+            out["raw_confidence"], out["risk_override"] = raw, f"风控降级：置信度按比例向 50 收拢（{raw} → {out['confidence']}）"
+            if out["confidence"] <= 50 and out["view"] != "中性":  # 收拢后已无把握：直接中性
+                out["view"], out["risk_override"] = "中性", out["risk_override"] + "，已无把握，改为中性"
         out["vote"] = v
         self._rec("pm", **out)
         return out
@@ -924,7 +942,8 @@ class DebateBTAgent:
             self.stats["tokens_in_est"] += budget.tokens
             self.stats["seconds"] += time.time() - t0
             self.stats["degraded_roles"] += sum(1 for r in d.roles.values() if r.get("status") in ("degraded", "failed"))
-        out = {"view": v["view"], "confidence": v["confidence"], "reason": (v.get("summary") or "")[:80]}
+        out = {"view": v["view"], "confidence": v["confidence"], "reason": (v.get("summary") or "")[:80],
+               "raw_confidence": v.get("raw_confidence", v["confidence"]), "risk": (rec.get("risk") or {}).get("decision")}
         if v.get("status") == "ok" or budget.calls:
             self.cache.put(k, out)
         return out
