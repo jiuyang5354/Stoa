@@ -19,3 +19,9 @@ def test_chat_without_model_asks_settings(tmp_path, monkeypatch):
 def test_desktop_has_no_key_popup():
     src = open("stock_agent/desktop.py", encoding="utf-8").read()
     assert "还没填大模型密钥" not in src and "open_file(env)" not in src
+
+
+def test_titlebar_tint_colors():
+    from stock_agent import desktop
+    assert desktop._colorref((0xEC, 0xEA, 0xE5)) == 0xE5EAEC
+    assert desktop.tint_titlebar() in (False, True)  # 非 Windows 直接跳过

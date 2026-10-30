@@ -86,6 +86,43 @@ def icon_path():
     return None
 
 
+TITLE = "Stoa"
+CAPTION = (0xEC, 0xEA, 0xE5)   # 标题栏 = 大理石底色，和界面连成一片
+CAPTION_TEXT = (0x18, 0x17, 0x15)  # --ink
+CAPTION_BORDER = (0xD3, 0xD0, 0xC9)
+
+
+def _colorref(rgb) -> int:
+    r, g, b = rgb
+    return r | (g << 8) | (b << 16)
+
+
+def tint_titlebar(title: str = TITLE, tries: int = 50) -> bool:
+    """Windows 11：把原生标题栏改成界面的石色（保留贴靠布局、拖拽缩放）；Windows 10 不支持，静默跳过。"""
+    if sys.platform != "win32":
+        return False
+    try:
+        import ctypes
+        from ctypes import wintypes
+        u32, dwm = ctypes.windll.user32, ctypes.windll.dwmapi
+        hwnd = None
+        for _ in range(tries):
+            hwnd = u32.FindWindowW(None, title)
+            if hwnd:
+                break
+            time.sleep(0.1)
+        if not hwnd:
+            return False
+        ok = True
+        for attr, val in ((20, 0), (35, _colorref(CAPTION)), (36, _colorref(CAPTION_TEXT)), (34, _colorref(CAPTION_BORDER))):
+            v = wintypes.DWORD(val)  # 20 深色模式关、35 标题栏底色、36 标题文字、34 窗口边框
+            ok &= dwm.DwmSetWindowAttribute(wintypes.HWND(hwnd), attr, ctypes.byref(v), ctypes.sizeof(v)) == 0
+        return bool(ok)
+    except Exception as e:
+        print("标题栏着色跳过:", e)
+        return False
+
+
 def window_webview(url: str, home: Path) -> bool:
     """原生窗口。阻塞到窗口关闭；不可用返回 False。"""
     try:
@@ -98,8 +135,12 @@ def window_webview(url: str, home: Path) -> bool:
             webview.settings["ALLOW_DOWNLOADS"] = True  # 设置页「导出备份」
         except Exception:
             pass
-        webview.create_window("Stoa · 股市", url, width=1440, height=920, min_size=(960, 640),
-                              background_color="#EFECE6", text_select=True)
+        win = webview.create_window(TITLE, url, width=1440, height=920, min_size=(960, 640),
+                                    background_color="#ECEAE5", text_select=True)
+        try:
+            win.events.shown += lambda: threading.Thread(target=tint_titlebar, daemon=True).start()
+        except Exception:
+            threading.Thread(target=tint_titlebar, daemon=True).start()
         kw = {"private_mode": False, "storage_path": str(home / "webview")}
         if sys.platform == "win32":
             kw["gui"] = "edgechromium"
