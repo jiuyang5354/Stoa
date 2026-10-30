@@ -444,6 +444,17 @@
   .lb{flex:1;overflow:auto;padding:0 24px 20px}
   .framed .lw,.framed .hw{top:34px}
   .gear.gl{right:132px}
+  /* ---- 斜杠命令面板（参考 Claude Code / Linear 的 / 菜单）---- */
+  .slp{position:absolute;left:0;bottom:calc(100% - 8px);width:min(460px,100%);max-height:360px;overflow:auto;z-index:60;background:rgba(246,244,239,.98);border:1px solid var(--ink);box-shadow:4px 4px 0 -1px rgba(246,244,239,.98),4px 4px 0 0 var(--ink);padding:6px 0;opacity:0;transform:translateY(6px);pointer-events:none;transition:opacity .18s,transform .28s var(--ease)}
+  .slp.on{opacity:1;transform:none;pointer-events:auto}
+  .slp .g{font:500 8px var(--sans);letter-spacing:.22em;text-transform:uppercase;color:var(--mute);padding:10px 16px 4px}
+  .slp button{display:grid;grid-template-columns:118px 1fr auto;gap:12px;align-items:baseline;width:100%;border:0;background:transparent;text-align:left;padding:7px 16px;cursor:pointer;color:var(--ink)}
+  .slp button b{font:500 13px ui-monospace,SFMono-Regular,Menlo,monospace}
+  .slp button span{font:400 13px var(--cn);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .slp button small{font:italic 12px var(--serif);color:var(--mute);white-space:nowrap}
+  .slp button.k{background:var(--ink);color:var(--chalk)}.slp button.k small{color:rgba(233,230,223,.6)}
+  .slp .ft{border-top:1px solid var(--rule);margin-top:6px;padding:8px 16px 4px;font:500 8.5px var(--sans);letter-spacing:.16em;color:var(--mute)}
+  .ucmd{display:inline-block;font:500 11px ui-monospace,SFMono-Regular,Menlo,monospace;border:1px solid currentColor;padding:0 6px;margin-right:8px;letter-spacing:.02em;vertical-align:1px}
   .gear{position:absolute;right:22px;top:24px;display:flex;align-items:center;gap:7px;border:1px solid var(--rule-2);background:transparent;color:var(--ink);font:500 9.5px var(--sans);letter-spacing:.2em;text-transform:uppercase;padding:7px 11px;cursor:pointer;transition:background .25s,border-color .25s}
   .gear:hover{background:var(--ink);color:var(--chalk);border-color:var(--ink)}
   .gear.hl{right:auto;left:22px}.gear.hl:hover svg{transform:none}
@@ -778,6 +789,7 @@
   </header>
   <div id="log"></div>
   <div class="composer">
+    <div class="slp" id="slp" role="listbox" aria-label="命令"></div>
     <form class="box" id="box">
       <div class="row">
         <div class="field"><input id="t" autocomplete="off" aria-label="输入消息"><div class="ph" id="ph"></div></div>
@@ -1203,12 +1215,15 @@ function add(role, html){
 let busy = false;
 async function send(text){
   text = (text ?? input.value).trim(); if (!text || busy) return;
-  if (text === '/settings') { input.value = ''; sync(); return openSettings(); }
-  if (text === '/new' || text === '/reset') { input.value = ''; sync(); return newChat(); }
-  if (text === '/history') { input.value = ''; sync(); return openHist(); }
-  if (text === '/graph') { input.value = ''; sync(); return openGraph(); }
+  let shown = esc(text);
+  if (text === '/reset') text = '/new';
+  if (text.startsWith('/') && text !== '/memory') {
+    slashClose(); const r = slashRun(text);
+    if (!r) { if (input.value === text) { input.value = ''; sync(); } return; }
+    text = r.text; if (r.show) shown = r.show;
+  }
   input.value = ''; sync(); busy = true; $('b').disabled = true;
-  add('u', esc(text));
+  add('u', shown);
   const seed = turn * 131 + Date.now() % 97;
   const out = add('a', `<div class="thinking">${dropcap('', seed, true)}<span class="dots"><b class="tw">翻阅行情</b><i>.</i><i>.</i><i>.</i></span></div>`);
   /* 等待时轮换的话：大致对应 Stoa 干活的顺序，最后停在「落笔」 */
@@ -2375,6 +2390,71 @@ $('ldgb').onclick = openLdg; $('ldx').onclick = closeLdg;
 $('ldg').addEventListener('click', e => { if (e.target === $('ldg')) closeLdg(); });
 addEventListener('keydown', e => { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'l') { e.preventDefault(); $('ldg').hidden ? openLdg() : closeLdg(); } else if (e.key === 'Escape' && !$('ldg').hidden) closeLdg(); });
 loadNews(); setInterval(loadNews, 20 * 60 * 1000);
+
+/* ---------- 斜杠命令：执行模式 + 界面操作 ---------- */
+const CMDS = [
+  {c: '/deep', a: '标的', g: '执行模式', d: 'Agora 深度分析：四位分析师 + 多空辩论 + 风控裁决', t: x => `深度分析 ${x}`},
+  {c: '/quick', a: '问题', g: '执行模式', d: '快问：一两句话直接答，不展开', t: x => `【快问模式：用两三句话直接回答，不展开、不列长表】${x}`},
+  {c: '/news', a: '标的', g: '执行模式', d: '这只股票最近的新闻和公告', t: x => `${x} 最近有什么新闻和公告？按时间列出要点并注明来源`},
+  {c: '/earnings', a: '标的', g: '执行模式', d: '财报事件研报：预期、实际、超预期与否', t: x => `给 ${x} 写一份最近一期财报的事件研报`},
+  {c: '/compare', a: '标的 标的', g: '执行模式', d: '两只或几只股票并排对比', t: x => `并排对比 ${x}：估值、增长、近期走势、主要风险`},
+  {c: '/risk', a: '', g: '执行模式', d: '按我的持仓列风险清单', t: () => '按我的持仓和自选股列一份风险清单：集中度、止损位、近期事件、需要留意的红线'},
+  {c: '/review', a: '', g: '执行模式', d: '复盘已到期的判断', t: () => '复盘判断账本里最近到期的判断：哪些应验、哪些落空、原因是什么'},
+  {c: '/brief', a: '', g: '执行模式', d: '现在写一份市场简报', t: () => '写一份现在的市场简报：A股、港股、美股主要指数，今天的要闻，以及和我的自选股相关的事'},
+  {c: '/remember', a: '内容', g: '执行模式', d: '记住一件事（持仓、成本、偏好）', t: x => `记住：${x}`},
+  {c: '/alert', a: '标的 条件', g: '执行模式', d: '设提醒，如 /alert 腾讯 跌破 400', t: x => `设一个提醒：${x}`},
+  {c: '/new', g: '界面', d: '新对话（先整理这次的记忆）', run: () => newChat()},
+  {c: '/history', g: '界面', d: '对话历史 · Ctrl+J', run: () => openHist()},
+  {c: '/ledger', g: '界面', d: '账本与记忆 · Ctrl+L', run: () => openLdg()},
+  {c: '/graph', g: '界面', d: '记忆图谱 · Ctrl+G', run: () => openGraph()},
+  {c: '/backtest', g: '界面', d: '回测与评测', run: () => openSettings('probatio')},
+  {c: '/model', g: '界面', d: '切换本对话的模型', run: () => { const b = $('mdl'); if (b && !b.hidden) b.click(); else openSettings('model'); }},
+  {c: '/settings', g: '界面', d: '设置 · Ctrl+,', run: () => openSettings()},
+  {c: '/memory', g: '界面', d: '查看 Stoa 记住了什么', t: () => '/memory'},
+];
+const SL = {i: 0, list: []};
+function slashFind(){
+  const v = input.value; if (!v.startsWith('/') || busy) return [];
+  const [w, ...rest] = v.split(' ');
+  if (rest.length) return [];  // 已经在写参数了
+  const q = w.toLowerCase();
+  return CMDS.filter(x => x.c.startsWith(q)).concat(CMDS.filter(x => !x.c.startsWith(q) && q.length > 1 && (x.c.includes(q.slice(1)) || x.d.includes(q.slice(1)))));
+}
+function slashPaint(){
+  const box = $('slp'); SL.list = slashFind();
+  if (!SL.list.length) { box.classList.remove('on'); return; }
+  SL.i = Math.min(SL.i, SL.list.length - 1);
+  let g = '', html = '';
+  SL.list.forEach((x, i) => { if (x.g !== g) { g = x.g; html += `<div class="g">${g === '执行模式' ? 'Modus · 执行模式' : 'Interfacies · 界面'}</div>`; }
+    html += `<button type="button" role="option" data-i="${i}" class="${i === SL.i ? 'k' : ''}"><b>${x.c}</b><span>${esc(x.d)}</span><small>${esc(x.a || '')}</small></button>`; });
+  box.innerHTML = html + '<div class="ft">↑↓ 选择 · Tab 补全 · Enter 执行 · Esc 关闭</div>';
+  box.classList.add('on');
+  box.querySelectorAll('button').forEach(b => b.onmousedown = e => { e.preventDefault(); SL.i = +b.dataset.i; slashPick(); });
+  box.querySelector('.k')?.scrollIntoView({block: 'nearest'});
+}
+function slashClose(){ $('slp').classList.remove('on'); SL.list = []; }
+function slashPick(){
+  const x = SL.list[SL.i]; if (!x) return;
+  if (x.a) { input.value = x.c + ' '; slashClose(); sync(); input.focus(); return; }
+  input.value = x.c; slashClose(); send();
+}
+input.addEventListener('input', () => { SL.i = 0; slashPaint(); });
+input.addEventListener('blur', () => setTimeout(slashClose, 120));
+input.addEventListener('keydown', e => {
+  if (!$('slp').classList.contains('on')) return;
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); SL.i = (SL.i + (e.key === 'ArrowDown' ? 1 : -1) + SL.list.length) % SL.list.length; slashPaint(); }
+  else if (e.key === 'Tab') { e.preventDefault(); const x = SL.list[SL.i]; if (x) { input.value = x.c + (x.a ? ' ' : ''); sync(); slashPaint(); } }
+  else if (e.key === 'Enter') { const x = SL.list[SL.i]; if (x && input.value.trim() !== x.c || x && x.a) { e.preventDefault(); e.stopImmediatePropagation(); slashPick(); } }
+  else if (e.key === 'Escape') { e.preventDefault(); slashClose(); }
+}, true);
+/* 把 /命令 参数 翻成发给 Stoa 的话；界面命令直接执行。返回 null = 已处理 */
+function slashRun(text){
+  const [w, ...rest] = text.split(' '), arg = rest.join(' ').trim();
+  const x = CMDS.find(c => c.c === w.toLowerCase()); if (!x) return {text};
+  if (x.run) { x.run(arg); return null; }
+  if (x.a && !arg) { input.value = x.c + ' '; sync(); input.focus(); return null; }
+  return {text: x.t(arg), show: `<span class="ucmd">${esc(x.c)}</span>${esc(arg)}`};
+}
 $('histb').onclick = openHist; $('hx').onclick = closeHist; $('hnew').onclick = newChat;
 $('hist').onclick = e => { if (e.target === $('hist')) closeHist(); };
 $('hq').oninput = () => { clearTimeout(HQT); HQT = setTimeout(loadHist, 250); };
