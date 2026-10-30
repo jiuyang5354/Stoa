@@ -51,29 +51,28 @@ _MODELS = {"at": 0, "key": None, "list": []}
 
 def models_list() -> dict:
     """对话框的模型下拉：当前模型 + 服务商 /models 返回的列表（OpenAI 兼容，缓存 10 分钟）+ 备用链 + config.yaml llm.models。"""
-    from .providers import LLM
+    from .providers import LLM, fetch_models
     cfg = load_cfg().get("llm", {})
     cur = LLM(cfg=cfg)
     out = [cur.model]
     out += [x for x in (cfg.get("models") or []) if isinstance(x, str)]
     out += [s.partition(":")[2] for s in os.getenv("LLM_FALLBACK", "").split(",") if ":" in s]
     remote = []
-    key = (cur.base, cur.model, bool(cur.key))
-    if cur.ready and cur.proto in ("openai", "azure") and cur.key != "local" or cur.name in ("ollama", "lmstudio", "vllm"):
+    key = (cur.base, cur.key)
+    if cur.ready or cur.name in ("ollama", "lmstudio", "vllm"):
         if _MODELS["key"] == key and time.time() - _MODELS["at"] < 600:
             remote = _MODELS["list"]
         else:
             try:
-                r = requests.get(f"{cur.base}/models", headers={"Authorization": f"Bearer {cur.key}"} if cur.key else {}, timeout=8)
-                remote = sorted({m.get("id") for m in (r.json().get("data") or []) if isinstance(m, dict) and m.get("id")}) if r.ok else []
+                remote = fetch_models(cur.base, cur.key, "openai" if cur.proto == "azure" else cur.proto)
             except Exception:
                 remote = []
             _MODELS.update(at=time.time(), key=key, list=remote)
     seen, models = set(), []
-    for m in out + [m for m in remote if not re.search(r"embed|tts|whisper|dall-e|image|audio|moderation|rerank", m, re.I)]:
+    for m in out + remote:
         if m and m not in seen:
             seen.add(m); models.append(m)
-    return {"provider": cur.name, "current": cur.model, "models": models[:60], "ready": cur.ready}
+    return {"provider": cur.name, "current": cur.model, "models": models[:200], "ready": cur.ready}
 
 
 def chat(channel: str, text: str, model: str | None = None) -> str:
@@ -353,6 +352,15 @@ class Web(BaseHTTPRequestHandler):
             if path == "/api/settings":
                 out = settings.save(body)
                 apply_settings(watchlist="watchlist" in body)
+                return self._send(200, out)
+            if path == "/api/settings/models":  # 设置页「模型」自动检测：用表单里还没保存的服务商/地址/密钥去问
+                return self._send(200, settings.probe_models(body))
+            if path == "/api/settings/sources":
+                from .providers import save_source, delete_source
+                if body.get("action") == "delete":
+                    return self._send(200, delete_source(str(body.get("id", ""))))
+                out = save_source(body.get("source") or {}, body.get("old"))
+                _MODELS["at"] = 0
                 return self._send(200, out)
             if path == "/api/settings/test":
                 return self._send(200, settings.test_push() if body.get("what") == "push" else settings.test_llm())

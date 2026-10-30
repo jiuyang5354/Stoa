@@ -97,6 +97,30 @@ def _colorref(rgb) -> int:
     return r | (g << 8) | (b << 16)
 
 
+def own_hwnd(title: str = TITLE) -> int:
+    """本进程里标题为 title 的可见顶层窗口。不用 FindWindow：资源管理器里打开的「Stoa」文件夹窗口也叫 Stoa。"""
+    if sys.platform != "win32":
+        return 0
+    import ctypes
+    from ctypes import wintypes
+    u = ctypes.windll.user32
+    pid, found = os.getpid(), []
+    buf = ctypes.create_unicode_buffer(256)
+
+    @ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
+    def cb(h, _):
+        p = wintypes.DWORD()
+        u.GetWindowThreadProcessId(h, ctypes.byref(p))
+        if p.value == pid and u.IsWindowVisible(h):
+            u.GetWindowTextW(h, buf, 256)
+            if buf.value == title:
+                found.append(h)
+                return False
+        return True
+    u.EnumWindows(cb, 0)
+    return found[0] if found else 0
+
+
 def tint_titlebar(title: str = TITLE, tries: int = 50) -> bool:
     """Windows 11：把原生标题栏改成界面的石色（保留贴靠布局、拖拽缩放）；Windows 10 不支持，静默跳过。"""
     if sys.platform != "win32":
@@ -107,7 +131,7 @@ def tint_titlebar(title: str = TITLE, tries: int = 50) -> bool:
         u32, dwm = ctypes.windll.user32, ctypes.windll.dwmapi
         hwnd = None
         for _ in range(tries):
-            hwnd = u32.FindWindowW(None, title)
+            hwnd = own_hwnd(title)
             if hwnd:
                 break
             time.sleep(0.1)
@@ -124,7 +148,7 @@ def tint_titlebar(title: str = TITLE, tries: int = 50) -> bool:
 
 
 class WinChrome:
-    """无边框窗口的自绘标题栏接口（js_api）。拖动/缩放交给 Windows 原生（WM_NCLBUTTONDOWN），贴靠和多屏都正常。"""
+    """无边框窗口的自绘标题栏接口（js_api）。拖动/缩放由 JS 跟踪鼠标、Python 按光标物理坐标移动窗口。"""
     HT = {10, 11, 12, 13, 14, 15, 16, 17}
 
     def __init__(self):
@@ -134,8 +158,10 @@ class WinChrome:
     def _hwnd(self):
         if sys.platform != "win32":
             return 0
-        import ctypes
-        return ctypes.windll.user32.FindWindowW(None, TITLE)
+        h = getattr(self, "_h", 0)
+        if not h or not __import__("ctypes").windll.user32.IsWindow(h):
+            h = self._h = own_hwnd()
+        return h
 
     def _work_area(self, hwnd):
         import ctypes
@@ -193,27 +219,79 @@ class WinChrome:
         if self._win is not None:
             self._win.destroy()
 
-    def _nc(self, code: int):
-        h = self._hwnd()
-        if h:
-            import ctypes
-            u = ctypes.windll.user32
-            u.ReleaseCapture()
-            u.PostMessageW(h, 0xA1, code, 0)  # WM_NCLBUTTONDOWN：交给系统的移动/缩放循环
+    # 拖动/缩放：JS 在按下时调 begin，移动时节流调 step，松开调 end。
+    # 位置全用 GetCursorPos（物理像素）算，和 DPI 缩放无关。
+    # （v0.19.4 用 WM_NCLBUTTONDOWN 交给系统：js_api 跑在后台线程，ReleaseCapture 无效，消息到时鼠标已松开，所以拖不动。）
+    def _cursor(self):
+        import ctypes
+        from ctypes import wintypes
+        pt = wintypes.POINT(); ctypes.windll.user32.GetCursorPos(ctypes.byref(pt))
+        return pt.x, pt.y
 
-    def drag(self):
-        if self.is_max() and self._restore:  # 最大化时拖标题栏 = 先还原到鼠标下面
-            import ctypes
-            from ctypes import wintypes
-            pt = wintypes.POINT(); ctypes.windll.user32.GetCursorPos(ctypes.byref(pt))
+    def begin(self, edge=2):
+        h = self._hwnd()
+        if not h:
+            return False
+        edge = int(edge)
+        if edge != 2 and (edge not in self.HT or self.is_max()):
+            self._op = None
+            return False
+        cx, cy = self._cursor()
+        if edge == 2 and self.is_max() and self._restore:  # 最大化时拖标题栏 = 先还原到鼠标下面
             x, y, cw, ch = self._restore
-            self._restore = (pt.x - cw // 2, pt.y - 16, cw, ch)
+            self._restore = (cx - cw // 2, cy - 16, cw, ch)
             self.toggle_max()
-        self._nc(2)  # HTCAPTION
+        r = self._rect(h)
+        self._op = (edge, cx, cy, r.left, r.top, r.right, r.bottom)
+        return True
+
+    def step(self):
+        op = getattr(self, "_op", None)
+        h = self._hwnd()
+        if not op or not h:
+            return
+        import ctypes
+        edge, sx, sy, l, t, r, b = op
+        cx, cy = self._cursor()
+        dx, dy = cx - sx, cy - sy
+        u = ctypes.windll.user32
+        if edge == 2:
+            u.SetWindowPos(h, 0, l + dx, t + dy, 0, 0, 0x0015)  # NOSIZE | NOZORDER | NOACTIVATE
+            return
+        try:
+            sc = u.GetDpiForWindow(h) / 96
+        except Exception:
+            sc = 1
+        mw, mh = int(960 * sc), int(640 * sc)
+        if edge in (10, 13, 16):   # 左
+            l = min(l + dx, r - mw)
+        if edge in (11, 14, 17):   # 右
+            r = max(r + dx, l + mw)
+        if edge in (12, 13, 14):   # 上
+            t = min(t + dy, b - mh)
+        if edge in (15, 16, 17):   # 下
+            b = max(b + dy, t + mh)
+        u.SetWindowPos(h, 0, l, t, r - l, b - t, 0x0014)
+
+    def end(self):
+        op, self._op = getattr(self, "_op", None), None
+        h = self._hwnd()
+        if op and op[0] == 2 and h:  # 拖到屏幕顶边 = 最大化
+            w = self._work_area(h)
+            if self._cursor()[1] <= w.top + 1:
+                r = self._rect(h)
+                self._restore = (op[3], op[4], r.right - r.left, r.bottom - r.top)
+                w0 = w
+                import ctypes
+                ctypes.windll.user32.SetWindowPos(h, 0, w0.left, w0.top, w0.right - w0.left, w0.bottom - w0.top, 0x0014)
+                return True
+        return False
+
+    def drag(self):  # 旧接口，保留兼容
+        return self.begin(2)
 
     def resize(self, edge):
-        if int(edge) in self.HT and not self.is_max():
-            self._nc(int(edge))
+        return self.begin(edge)
 
 
 def round_corners():
@@ -224,7 +302,7 @@ def round_corners():
         import ctypes
         from ctypes import wintypes
         for _ in range(50):
-            h = ctypes.windll.user32.FindWindowW(None, TITLE)
+            h = own_hwnd()
             if h:
                 break
             time.sleep(0.1)

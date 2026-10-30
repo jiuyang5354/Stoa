@@ -13,7 +13,7 @@ from . import __version__
 from .agent import load_cfg, save_watchlist
 from .memory import home
 from . import skills, alerts
-from .providers import PRESETS, LOCAL
+from .providers import PRESETS, LOCAL, custom_sources
 
 # key: (所属分栏, 中文名, 是否密钥, 说明)
 FIELDS = {
@@ -104,7 +104,9 @@ def get(mem) -> dict:
         "version": __version__,
         "home": str(home()),
         "env": env,
-        "providers": [{"id": n, "model": p[2], "base": p[1], "local": n in LOCAL} for n, p in PRESETS.items()],
+        "providers": [{"id": n, "model": p[2], "base": p[1], "local": n in LOCAL} for n, p in PRESETS.items()]
+                     + [{"id": d["id"], "name": d.get("name") or d["id"], "model": d.get("model", ""), "base": d["base"], "proto": d.get("proto", "openai"),
+                         "custom": True, "key": mask(d.get("key", ""))} for d in custom_sources()],
         "watchlist": cfg.get("watchlist") or [],
         "alerts": cfg.get("alerts") or {},
         "pa": alerts.listing(),
@@ -140,6 +142,29 @@ def save(body: dict) -> dict:
                            "name": re.sub(r'["\n{}]', "", str(w.get("name") or s))[:20]})
         save_watchlist(wl)
     return {"ok": True, "changed": sorted(changes)}
+
+
+def probe_models(body: dict) -> dict:
+    """自动检测模型：服务商 + 表单里填的地址/密钥（留空用已保存的），返回聊天模型列表。"""
+    from .providers import LLM, fetch_models, custom_source
+    prov = str(body.get("provider") or "").lower() or None
+    try:
+        cur = LLM(provider=prov, cfg=(load_cfg().get("llm") or {}))
+    except Exception as e:
+        return {"ok": False, "models": [], "msg": str(e)[:120]}
+    src = custom_source(prov) if prov and prov not in PRESETS else None
+    base = (str(body.get("base") or "").strip() or ("" if src else os.getenv("LLM_BASE_URL", "")) or cur.base).rstrip("/")
+    key = str(body.get("key") or "").strip() or cur.key
+    proto = body.get("proto") or ("openai" if cur.proto == "azure" else cur.proto)
+    if not base:
+        return {"ok": False, "models": [], "msg": "先填接口地址"}
+    if not key and prov not in LOCAL:
+        return {"ok": False, "models": [], "msg": "先填 API 密钥"}
+    try:
+        ms = fetch_models(base, key, proto)
+    except Exception as e:
+        return {"ok": False, "models": [], "msg": f"检测失败：{str(e)[:100]}"}
+    return {"ok": True, "models": ms, "msg": f"检测到 {len(ms)} 个模型" if ms else "接口通了，但没有返回模型列表，手动填写即可"}
 
 
 def test_llm() -> dict:

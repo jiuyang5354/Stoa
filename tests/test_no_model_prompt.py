@@ -1,3 +1,4 @@
+from pathlib import Path
 import json
 import threading
 import urllib.request
@@ -32,7 +33,7 @@ def test_custom_titlebar_wired():
     c = desktop.WinChrome()
     assert c.is_max() is False and c.toggle_max() is False  # 非 Windows 无窗口时安全返回
     html = open("stock_agent/web.html", encoding="utf-8").read()
-    assert 'id="wbar"' in html and "frame') === 'custom'" in html and "call('drag')" in html
+    assert 'id="wbar"' in html and "frame') === 'custom'" in html and "call('begin', edge)" in html
 
 
 def test_models_list_and_chat_model_override(monkeypatch, tmp_path):
@@ -56,3 +57,15 @@ def test_models_list_and_chat_model_override(monkeypatch, tmp_path):
     assert not any("embedding" in m for m in j["models"])
     html = open("stock_agent/web.html", encoding="utf-8").read()
     assert 'id="mdl"' in html and "model: MDL.pick" in html
+
+
+def test_custom_frame_drag_tracks_cursor():
+    from stock_agent.desktop import WinChrome, own_hwnd
+    c = WinChrome()
+    for m in ("begin", "step", "end", "toggle_max", "minimize", "close"):
+        assert callable(getattr(c, m))
+    assert own_hwnd() == 0  # 非 Windows 安全返回
+    html = (Path(__file__).parent.parent / "stock_agent" / "web.html").read_text(encoding="utf-8")
+    assert "call('begin', edge)" in html and "call('step')" in html and "call('end')" in html
+    src = (Path(__file__).parent.parent / "stock_agent" / "desktop.py").read_text(encoding="utf-8")
+    assert "FindWindowW" not in src and "0xA1" not in src

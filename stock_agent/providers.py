@@ -102,6 +102,97 @@ EMBED_MODELS = {
 }
 
 
+# ---------- 自定义模型来源（设置 → 模型 → 自定义来源）：数据目录 sources.json ----------
+# [{"id": "relay", "name": "我的中转", "base": "https://…/v1", "key": "sk-…", "proto": "openai|anthropic|gemini", "model": "…"}]
+# id 和预设名一样用：LLM_PROVIDER=relay、备用链 relay:gpt-4o。
+PROTOS = ("openai", "anthropic", "gemini")
+NOT_CHAT = r"embed|tts|whisper|dall-e|image|audio|moderation|rerank|transcribe|realtime|speech|vision-preview"
+
+
+def _sources_path():
+    from .memory import home
+    return home() / "sources.json"
+
+
+def custom_sources() -> list[dict]:
+    p = _sources_path()
+    try:
+        data = json.loads(p.read_text(encoding="utf-8")) if p.exists() else []
+    except Exception:
+        return []
+    return [d for d in data if isinstance(d, dict) and d.get("id") and d.get("base")]
+
+
+def custom_source(name: str | None) -> dict | None:
+    n = (name or "").lower()
+    return next((d for d in custom_sources() if d["id"] == n), None)
+
+
+def source_id(name: str) -> str:
+    import re
+    sid = re.sub(r"[^a-z0-9_-]+", "-", (name or "").strip().lower()).strip("-")[:32]
+    if not sid or not re.match(r"[a-z]", sid):
+        sid = "src-" + (sid or uuid.uuid4().hex[:6])
+    if sid in PRESETS:
+        sid += "-custom"
+    return sid
+
+
+def save_source(src: dict, old: str | None = None) -> dict:
+    """新增或修改一个自定义来源。key 留空 = 不改。"""
+    name = str(src.get("name") or "").strip()[:40]
+    base = str(src.get("base") or "").strip().rstrip("/")
+    proto = src.get("proto") if src.get("proto") in PROTOS else "openai"
+    if not name or not base.startswith(("http://", "https://")):
+        return {"error": "名称和以 http(s):// 开头的接口地址都要填"}
+    items = custom_sources()
+    prev = next((d for d in items if d["id"] == (old or "")), None)
+    sid = prev["id"] if prev else source_id(name)
+    if not prev and any(d["id"] == sid for d in items):
+        return {"error": f"已经有叫「{name}」的来源了"}
+    key = str(src.get("key") or "").strip() or (prev or {}).get("key", "")
+    item = {"id": sid, "name": name, "base": base, "key": key, "proto": proto, "model": str(src.get("model") or "").strip()[:120]}
+    items = [item if d["id"] == sid else d for d in items] if prev else items + [item]
+    p = _sources_path()
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text(json.dumps(items, ensure_ascii=False, indent=2), encoding="utf-8")
+    return {"ok": True, "id": sid, "msg": f"已保存来源「{name}」"}
+
+
+def delete_source(sid: str) -> dict:
+    items = custom_sources()
+    left = [d for d in items if d["id"] != sid]
+    if len(left) == len(items):
+        return {"error": "没有这个来源"}
+    _sources_path().write_text(json.dumps(left, ensure_ascii=False, indent=2), encoding="utf-8")
+    return {"ok": True, "msg": "已删除"}
+
+
+def fetch_models(base: str, key: str | None, proto: str = "openai", timeout: float = 8) -> list[str]:
+    """问服务商有哪些模型（OpenAI 兼容 /models、Anthropic /models、Gemini /models），只留聊天模型。失败抛异常。"""
+    import re
+    base = (base or "").rstrip("/")
+    if proto == "anthropic":
+        r = requests.get(f"{base}/models", headers={"x-api-key": key or "", "anthropic-version": "2023-06-01"}, params={"limit": 1000}, timeout=timeout)
+        ids = [m.get("id") for m in (r.json().get("data") or [])] if r.ok else None
+    elif proto == "gemini":
+        r = requests.get(f"{base}/models", params={"key": key or "", "pageSize": 1000}, timeout=timeout)
+        ids = [str(m.get("name", "")).removeprefix("models/") for m in (r.json().get("models") or [])
+               if "generateContent" in (m.get("supportedGenerationMethods") or ["generateContent"])] if r.ok else None
+    else:
+        r = requests.get(f"{base}/models", headers={"Authorization": f"Bearer {key}"} if key and key != "local" else {}, timeout=timeout)
+        ids = [m.get("id") for m in (r.json().get("data") or []) if isinstance(m, dict)] if r.ok else None
+    if ids is None:
+        msg = ""
+        try:
+            e = r.json().get("error")
+            msg = (e.get("message") if isinstance(e, dict) else e) or ""
+        except Exception:
+            msg = r.text[:120]
+        raise RuntimeError(f"HTTP {r.status_code} {str(msg)[:100]}".strip())
+    return sorted({i for i in ids if i and not re.search(NOT_CHAT, i, re.I)})
+
+
 def _guess(base: str) -> str:
     b = base.lower()
     for key, name in (("anthropic", "anthropic"), ("generativelanguage", "gemini"), ("openai.azure.com", "azure"),
@@ -119,10 +210,18 @@ class LLM:
         explicit = provider or env("LLM_PROVIDER")
         base_env = env("LLM_BASE_URL") or (None if explicit else cfg.get("base_url"))
         name = (explicit or cfg.get("provider") or (_guess(base_env) if base_env else "deepseek")).lower()
+        src = custom_source(name) if name not in PRESETS else None
+        if src:  # 自定义来源：地址和密钥都用来源自己的，不受 LLM_BASE_URL / LLM_API_KEY 影响
+            self.name, self.proto, self.label = name, src.get("proto") or "openai", src.get("name") or name
+            self.base = src["base"].rstrip("/")
+            self.model = model or env("LLM_MODEL") or (None if explicit and explicit != cfg.get("provider") else cfg.get("model")) or src.get("model") or ""
+            self.key = src.get("key") or "local"
+            self.api_version = os.getenv("AZURE_API_VERSION", "2024-10-21")
+            return
         if name not in PRESETS:
             name = "openai"
         proto, base, dmodel, keyvar = PRESETS[name]
-        self.name, self.proto = name, proto
+        self.name, self.proto, self.label = name, proto, name
         self.base = (base_env or base).rstrip("/")
         self.model = model or env("LLM_MODEL") or (None if explicit and explicit != cfg.get("provider") else cfg.get("model")) or dmodel
         self.key = env("LLM_API_KEY") or os.getenv(keyvar) or ("local" if name in LOCAL else None)

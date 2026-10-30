@@ -545,6 +545,16 @@
   .tg{appearance:none;width:36px;height:18px;border:1px solid var(--ink);border-radius:999px;position:relative;cursor:pointer;margin:0;background:transparent;transition:background .25s}
   .tg::after{content:"";position:absolute;left:2px;top:2px;width:12px;height:12px;border-radius:50%;background:var(--ink);transition:transform .3s var(--spring),background .25s}
   .tg:checked{background:var(--ink)}.tg:checked::after{transform:translateX(18px);background:var(--chalk)}
+  .mpk{position:relative}
+  .mpick{position:absolute;left:0;right:0;top:calc(100% + 6px);max-height:300px;overflow:auto;z-index:70;background:rgba(246,244,239,.98);border:1px solid var(--ink);box-shadow:4px 4px 0 -1px rgba(246,244,239,.98),4px 4px 0 0 var(--ink);padding:6px 0;opacity:0;transform:translateY(-4px);pointer-events:none;transition:opacity .18s,transform .28s var(--ease)}
+  .mpick.on{opacity:1;transform:none;pointer-events:auto}
+  .mpick .h{padding:4px 14px 7px;border-bottom:1px solid var(--rule);margin-bottom:4px}
+  .mpick button{display:block;width:100%;border:0;background:transparent;text-align:left;padding:6px 14px;font:400 13px var(--sans);color:var(--ink);cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .mpick button:hover,.mpick button.k{background:rgba(24,23,21,.06)}
+  #mpst.bad,#sst.bad{color:var(--down,#8a3324)}
+  .srcf{margin-top:14px;padding-top:6px}
+  .srcb{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:12px 0 0}
+  .srcb small{font:11.5px/1.5 var(--sans);min-width:0}
   .seg2{display:inline-flex;border:1px solid var(--ink)}
   .seg2 button{border:0;background:transparent;font:500 12.5px var(--cn);padding:5px 12px;cursor:pointer;color:var(--ink)}
   .seg2 button.on{background:var(--ink);color:var(--chalk)}
@@ -699,9 +709,20 @@
   document.getElementById('wmax').onclick = toggle;
   document.getElementById('wcls').onclick = () => call('close');
   const bar = document.getElementById('wdrag');
-  bar.addEventListener('mousedown', e => { if (e.button === 0 && e.detail === 1) call('drag'); });
+  /* 拖动/缩放：按下 begin，移动时每帧最多一次 step（上一次没回来就不发），松开 end */
+  let on = false, down = false, busy = false, raf = 0;
+  addEventListener('mouseup', () => { down = false; }, true);
+  const step = () => { raf = 0; if (!on || busy) return; busy = true; Promise.resolve(call('step')).finally(() => { busy = false; }); };
+  const move = () => { if (on && !raf) raf = requestAnimationFrame(step); };
+  const up = async () => { if (!on) return; on = false; removeEventListener('mousemove', move, true); removeEventListener('mouseup', up, true);
+    const m = await call('end'); if (m) maxIcon(true); };
+  const start = async edge => { down = true; const ok = await call('begin', edge); if (!ok) return;
+    if (!down) { call('end'); return; }  /* 点一下就松开：begin 还没回来鼠标已经抬起 */
+    on = true;
+    addEventListener('mousemove', move, true); addEventListener('mouseup', up, true); if (edge === 2) maxIcon(false); };
+  bar.addEventListener('mousedown', e => { if (e.button === 0 && e.detail === 1) { e.preventDefault(); start(2); } });
   bar.addEventListener('dblclick', toggle);
-  document.querySelectorAll('.wrs').forEach(el => el.addEventListener('mousedown', e => { if (e.button === 0) { e.preventDefault(); call('resize', +el.dataset.e); } }));
+  document.querySelectorAll('.wrs').forEach(el => el.addEventListener('mousedown', e => { if (e.button === 0) { e.preventDefault(); start(+el.dataset.e); } }));
   addEventListener('pywebviewready', async () => maxIcon(await call('is_max')));
   addEventListener('resize', () => { clearTimeout(window.__wm); window.__wm = setTimeout(async () => maxIcon(await call('is_max')), 150); });
 })();</script>
@@ -1677,6 +1698,61 @@ function field(k){
   const clr = f.secret && f.set ? `<button class="x" data-clr="${k}">清除</button>` : '';
   return `<label class="fr"><span><b>${esc(f.label)}</b>${f.hint && !f.secret ? '' : `<small>${esc(f.hint)}</small>`}</span><span class="k"><input type="${f.secret ? 'password' : 'text'}" data-env="${k}" value="${esc(v)}" placeholder="${esc(ph)}" autocomplete="off" spellcheck="false">${clr}</span></label>`;
 }
+/* ---------- 模型自动检测 + 自定义来源 ---------- */
+let PROBE = {sig: '', list: [], msg: ''}, SRCE = {};
+async function probeModels(force){
+  const pv = dirty.LLM_PROVIDER ?? S.env.LLM_PROVIDER.value;
+  const body = {provider: pv, key: dirty.LLM_API_KEY || '', base: dirty.LLM_BASE_URL ?? ''};
+  const sig = JSON.stringify(body);
+  if (!force && sig === PROBE.sig) return paintPick();
+  PROBE = {sig, list: [], msg: '检测中…'}; paintPick();
+  let j; try { j = await (await fetch('/api/settings/models', {method:'POST', headers:H, body:sig})).json(); } catch (_) { j = {models: [], msg: '检测失败：连不上 Stoa'}; }
+  if (PROBE.sig !== sig) return;
+  PROBE = {sig, list: j.models || [], msg: j.msg || ''}; paintPick();
+}
+function paintPick(){
+  const st = $('mpst'); if (st) { st.textContent = PROBE.msg || '自动从服务商检测'; st.className = /失败|先填/.test(PROBE.msg) ? 'bad' : ''; }
+  const box = $('mpick'); if (!box) return;
+  const cur = ($('mpin') || {}).value || '', q = cur.trim().toLowerCase();
+  const L = PROBE.list, hit = L.filter(m => !q || m.toLowerCase().includes(q) || box.dataset.all);
+  box.innerHTML = L.length ? `<div class="h"><span class="label">${esc(PROBE.msg)}</span></div>` + (hit.length ? hit : L).map(m => `<button type="button" role="option" data-m="${esc(m)}" class="${m === cur ? 'k' : ''}">${esc(m)}</button>`).join('')
+    : `<div class="h"><span class="label">${esc(PROBE.msg || '没有模型列表')}</span></div>`;
+  box.querySelectorAll('[data-m]').forEach(b => b.onmousedown = e => { e.preventDefault(); $('mpin').value = b.dataset.m; dirty.LLM_MODEL = b.dataset.m; setSt('有未保存的修改'); pickOpen(false); });
+}
+function pickOpen(on){ const b = $('mpick'); if (!b) return; if (on) { b.dataset.all = '1'; paintPick(); delete b.dataset.all; } b.classList.toggle('on', on); }
+function bindModelPane(pane){
+  let t = 0;
+  ['LLM_API_KEY', 'LLM_BASE_URL'].forEach(k => { const el = pane.querySelector(`[data-env="${k}"]`); if (el) el.addEventListener('input', () => { clearTimeout(t); t = setTimeout(() => probeModels(), 700); }); });
+  $('mpbtn').onclick = () => { const on = !$('mpick').classList.contains('on'); pickOpen(on); if (on && !PROBE.list.length) probeModels(true); };
+  $('mpre').onclick = () => { probeModels(true); pickOpen(true); };
+  $('mpin').addEventListener('focus', () => { if (PROBE.list.length) pickOpen(true); });
+  $('mpin').addEventListener('input', () => { if (PROBE.list.length) { paintPick(); $('mpick').classList.add('on'); } });
+  $('mpin').addEventListener('blur', () => setTimeout(() => pickOpen(false), 120));
+  $('mpin').addEventListener('keydown', e => { if (e.key === 'Escape') pickOpen(false); });
+  probeModels();
+  const keepS = () => Object.assign(SRCE, {name: $('sname').value, base: $('sbase').value, key: $('skey').value});
+  $('sproto').querySelectorAll('button').forEach(b => b.onclick = () => { keepS(); SRCE.proto = b.dataset.v; SRCE.msg = ''; show('model'); });
+  const sMsg = (m, bad) => { SRCE.msg = m; const el = $('sst'); if (el) { el.textContent = m; el.className = bad ? 'bad' : 'muted'; } };
+  $('stest').onclick = async () => { keepS(); if (!SRCE.base) return sMsg('先填接口地址', true); sMsg('检测中…');
+    const j = await (await fetch('/api/settings/models', {method:'POST', headers:H, body:JSON.stringify({provider: SRCE.old || '', base: SRCE.base, key: SRCE.key, proto: SRCE.proto || 'openai'})})).json();
+    sMsg(j.ok ? `${j.msg}${j.models.length ? '：' + j.models.slice(0, 4).join('、') + (j.models.length > 4 ? ' 等' : '') : ''}` : j.msg, !j.ok); };
+  $('ssave').onclick = async () => { keepS();
+    const j = await (await fetch('/api/settings/sources', {method:'POST', headers:H, body:JSON.stringify({old: SRCE.old, source: {name: SRCE.name, base: SRCE.base, key: SRCE.key, proto: SRCE.proto || 'openai'}})})).json();
+    if (j.error) return sMsg(j.error, true);
+    const s2 = await (await fetch('/api/settings', {headers:H})).json(); S.providers = s2.providers;
+    const fresh = !SRCE.old; SRCE = {};
+    if (fresh) { dirty.LLM_PROVIDER = j.id; delete dirty.LLM_MODEL; PROBE.sig = ''; setSt(j.msg + '，已选为服务商，保存后生效'); } else setSt(j.msg, 'ok');
+    show('model'); };
+  if ($('scancel')) $('scancel').onclick = () => { SRCE = {}; show('model'); };
+  pane.querySelectorAll('[data-sedit]').forEach(b => b.onclick = () => { const x = S.providers.find(v => v.id === b.dataset.sedit);
+    SRCE = {old: x.id, name: x.name, base: x.base, proto: x.proto}; show('model'); $('sname').scrollIntoView({block: 'center'}); });
+  pane.querySelectorAll('[data-sdel]').forEach(b => b.onclick = async () => { const x = S.providers.find(v => v.id === b.dataset.sdel);
+    if (!confirm(`删除来源「${x.name}」？`)) return;
+    const j = await (await fetch('/api/settings/sources', {method:'POST', headers:H, body:JSON.stringify({action: 'delete', id: x.id})})).json();
+    const s2 = await (await fetch('/api/settings', {headers:H})).json(); S.providers = s2.providers;
+    if ((dirty.LLM_PROVIDER ?? S.env.LLM_PROVIDER.value) === x.id) { dirty.LLM_PROVIDER = 'deepseek'; setSt('删掉的是当前服务商，已改回 deepseek，保存后生效'); } else setSt(j.msg || j.error, j.error ? 'bad' : 'ok');
+    show('model'); });
+}
 /* ---------- MCP 服务器管理 ---------- */
 let MCPE = {kind: 'stdio'};
 async function loadMcp(msg, ok){ S.mcp = await (await fetch('/api/mcp', {headers:H})).json(); if (scur === 'mcp') show('mcp'); if (msg) setSt(msg, ok ? 'ok' : 'bad'); }
@@ -1717,10 +1793,27 @@ const PANES = {
     grp('Shortcuts · 快捷键', `<div class="fr"><span><b>打开设置</b></span><span class="ep">Ctrl + ,</span></div><div class="fr"><span><b>新对话</b><small>先整理这次的记忆</small></span><span class="ep">/new</span></div><div class="fr"><span><b>查看记忆</b></span><span class="ep">/memory</span></div><div class="fr"><span><b>记忆图谱</b></span><span class="ep">Ctrl + G · /graph</span></div>`),
   model: () => {
     const pv = dirty.LLM_PROVIDER ?? S.env.LLM_PROVIDER.value, p = S.providers.find(x => x.id === pv) || {};
-    return `<h3>模型</h3><p class="lead">Stoa 用哪个大模型思考。国内直连推荐 DeepSeek、通义、Kimi；也能接本地 Ollama。</p>` +
-    grp('Provider · 服务商', `<label class="fr"><span><b>服务商</b><small>${p.local ? '本地模型，不需要密钥' : esc(p.base || '')}</small></span><select data-env="LLM_PROVIDER">${S.providers.map(x => `<option value="${x.id}" ${x.id===pv?'selected':''}>${x.id}</option>`).join('')}</select></label>` +
-      field('LLM_API_KEY') + field('LLM_MODEL').replace('placeholder="留空用服务商默认"', `placeholder="留空用默认 ${esc(p.model || '')}"`) + field('LLM_BASE_URL')) +
+    const pre = S.providers.filter(x => !x.custom), cus = S.providers.filter(x => x.custom);
+    const opt = x => `<option value="${esc(x.id)}" ${x.id===pv?'selected':''}>${esc(x.name || x.id)}</option>`;
+    const sel = `<select data-env="LLM_PROVIDER">${cus.length ? `<optgroup label="自定义来源">${cus.map(opt).join('')}</optgroup><optgroup label="预设">${pre.map(opt).join('')}</optgroup>` : pre.map(opt).join('')}</select>`;
+    const mv = dirty.LLM_MODEL ?? S.env.LLM_MODEL.value;
+    const mfield = `<div class="fr"><span><b>模型</b><small id="mpst">${esc(PROBE.msg || '自动从服务商检测')}</small></span><span class="k mpk"><input type="text" data-env="LLM_MODEL" id="mpin" value="${esc(mv)}" placeholder="留空用默认 ${esc(p.model || '')}" autocomplete="off" spellcheck="false"><button class="x" id="mpbtn" type="button" aria-haspopup="listbox">选择</button><button class="x" id="mpre" type="button" title="重新检测">↻</button><div class="mpick" id="mpick" role="listbox"></div></span></div>`;
+    const conn = p.custom
+      ? `<div class="fr"><span><b>地址与密钥</b><small>来自自定义来源</small></span><span class="muted">${esc(p.base)} · ${esc(p.key || '无密钥')}</span></div>`
+      : field('LLM_API_KEY') + field('LLM_BASE_URL');
+    const E = SRCE, PN = {openai: 'OpenAI 兼容', anthropic: 'Anthropic', gemini: 'Gemini'};
+    const srcList = cus.map(x => `<li><i>${esc(PN[x.proto] || x.proto)}</i><span><b>${esc(x.name)}</b><br><span class="muted">${esc(x.base)} · ${esc(x.key || '无密钥')} · 代号 ${esc(x.id)}</span></span><span><button class="x" data-sedit="${esc(x.id)}">编辑</button> <button class="x" data-sdel="${esc(x.id)}">删除</button></span></li>`).join('')
+      || '<li><i>—</i><span class="muted">还没有。中转、自建网关、公司内网模型都可以加在这里，加完在上面「服务商」里选它。</span><span></span></li>';
+    const srcForm = `<div class="srcf"><span class="label">${E.old ? '编辑来源' : '添加来源'}</span>
+      <label class="fr"><span><b>名称</b></span><input type="text" id="sname" value="${esc(E.name || '')}" placeholder="如：我的中转" autocomplete="off"></label>
+      <label class="fr"><span><b>接口地址</b><small>一般以 /v1 结尾</small></span><input type="text" id="sbase" value="${esc(E.base || '')}" placeholder="https://api.example.com/v1" autocomplete="off" spellcheck="false"></label>
+      <label class="fr"><span><b>API 密钥</b></span><input type="password" id="skey" value="${esc(E.key || '')}" placeholder="${E.old ? '留空不改' : '本地模型可不填'}" autocomplete="off"></label>
+      <div class="fr"><span><b>协议</b></span><span class="seg2" id="sproto">${Object.entries(PN).map(([v, t]) => `<button type="button" data-v="${v}" class="${(E.proto || 'openai') === v ? 'on' : ''}">${t}</button>`).join('')}</span></div>
+      <div class="srcb"><small id="sst" class="muted">${esc(E.msg || '')}</small><span>${E.old ? '<button class="x" id="scancel" type="button">取消</button> ' : ''}<button class="x" id="stest" type="button">检测</button> <button class="x" id="ssave" type="button">保存</button></span></div></div>`;
+    return `<h3>模型</h3><p class="lead">Stoa 用哪个大模型思考。国内直连推荐 DeepSeek、通义、Kimi；也能接本地 Ollama，或在下面添加自己的来源。</p>` +
+    grp('Provider · 服务商', `<label class="fr"><span><b>服务商</b><small>${p.custom ? esc(PN[p.proto] || '') + ' · 自定义' : p.local ? '本地模型，不需要密钥' : esc(p.base || '')}</small></span>${sel}</label>` + conn + mfield) +
     grp('Fallback · 备用', field('LLM_FALLBACK')) +
+    grp(`Fontes · 自定义来源 · ${cus.length}`, `<ul class="ml">${srcList}</ul>` + srcForm) +
     `<button class="x" id="tllm">测试连接</button>`;
   },
   memory: () => {
@@ -1838,7 +1931,7 @@ const PANES = {
 function show(k){
   scur = k; $('rail').querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.k === k));
   const pane = $('pane'); pane.innerHTML = PANES[k](); pane.scrollTop = 0;
-  pane.querySelectorAll('[data-env]').forEach(el => el.oninput = el.onchange = () => { dirty[el.dataset.env] = el.value; if (el.dataset.env === 'LLM_PROVIDER') show('model'); setSt('有未保存的修改'); });
+  pane.querySelectorAll('[data-env]').forEach(el => el.oninput = el.onchange = () => { dirty[el.dataset.env] = el.value; if (el.dataset.env === 'LLM_PROVIDER') { delete dirty.LLM_MODEL; show('model'); } setSt('有未保存的修改'); });
   pane.querySelectorAll('[data-clr]').forEach(b => b.onclick = e => { e.preventDefault(); dirty[b.dataset.clr] = null; S.env[b.dataset.clr].set = false; S.env[b.dataset.clr].value = ''; show(k); setSt('有未保存的修改'); });
   pane.querySelectorAll('[data-pref]').forEach(g => g.querySelectorAll('button').forEach(b => b.onclick = () => { PREF[g.dataset.pref] = b.dataset.v; savePref(); show(k); setSt(g.dataset.pref === 'colors' ? '已切换' : g.dataset.pref === 'pbAgent' ? '' : '刷新后生效', 'ok'); }));
   pane.querySelectorAll('[data-copy]').forEach(b => b.onclick = () => { navigator.clipboard?.writeText(b.dataset.copy); b.textContent = '已复制'; });
@@ -1849,6 +1942,7 @@ function show(k){
   pane.querySelectorAll('[data-skd]').forEach(b => b.onclick = () => memReq('/api/skills/delete', {name:b.dataset.skd}));
   if ($('upchk')) $('upchk').onclick = () => checkUpdate(true);
   if (k === 'mcp') bindMcp(pane);
+  if (k === 'model') bindModelPane(pane);
   if (k === 'probatio') bindPb(pane);
   const aReq = async (path, body) => { const j = await (await fetch(path, {method:'POST', headers:H, body:JSON.stringify(body)})).json(); setSt(j.msg || j.error || (j.events ? `检查完毕，新触发 ${j.events.length} 条` : ''), j.error ? '' : 'ok'); S.pa = await (await fetch('/api/alerts', {headers:H})).json(); show('tasks'); };
   pane.querySelectorAll('[data-adel]').forEach(b => b.onclick = () => aReq('/api/alerts/delete', {id:b.dataset.adel}));
