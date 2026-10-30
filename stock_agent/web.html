@@ -408,6 +408,40 @@
   @media(max-width:560px){.temple{inset:6px}.chips{grid-template-columns:1fr}.chip:nth-child(odd){border-right:0}.chip:nth-child(even){padding-left:2px}h1{font-size:22px}}
   @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
   /* ---- 设置（分栏参考 ChatGPT / Claude 桌面版、Cherry Studio、Hermes Dashboard：左侧分栏 + 右侧表单，Ctrl+, 打开） ---- */
+  /* ---- 右栏宽度可拖 ---- */
+  .asz{flex:none;width:7px;margin-right:-7px;position:relative;z-index:5;cursor:col-resize}
+  .asz::after{content:"";position:absolute;left:3px;top:0;bottom:0;width:1px;background:transparent;transition:background .2s}
+  .asz:hover::after,.asz.on::after{background:var(--ink)}
+  body.asz-drag{cursor:col-resize;user-select:none}body.asz-drag iframe{pointer-events:none}
+  /* ---- 市场脉搏 ---- */
+  .pul{display:grid}
+  .pr,.ph{display:grid;grid-template-columns:1fr 52px 52px 52px 40px;gap:6px;align-items:baseline}
+  .ph{font:500 7.5px/1 var(--sans);letter-spacing:.18em;text-transform:uppercase;color:var(--mute);padding:0 2px 6px;border-bottom:1px solid var(--ink)}
+  .ph span:nth-child(n+2),.pr span:nth-child(n+2){text-align:right}
+  .pr{padding:7px 2px;border-bottom:1px solid var(--rule);font:500 12.5px/1.25 var(--serif);font-variant-numeric:tabular-nums;cursor:pointer}
+  .pr:hover{background:rgba(24,23,21,.035)}
+  .pr b{font:500 12px/1.25 var(--cn);letter-spacing:.04em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .pr .v{color:var(--mute)}
+  .pm{font:500 8px var(--sans);letter-spacing:.2em;color:var(--mute);text-transform:uppercase;padding:12px 2px 4px}
+  .psum{font:italic 13.5px/1.55 var(--serif);color:var(--ink);margin:12px 0 0;padding-left:12px;border-left:1px solid var(--bronze)}
+  /* ---- 要闻 ---- */
+  .nwt{display:flex;gap:0;border:1px solid var(--ink);width:max-content;margin-bottom:6px}
+  .nwt button{border:0;background:transparent;font:500 11.5px var(--cn);padding:4px 12px;cursor:pointer;color:var(--ink)}
+  .nwt button.on{background:var(--ink);color:var(--chalk)}
+  .nwl{list-style:none;margin:0;padding:0;counter-reset:n}
+  .nwl li{border-bottom:1px solid var(--rule);padding:9px 0 9px 26px;position:relative;counter-increment:n}
+  .nwl li::before{content:counter(n,upper-roman);position:absolute;left:0;top:11px;font:500 9px var(--display);color:var(--mute)}
+  .nwl li.muted::before{content:none}
+  .nwl a{color:var(--ink);text-decoration:none;font:400 13px/1.5 var(--cn);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .nwl a:hover{text-decoration:underline;text-decoration-color:var(--bronze);text-underline-offset:3px}
+  .nwl small{display:block;font:500 9px var(--sans);letter-spacing:.08em;color:var(--mute);margin-top:3px}
+  /* ---- 账本与记忆抽屉（右侧滑出） ---- */
+  .ldg{position:fixed;inset:0;z-index:45;background:rgba(24,23,21,.22);animation:fadein .2s ease both}
+  .lw{position:absolute;right:0;top:0;bottom:0;width:min(420px,94vw);background:#F6F4EF;border-left:1px solid var(--ink);box-shadow:-6px 0 0 -1px #F6F4EF,-6px 0 0 0 var(--ink);display:flex;flex-direction:column;padding:22px 0 14px;animation:slideinr .35s var(--ease) both}
+  @keyframes slideinr{from{transform:translateX(24px);opacity:0}}
+  .lb{flex:1;overflow:auto;padding:0 24px 20px}
+  .framed .lw,.framed .hw{top:34px}
+  .gear.gl{right:132px}
   .gear{position:absolute;right:22px;top:24px;display:flex;align-items:center;gap:7px;border:1px solid var(--rule-2);background:transparent;color:var(--ink);font:500 9.5px var(--sans);letter-spacing:.2em;text-transform:uppercase;padding:7px 11px;cursor:pointer;transition:background .25s,border-color .25s}
   .gear:hover{background:var(--ink);color:var(--chalk);border-color:var(--ink)}
   .gear.hl{right:auto;left:22px}.gear.hl:hover svg{transform:none}
@@ -737,6 +771,7 @@
     <em>A stoic market agent that remembers.</em>
     <button class="gear hl" id="histb" type="button" aria-label="对话历史（Ctrl+J）"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 5h16M4 10h16M4 15h10M4 20h7"/></svg>History</button>
     <button class="gear hl hl2" id="graphb" type="button" aria-label="记忆图谱（Ctrl+G）"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="5" cy="6" r="2.2"/><circle cx="19" cy="7" r="2.2"/><circle cx="12" cy="18" r="2.6"/><path d="M7 7l10 0M6.5 8l4.5 8M17.6 9l-4.4 7"/></svg>Graph</button>
+    <button class="gear gl" id="ldgb" type="button" aria-label="账本与记忆（Ctrl+L）"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M5 3h11l3 3v15H5zM9 9h7M9 13h7M9 17h4"/></svg>Ledger</button>
     <button class="gear" id="gear" type="button" aria-label="设置（Ctrl+,）"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="3.2"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1"/></svg>Settings</button>
   </header>
   <div id="log"></div>
@@ -755,6 +790,17 @@
     <div class="label disclaim">择时判断不具统计显著性 · 仅供参考，不构成投资建议 · Non consilium, sed observatio</div>
   </div>
 </div></main>
+<div class="ldg" id="ldg" hidden role="dialog" aria-label="账本与记忆">
+  <div class="lw">
+    <div class="hh"><span class="label">Commentarii · 账本与记忆</span><button class="sclose" id="ldx" aria-label="关闭">×</button></div>
+    <div class="lb">
+  <div class="sec"><div class="sh"><span class="rn">I</span><h3>Ledger<span>判断账本</span></h3></div><div class="tq"><input id="tq" placeholder="搜索账本 · 如 腾讯、看多" aria-label="搜索判断账本"><span id="tqn"></span></div><div class="terrain" id="terrain"></div><div id="calls" class="muted">—</div><button class="x pbx" id="pbo" type="button">Probatio · 回测</button></div>
+  <div class="sec" id="evsec"><div class="sh"><span class="rn">II</span><h3>Eventus<span>财报事件</span></h3><span class="label" id="evu"></span></div><ul class="evl" id="evl"><li><i>—</i><span class="muted">读取中…</span><span></span></li></ul></div>
+  <div class="sec"><div class="sh"><span class="rn">III</span><h3>Persona<span>关于你</span></h3><span class="label" id="uu"></span></div><ul id="user"></ul></div>
+  <div class="sec"><div class="sh"><span class="rn">IV</span><h3>Codex<span>我的笔记</span></h3><span class="label" id="mu"></span></div><ul id="mem"></ul></div>
+    </div>
+  </div>
+</div>
 <div class="hist" id="hist" hidden role="dialog" aria-label="对话历史">
   <div class="hw">
     <div class="hh"><span class="label">Annales · 对话</span><button class="sclose" id="hx" aria-label="关闭">×</button></div>
@@ -795,7 +841,8 @@
   <linearGradient id="fadeg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".9"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient>
   <mask id="fade" maskContentUnits="objectBoundingBox"><rect width="1" height="1" fill="url(#fadeg)"/></mask>
 </defs></svg>
-<aside>
+<div class="asz" id="asz" title="拖动调整宽度 · 双击还原" aria-hidden="true"></div>
+<aside id="aside">
   <div class="sh"><span class="rn">I</span><h3>Indices<span>指数</span></h3><span class="label" id="upd2"></span></div>
   <div class="seg" id="seg"><span class="thumb" id="thumb"></span></div>
   <div class="snap" id="snap" data-n="I.I">
@@ -806,10 +853,8 @@
     <div class="snap-f num"><span id="upd">—</span><span id="mk">—</span></div>
   </div>
   <div class="list" id="list"></div>
-  <div class="sec"><div class="sh"><span class="rn">II</span><h3>Ledger<span>判断账本</span></h3></div><div class="tq"><input id="tq" placeholder="搜索账本 · 如 腾讯、看多" aria-label="搜索判断账本"><span id="tqn"></span></div><div class="terrain" id="terrain"></div><div id="calls" class="muted">—</div><button class="x pbx" id="pbo" type="button">Probatio · 回测</button></div>
-  <div class="sec" id="evsec"><div class="sh"><span class="rn">III</span><h3>Eventus<span>财报事件</span></h3><span class="label" id="evu"></span></div><ul class="evl" id="evl"><li><i>—</i><span class="muted">读取中…</span><span></span></li></ul></div>
-  <div class="sec"><div class="sh"><span class="rn">IV</span><h3>Persona<span>关于你</span></h3><span class="label" id="uu"></span></div><ul id="user"></ul></div>
-  <div class="sec"><div class="sh"><span class="rn">V</span><h3>Codex<span>我的笔记</span></h3><span class="label" id="mu"></span></div><ul id="mem"></ul></div>
+  <div class="sec"><div class="sh"><span class="rn">II</span><h3>Pulsus<span>市场脉搏</span></h3><span class="label">5日 · 20日 · 距年高 · 波动</span></div><div class="pul" id="pul"><span class="muted">读取中…</span></div></div>
+  <div class="sec"><div class="sh"><span class="rn">III</span><h3>Nuntii<span>要闻</span></h3><span class="label" id="nwu"></span></div><div class="nwt" id="nwt"></div><ol class="nwl" id="nwl"><li class="muted">读取中…</li></ol></div>
   <div class="label note">赤陶为涨 · 橄榄为跌<br>行情约十分钟一更 · 仅供参考，不构成投资建议</div>
 </aside>
 </div>
@@ -1542,7 +1587,7 @@ async function loadIndices(){
     const j = await (await fetch('/api/indices', {headers:H})).json();
     if (!j.items || !j.items.length) { $('track').innerHTML = '<span class="tk"><span class="p">行情暂时取不到</span></span>'; return; }
     items = j.items; updated = j.updated; $('upd2').textContent = 'Hora ' + updated;
-    ticker(); select(cur ? items.find(i => i.symbol === cur.symbol) || items[0] : items.find(i => i.market === market) || items[0]);
+    ticker(); select(cur ? items.find(i => i.symbol === cur.symbol) || items[0] : items.find(i => i.market === market) || items[0]); pulse();
   } catch (e) {}
 }
 
@@ -1611,7 +1656,7 @@ async function loadMemory(){
   } catch (e) {}
 }
 $('tq').oninput = terrain;
-$('pbo').onclick = () => openSettings('probatio');
+$('pbo').onclick = () => { closeLdg(); openSettings('probatio'); };
 /* ---------- 对话框模型选择：只影响本对话（存本机），全局默认仍在「设置 → 模型」 ---------- */
 const MDL = {pick: localStorage.getItem('stoa-model') || '', list: [], cur: ''};
 async function loadModels(){
@@ -2275,6 +2320,59 @@ function gpick(ev){
   addEventListener('resize', () => { if (!$('gph').hidden) gdraw(); });
 })();
 function closeHist(){ $('hist').hidden = true; }
+
+/* ---------- 右栏：市场脉搏（用已拿到的一年收盘价现算）、要闻、可拖宽度 ---------- */
+function pulse(){
+  const el = $('pul'); if (!el || !items || !items.length) return;
+  const ret = (c, n) => c.length > n ? (c[c.length-1] / c[c.length-1-n] - 1) * 100 : null;
+  const vol = c => { const r = []; for (let i = Math.max(1, c.length - 20); i < c.length; i++) r.push(Math.log(c[i] / c[i-1]));
+    if (r.length < 5) return null; const m = r.reduce((a, b) => a + b, 0) / r.length; return Math.sqrt(r.reduce((a, b) => a + (b - m) ** 2, 0) / (r.length - 1) * 252) * 100; };
+  const f = v => v == null ? '—' : (v >= 0 ? '+' : '') + v.toFixed(1);
+  const MK = {A: 'A股', HK: '港股', US: '美股', '自选': '自选'};
+  const rows = items.map(x => { const c = x.closes || []; return {x, r5: ret(c, 5), r20: ret(c, 20), dd: c.length ? (c[c.length-1] / Math.max(...c) - 1) * 100 : null, v: vol(c)}; });
+  let html = '<div class="ph"><span>名称</span><span>5日%</span><span>20日%</span><span>距高%</span><span>波动</span></div>', last = '';
+  rows.forEach(({x, r5, r20, dd, v}) => {
+    if (x.market !== last) { last = x.market; html += `<div class="pm">${esc(MK[x.market] || x.market)}</div>`; }
+    html += `<div class="pr" data-s="${esc(x.symbol)}" title="${esc(x.symbol)}"><b>${esc(x.name)}</b><span class="${cls(r5 || 0)}">${f(r5)}</span><span class="${cls(r20 || 0)}">${f(r20)}</span><span class="${dd > -3 ? '' : 'down'}">${dd == null ? '—' : dd.toFixed(1)}</span><span class="v">${v == null ? '—' : v.toFixed(0)}</span></div>`;
+  });
+  const up = rows.filter(r => (r.r20 || 0) > 0).length, near = rows.filter(r => r.dd != null && r.dd > -3).length;
+  const hv = rows.filter(r => r.v != null).sort((a, b) => b.v - a.v)[0];
+  html += `<p class="psum">${rows.length} 个标的里 ${up} 个 20 日上涨，${near} 个离一年高点不到 3%${hv ? `；波动最大的是${esc(hv.x.name)}（年化 ${hv.v.toFixed(0)}%）` : ''}。</p>`;
+  el.innerHTML = html;
+  el.querySelectorAll('.pr').forEach(r => r.onclick = () => { const it = items.find(i => i.symbol === r.dataset.s); if (it) { select(it); $('snap').scrollIntoView({block: 'nearest', behavior: 'smooth'}); } });
+}
+let NEWS = {items: {}}, NMK = localStorage.getItem('stoa-nmk') || 'A';
+function paintNews(){
+  const L = {A: 'A股', HK: '港股', US: '美股'};
+  $('nwt').innerHTML = Object.entries(L).map(([k, t]) => `<button type="button" data-k="${k}" class="${k === NMK ? 'on' : ''}">${t}</button>`).join('');
+  $('nwt').querySelectorAll('button').forEach(b => b.onclick = () => { NMK = b.dataset.k; localStorage.setItem('stoa-nmk', NMK); paintNews(); });
+  const xs = (NEWS.items || {})[NMK] || [];
+  $('nwl').innerHTML = xs.length ? xs.slice(0, 7).map(n => `<li><a href="${esc(n.url)}" target="_blank" rel="noopener">${esc(n.title)}</a><small>${esc((n.time || '').slice(5))} · ${esc(n.source || '')}</small></li>`).join('')
+    : `<li class="muted">${NEWS.error || NEWS.loaded ? '暂时取不到新闻' : '读取中…'}</li>`;
+  $('nwu').textContent = NEWS.updated ? 'Hora ' + NEWS.updated : '';
+}
+async function loadNews(){
+  try { NEWS = await (await fetch('/api/headlines', {headers:H})).json(); } catch (_) { NEWS = {items: {}, error: 1}; }
+  NEWS.loaded = 1; paintNews();
+}
+(function asideResize(){
+  const h = $('asz'), a = $('aside'); if (!h || !a) return;
+  const MIN = 300, max = () => Math.max(MIN, Math.min(820, innerWidth * .55));
+  const set = w => { a.style.width = Math.round(Math.max(MIN, Math.min(max(), w))) + 'px'; };
+  const saved = +localStorage.getItem('stoa-aside'); if (saved) set(saved);
+  h.addEventListener('pointerdown', e => { if (e.button !== 0) return; e.preventDefault(); h.setPointerCapture(e.pointerId); h.classList.add('on'); document.body.classList.add('asz-drag');
+    const x0 = e.clientX, w0 = a.getBoundingClientRect().width;
+    h.onpointermove = ev => set(w0 + (x0 - ev.clientX));
+    h.onpointerup = () => { h.onpointermove = h.onpointerup = null; h.classList.remove('on'); document.body.classList.remove('asz-drag'); localStorage.setItem('stoa-aside', parseInt(a.style.width)); }; });
+  h.addEventListener('dblclick', () => { a.style.width = ''; localStorage.removeItem('stoa-aside'); });
+  addEventListener('resize', () => { if (a.style.width) set(parseInt(a.style.width)); });
+})();
+function openLdg(){ $('ldg').hidden = false; }
+function closeLdg(){ $('ldg').hidden = true; }
+$('ldgb').onclick = openLdg; $('ldx').onclick = closeLdg;
+$('ldg').addEventListener('click', e => { if (e.target === $('ldg')) closeLdg(); });
+addEventListener('keydown', e => { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'l') { e.preventDefault(); $('ldg').hidden ? openLdg() : closeLdg(); } else if (e.key === 'Escape' && !$('ldg').hidden) closeLdg(); });
+loadNews(); setInterval(loadNews, 20 * 60 * 1000);
 $('histb').onclick = openHist; $('hx').onclick = closeHist; $('hnew').onclick = newChat;
 $('hist').onclick = e => { if (e.target === $('hist')) closeHist(); };
 $('hq').oninput = () => { clearTimeout(HQT); HQT = setTimeout(loadHist, 250); };

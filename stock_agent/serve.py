@@ -143,6 +143,33 @@ def indices() -> list[dict]:
         return out
 
 
+_HEAD = {"ts": 0, "data": None}
+_HEAD_LOCK = threading.Lock()
+
+
+def headlines() -> dict:
+    """右侧「要闻」：A股 / 港股 / 美股各几条最新市场新闻（东方财富搜索，按时间），缓存 20 分钟。"""
+    with _HEAD_LOCK:
+        if _HEAD["data"] is not None and time.time() - _HEAD["ts"] < 1200:
+            return _HEAD["data"]
+    from concurrent.futures import ThreadPoolExecutor
+    from . import research
+    kws = {"A": "A股", "HK": "港股", "US": "美股"}
+
+    def one(kw):
+        try:
+            return [{k: it.get(k, "") for k in ("time", "title", "source", "url")} for it in research._em_news(kw, 8)]
+        except Exception:
+            return []
+    with ThreadPoolExecutor(3) as ex:
+        res = dict(zip(kws, ex.map(one, kws.values())))
+    out = {"items": res, "updated": datetime.now(CN_TZ).strftime("%H:%M")}
+    if any(res.values()):
+        with _HEAD_LOCK:
+            _HEAD.update(ts=time.time(), data=out)
+    return out
+
+
 def apply_settings(watchlist: bool = False):
     """设置保存后：已开的会话换上新模型，自选股变了就清行情缓存。"""
     from .providers import Router
@@ -305,6 +332,11 @@ class Web(BaseHTTPRequestHandler):
                 return self._send(200, models_list())
             except Exception as e:
                 return self._send(200, {"models": [], "current": "", "error": str(e)[:120]})
+        if self.path == "/api/headlines":
+            try:
+                return self._send(200, headlines())
+            except Exception as e:
+                return self._send(200, {"items": {}, "error": str(e)[:120]})
         if self.path == "/api/indices":
             try:
                 return self._send(200, {"items": indices(), "updated": datetime.now(CN_TZ).strftime("%H:%M")})
