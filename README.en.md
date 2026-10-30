@@ -24,7 +24,7 @@
 
 - Public beta, changing quickly. See [Releases](https://github.com/jiuyang5354/Stoa/releases) for what each version changed.
 - Bullish / bearish timing calls were **not statistically significant** in our backtests and track simple momentum. Use Stoa for research, risk checks and briefings, not as a trading signal.
-- The app UI is in Chinese.
+- The app UI is in Chinese or English (Settings → General → Language).
 - **For information only. Not investment advice.**
 
 ## Quick start
