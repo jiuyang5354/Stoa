@@ -112,12 +112,28 @@
   .wrap{flex:1;display:flex;min-height:0;margin:0 4px 4px}
   main{flex:1;display:flex;flex-direction:column;min-width:0;padding:0 clamp(24px,5vw,72px);container-type:inline-size}
   @container (max-width:880px){header>.label{visibility:hidden}}
-  .inner{width:100%;max-width:760px;margin:0 auto;display:flex;flex-direction:column;min-height:0;flex:1}
+  .inner{width:100%;max-width:760px;margin:0 auto;display:flex;flex-direction:column;min-height:0;flex:1;position:relative}
   header{padding:26px 0 18px;text-align:center;border-bottom:1px solid var(--rule);position:relative}
   header .label{display:block}
   h1{font:500 var(--fs7)/1.1 var(--display);letter-spacing:.15em;margin:10px 0 8px;text-transform:uppercase;padding-left:.15em}
   header em{font:italic 400 var(--fs2) var(--serif);color:var(--mute)}
   #log{flex:1;overflow:auto;padding:26px 0 20px;}
+  /* Index · 问章刻度：代替对话区的滚动条（参考 21st Message Scroller + Scroll Bars）。
+     每一问是一道刻痕，位置按它在全文中的比例；金色细线是当前视口；悬停时附近刻痕按距离伸长，左侧浮出那一问；点刻痕跳过去，按住拖动即滚动 */
+  #log.ix{scrollbar-width:none}#log.ix::-webkit-scrollbar{display:none}
+  .ix-r{position:absolute;right:-30px;top:0;height:0;width:22px;opacity:0;pointer-events:none;transition:opacity .35s var(--ease);touch-action:none;cursor:pointer;z-index:4}
+  .ix-r.on{opacity:1;pointer-events:auto}
+  .ix-r::before{content:"";position:absolute;left:4px;top:0;bottom:0;width:1px;background:var(--rule)}
+  .ix-v{position:absolute;left:3.5px;width:2px;background:var(--gold);transition:top .12s linear,height .12s linear}
+  .ix-r.drag .ix-v{transition:none}
+  .ix-t{position:absolute;left:8px;width:10px;height:1px;background:var(--rule-2);transform-origin:left center;transition:transform .28s var(--spring),background .25s}
+  .ix-t.in{background:var(--ink)}
+  .ix-t.cur{background:var(--gold)}
+  .ix-tip{position:absolute;right:calc(100% + 12px);max-width:260px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;background:rgba(246,244,239,.98);border:1px solid var(--ink);box-shadow:3px 3px 0 -1px rgba(246,244,239,.98),3px 3px 0 0 var(--ink);padding:4px 10px;font:italic var(--fsn1)/1.5 var(--serif),var(--cn);color:var(--ink);transform:translate(4px,-50%);opacity:0;pointer-events:none;transition:opacity .18s,transform .28s var(--ease)}
+  .ix-tip b{font:500 var(--fsn3) var(--sans);font-style:normal;letter-spacing:.16em;color:var(--mute);margin-right:8px}
+  .ix-r:hover .ix-tip.on{opacity:1;transform:translate(0,-50%)}
+  @container (max-width:700px){.ix-r{display:none}#log.ix{scrollbar-width:thin}#log.ix::-webkit-scrollbar{display:block}}
+  @media(prefers-reduced-motion:reduce){.ix-t,.ix-v{transition:none}}
 
   /* 对话：去掉左侧贯穿的竖线，每一轮以问题开头、上方一条细横线分隔，像书里的章节 */
   .m{display:block;margin:0 0 22px;animation:rise .6s var(--ease) both}
@@ -743,6 +759,9 @@
   .srcf{margin-top:14px;padding-top:6px}
   .srcb{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:12px 0 0}
   .srcb small{font:var(--fsn1)/1.5 var(--sans);min-width:0}
+  .tg{display:inline-block;font:500 var(--fsn3) var(--sans);letter-spacing:.14em;text-transform:uppercase;padding:1px 6px;margin-right:6px;vertical-align:2px;border:1px solid var(--rule-2);color:var(--ink-2)}
+  .tg-d{border-color:var(--ink);color:var(--ink)}.tg-u{border-style:dashed;color:var(--mute)}
+  html.en .tg{letter-spacing:.06em}
   .seg2{display:inline-flex;border:1px solid var(--ink)}
   .seg2 button{border:0;background:transparent;font:500 var(--fs0) var(--cn);padding:6px 12px;cursor:pointer;color:var(--ink)}
   .seg2 button.on{background:var(--ink);color:var(--chalk)}
@@ -1392,8 +1411,8 @@ function agoraHTML(d){
   const rulesOnly = r.mode === 'rules_only' && r.status === 'rules';
   return `<header><span class="agt">AGORA</span><em>${esc(d.name || d.symbol)}${d.name && d.name !== d.symbol ? ' · ' + esc(d.symbol) : ''}</em><small>${esc(d.created || '')}<br>LLM ${b.calls ?? '—'}/${b.max_calls ?? '—'} 次 · ≈${((b.tokens_est || 0) / 1000).toFixed(1)}k token · ${d.seconds ?? '—'}s</small></header>
   <div class="agsec"><h5><i>I</i>查证要点 · Verificanda</h5>
-    <ol class="agchk">${facts.map(c => `<li class="${c.cited ? '' : 'nc'}"><span class="k">${esc(c.kind)}</span><span>${C(c.text)}${c.cited ? '' : '<em class="tbd">待核 · 无出处</em>'}</span></li>`).join('') || '<li class="nc"><span class="k">—</span><span class="muted">没有可核对的具体依据。</span></li>'}</ol>
-    ${gaps.length ? `<p class="aggap"><span>数据缺口</span>${gaps.map(g => esc(g.text)).join('；')}</p>` : ''}</div>
+    <ol class="agchk">${facts.map(c => `<li class="${c.cited ? '' : 'nc'}"><span class="k">${esc(c.kind)}</span><span>${tags(c.cited ? '〔数据〕' : '〔推断〕')}${C(c.text)}${c.cited ? '' : '<em class="tbd">无出处 · 需自行核对</em>'}</span></li>`).join('') || '<li class="nc"><span class="k">—</span><span class="muted">没有可核对的具体依据。</span></li>'}</ol>
+    ${gaps.length ? `<p class="aggap">${tags('〔未知〕')}<span>数据缺口</span>${gaps.map(g => esc(g.text)).join('；')}</p>` : ''}</div>
   <div class="agsec"><h5><i>II</i>风险清单 · Pericula</h5>
     <ul class="agrl">${risks.map(x => `<li class="${LV[x.level] || ''}"><span class="lv">${esc(x.level)}</span><span>${C(x.text)}</span></li>`).join('') || '<li><span class="lv">—</span><span class="muted">没有发现需要特别提示的风险。</span></li>'}</ul>
     <p class="agpos"><span class="dec ${dc}">风控 ${esc(r.decision || '—')}</span>${rulesOnly ? '<span>无持仓信息 · 只做红线检查（' + esc((r.checked || []).join('、')) + '）</span>' : ''}<span>单票仓位 ≤ ${esc(r.max_position_pct ?? '—')}%</span><span>止损：${C(r.stop_loss || '—')}</span></p></div>
@@ -1428,7 +1447,10 @@ function terrain(){
     el.insertAdjacentHTML('beforeend', `<div class="tcard" style="left:${Math.min(b.getBoundingClientRect().left - el.getBoundingClientRect().left, el.clientWidth - 214)}px;bottom:104px"><small>${esc((c.ts||'').slice(0,10))} · ${esc(c.symbol)}</small><b>${esc(c.name||c.symbol)} · ${esc(c.view)}</b><br>${esc(c.reason||'')}<br>${res}</div>`); };
     b.onpointerleave = () => el.querySelector('.tcard')?.remove(); });
 }
-function md(s){ return esc(s).replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>').replace(/^#+\s*(.+)$/gm,'<strong>$1</strong>'); }
+function md(s){ return tags(esc(s).replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>').replace(/^#+\s*(.+)$/gm,'<strong>$1</strong>')); }
+/* 数据 / 推断 / 未知：行首标签渲染成小号字母标，颜色只分墨色深浅，不加新强调色 */
+const TAGS = {'〔数据〕':['d','数据'], '〔推断〕':['i','推断'], '〔未知〕':['u','未知'], '[Data]':['d','Data'], '[Inference]':['i','Inference'], '[Unknown]':['u','Unknown']};
+function tags(h){ return h.replace(/〔(数据|推断|未知)〕|\[(Data|Inference|Unknown)\]/g, m => { const t = TAGS[m]; return t ? `<span class="tg tg-${t[0]}" data-noi18n>${t[1]}</span>` : m; }); }
 function empty(){
   log.innerHTML = `<div class="empty"><figure><div class="fig">${BURST}<span class="stem"></span><div class="arch">${TEMPLE}</div></div><figcaption class="label">Fig. I — 大理石胸像 · 实时点阵渲染<br>Poly Haven · CC0</figcaption></figure>
     <div><span class="label">Stoa Poikile · 今日之问</span><div class="poster"><em>the</em>STOA</div><h2>今天想看什么？</h2><p class="lead">它记得你的持仓与偏好；每一次判断都刻进账本，到期自行复盘。</p><div class="chips">${
@@ -2719,6 +2741,58 @@ function animHide(el){
   setTimeout(() => { el.hidden = true; el.classList.remove('out'); }, 230);
 }
 function nearEnd(){ return log.scrollHeight - log.scrollTop - log.clientHeight < 140; }
+
+/* ---------- Index · 问章刻度（代替对话区滚动条） ---------- */
+const IX = {el: null, raf: 0, hov: null, drag: false};
+function ixInit(){
+  const r = document.createElement('div'); r.className = 'ix-r'; r.setAttribute('aria-hidden', 'true');
+  r.innerHTML = '<div class="ix-v"></div><div class="ix-tip"></div>';
+  log.parentElement.append(r); log.classList.add('ix'); IX.el = r;
+  const pos = e => { const b = r.getBoundingClientRect(); return Math.min(1, Math.max(0, (e.clientY - b.top) / b.height)); };
+  const nearest = f => { let best = null, d = 1e9; r.querySelectorAll('.ix-t').forEach(t => { const x = Math.abs(+t.dataset.f - f); if (x < d){ d = x; best = t; } }); return d < .06 ? best : null; };
+  r.addEventListener('pointermove', e => {
+    const f = pos(e);
+    if (IX.drag){ log.scrollTop = f * log.scrollHeight - log.clientHeight / 2; return; }
+    const t = nearest(f); IX.hov = t ? +t.dataset.i : null; ixWave();
+    const tip = r.querySelector('.ix-tip');
+    if (t){ const m = log.querySelectorAll('.m.u')[+t.dataset.i]; const q = m ? m.querySelector('.body').textContent.trim() : '';
+      tip.innerHTML = `<b data-noi18n>${roman(+t.dataset.i + 1)}</b>${esc(q.slice(0, 60))}`; tip.style.top = t.style.top; tip.classList.add('on'); }
+    else tip.classList.remove('on');
+  });
+  r.addEventListener('pointerleave', () => { IX.hov = null; ixWave(); r.querySelector('.ix-tip').classList.remove('on'); });
+  r.addEventListener('pointerdown', e => {
+    const f = pos(e), t = nearest(f);
+    if (t){ const m = log.querySelectorAll('.m.u')[+t.dataset.i]; if (m) log.scrollTo({top: m.offsetTop - log.offsetTop - 12, behavior: 'smooth'}); return; }
+    IX.drag = true; r.classList.add('drag'); r.setPointerCapture(e.pointerId); log.scrollTop = f * log.scrollHeight - log.clientHeight / 2;
+  });
+  const end = () => { IX.drag = false; r.classList.remove('drag'); };
+  r.addEventListener('pointerup', end); r.addEventListener('pointercancel', end);
+  log.addEventListener('scroll', ixSched, {passive: true});
+  new ResizeObserver(ixSched).observe(log);
+  new MutationObserver(ixSched).observe(log, {childList: true, subtree: true, characterData: true});
+}
+function ixSched(){ if (!IX.raf) IX.raf = requestAnimationFrame(() => { IX.raf = 0; ixDraw(); }); }
+function ixDraw(){
+  const r = IX.el; if (!r) return;
+  const H = log.scrollHeight, V = log.clientHeight, over = H > V + 8;
+  r.classList.toggle('on', over); if (!over) return;
+  r.style.top = (log.offsetTop + 30) + 'px'; r.style.height = Math.max(80, V - 60) + 'px';
+  const qs = [...log.querySelectorAll('.m.u')], ts = [...r.querySelectorAll('.ix-t')];
+  while (ts.length < qs.length){ const t = document.createElement('i'); t.className = 'ix-t'; r.append(t); ts.push(t); }
+  while (ts.length > qs.length) ts.pop().remove();
+  const top = log.scrollTop, mid = top + V / 2, base = log.offsetTop;
+  let cur = -1;
+  qs.forEach((m, i) => { const y = m.offsetTop - base, f = y / H, t = ts[i];
+    t.dataset.f = f; t.dataset.i = i; t.style.top = (f * 100).toFixed(3) + '%';
+    t.classList.toggle('in', y >= top - 4 && y <= top + V);
+    if (y <= mid) cur = i; });
+  ts.forEach((t, i) => t.classList.toggle('cur', i === cur));
+  const v = r.querySelector('.ix-v'); v.style.top = (top / H * 100).toFixed(3) + '%'; v.style.height = (V / H * 100).toFixed(3) + '%';
+  ixWave();
+}
+const IX_WAVE = [2.6, 2, 1.5, 1.2];
+function ixWave(){ if (!IX.el) return; IX.el.querySelectorAll('.ix-t').forEach(t => { const d = IX.hov == null ? 9 : Math.abs(+t.dataset.i - IX.hov); t.style.transform = `scaleX(${IX_WAVE[d] || 1})`; }); }
+ixInit();
 function stick(force){ if (force || nearEnd()) log.scrollTop = log.scrollHeight; const b = document.getElementById('tolast'); if (b) b.classList.toggle('on', !nearEnd()); }
 log.addEventListener('scroll', () => $('tolast').classList.toggle('on', !nearEnd() && log.scrollHeight > log.clientHeight + 200), {passive: true});
 $('tolast').onclick = () => { log.scrollTo({top: log.scrollHeight, behavior: 'smooth'}); };
