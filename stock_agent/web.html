@@ -455,6 +455,12 @@
   .slp button.k{background:var(--ink);color:var(--chalk)}.slp button.k small{color:rgba(233,230,223,.6)}
   .slp .ft{border-top:1px solid var(--rule);margin-top:6px;padding:8px 16px 4px;font:500 8.5px var(--sans);letter-spacing:.16em;color:var(--mute)}
   .ucmd{display:inline-block;font:500 11px ui-monospace,SFMono-Regular,Menlo,monospace;border:1px solid currentColor;padding:0 6px;margin-right:8px;letter-spacing:.02em;vertical-align:1px}
+  .gside{margin-top:18px}.gside .label{display:block;margin:14px 0 6px}
+  .gside ul{list-style:none;margin:0;padding:0}.gside li{display:grid;grid-template-columns:16px 1fr auto;gap:6px;align-items:baseline;padding:5px 0;border-bottom:1px solid var(--rule);font:400 12.5px var(--cn);cursor:pointer}
+  .gside li i{font:normal 9px var(--disp);color:var(--bronze)}.gside li span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}.gside li small{font:11px var(--serif);color:var(--mute);font-style:italic}
+  .gside li:hover span{text-decoration:underline;text-underline-offset:3px}
+  .gbar{display:grid;grid-template-columns:52px 1fr auto;gap:10px;align-items:center;font:12px var(--cn);margin:6px 0}.gbar i{height:3px;background:var(--rule);position:relative}.gbar i b{position:absolute;inset:0 auto 0 0;background:var(--ink)}.gbar small{font:11px var(--serif);color:var(--mute)}
+  .gtrk{display:flex;gap:5px;margin:8px 0 4px}.gtrk i{width:12px;height:12px;border-radius:50%;cursor:pointer;border:1px solid var(--ink)}.gtrk i.v-对{background:#b5653f;border-color:#b5653f}.gtrk i.v-错{background:#7d8a5c;border-color:#7d8a5c}
   .gear{position:absolute;right:22px;top:24px;display:flex;align-items:center;gap:7px;border:1px solid var(--rule-2);background:transparent;color:var(--ink);font:500 9.5px var(--sans);letter-spacing:.2em;text-transform:uppercase;padding:7px 11px;cursor:pointer;transition:background .25s,border-color .25s}
   .gear:hover{background:var(--ink);color:var(--chalk);border-color:var(--ink)}
   .gear.hl{right:auto;left:22px}.gear.hl:hover svg{transform:none}
@@ -2233,10 +2239,21 @@ function gdraw(){
   }
   ctx.globalAlpha = 1;
 }
+/* 左栏下半：最近记下 + 待复盘（替换原来的说明文字） */
+function gside(){
+  const N = G.nodes, today = new Date().toISOString().slice(0, 10);
+  const recent = N.filter(n => ['user', 'note', 'call', 'chat'].includes(n.type) && n.date).sort((a, b) => b.date.localeCompare(a.date)).slice(0, 6);
+  const open = N.filter(n => n.type === 'call' && n.verdict === '未到期' && n.due).sort((a, b) => a.due.localeCompare(b.due)).slice(0, 5);
+  const days = d => { const x = Math.round((new Date(d) - new Date(today)) / 864e5); return x <= 0 ? '今天到期' : x + ' 天后'; };
+  const li = (n, r) => `<li data-gn="${esc(n.id)}"><i>${GT[n.type].g}</i><span>${esc(n.label.length > 22 ? n.label.slice(0, 21) + '…' : n.label)}</span><small>${r}</small></li>`;
+  $('gleg').insertAdjacentHTML('beforeend', `<div class="gside"><span class="label">Recentia · 最近记下</span><ul>${recent.length ? recent.map(n => li(n, esc(n.date.slice(5)))).join('') : '<li class="muted">还没有</li>'}</ul>` +
+    `<span class="label">Exspectata · 待复盘</span><ul>${open.length ? open.map(n => li(n, days(n.due))).join('') : '<li class="muted">没有未到期的判断</li>'}</ul></div>`);
+  $('gleg').querySelectorAll('.gside [data-gn]').forEach(x => x.onclick = () => gselect(G.byId[x.dataset.gn], true));
+}
 function gleg(){
   const c = G.counts || {};
   $('gleg').innerHTML = `<span class="label">Legenda · 星表</span>` + GORDER.filter(t => c[t]).map(t => `<button type="button" data-gt="${t}" class="${GOFF.has(t) ? 'off' : ''}">${gicon(t)}<span><small>${GT[t].g}</small>${GT[t].t}</span><em>${c[t]}</em></button>`).join('') +
-    `<div class="gnote">股票是星，主题由掌管它的神守护，三个市场是命运三女神。<br>神谕之果：赤陶 = 应验，橄榄 = 落空，空心 = 未到期。<br>点星表隐藏一类；拖动星辰或天幕，滚轮缩放。</div><div class="gquote">“记忆是一切智慧之母。”<b>— Aeschylus</b></div>`;
+    gside();
   [...$('gleg').children].forEach((el, i) => el.style.setProperty('--i', i));
   $('gleg').querySelectorAll('[data-gt]').forEach(b => b.onclick = () => { const t = b.dataset.gt; GOFF.has(t) ? GOFF.delete(t) : GOFF.add(t); if (GSEL && GOFF.has(GSEL.type)) GSEL = null; gleg(); $('gleg').querySelectorAll(':scope>*').forEach(el => el.style.animation = 'none'); gkick(.4); });
 }
@@ -2250,6 +2267,16 @@ function gfit(initial){
   const D = 2 * (G.R + 50); void x0; void x1; void y0; void y1;
   GV.k = Math.max(.3, Math.min(1.6, Math.min(W / D, (Hh + 60) / D))); GV.x = 0; GV.y = 20; gdraw();
 }
+function gusage(){
+  const u = G.usage || {}, row = (k, t) => u[k] ? `<div class="gbar"><span>${t}</span><i><b style="width:${Math.min(100, u[k][0] * 100 / u[k][1]).toFixed(0)}%"></b></i><small>${u[k][0]} / ${u[k][1]} 字</small></div>` : '';
+  return u.user || u.memory ? `<span class="label glbl">Capacitas · 记忆容量</span>${row('user', '关于你')}${row('memory', '笔记')}` : '';
+}
+function gtrack(calls){
+  if (!calls.length) return '';
+  const last = calls.slice().sort((a, b) => (b.date || '').localeCompare(a.date || '')).slice(0, 12).reverse();
+  const avg = calls.filter(c => c.pct != null), m = avg.length ? avg.reduce((a, c) => a + c.pct, 0) / avg.length : null;
+  return `<span class="label glbl">Vestigia · 最近 ${last.length} 次复盘</span><div class="gtrk">${last.map(c => `<i class="v-${esc(c.verdict)}" title="${esc(c.label)} ${esc(c.verdict)}" data-gn="${esc(c.id)}"></i>`).join('')}</div>${m != null ? `<div class="gsub">判断后平均涨跌 ${m >= 0 ? '+' : ''}${m.toFixed(2)}%</div>` : ''}`;
+}
 function gcard(){
   const el = $('gcard'), n = GSEL;
   if (!G.nodes.length) { el.innerHTML = ''; $('gcv').querySelector('.gempty')?.remove(); $('gcv').insertAdjacentHTML('beforeend', `<div class="gempty">天幕尚空，群星未生。<br>多聊几次，让 Stoa 记下你的持仓和偏好，做几次判断，星辰就会一颗颗亮起来。</div>`); return; }
@@ -2258,7 +2285,6 @@ function gcard(){
   if (!n && semOn) {  // 规则没命中、语义找到了：整张卡给「回想」
     const rs = GSEM.results || [];
     el.innerHTML = `<div class="gk"><span>Reminiscentia · 回想</span><span>${rs.length} 条</span></div><div class="gbig" style="font-size:38px">QUAERE</div><h4>「${esc(GSEM.q)}」</h4><div class="gdeity">ΑΝΑΜΝΗΣΙΣ</div>
-      <div class="gepi">关键词与语义两路检索，按名次融合：换个说法，也能想起意思相近的记忆、判断与对话。</div>
       <ul class="gsem">${rs.length ? rs.map(x => `<li ${x.node && G.byId[x.node] ? `data-gn="${esc(x.node)}"` : x.session ? `data-gs="${esc(x.session)}"` : ''}><i>${esc(x.label)}</i><span>${esc(x.text.replace(/^\[\d{4}-\d{2}-\d{2}\]\s*/, '').slice(0, 64))}</span><small>${esc(x.via)}<br>${Number(x.sim).toFixed(2)}</small></li>`).join('') : '<li><i>—</i><span class="muted">没有意思相近的记忆。</span></li>'}</ul>
       <div class="gsub" style="margin-top:2px">${esc(GSEM.backend && GSEM.backend.remote && !GSEM.backend.remote_paused ? '向量：' + GSEM.backend.remote : '向量：本地 ' + ((GSEM.backend || {}).local || 'TF-IDF'))}</div>`;
     el.querySelectorAll('[data-gs]').forEach(li => li.onclick = () => { closeGraph(); openSession(li.dataset.gs); });
@@ -2268,9 +2294,10 @@ function gcard(){
   if (!n) {
     const c = G.counts || {}, calls = G.nodes.filter(x => x.type === 'call' && (x.verdict === '对' || x.verdict === '错')), ok = calls.filter(x => x.verdict === '对').length;
     const top = G.nodes.filter(x => x.type === 'symbol' || x.type === 'theme').sort((a, b) => b.deg - a.deg).slice(0, 8);
-    el.innerHTML = `<div class="gk"><span>Catalogus · 总览</span><span>${G.nodes.length} 件</span></div><div class="gbig" style="font-size:38px">MEMORIA</div><h4>你的记忆</h4><div class="gdeity">ΜΝΗΜΟΣΥΝΗ</div><div class="gepi">谟涅摩叙涅，记忆女神，九位缪斯的母亲。没有记忆，就没有诗、历史，也没有复盘。</div>
+    el.innerHTML = `<div class="gk"><span>Catalogus · 总览</span><span>${G.nodes.length} 件</span></div><div class="gbig" style="font-size:38px">MEMORIA</div><h4>你的记忆</h4>
       <div class="gstw"><span><b>${(c.user || 0) + (c.note || 0)}</b>条记忆</span><span><b>${c.skill || 0}</b>项技能</span><span><b>${c.call || 0}</b>次判断</span><span><b>${calls.length ? Math.round(ok * 100 / calls.length) + '%' : '—'}</b>复盘准确率</span></div>
-      <span class="label glbl">${GSTAR}Clarissima · 最亮的星与神</span><ul>${top.map(x => `<li data-gn="${esc(x.id)}"><i>${GT[x.type].g}</i>${esc(x.label)}<small>${x.deg} 条</small></li>`).join('')}</ul>`;
+      ${gusage()}${gtrack(calls)}
+      <span class="label glbl">${GSTAR}Clarissima · 提得最多</span><ul>${top.map(x => `<li data-gn="${esc(x.id)}"><i>${GT[x.type].g}</i>${esc(x.label)}<small>${x.deg} 条</small></li>`).join('')}</ul>`;
   } else {
     const nb = [...G.adj[n.id]].map(id => G.byId[id]).filter(gvis).sort((a, b) => GORDER.indexOf(a.type) - GORDER.indexOf(b.type) || (b.date || '').localeCompare(a.date || ''));
     const hub = ['symbol', 'theme', 'market'].includes(n.type);
@@ -2279,7 +2306,7 @@ function gcard(){
       stats = `<div class="gstw"><span><b>${nb.filter(x => x.type === 'user' || x.type === 'note').length}</b>条记忆</span><span><b>${nb.filter(x => x.type === 'chat').length}</b>段对话</span><span><b>${cs.length}</b>次判断</span><span><b>${done.length ? Math.round(ok * 100 / done.length) + '%' : '—'}</b>${done.length ? `对 ${ok} / ${done.length}` : '尚无复盘'}</span></div>`; }
     const dei = GDEI[n.label] && (n.type === 'theme' || n.type === 'market') ? GDEI[n.label] : null;
     const sub = [n.symbol && n.symbol !== n.label ? n.symbol : '', n.date, n.verdict ? `<span class="v-${esc(n.verdict)}">${esc(n.verdict)}</span>` : '', n.uses ? `用过 ${n.uses} 次` : ''].filter(Boolean).join(' · ');
-    el.innerHTML = `<div class="gk"><span>${GT[n.type].k} · ${GT[n.type].t}</span><span><a href="#" id="gback" style="color:inherit">总览</a></span></div>${dei ? `<div class="gbig" style="font-size:${Math.min(40, Math.floor(330 / (GLAT[dei[0]] || "X").length))}px">${GLAT[dei[0]] || ''}</div>` : n.type === 'symbol' && n.symbol ? `<div class="gbig num" style="font-size:${Math.min(40, Math.floor(400 / n.symbol.length))}px">${esc(n.symbol.replace('^', ''))}</div>` : ''}<h4>${esc(n.type === 'call' || n.type === 'chat' || hub || n.type === 'skill' ? n.label : n.label.slice(0, 40))}</h4>${dei ? `<div class="gdeity">${dei[0]}</div>` : ''}${sub ? `<div class="gsub">${sub}</div>` : ''}${dei ? `<div class="gepi">${dei[1]}：${dei[2]}</div>` : ''}
+    el.innerHTML = `<div class="gk"><span>${GT[n.type].k} · ${GT[n.type].t}</span><span><a href="#" id="gback" style="color:inherit">总览</a></span></div>${dei ? `<div class="gbig" style="font-size:${Math.min(40, Math.floor(330 / (GLAT[dei[0]] || "X").length))}px">${GLAT[dei[0]] || ''}</div>` : n.type === 'symbol' && n.symbol ? `<div class="gbig num" style="font-size:${Math.min(40, Math.floor(400 / n.symbol.length))}px">${esc(n.symbol.replace('^', ''))}</div>` : ''}<h4>${esc(n.type === 'call' || n.type === 'chat' || hub || n.type === 'skill' ? n.label : n.label.slice(0, 40))}</h4>${dei ? `<div class="gdeity">${dei[0]}</div>` : ''}${sub ? `<div class="gsub">${sub}</div>` : ''}
       ${stats}${n.text && !hub ? `<p>${esc(n.text)}</p>` : ''}
       ${n.type === 'chat' ? `<button class="x ask" id="gopen" type="button">打开这段对话</button>` : ''}
       ${hub && n.type !== 'market' ? `<button class="x dark ask" id="gask" type="button">${GSTAR}求问神谕 · ${esc(n.label)}${GSTAR}</button>` : ''}

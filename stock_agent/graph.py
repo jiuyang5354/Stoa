@@ -139,6 +139,14 @@ def _date(t: str) -> str:
     return m.group(1) if m else ""
 
 
+def _due(c: dict) -> str:
+    try:
+        from datetime import datetime, timedelta
+        return (datetime.fromisoformat(str(c["ts"])[:10]) + timedelta(days=round(int(c["horizon_days"]) * 7 / 5))).strftime("%Y-%m-%d")
+    except Exception:
+        return ""
+
+
 def build(mem: Memory | None = None, with_chats: bool = True) -> dict:
     from . import skills
 
@@ -186,7 +194,7 @@ def build(mem: Memory | None = None, with_chats: bool = True) -> dict:
         nid = node(f"call:{c['id']}", type="call", label=f"{c.get('name') or s} {c['view']} {c['horizon_days']}天",
                    text=f"{c['ts'][:16]} 判断 {c.get('name') or s} {c['view']}（{c['horizon_days']} 天，当时 {c['price']}）\n理由：{c.get('reason') or ''}"
                         + (f"\n结果 {c['result_pct']:+.2f}% → {v}" if c.get("result_pct") is not None else ""),
-                   date=str(c["ts"])[:10], verdict=v)
+                   date=str(c["ts"])[:10], verdict=v, due=_due(c), pct=c.get("result_pct"))
         hubs(nid, c.get("reason") or "", [s])
 
     if with_chats:
@@ -230,7 +238,14 @@ def build(mem: Memory | None = None, with_chats: bool = True) -> dict:
     kinds = {}
     for n in nodes.values():
         kinds[n["type"]] = kinds.get(n["type"], 0) + 1
-    return {"nodes": list(nodes.values()), "counts": kinds,
+    from .memory import LIMITS, SEP
+    usage = {}
+    for t in ("user", "memory"):
+        try:
+            usage[t] = [len(SEP.join(mem.entries(t))), LIMITS[t]]
+        except Exception:
+            pass
+    return {"nodes": list(nodes.values()), "counts": kinds, "usage": usage,
             "edges": [{"s": a, "t": b, "kind": k, **({"sim": sims.get(f"{a}|{b}")} if k == "similar" else {})} for a, b, k in sorted(edges)]}
 
 
