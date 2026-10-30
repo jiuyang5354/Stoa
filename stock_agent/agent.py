@@ -76,6 +76,8 @@ SYSTEM = """你是「Stoa」，用户的长期股市助手，覆盖 A股、港�
 
 长程研究课题：
 - 用户要「长期研究 / 持续研究 / 花一两个小时研究」某个目标时，用 start_inquiry 开课题（后台跑，不占这轮对话），告诉用户课题号和预算，进度在 Ledger 或 /research 查看。问进度用 inquiry_status。
+- 用户说「继续 / 接着研究 / 怎么停了」而上下文没有别的待续任务时，先 inquiry_status 看课题，再用 inquiry_resume 接着跑；不要去翻旧对话猜。
+- 普通对话一轮只能查几分钟；用户要研究半小时以上，直接开课题，不要在对话里硬撑。
 
 判断账本：
 - 给方向性判断前，参考下面的账本统计；某类判断（方向/市场/周期）准确率偏低时，要更谨慎，并在回答里说明。
@@ -186,6 +188,8 @@ TOOLS = [
      "parameters": {"type": "object", "properties": {"goal": {"type": "string", "description": "研究目标，原话即可"}, "minutes": {"type": "integer", "description": "时长预算，默认 60，最多 480"},
                                                      "every_days": {"type": "integer", "description": "完成后每隔几天复查一次，默认 7，0 表示只在新财报或失效条件触发时续研"}}, "required": ["goal"]}},
     {"name": "inquiry_status", "description": "查研究课题：不给 id 列出最近的课题和进度；给 id 返回子问题、报告和续研记录。", "parameters": {"type": "object", "properties": {"id": {"type": "string"}}}},
+    {"name": "inquiry_resume", "description": "继续研究课题：用户说「继续 / 接着研究 / 再研究久一点」时用。不给 id 就接着跑最近一个暂停或出错的课题；已完成的课题会安排续研。extra_minutes 追加时长。",
+     "parameters": {"type": "object", "properties": {"id": {"type": "string"}, "extra_minutes": {"type": "integer"}}}},
     {"name": "call_stats", "description": "判断账本统计：总体准确率，按方向、市场、周期拆开的准确率，最近 10 次对错，短板。", "parameters": {"type": "object", "properties": {}}},
     {"name": "alert_set", "description": "设一个提醒，触发后推送到用户开的渠道。kind：above 涨到某价、below 跌到某价、up 单日涨超某百分比、down 单日跌超某百分比（填正数）、announcement 有新公告。默认触发一次就关，repeat=true 则每天最多提醒一次。",
      "parameters": {"type": "object", "properties": {"symbol": {"type": "string"}, "name": {"type": "string"},
@@ -210,13 +214,13 @@ FUND_TOOLS = {"get_statements", "earnings_quality", "reverse_dcf", "dcf_scenario
 BIG_TOOLS = {"get_statements", "earnings_quality", "read_filing", "compare_filings", "get_consensus", "get_dragon_tiger"}  # 结果允许更长
 
 
-SIDE_EFFECT_TOOLS = {"start_inquiry", "memory", "record_call", "alert_set", "alert_delete", "watchlist", "skill_save", "skill_delete", "run_python", "deep_analysis", "earnings_report"}
+SIDE_EFFECT_TOOLS = {"start_inquiry", "inquiry_resume", "memory", "record_call", "alert_set", "alert_delete", "watchlist", "skill_save", "skill_delete", "run_python", "deep_analysis", "earnings_report"}
 TOOL_LABELS = {"get_quotes": "查行情", "market_overview": "看大盘", "get_news": "读新闻", "get_announcements": "查公告", "get_financials": "查财报",
                "web_search": "联网搜索", "fetch_url": "读网页", "get_fund_flow": "看资金流", "get_northbound": "看北向", "get_dragon_tiger": "查龙虎榜",
                "get_consensus": "查一致预期", "get_intraday": "看分时", "get_options": "看期权", "read_filing": "读年报", "compare_filings": "对比年报",
                "deep_analysis": "Agora 辩论", "memory_links": "翻记忆", "memory": "写记忆", "session_search": "搜旧对话", "search_memory": "搜记忆",
                "earnings_calendar": "查财报日", "earnings_report": "写财报研报", "watchlist": "改自选", "record_call": "记账", "run_python": "跑代码",
-               "call_stats": "看战绩", "start_inquiry": "开研究课题", "inquiry_status": "看研究课题", "alert_set": "设提醒", "alert_list": "看提醒", "alert_delete": "删提醒", "skill_view": "读技能",
+               "call_stats": "看战绩", "start_inquiry": "开研究课题", "inquiry_status": "看研究课题", "inquiry_resume": "续研究课题", "alert_set": "设提醒", "alert_list": "看提醒", "alert_delete": "删提醒", "skill_view": "读技能",
                "skill_save": "存技能", "skill_delete": "删技能", "get_corporate_events": "查公司事件", "get_chips": "看筹码两融",
                "get_market_mood": "看市场情绪", "calc": "硬算数字", "price_levels": "算支撑阻力", "financial_bridge": "拆利润结构",
                "option_payoff": "算期权收益", "trade_replay": "行情重放",
@@ -570,11 +574,13 @@ class Agent:
             return f"已记账 #{cid}：{args['view']}，基准价 {q['close']}，{args['horizon_days']} 天后复盘。"
         if name == "call_stats":
             return m.call_stats()
-        if name in ("start_inquiry", "inquiry_status"):
+        if name in ("start_inquiry", "inquiry_status", "inquiry_resume"):
             from . import inquiry
             if name == "start_inquiry" and getattr(self, "_no_debate", False):
                 return {"error": "研究课题内部不能再开课题"}
-            return inquiry.for_agent("start" if name == "start_inquiry" else "status", args, m)
+            if name == "inquiry_resume" and getattr(self, "_no_debate", False):
+                return {"error": "研究课题内部不能续课题"}
+            return inquiry.for_agent({"start_inquiry": "start", "inquiry_resume": "resume"}.get(name, "status"), args, m)
         if name == "alert_set":
             return alerts.add(args["symbol"], args["kind"], args.get("value"), args.get("name", ""), args.get("repeat", False), args.get("note", ""))
         if name == "alert_list":

@@ -91,3 +91,79 @@ def test_agent_tool_and_listing(home):
     assert ag.run_tool("inquiry_status", {"id": st["id"]})["goal"] == "研究美股 AAPL"
     ag._no_debate = True
     assert "error" in ag.run_tool("start_inquiry", {"goal": "x"})
+
+
+def _fast(monkeypatch, inquiry, step):
+    monkeypatch.setattr(inquiry, "plan", lambda st, mem, llm: [inquiry._add_q(st, {"text": f"问题{i}"}, 0) for i in range(2)])
+    monkeypatch.setattr(inquiry, "reflect", lambda st, llm: None)
+    monkeypatch.setattr(inquiry, "synthesize", lambda st, *a, **k: st.update(report="r", one_line="x"))
+    monkeypatch.setattr(inquiry, "_announce", lambda *a, **k: None)
+    monkeypatch.setattr(inquiry, "research_step", step)
+
+
+def _ok(st, q, *a, **k):
+    q.update(status="done", answer="ok", strength="中", finished="t")
+
+
+def test_time_left_deepens_instead_of_stopping(home, monkeypatch):
+    """计划问题做完、时间还多：追加深挖问题，而不是 20 分钟就收尾。"""
+    from stock_agent import inquiry
+    from stock_agent.memory import Memory
+    calls = []
+    def deepen(st, llm):
+        calls.append(1)
+        return sum(inquiry._add_q(st, {"text": f"深挖{len(calls)}-{i}"}, 1) for i in range(2)) if len(calls) < 3 else 0
+    _fast(monkeypatch, inquiry, _ok); monkeypatch.setattr(inquiry, "deepen", deepen)
+    st = inquiry.run(inquiry.create("腾讯 0700.HK", 60)["id"], Memory())
+    assert st["status"] == "done"
+    assert len(calls) == 3 and sum(q["status"] == "done" for q in st["questions"]) == 6
+
+
+def test_goal_met_ignored_before_most_budget_used(home, monkeypatch):
+    from stock_agent import inquiry
+    from stock_agent.memory import Memory
+    def step(st, q, *a, **k):
+        _ok(st, q); st["_goal_met"] = True
+    _fast(monkeypatch, inquiry, step)
+    monkeypatch.setattr(inquiry, "deepen", lambda st, llm: 0)
+    st = inquiry.run(inquiry.create("腾讯 0700.HK", 60)["id"], Memory())
+    assert sum(q["status"] == "done" for q in st["questions"]) == 2  # 第一题后没有因为「达标」提前停
+
+
+def test_repeated_errors_pause_not_finish(home, monkeypatch):
+    from stock_agent import inquiry
+    from stock_agent.memory import Memory
+    def bad(st, q, *a, **k):
+        raise ValueError("模型格式错")
+    _fast(monkeypatch, inquiry, bad)
+    monkeypatch.setattr(inquiry, "plan", lambda st, mem, llm: [inquiry._add_q(st, {"text": f"问题{i}"}, 0) for i in range(4)])
+    st = inquiry.run(inquiry.create("腾讯 0700.HK", 60)["id"], Memory())
+    assert st["status"] == "paused" and "连续" in st["error"]
+    assert all(q["status"] == "todo" for q in st["questions"])
+
+
+def test_transient_error_retries(home, monkeypatch):
+    from stock_agent import inquiry
+    from stock_agent.memory import Memory
+    n = {"c": 0}
+    def flaky(st, q, *a, **k):
+        n["c"] += 1
+        if n["c"] == 1:
+            raise RuntimeError("HTTP 429 rate limit")
+        _ok(st, q)
+    _fast(monkeypatch, inquiry, flaky); monkeypatch.setattr(inquiry, "deepen", lambda st, llm: 0)
+    monkeypatch.setattr(threading.Event, "wait", lambda self, t=None: False)
+    st = inquiry.run(inquiry.create("腾讯 0700.HK", 60)["id"], Memory())
+    assert st["status"] == "done" and all(q["status"] == "done" for q in st["questions"])
+
+
+def test_chat_resume_picks_latest_paused(home, monkeypatch):
+    from stock_agent import inquiry
+    from stock_agent.memory import Memory
+    st = inquiry.create("腾讯 0700.HK", 30)
+    st["status"] = "paused"; st["used"]["seconds"] = 30 * 60; inquiry.save(st)
+    got = []
+    monkeypatch.setattr(inquiry.RUNNER, "submit", lambda iid, *a, **k: got.append(iid) or True)
+    r = inquiry.for_agent("resume", {}, Memory())
+    assert r["id"] == st["id"] and got == [st["id"]]
+    assert inquiry.load(st["id"])["budget"]["minutes"] == 60  # 预算用完就自动加 30 分钟

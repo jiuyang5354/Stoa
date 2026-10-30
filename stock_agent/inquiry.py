@@ -26,6 +26,8 @@ META_RE = re.compile(r"<<<META(.*?)(?:>>>|$)", re.S)
 DEFAULT_MIN = 60
 MAX_MIN = 8 * 60
 REFLECT_EVERY = 3
+MIN_USE = 0.6      # 用掉预算的 60% 之前，模型说「达标」也不收尾，先深挖
+MAX_ERRORS = 3     # 连续出错几次就暂停（多半是网络或模型限流），而不是草草收尾
 MAX_DEPTH = 2
 
 
@@ -175,10 +177,10 @@ def plan(st: dict, mem: Memory, llm) -> None:
         except Exception:
             ctx = ""
     prompt = (f"[INQ:PLAN]\n你是 Stoa 的研究主管。用户给了一个长程研究目标，请把它拆成可以逐个查证的子问题。\n\n"
-              f"研究目标：{st['goal']}\n时长预算：{st['budget']['minutes']} 分钟（每个子问题约 2–3 分钟，含多次工具调用）\n\n"
+              f"研究目标：{st['goal']}\n时长预算：{st['budget']['minutes']} 分钟（每个子问题约 2–3 分钟，含多次工具调用；时间用不完会继续追加深挖问题）\n\n"
               f"用户画像与笔记：\n{mem.snapshot()[:2500]}\n\n记忆图谱里与目标相关的内容：\n{ctx or '（无）'}\n\n{skills.index()}\n\n"
               "要求：\n- 先识别标的（Yahoo 格式代码：600519.SS、0700.HK、AAPL）；主题类目标可以没有标的或有多只。\n"
-              "- 写一句「成功标准」：回答到什么程度算研究完成。\n- 子问题 4–8 个，按先后顺序：先事实与数据，再驱动因素和分歧，再估值与风险，最后才是结论；"
+              "- 写一句「成功标准」：回答到什么程度算研究完成。\n" f"- 子问题 {_plan_n(st)} 个，" "按先后顺序：先事实与数据，再驱动因素和分歧，再估值与风险，最后才是结论；"
               "每个子问题要具体、可查证，注明为什么要问、建议用哪些工具或技能。\n"
               '只输出 JSON：{"symbols":["..."],"criteria":"...","questions":[{"text":"...","why":"...","tools":"..."}]}')
     j = _json(_chat(llm, prompt, st.get("lang")), {})
@@ -191,9 +193,20 @@ def plan(st: dict, mem: Memory, llm) -> None:
     syms = [s for s in (j.get("symbols") or []) if isinstance(s, str)][:6] or ([sym] if sym else [])
     st["symbols"] = syms
     st["criteria"] = str(j.get("criteria") or "能给出带证据的结论、关键数字、主要风险和跟踪指标")[:300]
-    for q in qs[:8]:
+    for q in qs[:12]:
         _add_q(st, q, depth=0)
     _log(st, f"拆成 {len(st['questions'])} 个子问题")
+
+
+def _plan_n(st: dict) -> str:
+    m = st["budget"]["minutes"]
+    lo = max(4, min(8, m // 10))
+    return f"{lo}–{min(12, lo + 4)}"
+
+
+def _transient(e: Exception) -> bool:
+    t = f"{type(e).__name__} {e}".lower()
+    return any(k in t for k in ("429", "rate", "timeout", "timed out", "connection", "temporarily", "502", "503", "504", "overload"))
 
 
 def _add_q(st: dict, q: dict, depth: int, parent: str | None = None) -> bool:
@@ -271,6 +284,21 @@ def research_step(st: dict, q: dict, mem: Memory, stop: threading.Event | None, 
             _log(st, f"{q['id']} 追加 {added} 个新问题")
     if meta.get("goal_met"):
         st["_goal_met_hint"] = True
+
+
+def deepen(st: dict, llm) -> int:
+    """子问题做完了但时间还多：找证据弱的地方、反方观点、交叉验证，追加新问题。返回追加个数。"""
+    left = max(0, int(st["budget"]["minutes"] - st["used"]["seconds"] / 60))
+    weak = [q for q in st["questions"] if q["status"] == "done" and (q.get("strength") or "中") in ("弱", "中")]
+    prompt = (f"[INQ:DEEPEN]\n研究目标：{st['goal']}\n成功标准：{st['criteria']}\n剩余时间约 {left} 分钟，还够再查几个问题。\n\n"
+              f"已有笔记：\n{_notes(st, 5000)}\n\n证据偏弱的子问题：{'、'.join(q['id'] for q in weak) or '无'}\n\n"
+              "现有子问题都做完了。请追加 2–4 个能让结论更可靠的新子问题，优先：① 补强证据弱或结论冲突的地方；② 反方视角——什么情况下结论会错；"
+              "③ 用另一个数据源或同业对比交叉验证关键数字；④ 还没覆盖到的关键变量。不要重复已有问题。"
+              '只输出 JSON：{"add":[{"text":"...","why":"..."}]}，确实没有值得查的就给空数组。')
+    j = _json(_chat(llm, prompt, st.get("lang")), {})
+    n = sum(_add_q(st, a, 1) for a in (j.get("add") or [])[:4] if isinstance(a, dict))
+    _log(st, f"子问题做完、还剩约 {left} 分钟，追加 {n} 个深挖问题" if n else "没有值得追加的问题，开始收尾")
+    return n
 
 
 def reflect(st: dict, llm) -> None:
@@ -368,28 +396,58 @@ def run(iid: str, mem: Memory | None = None, stop: threading.Event | None = None
         st["status"] = "running"
         save(st)
         since_reflect = 0
+        errs, paused_err = 0, False
         while not stop.is_set():
             elapsed = st["used"]["seconds"] + time.time() - st["_t0"]
             if elapsed >= st["budget"]["minutes"] * 60:
                 _log(st, "时长用完，开始收尾")
                 break
-            if st.get("_goal_met"):
+            early = elapsed < st["budget"]["minutes"] * 60 * MIN_USE
+            if st.get("_goal_met") and not early:
                 _log(st, "已达成功标准，开始收尾")
                 break
             q = next((x for x in st["questions"] if x["status"] == "todo"), None)
             if not q:
+                if early or st["budget"]["minutes"] * 60 - elapsed > 300:
+                    try:
+                        if deepen(st, llm):
+                            st.pop("_goal_met", None)
+                            save(st)
+                            continue
+                    except Exception as e:
+                        _log(st, f"追加问题失败：{str(e)[:80]}")
                 break
             q["status"], q["started"] = "doing", _now()
             save(st)
             try:
-                research_step(st, q, mem, stop, on_event)
+                for attempt in range(3):
+                    try:
+                        research_step(st, q, mem, stop, on_event)
+                        break
+                    except InterruptedError:
+                        raise
+                    except Exception as e:
+                        if attempt == 2 or not _transient(e) or stop.is_set():
+                            raise
+                        _log(st, f"{q['id']} 暂时出错（{str(e)[:60]}），{30 * (attempt + 1)} 秒后重试")
+                        stop.wait(30 * (attempt + 1))
                 log(f"课题 {iid} {q['id']} 完成（{q['secs']}s）")
+                errs = 0
             except InterruptedError:
                 q["status"] = "todo"
                 break
             except Exception as e:
                 q.update(status="error", answer=f"出错：{str(e)[:200]}", finished=_now())
                 _log(st, f"{q['id']} 出错：{str(e)[:120]}")
+                errs += 1
+                if errs >= MAX_ERRORS:
+                    for x in st["questions"]:
+                        if x["status"] == "error":
+                            x["status"] = "todo"
+                    st["error"] = f"连续 {errs} 个子问题出错，多半是网络或模型限流：{str(e)[:120]}。可以稍后继续。"
+                    _log(st, "连续出错，已暂停")
+                    paused_err = True
+                    break
             since_reflect += 1
             st["used"]["seconds"] += time.time() - st["_t0"]
             st["_t0"] = time.time()
@@ -400,9 +458,10 @@ def run(iid: str, mem: Memory | None = None, stop: threading.Event | None = None
                 except Exception as e:
                     _log(st, f"复盘失败：{str(e)[:80]}")
             save(st)
-        if stop.is_set():
+        if stop.is_set() or paused_err:
             st["status"] = "paused"
-            _log(st, "已暂停，可以继续")
+            if not paused_err:
+                _log(st, "已暂停，可以继续")
         elif not any(q["status"] == "done" for q in st["questions"]):
             st["status"] = "error"
             st["error"] = "没有一个子问题查成功"
@@ -653,6 +712,33 @@ def for_agent(action: str, args: dict, mem: Memory) -> dict:
         st = start(goal, args.get("minutes") or mins, args.get("every_days"), mem)
         return {"id": st["id"], "goal": st["goal"], "minutes": st["budget"]["minutes"],
                 "msg": f"已开课题 {st['id']}，预算 {st['budget']['minutes']} 分钟，后台进行；进度在 Ledger → 研究课题，或输入 /research 查看。完成后结论会写进记忆和判断账本，并推送。"}
+    if action == "resume":
+        iid = str(args.get("id") or "").strip()
+        if not iid:
+            cand = [s for s in listing() if s["status"] in ("paused", "error", "queued")]
+            if not cand:
+                run = [s for s in listing() if s["status"] in ("planning", "running", "synthesizing")]
+                return {"msg": f"课题 {run[0]['id']} 正在跑，不用续" if run else "没有可以继续的课题（都已完成）；要再深挖可以开新课题或对已完成课题续研。",
+                        "inquiries": listing()[:5]}
+            iid = cand[0]["id"]
+        st = load(iid)
+        if not st:
+            return {"error": f"没有课题 {iid}"}
+        if st["status"] == "done":
+            RUNNER.mem = mem
+            ok = RUNNER.submit(iid, "followup", ["用户在对话里要求继续"])
+            return {"id": iid, "ok": ok, "msg": f"课题 {iid} 已完成，已安排续研"}
+        extra = int(args.get("extra_minutes") or 0)
+        if extra > 0:
+            st["budget"]["minutes"] = min(MAX_MIN, st["budget"]["minutes"] + extra)
+            st["budget"]["max_questions"] = max(st["budget"]["max_questions"], min(60, st["budget"]["minutes"] // 3))
+            save(st)
+        elif st["used"]["seconds"] >= st["budget"]["minutes"] * 60 - 60:
+            st["budget"]["minutes"] = min(MAX_MIN, st["budget"]["minutes"] + 30)
+            save(st)
+        RUNNER.mem = mem
+        ok = resume(iid)
+        return {"id": iid, "ok": ok, "minutes": st["budget"]["minutes"], "msg": f"课题 {iid} 已接着跑（预算 {st['budget']['minutes']} 分钟）"}
     iid = str(args.get("id") or "").strip()
     if iid:
         st = load(iid)
