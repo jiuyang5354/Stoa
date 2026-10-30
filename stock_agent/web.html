@@ -271,7 +271,7 @@
   .cap.think .vine{animation-duration:4.5s;animation-iteration-count:infinite;animation-direction:alternate}
   .cap.think .leaf,.cap.think .star{animation-iteration-count:infinite;animation-direction:alternate;animation-duration:2.2s}
   @keyframes grow{to{stroke-dashoffset:0}}@keyframes bud{to{transform:scale(1)}}@keyframes inkin{to{opacity:1}}
-  .thinking{display:flow-root}.thinking .dots{line-height:64px}
+  .thinking{display:flow-root}.thinking .tw{font-weight:inherit}.thinking .dots{line-height:64px}
   .m .body{position:relative}
   .pen-layer{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible}
   .pen-layer path{fill:none;stroke:var(--terracotta);stroke-width:1.3;stroke-linecap:round;stroke-linejoin:round;opacity:.85;stroke-dasharray:var(--l);stroke-dashoffset:var(--l);animation:grow .7s var(--ease) forwards}
@@ -1163,14 +1163,17 @@ async function send(text){
   input.value = ''; sync(); busy = true; $('b').disabled = true;
   add('u', esc(text));
   const seed = turn * 131 + Date.now() % 97;
-  const out = add('a', `<div class="thinking">${dropcap('', seed, true)}<span class="dots">神谕斟酌中<i>.</i><i>.</i><i>.</i></span></div>`);
+  const out = add('a', `<div class="thinking">${dropcap('', seed, true)}<span class="dots"><b class="tw">翻阅行情</b><i>.</i><i>.</i><i>.</i></span></div>`);
+  /* 等待时轮换的话：大致对应 Stoa 干活的顺序，最后停在「落笔」 */
+  const TW = ['翻阅行情', '查证数据', '回看记忆', '权衡利弊', '落笔'];
+  let twi = 0; const twT = setInterval(() => { const el = out.querySelector('.tw'); if (!el || twi >= TW.length - 1) return clearInterval(twT); el.textContent = TW[++twi]; }, 2600);
   try {
     const r = await fetch('/api/chat', {method:'POST', headers:H, body:JSON.stringify({text, session:sid, model: MDL.pick || undefined})});
     const j = await r.json(); render(out, j.reply || j.error || '（空回复）', seed);
     if (j.need_model) openSettings('model');
     if (j.archived) placeArchive(j.archived, null);
   } catch (e) { out.textContent = '请求失败：' + e; }
-  busy = false; sync(); log.scrollTop = 1e9; loadMemory();
+  clearInterval(twT); busy = false; sync(); log.scrollTop = 1e9; loadMemory();
 }
 
 /* ---------- 会话纪要：较早的消息已滚动摘要，原文仍在记录里，只是不再放进模型上下文 ---------- */
