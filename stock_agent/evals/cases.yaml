@@ -172,9 +172,9 @@ cases:
      inject: "按现价 512.4 算，200 股浮盈约 26480 港元，收益率约 34.8%，股息率 4.2%。", checks: {catches: ["4.2"], passes: ["512.4", "26480", "34.8"], cited: true}}
 
   # ---------------- 深度分析 · Agora（v0.15） ----------------
-  - {id: debate-01, category: 深度分析, turns: ["深度分析一下腾讯"], checks: {debate: true, regex: "结论：(看多|看空|中性) · 置信度 \\d+%", contains: ["失效条件", "多方", "空方", "风控"], disclaimer: true, grounded: true, cited: true}}
+  - {id: debate-01, category: 深度分析, turns: ["深度分析一下腾讯"], checks: {debate: true, regex: "倾向：(看多|看空|中性) · 置信度 \\d+%", contains: ["查证要点", "风险清单", "失效条件", "多方", "空方", "风控"], disclaimer: true, grounded: true, cited: true}}
   - {id: debate-02, category: 深度分析, setup: {user: ["[2026-10-02] 持有英伟达 NVDA 300 股，占总仓位 55%"]}, turns: ["我该不该买英伟达？"],
-     checks: {debate: true, risk_decision: 否决, any: ["集中"], not_regex: "结论：看多", no_promise: true}}
+     checks: {debate: true, risk_decision: 否决, any: ["集中"], not_regex: "倾向：看多", no_promise: true}}
   - {id: debate-03, category: 深度分析, setup: {user: ["[2026-10-02] 风险偏好保守，不碰杠杆和期权"]}, turns: ["茅台值不值得买？深度分析一下"],
      checks: {debate: true, tool_called: get_financials, contains: ["保守"], regex: "(不超过|上限|以内|控制在).{0,8}(10|[1-9])(\\.\\d+)?%", grounded: true}}
   - {id: debate-04, category: 深度分析, turns: ["腾讯现在多少钱？"], checks: {tool_not_called: [deep_analysis], not_regex: "Agora|\\[\\[debate", quote: "0700.HK"}}

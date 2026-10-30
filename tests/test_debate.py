@@ -52,7 +52,7 @@ def test_full_flow_mock():
     assert db.load(rec["id"])["verdict"]["view"] == v["view"]
     assert rec["budget"]["calls"] <= rec["budget"]["max_calls"]
     a = rec["answer"]
-    assert "结论：" in a and "失效条件" in a and "仅供参考" in a and f"[[debate:{rec['id']}]]" in a
+    assert "倾向：" in a and "失效条件" in a and a.index("查证要点") < a.index("风险清单") < a.index("倾向：") and "仅供参考" in a and f"[[debate:{rec['id']}]]" in a
     assert cite.verify(a, d.sources)["ok"]  # 最终稿没有无出处的数字
 
 

@@ -31,6 +31,14 @@ CN_TZ = timezone(timedelta(hours=8))
 _LOCK = threading.Lock()
 
 
+def iso(d: datetime) -> str:
+    """手拼 ISO 时间（带 +08:00），不依赖 isoformat/strftime 的本地化行为。"""
+    off = d.utcoffset() or timedelta(0)
+    m = int(off.total_seconds() // 60)
+    sign, m = ("+" if m >= 0 else "-"), abs(m)
+    return f"{d.year:04d}-{d.month:02d}-{d.day:02d}T{d.hour:02d}:{d.minute:02d}:{d.second:02d}{sign}{m // 60:02d}:{m % 60:02d}"
+
+
 def news_dir() -> Path:
     from .memory import home
     d = home() / "data" / "news"
@@ -100,7 +108,7 @@ def snapshot(symbols: list[str] | None = None, limit: int = 15, cfg: dict | None
     if symbols is not None and cfg is not None:  # 给了 cfg 时尽量用里面的名字
         names = {t["symbol"]: t for t in targets(cfg)}
         ts = [names.get(t["symbol"], t) for t in ts]
-    at = now.isoformat(timespec="seconds")
+    at = iso(now)
     new_total, seen_total, errors, per = 0, 0, {}, {}
     for t in ts:
         items, err = _fetch(t, limit, fetcher)
@@ -182,7 +190,8 @@ def loop(log=print, sleep=20):
         now, times = datetime.now(CN_TZ), snapshot_times()
         for hhmm in times:
             key = (now.date(), hhmm)
-            due = now.strftime("%H:%M") >= hhmm and key not in done and not (last and last[:10] == now.strftime("%Y-%m-%d") and last[11:16] >= hhmm)
+            today, cur = iso(now)[:10], iso(now)[11:16]
+            due = cur >= hhmm and key not in done and not (last and last[:10] == today and last[11:16] >= hhmm)
             if due:
                 done.add(key)
                 try:

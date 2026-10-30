@@ -542,6 +542,7 @@ class Debate:
         self.user_entries = user_entries or []
         self.sources = sources or cite.Sources()
         self.payload, self.horizon, self.on_step = snapshot_payload, int(horizon), on_step
+        self._brief = None
         self.risk_meta = risk_meta  # 风控红线的额外事实（回测：stale_days；有成交额时 amount_avg20）
         self.flow_payload = flow_payload  # 回测：按决策日截断的资金流（只有 --with-flow 时才有）
         self.id = f"{datetime.now(CN_TZ):%Y%m%d-%H%M%S}-{uuid.uuid4().hex[:4]}"
@@ -828,12 +829,14 @@ class Debate:
         sid = self._vsid = self.sources.new("Agora 辩论纪要 · 本次结论", "", cite.today(), kind="debate", tool="deep_analysis")
         self.sources.bind({"confidence": verdict["confidence"], "horizon": verdict["horizon_days"], "cap": risk.get("max_position_pct"),
                            "risk": risk.get("findings"), "rounds": len(rounds)}, sid)
+        self._brief = self.brief(rounds, risk, verdict)
         answer = self.compose(rounds, risk, verdict, call)
         answer = self.fix(answer)
         rec = {"id": self.id, "version": VERSION, "created": datetime.now(CN_TZ).strftime("%Y-%m-%d %H:%M"), "mode": self.mode,
                "symbol": self.symbol, "name": self.name, "question": self.question, "rounds_cfg": self.rounds, "horizon": self.horizon,
                "analysts": [{k: v for k, v in (self.roles.get(k) or {}).items() if not k.startswith("_")} for k, _, _ in ANALYSTS],
                "debate": rounds, "risk": {k: v for k, v in (self.roles.get("risk") or {}).items()}, "verdict": verdict,
+               "checklist": self._brief["checklist"], "risks": self._brief["risks"],
                "record_call": call if isinstance(call, str) else None, "budget": self.budget.usage(), "seconds": round(time.time() - t0, 1),
                "answer": answer, "degraded": [TITLES[k][0] for k, r in self.roles.items() if r.get("status") in ("degraded", "failed", "timeout")]}
         rec["sources"] = [it for it in self.sources.items if it["kind"] != "user"]
@@ -845,35 +848,81 @@ class Debate:
     def _analyst_safe(self, k, zh):
         return self.analyst(k, zh)
 
+    # -------------------------------------------------- 结论页：查证要点 + 风险清单在前，方向次要
+    def brief(self, rounds, risk, v) -> dict:
+        """把辩论整理成用户真正用得上的两张清单：
+        checklist = 可以自己去核对的事实/依据（带出处角标；没出处的标「待核」），以及数据缺口；
+        risks     = 风险清单（红线 → 风控发现 → 空方论点 → 失效条件），按严重程度排。"""
+        has_cite = lambda t: bool(re.search(r"\[\d+\]", t or ""))
+        seen, check = set(), []
+
+        def add(text, kind):
+            t = (text or "").strip()
+            k = re.sub(r"\[\d+\]|\s", "", t)[:40]
+            if t and k not in seen:
+                seen.add(k)
+                check.append({"text": t, "kind": kind, "cited": has_cite(t)})
+        for kp in v.get("key_points") or []:
+            add(kp, "依据")
+        for k, zh, _ in ANALYSTS:
+            r = self.roles.get(k) or {}
+            if r.get("status") in ("ok", "degraded"):
+                for e in (r.get("evidence") or [])[:2]:
+                    add(e, zh)
+        check = sorted(check, key=lambda x: not x["cited"])[:6]
+        gaps = []
+        for k, zh, _ in ANALYSTS:
+            r = self.roles.get(k) or {}
+            if r.get("status") == "no_data":
+                gaps.append(f"{zh}（无数据）：没有拿到数据，相关判断需要自行查证")
+            elif r.get("status") in ("degraded", "failed", "timeout"):
+                gaps.append(f"{zh}（降级）：未能正常发言，已用规则摘要代替")
+        for g in gaps:
+            check.append({"text": g, "kind": "数据缺口", "cited": False})
+        risks = [{"text": t, "level": "红线"} for t in risk.get("redlines") or []]
+        for t in (risk.get("findings") or []) + (risk.get("notes") or []):
+            if t not in (risk.get("redlines") or []) and not t.startswith("没有持仓/仓位信息"):
+                risks.append({"text": t, "level": "风控"})
+        last = rounds[-1] if rounds else None
+        if last and (last.get("bear") or {}).get("status") == "ok":
+            b = last["bear"]
+            pts = b.get("points") or ([b.get("argument")] if b.get("argument") else [])
+            risks += [{"text": p, "level": "空方"} for p in pts[:3] if p]
+        if v.get("invalidation"):
+            risks.append({"text": v["invalidation"], "level": "失效条件"})
+        return {"checklist": check, "risks": risks}
+
     def compose(self, rounds, risk, v, call) -> str:
         nm = f"{self.name}（{self.symbol}）" if self.name != self.symbol else self.symbol
-        L = [f"**Agora · {nm} 深度分析**", "",
-             f"**结论：{v['view']} · 置信度 {v['confidence']}%{self._vc()}**　观察周期约 {v['horizon_days']} 个交易日"]
+        br = self._brief or self.brief(rounds, risk, v)
+        L = [f"**Agora · {nm} 查证与风险**", ""]
+        L.append("**查证要点**（建议逐条点开出处核对）")
+        items = [c for c in br["checklist"] if c["kind"] != "数据缺口"]
+        L += [f"{i}. {c['text']}" + ("" if c["cited"] else "（待核：没有出处）") for i, c in enumerate(items, 1)] or ["- 没有可核对的具体依据。"]
+        gaps = [c["text"] for c in br["checklist"] if c["kind"] == "数据缺口"]
+        if gaps:
+            L.append("- 数据缺口：" + "；".join(gaps))
+        L += ["", "**风险清单**"]
+        L += [f"- {r['level']}：{r['text']}" for r in br["risks"]] or ["- 没有发现需要特别提示的风险。"]
+        mode_note = "（无持仓信息，只做红线规则检查）" if risk.get("mode") == "rules_only" and risk.get("status") == "rules" else ""
+        L += [f"- 风控结论：{risk['decision']}{mode_note}；建议单票仓位不超过 {risk['max_position_pct']}%{self._vc()}；止损参考：{risk['stop_loss']}"]
+        L += ["", f"倾向：{v['view']} · 置信度 {v['confidence']}%{self._vc()} · 约 {v['horizon_days']} 个交易日（次要信息，择时判断经回测不具统计显著性）"]
         if v.get("summary"):
             L.append(v["summary"])
         if v.get("risk_override"):
             L.append(f"（{v['risk_override']}）")
-        if v.get("key_points"):
-            L += ["", "**关键依据**"] + [f"{i}. {p}" for i, p in enumerate(v["key_points"], 1)]
         last = rounds[-1] if rounds else None
         if last:
-            L += ["", f"**多空交锋**（{len(rounds)} 轮）"]
+            L += ["", f"多空交锋（{len(rounds)} 轮）"]
             for side, zh in (("bull", "多方"), ("bear", "空方")):
                 x = last[side]
                 if x.get("status") == "ok":
                     L.append(f"- {zh}：{x.get('rebuttal') or x.get('argument')}" if len(rounds) > 1 and x.get("rebuttal") else f"- {zh}：{x.get('argument')}")
                 else:
                     L.append(f"- {zh}：未能发言（{x.get('error', '降级')}）")
-        L += ["", f"**风控**：{risk['decision']}" + (f"——{'；'.join((risk.get('findings') or []) + (risk.get('notes') or []))}" if (risk.get('findings') or risk.get('notes')) else ""),
-              f"建议单票仓位不超过 {risk['max_position_pct']}%{self._vc()}；止损参考：{risk['stop_loss']}"]
-        L += ["", f"**结论失效条件**：{v.get('invalidation') or '出现与上述依据相反的新数据或事件时'}"]
         if isinstance(call, str) and call.startswith("已记账"):
             L.append(f"\n{call}")
-        deg = [f"{TITLES[k][0]}（{'无数据' if r.get('status') == 'no_data' else '降级'}）" for k, r in self.roles.items()
-               if r.get("status") in ("degraded", "failed", "no_data")]
-        if deg:
-            L.append("\n部分角色未完整参与：" + "、".join(deg) + "，相关部分已用规则摘要或跳过。")
-        L += ["", "看多/看空属于择时判断，经回测不具统计显著性（未胜过动量与随机基线），仅供参考，不构成投资建议。", f"[[debate:{self.id}]]"]
+        L += ["", "仅供参考，不构成投资建议。", f"[[debate:{self.id}]]"]
         return "\n".join(L)
 
     def _vc(self) -> str:
