@@ -57,6 +57,7 @@ A stock-market agent with memory for China A-shares, Hong Kong and US stocks —
 - 自选股：在 `config.yaml` 里随便加
 - 每只标的：收盘、单日 / 5 日 / 20 日涨跌、RSI、20/60 日均线
 - 公司事件与筹码（v0.23）：A股限售解禁（未来 180 天、占总股本）、业绩预告、机构调研、股东增减持、回购进度、股权质押、融资融券、股东户数；涨停/炸板/跌停与连板梯队、行业与概念板块资金；美股 SEC Form 4 高管买卖、FINRA 日空头成交占比。行情里带 A股涨跌停价、T+1 与一手股数
+- 国内网络可用（v0.24）：行情默认走腾讯证券、东方财富，页面字体和 3D 资源随程序本地分发，不连外网 CDN；对话随时可停（Stop 按钮或 Esc），后台模型和工具在下一步前收手
 - 内置投研流程（v0.23）：个股体检、事件排雷、盘后复盘、策略回测（按 T+1、手续费、印花税、滑点、涨跌停）、选股筛选、财报季研判，Agent 遇到同类问题先按流程查数据再下结论；可以同名覆盖成自己的版本
 - 对话里实时显示每一步在查什么（查行情、读公告…），同一轮的多个查询并行跑，答完收成「N 步 · 秒数」可展开看耗时
 - 研究资料（v0.7，免密钥）：个股新闻（东方财富 + Yahoo）、公司公告（东方财富公告中心、美股 SEC EDGAR）、财报与估值（东方财富 F10 + Yahoo Finance）、联网搜索（DuckDuckGo / Bing，可选 Tavily、Brave）、读网页正文
@@ -149,7 +150,7 @@ LLM_RETRIES=5                  # 中转限流（429）/网关 5xx 时退避重�
 
 中转常限并发：回测 `--concurrency 1–2`，辩论回测慢时加 `--role-timeout 120`。
 
-**行情源**：`DATA_PROVIDERS` 按顺序尝试，默认 `yahoo,eastmoney`（免费、免密钥）。
+**行情源**：`DATA_PROVIDERS` 按顺序尝试，默认 `tencent,eastmoney,yahoo`（免费、免密钥；腾讯证券和东方财富国内网络直连，A股/港股/美股和主要指数都有，Yahoo 只做兜底）。
 
 | 源 | A股 | 港股 | 美股 | 指数 | 密钥 |
 |---|---|---|---|---|---|
@@ -162,7 +163,7 @@ LLM_RETRIES=5                  # 中转限流（429）/网关 5xx 时退避重�
 | tiingo | – | – | ✓ | – | TIINGO_API_KEY |
 | custom | 自建接口 `DATA_CUSTOM_URL` | | | | 可选 |
 
-\* 需要对应套餐的权限。比如 A股为主可以写 `DATA_PROVIDERS=tushare,yahoo,eastmoney`。
+\* 需要对应套餐的权限。比如 A股为主可以写 `DATA_PROVIDERS=tushare,tencent,eastmoney`。
 
 **对外接口**（`serve` 模式，口令用 `Authorization: Bearer <WEB_TOKEN>`）：
 

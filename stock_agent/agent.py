@@ -298,6 +298,10 @@ def review_due(mem: Memory) -> list[str]:
     return notes
 
 
+class Cancelled(Exception):
+    """用户在网页上点了停止：在下一个检查点（模型返回后、每个工具开始前）收手。"""
+
+
 class Agent:
     def __init__(self, mem: Memory | None = None, channel: str = "cli", session: str | None = None):
         self.mem = mem or Memory()
@@ -575,7 +579,29 @@ class Agent:
                           "steps": list(getattr(self, "_steps", None) or [])}
         return reply
 
+    def _check(self):
+        ev = getattr(self, "_stop", None)
+        if ev is not None and ev.is_set():
+            raise Cancelled()
+
     def ask(self, text: str, on_tool=None) -> str:
+        self._turn_start = len(self.messages)
+        try:
+            return self._ask(text, on_tool)
+        except Cancelled:
+            # 停在半路：去掉这轮里没配对的工具调用，只留问题 + 一句「已停止」，下一轮上下文仍然合法
+            if not getattr(self, "_cur_id", None):
+                self._cur_id = self.mem.log(self.session, "user", text)
+            note = "（已停止）"
+            aid = self.mem.log(self.session, "assistant", note)
+            self.messages = self.messages[:self._turn_start] + [{"role": "user", "content": text, "_id": self._cur_id},
+                                                                 {"role": "assistant", "content": note, "_id": aid}]
+            self.last_meta = {"sources": [], "verify": None, "debate": None, "cards": None, "compressed": None, "archived": 0,
+                              "steps": list(getattr(self, "_steps", None) or []), "stopped": True}
+            return "已停止。"
+
+    def _ask(self, text: str, on_tool=None) -> str:
+        self._cur_id = None
         if self.turns:
             self.refresh_tools()
         self.turns += 1
@@ -598,6 +624,7 @@ class Agent:
                 try:
                     t0 = time.time()
                     rec = debate.run_for_agent(self, sym, text)
+                    self._check()
                     self._steps.append({"n": 0, "label": TOOL_LABELS["deep_analysis"], "name": "deep_analysis", "arg": sym, "ok": True, "cached": False,
                                         "ms": int((time.time() - t0) * 1000)})
                     if getattr(self, "on_event", None):
@@ -612,6 +639,8 @@ class Agent:
                     self.messages.append({"role": "assistant", "content": cite.strip_sources(reply), "_id": self.mem.log(self.session, "assistant", reply)})
                     return reply
                 except Exception as e:  # 辩论整体出错：退回单 agent
+                    if isinstance(e, Cancelled):
+                        raise
                     self.messages.pop()
                     self.debate_error = str(e)[:200]
         content = text
@@ -629,6 +658,7 @@ class Agent:
         max_rounds = self.max_rounds()
         rounds, final = 0, None
         while True:
+            self._check()
             # 预算：先压缩较早的对话；还放不下（或工具轮数到上限）就收尾——不给工具，让模型用已有结果作答
             if final is None and context.total(self.messages) > self.budget():
                 try:
@@ -642,6 +672,7 @@ class Agent:
             if final and not (self.messages[-1]["role"] == "user" and self.messages[-1]["content"].startswith("[系统：")):
                 self.messages.append({"role": "user", "content": FINAL_NUDGE.format(why=final)})
             msg = self._chat(self.messages, None if final else "default")
+            self._check()
             if final:
                 msg = {**msg, "tool_calls": None}
                 if not (msg.get("content") or "").strip():
@@ -683,6 +714,7 @@ class Agent:
         emit = getattr(self, "on_event", None)
 
         def one(i, c):
+            self._check()
             name = c["function"]["name"]
             args, t0, hit = {}, time.time(), False
             if emit:

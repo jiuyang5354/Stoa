@@ -29,7 +29,8 @@ ASSETS = Path(__file__).parent / "assets"
 ASSET_TYPES = {"bust.glb": "model/gltf-binary", "archeologicaps.woff2": "font/woff2",
                **{f: "font/woff2" for f in ("optimus-princeps.woff2", "optimus-princeps-semibold.woff2", "libertine-regular.woff2",
                                             "libertine-bold.woff2", "libertine-italic.woff2", "alte-haas-grotesk.woff2", "alte-haas-grotesk-bold.woff2")},
-               "travertine009_color.jpg": "image/jpeg", "travertine009_normal.jpg": "image/jpeg", "travertine009_roughness.jpg": "image/jpeg"}
+               "travertine009_color.jpg": "image/jpeg", "travertine009_normal.jpg": "image/jpeg", "travertine009_roughness.jpg": "image/jpeg",
+               "three.module.min.js": "text/javascript; charset=utf-8"}  # 本地带一份 three.js，国内网不用连 CDN
 
 
 def log(*a):
@@ -92,8 +93,12 @@ def chat(channel: str, text: str, model: str | None = None, on_event=None) -> st
             s = SESSIONS[channel] = {"agent": Agent(MEM, channel=kind, session=f"web-{sid}" if kind == "web" and sid else None)}
         s["last"] = time.time()
         lock = s.setdefault("lock", threading.Lock())
+        stop = s["stop"] = threading.Event()  # 每个请求一个停止开关；/api/chat/stop 按下它
     with lock:
         ag = s["agent"]
+        if stop.is_set():
+            return "已停止。"
+        ag._stop = stop
         if model:  # 对话框里选的模型：只换这个对话的主模型，不改全局设置
             try:
                 ag.llm.chain[0].model = model
@@ -382,6 +387,14 @@ class Web(BaseHTTPRequestHandler):
         if not self._auth():
             return self._send(401, {"error": "token"})
         path = self.path.split("?")[0]
+        if path == "/api/chat/stop":
+            body = self._body()
+            sid = re.sub(r"[^A-Za-z0-9_-]", "", str(body.get("session", "default")))[:40] or "default"
+            s = SESSIONS.get("web:" + sid) or {}
+            ev = s.get("stop")
+            if ev is not None:
+                ev.set()
+            return self._send(200, {"ok": True, "running": bool(s.get("lock") and s["lock"].locked())})
         if path == "/api/chat":
             body = self._body()
             if not llm_ready():  # 没配模型：不报错、不弹窗，前端直接打开「设置 → 模型」
@@ -391,7 +404,8 @@ class Web(BaseHTTPRequestHandler):
             def payload(reply):
                 meta = getattr((SESSIONS.get("web:" + sid) or {}).get("agent"), "last_meta", None) or {}
                 return {"reply": reply, "sources": meta.get("sources") or [], "verify": meta.get("verify"), "debate": meta.get("debate"), "cards": meta.get("cards"),
-                        "compressed": meta.get("compressed"), "archived": meta.get("archived") or 0, "steps": meta.get("steps") or []}
+                        "compressed": meta.get("compressed"), "archived": meta.get("archived") or 0, "steps": meta.get("steps") or [],
+                        "stopped": bool(meta.get("stopped"))}
             text = str(body.get("text", ""))[:4000]
             if not body.get("stream"):
                 return self._send(200, payload(chat("web:" + sid, text, model)))

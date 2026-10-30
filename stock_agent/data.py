@@ -1,5 +1,6 @@
-"""行情数据：可插拔多数据源（DATA_PROVIDERS），默认 Yahoo Finance → 东方财富 → 昨收兜底。"""
+"""行情数据：可插拔多数据源（DATA_PROVIDERS），默认 腾讯证券 → 东方财富 → Yahoo Finance → 昨收兜底（国内网络可直连）。"""
 import os
+import re
 import time
 import warnings
 
@@ -20,9 +21,10 @@ def _eastmoney_secid(symbol: str) -> str | None:
     if s.endswith(".HK"):
         code = s[:-3]
         return f"124.{code}" if not code.isdigit() else f"116.{code.zfill(5)}"
-    if s == "^HSI":
-        return "100.HSI"
-    return None
+    return EM_INDEX.get(s)
+
+
+EM_INDEX = {"^HSI": "100.HSI", "^GSPC": "100.SPX", "^IXIC": "100.NDX", "^DJI": "100.DJIA", "^N225": "100.N225"}
 
 
 def _eastmoney_closes(symbol: str, limit: int = 260) -> pd.Series | None:
@@ -58,7 +60,7 @@ def _prev_close_series(symbol: str) -> pd.Series | None:
 
 
 # ---------------- 可插拔行情源 ----------------
-# DATA_PROVIDERS 按顺序尝试，默认 yahoo,eastmoney。代码统一用 Yahoo 格式（600519.SS / 000001.SZ / 0700.HK / AAPL / ^GSPC），
+# DATA_PROVIDERS 按顺序尝试，默认 tencent,eastmoney,yahoo。代码统一用 Yahoo 格式（600519.SS / 000001.SZ / 0700.HK / AAPL / ^GSPC），
 # 各家自己的代码格式在下面转换。拿到不少于 MIN_ROWS 天就停，都不够时用最长的那份，最后用昨收兜底。
 A_INDEX = {"000001.SS", "000300.SS", "000016.SS", "000688.SS", "000905.SS", "000852.SS", "399001.SZ", "399006.SZ", "399005.SZ"}
 
@@ -190,6 +192,62 @@ def p_eastmoney(symbol, days):
     return _eastmoney_closes(symbol, max(days, 30))
 
 
+# ---- 腾讯证券：A股 / 港股 / 美股 / 主要指数日线都有，国内直连、不用密钥，默认第一个试 ----
+TX_INDEX = {"^HSI": "hkHSI", "^GSPC": "usINX", "^IXIC": "usIXIC", "^DJI": "usDJI", "^NDX": "usNDX"}
+_TX_US: dict[str, str] = {}
+
+
+def _tx_json(url: str, tries: int = 3):
+    """腾讯接口偶尔回空包，重试几次。"""
+    for i in range(tries):
+        try:
+            r = requests.get(url, headers={"User-Agent": "Mozilla/5.0", "Referer": "https://gu.qq.com/"}, timeout=8)
+            if r.text.strip().startswith("{"):
+                return r.json()
+        except Exception:
+            pass
+        time.sleep(0.4 * (i + 1))
+    return None
+
+
+def _tx_code(symbol: str) -> list[str]:
+    s = symbol.upper()
+    if s in TX_INDEX:
+        return [TX_INDEX[s]]
+    mkt, code = _split(s)
+    code = code.replace("-", ".") if mkt == "us" else code  # Yahoo 的 BRK-B = 腾讯的 BRK.B
+    if mkt in ("sh", "sz"):
+        return [mkt + code]
+    if mkt == "hk":
+        return ["hk" + (code.zfill(5) if code.isdigit() else code)]
+    if mkt == "us" and re.fullmatch(r"[A-Z][A-Z0-9.\-]{0,9}", code):
+        if code in _TX_US:
+            return [_TX_US[code]]
+        try:  # 腾讯美股代码要带交易所后缀（AAPL.OQ / JPM.N），先问它的搜索框
+            r = requests.get("https://smartbox.gtimg.cn/s3/", params={"v": 2, "q": code, "t": "us"}, timeout=6)
+            m = re.search(r"us~([a-z0-9.\-]+\.(?:oq|n|am))~", r.text)
+            if m:
+                return ["us" + m.group(1).upper()]
+        except Exception:
+            pass
+        return ["us" + code + x for x in (".OQ", ".N", ".AM")]
+    return []
+
+
+def p_tencent(symbol, days):
+    n = min(max(days + 5, 30), 640)
+    for code in _tx_code(symbol):
+        api = "usfqkline/get" if code.startswith("us") else "fqkline/get"
+        j = _tx_json(f"https://web.ifzq.gtimg.cn/appstock/app/{api}?param={code},day,,,{n},qfq")
+        node = ((j or {}).get("data") or {}).get(code)
+        rows = ((node.get("qfqday") or node.get("day")) if isinstance(node, dict) else None)
+        if rows:
+            if code.startswith("us") and "." in code[2:]:
+                _TX_US[_split(symbol)[1].replace("-", ".")] = code
+            return _series([(r[0], r[2]) for r in rows if len(r) > 2], symbol)
+    return None
+
+
 def p_custom(symbol, days):
     """自建接口：DATA_CUSTOM_URL 里用 {symbol} {days} 占位，返回 [{"date": "...", "close": ...}] 或 {"data": [...]}。"""
     url = os.getenv("DATA_CUSTOM_URL")
@@ -201,7 +259,7 @@ def p_custom(symbol, days):
     return _series([(x.get("date"), x.get("close")) for x in rows or []], symbol)
 
 
-PROVIDERS = {"tushare": p_tushare, "finnhub": p_finnhub, "alphavantage": p_alphavantage, "polygon": p_polygon,
+PROVIDERS = {"tencent": p_tencent, "tushare": p_tushare, "finnhub": p_finnhub, "alphavantage": p_alphavantage, "polygon": p_polygon,
              "twelvedata": p_twelvedata, "tiingo": p_tiingo, "fmp": p_fmp, "eastmoney": p_eastmoney, "custom": p_custom}
 PERIOD_DAYS = {"1mo": 22, "3mo": 66, "6mo": 126, "1y": 252, "2y": 504, "5y": 1260}
 
@@ -223,13 +281,20 @@ def _yahoo(symbols: list[str], period: str) -> dict[str, pd.Series]:
     return out
 
 
-SOURCE_NAMES = {"eastmoney": "东方财富", "tushare": "Tushare", "finnhub": "Finnhub", "alphavantage": "Alpha Vantage", "polygon": "Polygon",
+SOURCE_NAMES = {"tencent": "腾讯证券", "eastmoney": "东方财富", "tushare": "Tushare", "finnhub": "Finnhub", "alphavantage": "Alpha Vantage", "polygon": "Polygon",
                 "twelvedata": "Twelve Data", "tiingo": "Tiingo", "fmp": "FMP", "custom": "自定义数据源"}
 
 
 def provider_order() -> list[str]:
-    names = [x.strip().lower() for x in os.getenv("DATA_PROVIDERS", "yahoo,eastmoney").split(",") if x.strip()]
-    return [n for n in names if n == "yahoo" or n in PROVIDERS] or ["yahoo", "eastmoney"]
+    # 默认国内源优先（国内网络直连），Yahoo 放最后兜底；海外用户可设 DATA_PROVIDERS=yahoo,tencent,eastmoney
+    raw = os.getenv("DATA_PROVIDERS", "").replace(" ", "").lower()
+    if raw in ("", "yahoo,eastmoney"):  # 旧版默认值（很多人 .env 里照抄了）按新默认处理
+        raw = DEFAULT_ORDER
+    names = [x for x in raw.split(",") if x]
+    return [n for n in names if n == "yahoo" or n in PROVIDERS] or DEFAULT_ORDER.split(",")
+
+
+DEFAULT_ORDER = "tencent,eastmoney,yahoo"
 
 
 def fetch_closes(symbols: list[str], period: str = "1y") -> dict[str, pd.Series]:
@@ -252,11 +317,15 @@ def fetch_closes(symbols: list[str], period: str = "1y") -> dict[str, pd.Series]
             for s, ser in _yahoo(todo, period).items():
                 keep(s, ser, "Yahoo Finance")
             continue
-        for s in todo:
+        def get(s, fn=PROVIDERS[name]):
             try:
-                keep(s, PROVIDERS[name](s, days), SOURCE_NAMES.get(name, name))
+                return fn(s, days)
             except Exception:
-                pass
+                return None
+        from concurrent.futures import ThreadPoolExecutor
+        with ThreadPoolExecutor(min(6, len(todo))) as ex:  # 多只标的并行取，指数栏一次十几只也很快
+            for s, ser in zip(todo, ex.map(get, todo)):
+                keep(s, ser, SOURCE_NAMES.get(name, name))
     for s in symbols:
         if len(best.get(s, [])) < 2:
             keep(s, _prev_close_series(s), "Yahoo 报价（仅昨收）")
