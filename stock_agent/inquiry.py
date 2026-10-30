@@ -93,10 +93,10 @@ def _log(st: dict, msg: str):
 
 
 def _meta(text: str) -> dict:
-    m = META_RE.search(text or "")
-    if not m:
+    ms = META_RE.findall(text or "")
+    if not ms:
         return {}
-    raw = re.sub(r"\[\d+\]", "", m.group(1)).strip()
+    raw = re.sub(r"\[\d+\]", "", ms[-1]).strip()
     try:
         return json.loads(raw[raw.index("{"):raw.rindex("}") + 1])
     except Exception:

@@ -760,7 +760,7 @@ class Agent:
             if not calls:
                 reply = msg.get("content") or ""
                 if "<<<META" in reply:  # 研究课题要的结构化尾巴：拿走，不参与引用核对、不给用户看
-                    reply, _, tail = reply.partition("<<<META")
+                    reply, _, tail = reply.rpartition("<<<META")  # 取最后一个：正文里可能引用到旧记录中的模板
                     self.last_tail = "<<<META" + tail
                     reply = reply.rstrip()
                 v = cite.verify(reply, self.sources)

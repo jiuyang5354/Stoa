@@ -436,10 +436,10 @@
   @media(max-width:560px){.temple{inset:6px}.chips{grid-template-columns:1fr}.chip:nth-child(odd){border-right:0}.chip:nth-child(even){padding-left:2px}h1{font-size:22px}}
 
   /* ---------- 研究课题 Inquisitio（参考 21st Agent Plan / Process Timeline：竖线进度 + 状态节点 + 展开笔记） ---------- */
-  .inq{position:relative;background:var(--ivory);border:1px solid rgba(176,146,89,.55);padding:18px 22px 16px;font:13px/1.6 var(--sans);color:var(--ink-2);animation:rise .45s var(--ease) both;max-width:640px}
-  .inq header{display:flex;align-items:baseline;gap:12px}
-  .inq header .agt{font:500 15px/1 var(--display);letter-spacing:.34em;color:var(--ink)}
-  .inq header em{font:italic 15px/1.35 var(--serif);color:var(--ink);flex:1;min-width:0}
+  .inq{white-space:normal;position:relative;background:var(--ivory);border:1px solid rgba(176,146,89,.55);padding:18px 22px 16px;font:13px/1.6 var(--sans);color:var(--ink-2);animation:rise .45s var(--ease) both;max-width:640px}
+  .inq .ih{display:flex;align-items:baseline;gap:12px}
+  .inq .ih .agt{font:500 15px/1 var(--display);letter-spacing:.34em;color:var(--ink)}
+  .inq .ih em{font:italic 15px/1.35 var(--serif);color:var(--ink);flex:1;min-width:0}
   .inq .st{font:500 8.5px var(--sans);letter-spacing:.18em;text-transform:uppercase;color:var(--mute);white-space:nowrap}
   .inq .st.run{color:var(--bronze)}.inq .st.run::before{content:'';display:inline-block;width:5px;height:5px;border-radius:50%;background:var(--bronze);margin-right:6px;vertical-align:1px;animation:pulse 1.6s ease-in-out infinite}
   .inq .st.done{color:var(--olive)}.inq .st.error{color:var(--terracotta)}
@@ -453,12 +453,12 @@
   .inq .hl{margin:12px 0 2px;font:italic 17px/1.45 var(--serif);color:var(--ink);animation:rise .5s var(--ease) both}
   .iql{list-style:none;margin:12px 0 0;padding:0;position:relative}
   .iql::before{content:'';position:absolute;left:5px;top:8px;bottom:8px;border-left:1px solid var(--rule)}
-  .iql li{position:relative;padding:3px 0 3px 22px;animation:stepin .4s var(--ease) both;animation-delay:calc(var(--i,0) * 40ms)}
+  .inq .iql li{margin:0;font-size:13px;position:relative;padding:3px 0 3px 22px;animation:stepin .4s var(--ease) both;animation-delay:calc(var(--i,0) * 40ms)}
   .iql li>button{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;width:100%;border:0;background:transparent;text-align:left;padding:2px 0;cursor:pointer;font:13px/1.5 var(--cn);color:var(--ink-2)}
   .iql li>button:disabled{cursor:default}
   .iql li>button:not(:disabled):hover span{color:var(--ink)}
   .iql li>button small{font:italic 12px var(--serif);color:var(--mute);white-space:nowrap;font-variant-numeric:tabular-nums}
-  .iql li::before{content:'';position:absolute;left:1px;top:9px;width:9px;height:9px;border-radius:50%;border:1px solid var(--rule-2);background:var(--ivory);transition:background .4s,border-color .4s,transform .4s var(--spring)}
+  .inq .iql li::before{content:'';color:inherit;position:absolute;left:1px;top:9px;width:9px;height:9px;border-radius:50%;border:1px solid var(--rule-2);background:var(--ivory);transition:background .4s,border-color .4s,transform .4s var(--spring)}
   .iql li.done::before{background:var(--bronze);border-color:var(--bronze)}
   .iql li.doing::before{border-color:var(--bronze);box-shadow:0 0 0 0 rgba(176,146,89,.5);animation:ring 1.8s ease-out infinite}
   @keyframes ring{0%{box-shadow:0 0 0 0 rgba(176,146,89,.45)}100%{box-shadow:0 0 0 7px rgba(176,146,89,0)}}
@@ -470,7 +470,7 @@
   .iql .ans{display:grid;grid-template-rows:0fr;transition:grid-template-rows .45s var(--ease)}
   .iql li.open .ans{grid-template-rows:1fr}
   .iql .ans>div{overflow:hidden;min-height:0}
-  .iql .ans>div>div{margin:6px 0 10px;padding:10px 12px;border-left:1px solid var(--gold);background:rgba(176,146,89,.06);font:12.5px/1.7 var(--sans);white-space:pre-wrap;opacity:0;transform:translateY(-4px);transition:opacity .35s .08s,transform .45s var(--ease)}
+  .iql .ans>div>div{margin:6px 0 10px;padding:10px 12px;border-left:1px solid var(--gold);background:rgba(176,146,89,.06);font:12.5px/1.7 var(--sans);white-space:pre-wrap;max-height:420px;overflow:auto;opacity:0;transform:translateY(-4px);transition:opacity .35s .08s,transform .45s var(--ease)}
   .iql li.open .ans>div>div{opacity:1;transform:none}
   .inq .acts{display:flex;gap:6px;margin-top:14px;flex-wrap:wrap}
   .inq .acts .x.pri{background:var(--ink);color:var(--chalk);border-color:var(--ink)}
@@ -478,8 +478,8 @@
   .inqd .rep{margin-top:6px}
   .inqd .fu{border-left:1px solid var(--gold);padding:2px 0 2px 12px;margin:8px 0}
   .inqd .fu b{font:500 8.5px var(--sans);letter-spacing:.16em;color:var(--bronze)}
-  .inqd .tk{display:grid;grid-template-columns:auto 1fr;gap:4px 14px;font-size:12.5px}
-  .inqd .tk dt{color:var(--ink)}.inqd .tk dd{margin:0;color:var(--mute)}
+  .inqd .iqtk{display:grid;grid-template-columns:max-content 1fr;gap:6px 18px;font-size:12.5px}
+  .inqd .iqtk b{font-weight:500;color:var(--ink)}.inqd .iqtk span{color:var(--mute)}
   .evl li.iq{cursor:pointer}.evl li.iq:hover{background:rgba(176,146,89,.08)}
   .evl li.iq .bar{display:block;height:1px;background:var(--rule);margin-top:6px}.evl li.iq .bar i{display:block;height:1px;background:var(--gold);transition:width .8s var(--ease)}
   /* ---------- 交互细节：退场动画、按压反馈、键盘焦点、回到最新 ---------- */
@@ -2672,7 +2672,7 @@ function iqCard(j, full){
   const run = IQRUN.has(sm.status);
   const li = (q, i) => `<li class="${q.status}${q.depth ? ' sub' : ''}${full && q.status === 'done' && i === 0 ? '' : ''}" style="--i:${i}" data-q="${esc(q.id)}"><button type="button" ${q.status === 'done' || q.status === 'error' ? '' : 'disabled'}><span>${esc(q.text)}${q.strength ? `<span class="sg">证据${esc(q.strength)}</span>` : ''}</span><small>${q.status === 'doing' ? '进行中' : q.status === 'done' ? fmtS(q.secs) : q.status === 'skipped' ? '跳过' : q.status === 'error' ? '出错' : ''}</small></button>${q.answer ? `<div class="ans"><div><div></div></div></div>` : ''}</li>`;
   return `<div class="inq" data-iq="${esc(sm.id)}">
-    <header><span class="agt">INQUISITIO</span><em>${esc(sm.goal)}</em><span class="st ${run ? 'run' : sm.status}">${IQS[sm.status] || sm.status}</span></header>
+    <div class="ih"><span class="agt">INQUISITIO</span><em>${esc(sm.goal)}</em><span class="st ${run ? 'run' : sm.status}">${IQS[sm.status] || sm.status}</span></div>
     <div class="bar"><i class="${run ? 'run' : ''}" style="width:${run && !pct ? 3 : pct}%"></i></div>
     <div class="meta"><span><b>${sm.done}</b> / ${sm.total || '—'} 个子问题</span><span>${fmtS(sm.elapsed_s)} / ${sm.minutes} 分</span>${sm.symbols && sm.symbols.length ? `<span>${esc(sm.symbols.join(' · '))}</span>` : ''}</div>
     ${sm.one_line ? `<div class="hl">${esc(sm.one_line)}</div>` : sm.current ? `<div class="meta" style="margin-top:8px">正在查：${esc(sm.current)}</div>` : sm.error ? `<div class="meta" style="margin-top:8px;color:var(--terracotta)">${esc(sm.error)}</div>` : ''}
@@ -2686,7 +2686,7 @@ function iqBind(box, j, full){
     const b = li.querySelector('button'); if (!b || b.disabled) return;
     b.onclick = () => {
       const q = qs[li.dataset.q], slot = li.querySelector('.ans>div>div');
-      if (slot && !slot.dataset.on) { slot.dataset.on = 1; render(slot, q.answer || '', 7); slot.style.whiteSpace = 'normal'; }
+      if (slot && !slot.dataset.on) { slot.dataset.on = 1; plainRender(slot, q.answer || ''); }
       li.classList.toggle('open');
     };
   });
@@ -2700,6 +2700,11 @@ function iqBind(box, j, full){
     if (a === 'delete') { animHide($('evx')); loadInquiries(); return; }
     setTimeout(() => { full ? openInquiry(id, true) : null; loadInquiries(); IQW.forEach(w => w.id === id && w.tick()); }, 400);
   });
+}
+/* 课题笔记：带角标和来源，但不要首字花饰和红笔批注（那是对话回答的仪式感） */
+function plainRender(out, text){
+  const c = splitCites(String(text || '').replace(/\[\[(?:cards|debate):[^\]]+\]\]/g, ''));
+  out.innerHTML = citeHTML(md(c.text.trim()), c.src) + srcList(c.src); bindCites(out, c.src);
 }
 const IQW = new Set();
 /* 聊天里的实时卡片：5 秒一刷；结构没变就只更新进度条和数字，节点不重绘，动画不打断 */
@@ -2726,7 +2731,7 @@ function watchInquiry(id, out){
 async function startInquiry(arg){
   if (!arg) { openLdg(); setTimeout(() => $('iqsec').scrollIntoView({behavior: 'smooth', block: 'start'}), 260); return; }
   add('u', `<span class="ucmd">/research</span>${esc(arg)}`);
-  const out = add('a', `<div class="inq"><header><span class="agt">INQUISITIO</span><em>${esc(arg)}</em><span class="st run">拆题</span></header><div class="bar"><i class="run" style="width:3%"></i></div></div>`);
+  const out = add('a', `<div class="inq"><div class="ih"><span class="agt">INQUISITIO</span><em>${esc(arg)}</em><span class="st run">拆题</span></div><div class="bar"><i class="run" style="width:3%"></i></div></div>`);
   let j; try { j = await (await fetch('/api/inquiries', {method: 'POST', headers: H, body: JSON.stringify({goal: arg})})).json(); } catch (e) { out.textContent = '开题失败：' + e; return; }
   if (j.need_model) { out.textContent = '还没配置大模型。'; openSettings('model'); return; }
   if (j.error) { out.textContent = j.error; return; }
@@ -2745,16 +2750,16 @@ async function loadInquiries(){
 async function openInquiry(id, keep){
   let j; try { j = await (await fetch('/api/inquiries/' + encodeURIComponent(id), {headers: H})).json(); } catch (_) { return; }
   if (!j || j.error) return;
-  const tk = (j.tracking || []).map(t => `<dt>${esc((t.symbol ? t.symbol + ' ' : '') + (t.metric || ''))}</dt><dd>${esc(t.condition || '')}</dd>`).join('');
+  const tk = (j.tracking || []).map(t => `<b>${esc((t.symbol ? t.symbol + ' ' : '') + (t.metric || ''))}</b><span>${esc(t.condition || '')}</span>`).join('');
   const fus = (j.followups || []).slice().reverse().map(f => `<div class="fu"><b>${esc(f.verdict)}</b> <span class="muted" style="font-size:12px">${esc(f.ts)} · ${esc((f.reasons || []).join('；'))}</span><div>${esc(f.one_line || '')}</div></div>`).join('');
-  $('evw').innerHTML = `<div class="inqd">${iqCard(j, true).replace('<header>', '<header style="border:0;padding:0">')}
+  $('evw').innerHTML = `<div class="inqd">${iqCard(j, true)}
     ${j.report ? `<div class="agsec"><h5>I · Relatio <i>研究报告</i></h5><div class="rep"></div></div>` : ''}
-    ${tk ? `<div class="agsec"><h5>II · Vigilanda <i>跟踪指标与失效条件</i></h5><dl class="tk">${tk}</dl><p class="muted" style="font-size:12px;margin:8px 0 0">${j.alerts && j.alerts.length ? `已设 ${j.alerts.length} 条价格提醒 · ` : ''}${(j.watch || {}).on ? `下次复查 ${esc((j.next_check || '新财报或失效触发时').slice(0, 16))}` : '未跟踪'}</p></div>` : ''}
+    ${tk ? `<div class="agsec"><h5>II · Vigilanda <i>跟踪指标与失效条件</i></h5><div class="iqtk">${tk}</div><p class="muted" style="font-size:12px;margin:8px 0 0">${j.alerts && j.alerts.length ? `已设 ${j.alerts.length} 条价格提醒 · ` : ''}${(j.watch || {}).on ? `下次复查 ${esc((j.next_check || '新财报或失效触发时').slice(0, 16))}` : '未跟踪'}</p></div>` : ''}
     ${fus ? `<div class="agsec"><h5>III · Iterum <i>续研记录</i></h5>${fus}</div>` : ''}
     <div class="evfoot">仅供参考，不构成投资建议 · Non consilium, sed observatio</div></div>`;
   const box = $('evw').querySelector('.inq'); iqBind(box, j, true);
   box.insertAdjacentHTML('afterbegin', `<button class="sclose" id="evc" aria-label="关闭" style="position:absolute;right:-18px;top:-18px">×</button>`);
-  const rep = $('evw').querySelector('.rep'); if (rep) render(rep, j.report, 11);
+  const rep = $('evw').querySelector('.rep'); if (rep) plainRender(rep, j.report);
   if (!keep) $('evw').scrollTop = 0;
   $('evx').hidden = false; $('evc').onclick = () => animHide($('evx'));
 }
