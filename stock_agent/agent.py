@@ -24,6 +24,9 @@ SYSTEM = """你是「Stoa」，用户的长期股市助手，覆盖 A股、港�
 
 原则：
 - 行情数字必须来自工具结果，不编造。不知道就说不知道。
+- 数字硬算：占比、增速、差额、倍数、利润率、涨跌空间这类派生数字不要心算，一律用 calc 算（把工具里的原始数字作为 variables 传进去），回答引用 calc 的结果。
+  问支撑阻力/关键价位 → price_levels；问利润结构、钱花在哪、收入到净利怎么变 → financial_bridge；期权组合盈亏 → option_payoff；
+  用户给了入场/止损/目标想知道胜算 → trade_replay（历史波动压力测试，不是预测）。这几个工具会在回答下方自动画图，不用在文字里重复所有数字。
 - 可以给出你的判断和理由，但每次给出明确的方向性判断（看涨/看跌/区间）时，调用 record_call 记账，方便日后复盘。
 - 问「为什么涨/跌」「发生了什么」：先 get_news 和 get_announcements，必要时 web_search + fetch_url 读原文，再结合行情回答。问估值、基本面、能不能买：先 get_financials。
 - 引用新闻、公告、财报时注明来源和日期，关键结论附原文链接；查不到就直说，不要拿走势硬编理由。
@@ -147,6 +150,17 @@ TOOLS = [
                     "required": ["symbol", "view", "horizon_days", "reason"]}},
     {"name": "run_python", "description": "在隔离沙箱里运行一段 Python 做自定义分析（已装 pandas、yfinance、numpy）。用 print 输出结果；可以在当前目录读写文件，文件会保留。超时 60 秒。",
      "parameters": {"type": "object", "properties": {"code": {"type": "string"}}, "required": ["code"]}},
+    {"name": "calc", "description": "确定性计算器：expressions 是一个表达式或 {名字: 表达式}（可引用前面算出的名字），variables 传原始数字。支持 + - * / ** %、括号、abs round min max sum sqrt log exp，以及 pct(a,b)=a相对b变化%、share(a,b)=a占b的%、cagr(末值,初值,年数)。",
+     "parameters": {"type": "object", "properties": {"expressions": {"description": "表达式字符串，或 {名字: 表达式}"}, "variables": {"type": "object"}}, "required": ["expressions"]}},
+    {"name": "price_levels", "description": "按历史收盘价算支撑位和阻力位（摆动点聚类，带触碰次数和距现价%），并在回答下方画走势图标出这些价位。",
+     "parameters": {"type": "object", "properties": {"symbol": {"type": "string"}, "days": {"type": "integer", "description": "回看交易日数，默认 250"}}, "required": ["symbol"]}},
+    {"name": "financial_bridge", "description": "最近一期利润瀑布：营收 → 营业成本 → 毛利 → 费用 → 净利（A股东方财富累计口径，港美股 Yahoo 单季），附毛利率/净利率/同比，并画瀑布图。差额全部代码计算。",
+     "parameters": {"type": "object", "properties": {"symbol": {"type": "string"}}, "required": ["symbol"]}},
+    {"name": "option_payoff", "description": "期权/正股组合到期收益：legs 每条 {type: call/put/stock, side: long/short, strike, premium, qty}，spot 现价，multiplier 合约乘数（默认 1=按每股）。返回盈亏平衡点、最大盈亏，并画收益曲线。",
+     "parameters": {"type": "object", "properties": {"legs": {"type": "array", "items": {"type": "object"}}, "spot": {"type": "number"}, "multiplier": {"type": "number"}}, "required": ["legs", "spot"]}},
+    {"name": "trade_replay", "description": "行情重放（时光机）：用该股近几年日收益 5 日分块重抽样，模拟上万条未来路径，算这个交易计划先碰目标/先碰止损/都没碰的概率、收益分布和期望 R，并画路径扇形图。entry 默认现价；适合用户给了止损和目标价时做压力测试。",
+     "parameters": {"type": "object", "properties": {"symbol": {"type": "string"}, "entry": {"type": "number"}, "stop": {"type": "number"}, "target": {"type": "number"},
+                                                     "horizon": {"type": "integer", "description": "持有交易日，默认 20"}, "years": {"type": "integer", "description": "用几年历史，默认 3"}}, "required": ["symbol", "stop", "target"]}},
     {"name": "call_stats", "description": "判断账本统计：总体准确率，按方向、市场、周期拆开的准确率，最近 10 次对错，短板。", "parameters": {"type": "object", "properties": {}}},
     {"name": "alert_set", "description": "设一个提醒，触发后推送到用户开的渠道。kind：above 涨到某价、below 跌到某价、up 单日涨超某百分比、down 单日跌超某百分比（填正数）、announcement 有新公告。默认触发一次就关，repeat=true 则每天最多提醒一次。",
      "parameters": {"type": "object", "properties": {"symbol": {"type": "string"}, "name": {"type": "string"},
@@ -166,6 +180,7 @@ TOOLS = [
 ADVICE_RE = re.compile(r"推荐|稳赚|翻倍|杠杆|融资|借钱|all ?in|满仓|梭哈|期权|该不该|能不能买|能买吗|可以买|值得买|买入|卖出|加仓|减仓|抄底|收益|保本", re.I)
 EVENT_TOOLS = {"get_corporate_events", "get_chips", "get_market_mood", "get_insiders", "get_short_volume"}
 DEEP_TOOLS = EVENT_TOOLS | {"get_fund_flow", "get_northbound", "get_dragon_tiger", "get_consensus", "get_intraday", "get_options", "read_filing", "compare_filings"}
+QUANT_TOOLS = {"calc", "price_levels", "financial_bridge", "option_payoff", "trade_replay"}
 BIG_TOOLS = {"read_filing", "compare_filings", "get_consensus", "get_dragon_tiger"}  # 结果允许更长
 
 
@@ -177,7 +192,8 @@ TOOL_LABELS = {"get_quotes": "查行情", "market_overview": "看大盘", "get_n
                "earnings_calendar": "查财报日", "earnings_report": "写财报研报", "watchlist": "改自选", "record_call": "记账", "run_python": "跑代码",
                "call_stats": "看战绩", "alert_set": "设提醒", "alert_list": "看提醒", "alert_delete": "删提醒", "skill_view": "读技能",
                "skill_save": "存技能", "skill_delete": "删技能", "get_corporate_events": "查公司事件", "get_chips": "看筹码两融",
-               "get_market_mood": "看市场情绪", "get_insiders": "查内部人交易", "get_short_volume": "看做空"}
+               "get_market_mood": "看市场情绪", "calc": "硬算数字", "price_levels": "算支撑阻力", "financial_bridge": "拆利润结构",
+               "option_payoff": "算期权收益", "trade_replay": "行情重放", "get_insiders": "查内部人交易", "get_short_volume": "看做空"}
 
 
 def _arg_brief(raw) -> str:
@@ -468,6 +484,21 @@ class Agent:
             return alerts.remove(args["id"])
         if name == "run_python":
             return sandbox.run_python(args["code"])
+        if name in QUANT_TOOLS:
+            from . import quant
+            try:
+                if name == "calc":
+                    return quant.calc(args.get("expressions"), args.get("variables"))
+                if name == "price_levels":
+                    return quant.price_levels(args["symbol"], int(args.get("days") or 250))
+                if name == "financial_bridge":
+                    return quant.financial_bridge(args["symbol"])
+                if name == "option_payoff":
+                    return quant.option_payoff(args.get("legs") or [], float(args.get("spot") or 0), float(args.get("multiplier") or 1))
+                return quant.trade_replay(args["symbol"], args.get("entry"), args.get("stop"), args.get("target"),
+                                          int(args.get("horizon") or 20), years=int(args.get("years") or 3))
+            except Exception as e:
+                return {"error": f"{name} 计算失败：{str(e)[:120]}"}
         return f"未知工具 {name}"
 
     def consolidate(self, target: str) -> str:
@@ -706,6 +737,8 @@ class Agent:
             results = self._run_calls(calls, on_tool)
             for c, result in zip(calls, results):
                 name = c["function"]["name"]
+                if name in QUANT_TOOLS and isinstance(result, dict):  # 画图用的点阵只进卡片，不占模型上下文
+                    result = {k: v for k, v in result.items() if k not in ("points", "fan", "sample")}
                 # 工具结果按剩余预算收缩（结构化：保留 _cite / url / 来源 / 时间，不从 JSON 中间硬切）
                 left = self.budget() - context.total(self.messages)
                 cap = 9000 if name in BIG_TOOLS else 6000

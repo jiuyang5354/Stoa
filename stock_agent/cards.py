@@ -12,7 +12,8 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 CN_TZ = timezone(timedelta(hours=8))
-CARD_TOOLS = {"get_fund_flow", "get_northbound", "get_dragon_tiger", "get_consensus", "get_intraday", "get_options", "read_filing", "compare_filings", "get_quotes"}
+CARD_TOOLS = {"get_fund_flow", "get_northbound", "get_dragon_tiger", "get_consensus", "get_intraday", "get_options", "read_filing", "compare_filings", "get_quotes",
+              "price_levels", "financial_bridge", "option_payoff", "trade_replay"}
 
 
 def cards_dir() -> Path:
@@ -76,6 +77,24 @@ def build(tool: str, args: dict, r) -> list[dict]:
         pick = lambda xs: [{"page": x.get("page") or x.get("page_b"), "url": x.get("url"), "text": (x.get("text") or x.get("after") or "")[:150], "cite": x.get("_cite")} for x in (xs or [])[:3]]
         c.update(year_a=r.get("year_a"), year_b=r.get("year_b"), section=r.get("section_name"), counts=r.get("counts"), ratio=r.get("unchanged_ratio"),
                  added=pick(r.get("added")), removed=pick(r.get("removed")))
+        return [c]
+    if tool == "price_levels":
+        c = _base(r, "levels")
+        c.update(last=r.get("last"), supports=r.get("supports"), resistances=r.get("resistances"), points=r.get("points"))
+        return [c]
+    if tool == "financial_bridge":
+        c = _base(r, "bridge")
+        c.update(name=r.get("name"), period=r.get("period"), steps=r.get("steps"), ratios=r.get("ratios"), currency=r.get("currency"))
+        return [c] if r.get("steps") else []
+    if tool == "option_payoff":
+        c = _base(r, "payoff")
+        c.update(spot=r.get("spot"), breakevens=r.get("breakevens"), max_profit=r.get("max_profit"), max_loss=r.get("max_loss"),
+                 pnl_at_spot=r.get("pnl_at_spot"), points=r.get("points"), legs=r.get("legs"))
+        return [c]
+    if tool == "trade_replay":
+        c = _base(r, "replay")
+        c.update({k: r.get(k) for k in ("entry", "stop", "target", "n", "horizon", "p_target_first", "p_stop_first", "p_neither",
+                                         "exp_return_pct", "exp_R", "fan", "sample")})
         return [c]
     if tool == "get_quotes":  # 只在交叉校验报警时出卡
         out = []

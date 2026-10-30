@@ -1153,7 +1153,62 @@ function cardQuote(c){
   return `<div class="dc"><h6>报价校验<i>Examen</i><small>${esc(c.symbol)}${csup(c.cite)}</small></h6><table><tr><th>来源</th><th>价格</th></tr>${v.map(([k, x]) => `<tr><td>${esc(k)}</td><td>${N(x)}</td></tr>`).join('')}</table>
     <div class="kv"><span>最大偏差 <b>${N(c.spread, 2)}%</b></span><span>阈值 ${N(c.threshold)}%</span></div>${dcFoot(c)}</div>`;
 }
-const CARD = {flow: cardFlow, consensus: cardConsensus, intraday: cardIntraday, options: cardOptions, north: cardNorth, lhb: cardLhb, filing: cardFiling, compare: cardCompare, quotecheck: cardQuote};
+/* ---------- v0.26 确定性计算卡：支撑阻力 / 利润瀑布 / 期权收益 / 行情重放 ---------- */
+const FT = 'font-family="Alte Haas Grotesk"';
+function bigN(v){ const a = Math.abs(v); return a >= 1e12 ? (v / 1e12).toFixed(2) + '万亿' : a >= 1e8 ? (v / 1e8).toFixed(2) + '亿' : a >= 1e4 ? (v / 1e4).toFixed(1) + '万' : (+v).toFixed(2); }
+function cardLevels(c){
+  const p = c.points || []; if (p.length < 2) return '';
+  const S = c.supports || [], R = c.resistances || [], W = 300, H = 96;
+  const vs = p.map(x => x[1]).concat(S.map(x => x.price), R.map(x => x.price)), a = Math.min(...vs), b = Math.max(...vs), sp = (b - a) || 1;
+  const X = i => 4 + i / (p.length - 1) * (W - 44), Y = v => 6 + (b - v) / sp * (H - 12);
+  const d = p.map((x, i) => `${i ? 'L' : 'M'}${X(i).toFixed(1)} ${Y(x[1]).toFixed(1)}`).join(' ');
+  const ln = (x, col) => `<line x1="0" x2="${W - 40}" y1="${Y(x.price).toFixed(1)}" y2="${Y(x.price).toFixed(1)}" stroke="${col}" stroke-width="${.5 + Math.min(x.touches, 6) * .15}" stroke-dasharray="4 3" opacity=".8"/><text x="${W - 38}" y="${(Y(x.price) + 2.6).toFixed(1)}" font-size="7.5" fill="${col}" ${FT}>${N(x.price, 2)}</text>`;
+  return `<div class="dc wide"><h6>支撑与阻力<i>Limites</i><small>${esc(c.symbol || '')} · 现价 ${N(c.last, 2)}${csup(c.cite)}</small></h6>
+    <svg viewBox="0 0 ${W} ${H + 10}">${R.map(x => ln(x, 'var(--terracotta)')).join('')}${S.map(x => ln(x, 'var(--olive)')).join('')}
+    <path d="${d}" fill="none" stroke="var(--ink)" stroke-width="1.1"/><circle cx="${X(p.length - 1).toFixed(1)}" cy="${Y(p[p.length - 1][1]).toFixed(1)}" r="2" fill="var(--gold)"/>
+    <text x="2" y="${H + 9}" font-size="7.5" fill="var(--mute)" ${FT}>${esc(p[0][0])}</text><text x="${W - 42}" y="${H + 9}" text-anchor="end" font-size="7.5" fill="var(--mute)" ${FT}>${esc(p[p.length - 1][0])}</text></svg>
+    <table><tr><th>阻力</th><th>距现价</th><th>触碰</th><th>支撑</th><th>距现价</th><th>触碰</th></tr>${Array.from({length: Math.max(R.length, S.length)}, (_, i) => `<tr><td>${R[i] ? N(R[i].price, 2) : ''}</td><td>${R[i] ? sgn(R[i].dist_pct) + '%' : ''}</td><td>${R[i] ? R[i].touches : ''}</td><td>${S[i] ? N(S[i].price, 2) : ''}</td><td>${S[i] ? sgn(S[i].dist_pct) + '%' : ''}</td><td>${S[i] ? S[i].touches : ''}</td></tr>`).join('')}</table>${dcFoot(c)}</div>`;
+}
+function cardBridge(c){
+  const st = c.steps || []; if (!st.length) return '';
+  const W = 300, H = 110, bw = (W - 8) / st.length;
+  let run = 0; const bars = st.map(x => { let y0, y1; if (x.kind === 'total') { y0 = 0; y1 = x.value; run = x.value; } else { y0 = run; y1 = run + x.value; run = y1; } return {...x, y0, y1}; });
+  const top = Math.max(...bars.map(x => Math.max(x.y0, x.y1)), 1), lo = Math.min(0, ...bars.map(x => Math.min(x.y0, x.y1))), sp = top - lo;
+  const Y = v => 12 + (top - v) / sp * (H - 24);
+  const rects = bars.map((x, i) => { const yA = Y(Math.max(x.y0, x.y1)), h = Math.max(1, Math.abs(Y(x.y0) - Y(x.y1))), col = x.kind === 'total' ? 'var(--ink)' : x.kind === 'neg' ? 'var(--terracotta)' : 'var(--olive)';
+    return `<rect x="${(6 + i * bw).toFixed(1)}" y="${yA.toFixed(1)}" width="${(bw - 8).toFixed(1)}" height="${h.toFixed(1)}" fill="${col}" opacity="${x.kind === 'total' ? .85 : .7}"/>
+      <text x="${(6 + i * bw + (bw - 8) / 2).toFixed(1)}" y="${(yA - 3).toFixed(1)}" text-anchor="middle" font-size="7.5" fill="var(--ink-2)" ${FT}>${bigN(x.value)}</text>
+      <text x="${(6 + i * bw + (bw - 8) / 2).toFixed(1)}" y="${H + 8}" text-anchor="middle" font-size="7.5" fill="var(--mute)">${esc(x.label)}</text>`; }).join('');
+  const r = Object.entries(c.ratios || {}).filter(([, v]) => v != null);
+  return `<div class="dc wide"><h6>利润瀑布<i>Cascata</i><small>${esc(c.name || c.symbol || '')} · ${esc(c.period || '')}${csup(c.cite)}</small></h6>
+    <svg viewBox="0 0 ${W} ${H + 12}">${rects}</svg>${r.length ? `<div class="kv">${r.map(([k, v]) => `<span>${esc(k.replace('%', ''))} <b>${N(v, 2)}%</b></span>`).join('')}</div>` : ''}${dcFoot(c)}</div>`;
+}
+function cardPayoff(c){
+  const p = c.points || []; if (p.length < 2) return '';
+  const W = 300, H = 90, xs = p.map(x => x[0]), ys = p.map(x => x[1]), x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(0, ...ys), y1 = Math.max(0, ...ys), sy = (y1 - y0) || 1;
+  const X = v => 4 + (v - x0) / (x1 - x0) * (W - 8), Y = v => 6 + (y1 - v) / sy * (H - 12);
+  const d = p.map((x, i) => `${i ? 'L' : 'M'}${X(x[0]).toFixed(1)} ${Y(x[1]).toFixed(1)}`).join(' ');
+  return `<div class="dc"><h6>到期收益<i>Exitus</i><small>现价 ${N(c.spot, 2)}${csup(c.cite)}</small></h6>
+    <svg viewBox="0 0 ${W} ${H + 10}"><line x1="0" x2="${W}" y1="${Y(0)}" y2="${Y(0)}" stroke="var(--mute)" stroke-width=".6"/>
+    <line x1="${X(c.spot)}" x2="${X(c.spot)}" y1="0" y2="${H}" stroke="var(--gold)" stroke-dasharray="3 3" stroke-width=".8"/>
+    <path d="${d}" fill="none" stroke="var(--ink)" stroke-width="1.3"/>${(c.breakevens || []).map(b => `<circle cx="${X(b).toFixed(1)}" cy="${Y(0)}" r="2.2" fill="var(--terracotta)"/>`).join('')}
+    <text x="2" y="${H + 9}" font-size="7.5" fill="var(--mute)" ${FT}>${N(x0, 1)}</text><text x="${W - 2}" y="${H + 9}" text-anchor="end" font-size="7.5" fill="var(--mute)" ${FT}>${N(x1, 1)}</text></svg>
+    <div class="kv"><span>盈亏平衡 <b>${(c.breakevens || []).map(b => N(b, 2)).join(' / ') || '—'}</b></span><span>最大盈利 <b>${typeof c.max_profit === 'string' ? esc(c.max_profit) : N(c.max_profit, 2)}</b></span><span>最大亏损 <b>${typeof c.max_loss === 'string' ? esc(c.max_loss) : N(c.max_loss, 2)}</b></span></div>${dcFoot(c)}</div>`;
+}
+function cardReplay(c){
+  const f = c.fan || []; if (f.length < 2) return '';
+  const W = 300, H = 96, all = f.flatMap(x => [x[1], x[3]]).concat([c.stop, c.target, c.entry]), a = Math.min(...all), b = Math.max(...all), sp = (b - a) || 1;
+  const X = i => 4 + i / f.length * (W - 8), Y = v => 6 + (b - v) / sp * (H - 12);
+  const band = `M${X(0)} ${Y(c.entry)} ` + f.map((x, i) => `L${X(i + 1).toFixed(1)} ${Y(x[3]).toFixed(1)}`).join(' ') + ' ' + f.slice().reverse().map((x, i) => `L${X(f.length - i).toFixed(1)} ${Y(x[1]).toFixed(1)}`).join(' ') + 'Z';
+  const sm = (c.sample || []).map(s => `<path d="M${X(0)} ${Y(c.entry)} ${s.map((v, i) => `L${X(i + 1).toFixed(1)} ${Y(v).toFixed(1)}`).join(' ')}" fill="none" stroke="var(--bronze)" stroke-width=".4" opacity=".35"/>`).join('');
+  const med = `M${X(0)} ${Y(c.entry)} ` + f.map((x, i) => `L${X(i + 1).toFixed(1)} ${Y(x[2]).toFixed(1)}`).join(' ');
+  const hl = (v, col, t) => `<line x1="0" x2="${W}" y1="${Y(v).toFixed(1)}" y2="${Y(v).toFixed(1)}" stroke="${col}" stroke-dasharray="4 3" stroke-width=".8"/><text x="${W - 2}" y="${(Y(v) - 2).toFixed(1)}" text-anchor="end" font-size="7.5" fill="${col}" ${FT}>${t} ${N(v, 2)}</text>`;
+  return `<div class="dc wide"><h6>行情重放<i>Machina temporis</i><small>${esc(c.symbol || '')} · ${c.n} 条路径 · ${c.horizon} 个交易日${csup(c.cite)}</small></h6>
+    <svg viewBox="0 0 ${W} ${H + 4}"><path d="${band}" fill="var(--gold)" opacity=".14"/>${sm}<path d="${med}" fill="none" stroke="var(--ink)" stroke-width="1.1"/>
+    ${hl(c.target, 'var(--terracotta)', '目标')}${hl(c.stop, 'var(--olive)', '止损')}${hl(c.entry, 'var(--mute)', '入场')}</svg>
+    <div class="kv"><span>先到目标 <b>${N(c.p_target_first, 1)}%</b></span><span>先到止损 <b>${N(c.p_stop_first, 1)}%</b></span><span>都没到 <b>${N(c.p_neither, 1)}%</b></span><span>期望 <b>${sgn(c.exp_return_pct)}%</b></span>${c.exp_R != null ? `<span>期望 R <b>${N(c.exp_R, 2)}</b></span>` : ''}</div>${dcFoot(c)}</div>`;
+}
+const CARD = {flow: cardFlow, consensus: cardConsensus, intraday: cardIntraday, options: cardOptions, north: cardNorth, lhb: cardLhb, filing: cardFiling, compare: cardCompare, quotecheck: cardQuote, levels: cardLevels, bridge: cardBridge, payoff: cardPayoff, replay: cardReplay};
 async function loadCards(box, src){
   let d; try { d = await (await fetch('/api/cards/' + encodeURIComponent(box.dataset.id), {headers: H})).json(); } catch (e) { box.remove(); return; }
   const html = (d.cards || []).map(c => { try { return (CARD[c.type] || (() => ''))(c); } catch (e) { return ''; } }).join('');
@@ -2501,6 +2556,11 @@ const CMDS = [
   {c: '/risk', a: '', g: '执行模式', d: '按我的持仓列风险清单', t: () => '按我的持仓和自选股列一份风险清单：集中度、止损位、近期事件、需要留意的红线'},
   {c: '/review', a: '', g: '执行模式', d: '复盘已到期的判断', t: () => '复盘判断账本里最近到期的判断：哪些应验、哪些落空、原因是什么'},
   {c: '/brief', a: '', g: '执行模式', d: '现在写一份市场简报', t: () => '写一份现在的市场简报：A股、港股、美股主要指数，今天的要闻，以及和我的自选股相关的事'},
+  {c: '/levels', a: '标的', g: '执行模式', d: '支撑与阻力：按历史价格算关键价位并画图', t: x => `用 price_levels 算 ${x} 的支撑位和阻力位`},
+  {c: '/bridge', a: '标的', g: '执行模式', d: '利润瀑布：营收到净利每一步花在哪', t: x => `拆一下 ${x} 最近一期的利润结构（financial_bridge）`},
+  {c: '/replay', a: '标的 入场 止损 目标', g: '执行模式', d: '行情重放：模拟上万条路径看计划先碰止损还是目标', t: x => `按 trade-replay 技能，给这个计划做行情重放：${x}`},
+  {c: '/research', a: '标的', g: '执行模式', d: '深度研报：业务、利润结构、预期、风险', t: x => `按 equity-deep-dive 技能给 ${x} 写一份深度研报`},
+  {c: '/pulse', a: '标的', g: '执行模式', d: '舆情脉搏：大家在聊什么、资金是否同向', t: x => `按 crowd-pulse 技能看看 ${x} 最近的舆情和资金`},
   {c: '/remember', a: '内容', g: '执行模式', d: '记住一件事（持仓、成本、偏好）', t: x => `记住：${x}`},
   {c: '/alert', a: '标的 条件', g: '执行模式', d: '设提醒，如 /alert 腾讯 跌破 400', t: x => `设一个提醒：${x}`},
   {c: '/new', g: '界面', d: '新对话（先整理这次的记忆）', run: () => newChat()},
