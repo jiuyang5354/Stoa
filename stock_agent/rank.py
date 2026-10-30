@@ -504,7 +504,7 @@ def run_rank(symbols=None, start=None, end=None, step=5, horizons=(20, 5), synth
     pairs = {}
     for h in horizons:
         r0 = results["agent"][str(h)]
-        pairs[str(h)] = {f"agent_vs_{b}": paired(results["agent"], results[b], str(h), r0["nw_lag"], r0["block"]) for b in ("momentum20", "reversal5", "random")}
+        pairs[str(h)] = {f"agent_vs_{b}": paired(results["agent"], results[b], str(h), r0["nw_lag"], r0["block"]) for b in ("momentum20", "reversal5", "random", "momentum60", "lowvol20")}
     out = {"id": run_id, "status": "done", "mode": "rank", "created": datetime.now(CN_TZ).strftime("%Y-%m-%d %H:%M"),
            "params": {"symbols": list(pit.symbols), "requested": list(symbols), "start": f"{start:%Y-%m-%d}", "end": f"{end:%Y-%m-%d}",
                       "step": step, "horizons": horizons, "agent": agent_name, "blind": blind, "events": bool(events), "top_k": TOP_K,
