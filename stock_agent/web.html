@@ -576,6 +576,8 @@
   .gear.hl{right:auto;left:22px}.gear.hl:hover svg{transform:none}
   /* ---- 记忆图谱 · Mnemosyne（参考用户 2026-10-29 给的希腊神祇海报组：旧纸底、拱门里的铜版雕刻、巨大衬线标题、竖排小字、四芒星、月相、月桂、细线框） ---- */
   .gear.hlg{right:auto;left:132px}
+  html.en .sh h3 span{display:none}
+  .gear.lg{right:236px;min-width:40px;justify-content:center;letter-spacing:.12em;font-family:var(--serif),var(--cn);font-size:11px;padding:6px 10px}.gear.lg:hover svg{transform:none}
   .gph{position:fixed;inset:0;z-index:46;background:rgba(24,23,21,.32);animation:fadein .2s ease both;display:flex;align-items:center;justify-content:center}
   .gph[hidden]{display:none}
   .gw{position:relative;width:min(1260px,96vw);height:min(860px,94vh);border:1px solid var(--rule-2);box-shadow:0 30px 80px -30px rgba(24,23,21,.35);display:grid;grid-template-columns:210px 1fr 310px;grid-template-rows:auto 1fr;overflow:hidden;background:#F6F3EC}
@@ -670,7 +672,7 @@
   .hfoot{padding:10px 22px 0;color:var(--mute)}
   .hempty{padding:22px 4px;color:var(--mute);font-size:13px}
   /* 窄栏：顶部按钮收成图标，免得压到标题（必须写在 .gear 规则之后） */
-  @container (max-width:700px){.gear{font-size:0;gap:0;padding:7px 9px}.gear.hlg{left:66px}.gear.gl{right:66px}}
+  @container (max-width:700px){.gear{font-size:0;gap:0;padding:7px 9px}.gear.hlg{left:66px}.gear.gl{right:66px}.gear.lg{right:110px;font-size:11px;padding:6px 8px}}
   @container (max-width:430px){header{padding-top:62px}}
   .gear svg{transition:transform .6s var(--ease)}.gear:hover svg{transform:rotate(90deg)}
   .set{position:fixed;inset:0;z-index:50;display:grid;place-items:center;background:rgba(24,23,21,.32);backdrop-filter:blur(3px);animation:fadein .25s ease both}
@@ -904,6 +906,7 @@
     <button class="gear hl" id="histb" type="button" aria-label="对话历史（Ctrl+J）"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 5h16M4 10h16M4 15h10M4 20h7"/></svg>History</button>
     <button class="gear hl hlg" id="graphb" type="button" aria-label="记忆图谱（Ctrl+G）"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="5" cy="6" r="2.2"/><circle cx="19" cy="7" r="2.2"/><circle cx="12" cy="18" r="2.6"/><path d="M7 7l10 0M6.5 8l4.5 8M17.6 9l-4.4 7"/></svg>Graph</button>
     <button class="gear gl" id="ldgb" type="button" aria-label="账本与记忆（Ctrl+L）"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M5 3h11l3 3v15H5zM9 9h7M9 13h7M9 17h4"/></svg>Ledger</button>
+    <button class="gear lg" id="langb" type="button" aria-label="切换语言 · Language" data-noi18n>EN</button>
     <button class="gear" id="gear" type="button" aria-label="设置（Ctrl+,）"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="3.2"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1"/></svg>Settings</button>
   </header>
   <div id="log"></div>
@@ -1472,7 +1475,7 @@ async function send(text){
   };
   stopped = false; ctl = new AbortController(); sync();
   try {
-    const r = await fetch('/api/chat', {method:'POST', headers:H, signal: ctl.signal, body:JSON.stringify({text, session:sid, model: MDL.pick || undefined, stream: true})});
+    const r = await fetch('/api/chat', {method:'POST', headers:H, signal: ctl.signal, body:JSON.stringify({text, session:sid, model: MDL.pick || undefined, stream: true, lang: I18N.lang})});
     let j;
     if ((r.headers.get('content-type') || '').includes('event-stream') && r.body) {
       const rd = r.body.getReader(), dec = new TextDecoder(); let buf = '';
@@ -1747,7 +1750,8 @@ const box = $('box'), input = $('t'), ph = $('ph');
 $('tools').innerHTML = TOOLS.map(([l],i) => `<button type="button" class="pill"><i>${roman(i+1)}</i>${l}</button>`).join('');
 $('tools').querySelectorAll('.pill').forEach((p,i) => p.onclick = e => { e.stopPropagation(); send(TOOLS[i][1]); });
 let phi = 0;
-function showPh(){ ph.className = 'ph'; ph.innerHTML = [...PH[phi]].map((c,i)=>`<span style="animation-delay:${i*25}ms">${c === ' ' ? '&nbsp;' : esc(c)}</span>`).join(''); }
+const PH_EN = ['Ask where the market is heading today…', 'Tell me your holdings and cost basis', 'Why has HS Tech been falling lately?', 'Check Moutai’s RSI for me', 'Were last week’s calls right?'];
+function showPh(){ ph.className = 'ph'; ph.innerHTML = [...((localStorage.stoaLang === 'en' ? PH_EN : PH)[phi])].map((c,i)=>`<span style="animation-delay:${i*25}ms">${c === ' ' ? '&nbsp;' : esc(c)}</span>`).join(''); }
 function sync(){
   const active = document.activeElement === input || input.value;
   box.classList.toggle('open', !!active);
@@ -2769,7 +2773,7 @@ async function startInquiry(arg){
   if (!arg) { openLdg(); setTimeout(() => $('iqsec').scrollIntoView({behavior: 'smooth', block: 'start'}), 260); return; }
   add('u', `<span class="ucmd">/research</span>${esc(arg)}`);
   const out = add('a', `<div class="inq"><div class="ih"><span class="agt">INQUISITIO</span><em>${esc(arg)}</em><span class="st run">拆题</span></div><div class="bar"><i class="run" style="width:3%"></i></div></div>`);
-  let j; try { j = await (await fetch('/api/inquiries', {method: 'POST', headers: H, body: JSON.stringify({goal: arg})})).json(); } catch (e) { out.textContent = '开题失败：' + e; return; }
+  let j; try { j = await (await fetch('/api/inquiries', {method: 'POST', headers: H, body: JSON.stringify({goal: arg, lang: I18N.lang})})).json(); } catch (e) { out.textContent = '开题失败：' + e; return; }
   if (j.need_model) { out.textContent = '还没配置大模型。'; openSettings('model'); return; }
   if (j.error) { out.textContent = j.error; return; }
   watchInquiry(j.id, out); loadInquiries();
@@ -2886,6 +2890,78 @@ addEventListener('keydown', e => {
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'g') { e.preventDefault(); $('gph').hidden ? openGraph() : closeGraph(); }
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'j') { e.preventDefault(); $('hist').hidden ? openHist() : closeHist(); }
 });
+
+/* ---------- 中英双语：界面文字运行时替换（原文存着，切回中文即还原），Agent 回答语言跟随 ---------- */
+const I18N = {lang: localStorage.stoaLang === 'en' ? 'en' : 'zh', D: null, re: null, unit: null, orig: new WeakMap(), busy: false, obs: null};
+const CJK_RE = /[\u3000-\u303f\u4e00-\u9fff\uff00-\uffef]/;
+const PUNC = {'，': ', ', '。': '. ', '：': ': ', '；': '; ', '、': ', ', '（': ' (', '）': ') ', '「': '“', '」': '”', '《': '“', '》': '”', '！': '! ', '？': '? ', '…': '…', '～': '~', '　': ' ', '＋': '+', '－': '−'};
+function i18nNum(s){ // 亿/万 → B/K/T，英文读者看得懂；「2026年三季报」→「2026 Q3 report」
+  return s.replace(/(\d{4})年(?=[\u4e00-\u9fff])/g, '$1 ').replace(/([+\-−]?\d[\d,]*\.?\d*)\s?(万亿|亿|万)(?![\u4e00-\u9fff])/g, (m, n, u) => {
+    const v = parseFloat(n.replace(/,/g, '').replace('−', '-')); if (!isFinite(v)) return m;
+    const [x, sfx] = u === '万亿' ? [v, 'T'] : u === '亿' ? (Math.abs(v) >= 10000 ? [v / 10000, 'T'] : [v / 10, 'B']) : (Math.abs(v) >= 100 ? [v / 100, 'M'] : [v * 10, 'K']);
+    return (Math.abs(x) >= 100 ? x.toFixed(0) : Math.abs(x) >= 10 ? x.toFixed(1) : x.toFixed(2)).replace(/\.0+$/, '') + sfx; });
+}
+function i18nStr(s){
+  if (!s || !CJK_RE.test(s) || !I18N.D) return s;
+  const D = I18N.D, t = s.trim();
+  if (D[t] !== undefined) return s.replace(t, D[t]);
+  const pair = t.match(/^([A-Za-z][A-Za-z0-9 .&'’\-]*?)\s*·\s*([^A-Za-z]*[\u4e00-\u9fff][^A-Za-z]*)$/);  // 「Provenance · 出处」这类拉丁+中文对照：英文界面只留拉丁
+  if (pair) return s.replace(t, pair[1]);
+  let r = i18nNum(s);
+  const pad = (str, off, len, rep) => { const a = str[off - 1], b = str[off + len]; return (a && /[A-Za-z0-9)%]/.test(a) && /^[A-Za-z(]/.test(rep) ? ' ' : '') + rep + (b && /[A-Za-z0-9(]/.test(b) && /[A-Za-z)]$/.test(rep) ? ' ' : ''); };
+  r = r.replace(I18N.re, (m, off, str) => pad(str, off, m.length, D[m]));
+  r = r.replace(I18N.unit, (m, n, u, off, str) => n + (/\s$/.test(n) ? '' : ' ') + D[u]);
+  r = r.replace(/[，。：；、（）「」《》！？…～　＋－]/g, c => PUNC[c]).replace(/ {2,}/g, ' ').replace(/ ([,.;:)])/g, '$1');
+  return CJK_RE.test(r) ? s : r;  // 只翻得了一半（新闻标题、股票名、记忆原文这类数据）就保持原样，不出中英夹杂
+}
+const I18N_SKIP = 'script,style,textarea,input,code,pre,.m.u .body,[data-noi18n]';
+const I18N_ATTRS = ['placeholder', 'title', 'aria-label', 'data-tip'];
+function i18nNode(root){
+  if (I18N.lang !== 'en' || !I18N.D) return;
+  I18N.busy = true;
+  try {
+    const visit = n => {
+      if (n.nodeType === 3) {
+        const p = n.parentElement; if (!p || p.closest(I18N_SKIP) || !CJK_RE.test(n.nodeValue)) return;
+        const v = i18nStr(n.nodeValue); if (v !== n.nodeValue) { if (!I18N.orig.has(n)) I18N.orig.set(n, n.nodeValue); n.nodeValue = v; }
+        return;
+      }
+      if (n.nodeType !== 1 || n.matches('script,style,[data-noi18n]') || n.closest('.m.u .body,[data-noi18n]')) return;
+      for (const a of I18N_ATTRS) { const v = n.getAttribute(a); if (v && CJK_RE.test(v)) { const t = i18nStr(v); if (t !== v) { n.dataset['o' + a.replace(/-/g, '')] = v; n.setAttribute(a, t); } } }
+      if (n.matches('textarea,input,code,pre')) return;  // 输入框只翻 placeholder，不动内容
+      for (let c = n.firstChild; c; c = c.nextSibling) visit(c);
+    };
+    visit(root);
+  } finally { I18N.busy = false; }
+}
+async function i18nLoad(){
+  if (I18N.D) return;
+  try { I18N.D = await (await fetch('/assets/i18n-en.json')).json(); } catch (_) { I18N.D = {}; }
+  const esc2 = k => k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const multi = Object.keys(I18N.D).filter(k => k.length > 1 && CJK_RE.test(k)).sort((a, b) => b.length - a.length);
+  I18N.re = new RegExp(multi.map(esc2).join('|') || '(?!)', 'g');
+  const single = [...'步条秒分字段只天次件'].filter(k => I18N.D[k]);
+  I18N.unit = new RegExp('(\\d[\\d.,]*\\s?|\\d\\s)(' + (single.map(esc2).join('|') || '(?!)') + ')(?![\\u4e00-\\u9fff])', 'g');
+}
+async function setLang(l, save = true){
+  I18N.lang = l; if (save) localStorage.stoaLang = l;
+  document.documentElement.lang = l === 'en' ? 'en' : 'zh-CN'; document.documentElement.classList.toggle('en', l === 'en');
+  const lb = document.getElementById('langb'); if (lb) lb.textContent = l === 'en' ? '中' : 'EN';
+  if (l === 'en') {
+    await i18nLoad(); i18nNode(document.body);
+    if (!I18N.obs) { I18N.obs = new MutationObserver(ms => { if (I18N.busy || I18N.lang !== 'en') return;
+        for (const m of ms) { if (m.type === 'characterData' || m.type === 'attributes') i18nNode(m.target); else m.addedNodes.forEach(i18nNode); } });
+      I18N.obs.observe(document.body, {subtree: true, childList: true, characterData: true, attributes: true, attributeFilter: I18N_ATTRS}); }
+  } else {
+    // 还原：文字节点和属性都存了原文
+    const w = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT); let n;
+    while ((n = w.nextNode())) if (I18N.orig.has(n)) { n.nodeValue = I18N.orig.get(n); I18N.orig.delete(n); }
+    document.querySelectorAll('*').forEach(el => I18N_ATTRS.forEach(a => { const k = 'o' + a.replace(/-/g, ''); if (el.dataset && el.dataset[k] !== undefined) { el.setAttribute(a, el.dataset[k]); delete el.dataset[k]; } }));
+  }
+}
+
+$('langb').onclick = () => setLang(I18N.lang === 'en' ? 'zh' : 'en');
+if (I18N.lang === 'en') setLang('en', false);
 </script>
 </body>
 </html>

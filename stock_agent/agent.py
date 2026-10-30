@@ -18,6 +18,10 @@ from .providers import Router
 RESUME_MSGS = 40  # 恢复旧对话时最多带回的原文条数；更早的（或超出上下文预算的）滚动摘要成会话纪要，不再直接丢掉
 NUDGE_EVERY = 6  # 每隔几轮提醒自己是否该存记忆
 MAX_TOOL_ROUNDS = 12  # 工具循环默认上限（config.yaml agent.max_tool_rounds / AGENT_MAX_ROUNDS）；上下文预算先用完会提前收尾
+EN_NOTE = """
+
+Language: the user is using the English interface. Write every reply (and the one-line "why" before tool calls) in English, even though these instructions and some tool data are in Chinese. Translate Chinese news titles / names when quoting (keep the stock name in original in parentheses once). Keep [n] citation markers. End important conclusions with "For reference only, not investment advice." and for timing calls add once "Timing calls were not statistically significant in backtests."
+"""
 FINAL_NUDGE = "[系统：{why}。请不要再调用工具，基于已经拿到的结果直接回答；没查到或没来得及查的部分如实说明。]"
 
 SYSTEM = """你是「Stoa」，用户的长期股市助手，覆盖 A股、港股、美股。用中文回答，简洁、具体、有数据。
@@ -635,6 +639,8 @@ class Agent:
     def _chat(self, messages, tools="default"):
         """发给模型前去掉内部字段（_id 等）；tools=None 表示收尾轮不给工具。"""
         clean = [{k: v for k, v in m.items() if not k.startswith("_")} for m in messages]
+        if getattr(self, "lang", "zh") == "en" and clean and clean[0]["role"] == "system":
+            clean[0] = {**clean[0], "content": clean[0]["content"] + EN_NOTE}
         return self.llm.chat(clean, self.tools if tools == "default" else tools)
 
     # ----- 上下文预算与压缩 -----

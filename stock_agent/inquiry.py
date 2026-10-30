@@ -113,13 +113,13 @@ def _json(text: str, default):
 
 
 # ---------------------------------------------------------------- 新建
-def create(goal: str, minutes: int | None = None, every_days: int | None = None, mem: Memory | None = None) -> dict:
+def create(goal: str, minutes: int | None = None, every_days: int | None = None, mem: Memory | None = None, lang: str | None = None) -> dict:
     goal = (goal or "").strip()
     if not goal:
         raise ValueError("研究目标不能为空")
     minutes = max(5, min(MAX_MIN, int(minutes or DEFAULT_MIN)))
     iid = uuid.uuid4().hex[:8]
-    st = {"id": iid, "goal": goal[:500], "created": _now(), "status": "queued", "symbols": [], "criteria": "",
+    st = {"id": iid, "goal": goal[:500], "lang": "en" if lang == "en" else "zh", "created": _now(), "status": "queued", "symbols": [], "criteria": "",
           "budget": {"minutes": minutes, "max_questions": max(6, min(60, minutes // 3))},
           "used": {"seconds": 0, "agent_turns": 0},
           "questions": [], "one_line": None, "view": None, "report": None, "tracking": [], "alerts": [],
@@ -149,7 +149,12 @@ def _llm():
     return Router(load_cfg().get("llm", {}))
 
 
-def _chat(llm, prompt: str) -> str:
+EN_HINT = "\n\n（界面语言是英文：JSON 里给人看的文字——子问题 text/why、criteria、one_line、理由——一律用英文写；JSON 键名和 view 等枚举值保持原样。）"
+
+
+def _chat(llm, prompt: str, lang: str | None = None) -> str:
+    if lang == "en":
+        prompt += EN_HINT
     msg = llm.chat([{"role": "user", "content": prompt}], None)
     return msg.get("content") or ""
 
@@ -176,7 +181,7 @@ def plan(st: dict, mem: Memory, llm) -> None:
               "- 写一句「成功标准」：回答到什么程度算研究完成。\n- 子问题 4–8 个，按先后顺序：先事实与数据，再驱动因素和分歧，再估值与风险，最后才是结论；"
               "每个子问题要具体、可查证，注明为什么要问、建议用哪些工具或技能。\n"
               '只输出 JSON：{"symbols":["..."],"criteria":"...","questions":[{"text":"...","why":"...","tools":"..."}]}')
-    j = _json(_chat(llm, prompt), {})
+    j = _json(_chat(llm, prompt, st.get("lang")), {})
     qs = [q for q in (j.get("questions") or []) if isinstance(q, dict) and str(q.get("text") or "").strip()]
     if not qs:  # 模型没给出可用计划：用通用骨架，保证能往下跑
         qs = [{"text": f"{st['goal']}：先把相关公司/行业的基本事实和最新数据查清楚", "why": "打底"},
@@ -229,9 +234,10 @@ def _compact_notes(st: dict, limit: int) -> str:
     return "\n\n".join(f"### {q['id']} {q['text']}（证据{q.get('strength') or '中'}）\n{strip_sources(q['answer'] or '')[:per]}" for q in done)
 
 
-def _agent(mem: Memory, session: str, stop: threading.Event | None):
+def _agent(mem: Memory, session: str, stop: threading.Event | None, lang: str | None = None):
     from .agent import Agent
     ag = Agent(mem, channel="inquiry", session=session)
+    ag.lang = lang or "zh"
     ag._stop = stop
     ag._no_debate = True  # 目标里有「该不该买」也不要被直接转去 Agora，按子问题查
     return ag
@@ -246,7 +252,7 @@ def research_step(st: dict, q: dict, mem: Memory, stop: threading.Event | None, 
               "最后写清楚还不确定的地方。数字带出处角标。本步不要调用 record_call、alert_set、skill_save（课题收尾时统一处理）。\n"
               "最后单独一行输出（系统会拿走，不给用户看）：\n"
               '<<<META {"strength":"强|中|弱","new_questions":[{"text":"值得追问的新问题","why":"..."}],"goal_met":false}>>>')
-    ag = _agent(mem, f"inq-{st['id']}-{q['id']}", stop)
+    ag = _agent(mem, f"inq-{st['id']}-{q['id']}", stop, st.get("lang"))
     ag.on_event = on_event
     t0 = time.time()
     reply = ag.ask(prompt)
@@ -277,7 +283,7 @@ def reflect(st: dict, llm) -> None:
               "待做的子问题：\n" + "\n".join(f"- {q['id']}：{q['text']}" for q in todo) +
               "\n\n请判断：哪些待做问题已被前面的笔记回答或价值不大（drop），剩下的最优顺序（order），是否还缺关键问题（add，最多 2 个），"
               '以及按成功标准是否已经可以收尾（goal_met）。只输出 JSON：{"order":["q3"],"drop":["q5"],"add":[{"text":"...","why":"..."}],"goal_met":false,"why":"一句话"}')
-    j = _json(_chat(llm, prompt), {})
+    j = _json(_chat(llm, prompt, st.get("lang")), {})
     ids = {q["id"]: q for q in todo}
     for d in j.get("drop") or []:
         if d in ids:
@@ -310,7 +316,7 @@ def synthesize(st: dict, mem: Memory, llm, stop: threading.Event | None, on_even
               "3. 反方观点与主要风险\n4. 关键数字与估值（只用笔记里有出处的数字）\n5. 仍未解决的问题与数据缺口\n6. 跟踪指标与失效条件（具体到指标和阈值）\n"
               "如果结论有明确方向（看涨/看跌/震荡）和期限，调用 record_call 记账，reason 开头写「课题" + st["id"] + "：」。"
               "如果这套研究路径以后可以复用到别的标的，用 skill_save 保存或更新一个技能（只写步骤，不写具体数字）。不要调用 alert_set（系统会按失效条件统一设）。")
-    ag = _agent(mem, f"inq-{st['id']}-final", stop)
+    ag = _agent(mem, f"inq-{st['id']}-final", stop, st.get("lang"))
     ag.on_event = on_event
     reply = ag.ask(prompt)
     if (getattr(ag, "last_meta", None) or {}).get("stopped"):
@@ -325,7 +331,7 @@ def synthesize(st: dict, mem: Memory, llm, stop: threading.Event | None, on_even
                     '{"one_line":"一句话结论（40字内）","view":"看涨|看跌|震荡|无","horizon_days":90,'
                     '"tracking":[{"symbol":"代码或空","metric":"指标","condition":"什么情况下要警惕"}],'
                     '"price_alerts":[{"symbol":"Yahoo代码","kind":"below|above","value":数字,"note":"触发意味着什么"}]}\n'
-                    "price_alerts 只收报告里明确写出的价格失效线（没有就空数组）。\n\n" + strip_sources(reply)[:8000]), {})
+                    "price_alerts 只收报告里明确写出的价格失效线（没有就空数组）。\n\n" + strip_sources(reply)[:8000], st.get("lang")), {})
     st["one_line"] = str(j.get("one_line") or "")[:120] or None
     st["view"] = j.get("view") if j.get("view") in ("看涨", "看跌", "震荡") else None
     st["tracking"] = [t for t in (j.get("tracking") or []) if isinstance(t, dict)][:10]
@@ -486,7 +492,7 @@ def followup(iid: str, reasons: list[str] | None = None, mem: Memory | None = No
               f"请查自上次以来的新数据（行情、公告、财报、新闻、一致预期），逐条对照跟踪指标和失效条件，判断原结论：维持 / 加强 / 削弱 / 推翻。"
               "写 300–800 字：先一句判断，再逐条对照（数字带出处），最后说接下来盯什么。原结论被推翻且有方向判断时，调用 record_call 记一笔新的判断（reason 开头写「课题"
               + st["id"] + "续研：」）。\n最后单独一行：<<<META {\"verdict\":\"维持|加强|削弱|推翻\",\"one_line\":\"40字内\"}>>>")
-    ag = _agent(mem, f"inq-{st['id']}-fu{len(st.get('followups') or []) + 1}", stop)
+    ag = _agent(mem, f"inq-{st['id']}-fu{len(st.get('followups') or []) + 1}", stop, st.get("lang"))
     ag.on_event = on_event
     t0 = time.time()
     reply = ag.ask(prompt)
@@ -574,8 +580,8 @@ class Runner:
 RUNNER = Runner()
 
 
-def start(goal: str, minutes: int | None = None, every_days: int | None = None, mem: Memory | None = None) -> dict:
-    st = create(goal, minutes, every_days)
+def start(goal: str, minutes: int | None = None, every_days: int | None = None, mem: Memory | None = None, lang: str | None = None) -> dict:
+    st = create(goal, minutes, every_days, lang=lang)
     if mem is not None:
         RUNNER.mem = mem
     RUNNER.submit(st["id"])

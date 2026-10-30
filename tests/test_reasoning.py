@@ -53,3 +53,25 @@ def test_agent_emits_why_think_got(tmp_path, monkeypatch):
     assert all("why" in s and "got" in s for s in meta["steps"])
     # 推理字段不回传给模型
     assert not any("_reasoning" in m for m in ag.messages)
+
+
+def test_english_mode_adds_language_note(tmp_path, monkeypatch):
+    monkeypatch.setenv("STOCK_AGENT_HOME", str(tmp_path))
+    from stock_agent.agent import Agent, EN_NOTE
+    ag = Agent(channel="test-lang")
+    seen = {}
+    ag.llm = type("L", (), {"chat": lambda self, m, t=None: seen.setdefault("sys", m[0]["content"]) and {"role": "assistant", "content": "ok", "tool_calls": None}})()
+    ag.lang = "en"
+    ag._chat([{"role": "system", "content": "S"}, {"role": "user", "content": "hi"}])
+    assert seen["sys"].endswith(EN_NOTE)
+
+
+def test_inquiry_lang_hint(tmp_path, monkeypatch):
+    monkeypatch.setenv("STOCK_AGENT_HOME", str(tmp_path))
+    from stock_agent import inquiry
+    st = inquiry.create("Moutai growth", 10, lang="en")
+    assert st["lang"] == "en"
+    got = {}
+    llm = type("L", (), {"chat": lambda self, m, t=None: got.setdefault("p", m[0]["content"]) and {"content": "{}"}})()
+    inquiry._chat(llm, "x", "en")
+    assert inquiry.EN_HINT in got["p"]

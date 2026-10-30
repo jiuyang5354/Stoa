@@ -26,7 +26,7 @@ MEM = Memory()
 SESSIONS: dict[str, dict] = {}  # channel -> {"agent": Agent, "last": ts}
 UI = (Path(__file__).parent / "web.html").read_text(encoding="utf-8")
 ASSETS = Path(__file__).parent / "assets"
-ASSET_TYPES = {"bust.glb": "model/gltf-binary", "archeologicaps.woff2": "font/woff2",
+ASSET_TYPES = {"bust.glb": "model/gltf-binary", "i18n-en.json": "application/json; charset=utf-8", "archeologicaps.woff2": "font/woff2",
                **{f: "font/woff2" for f in ("optimus-princeps.woff2", "optimus-princeps-semibold.woff2", "libertine-regular.woff2",
                                             "libertine-bold.woff2", "libertine-italic.woff2", "alte-haas-grotesk.woff2", "alte-haas-grotesk-bold.woff2")},
                "travertine009_color.jpg": "image/jpeg", "travertine009_normal.jpg": "image/jpeg", "travertine009_roughness.jpg": "image/jpeg",
@@ -76,7 +76,7 @@ def models_list() -> dict:
     return {"provider": cur.name, "current": cur.model, "models": models[:200], "ready": cur.ready}
 
 
-def chat(channel: str, text: str, model: str | None = None, on_event=None) -> str:
+def chat(channel: str, text: str, model: str | None = None, on_event=None, lang: str | None = None) -> str:
     """全局锁只管会话表；每个会话自己一把锁，一个对话在查数据时，别的对话和 Telegram 不用排队。"""
     with LOCK:
         s = SESSIONS.get(channel)
@@ -105,6 +105,8 @@ def chat(channel: str, text: str, model: str | None = None, on_event=None) -> st
             except Exception:
                 pass
         ag.on_event = on_event
+        if lang in ("zh", "en"):  # 界面语言：英文界面时 Agent 用英文回答
+            ag.lang = lang
         try:
             return ag.ask(text) or "（空回复）"
         except Exception as e:
@@ -434,12 +436,13 @@ class Web(BaseHTTPRequestHandler):
                         "compressed": meta.get("compressed"), "archived": meta.get("archived") or 0, "steps": meta.get("steps") or [], "thoughts": meta.get("thoughts") or [],
                         "stopped": bool(meta.get("stopped"))}
             text = str(body.get("text", ""))[:4000]
+            lang = "en" if body.get("lang") == "en" else "zh"
             if not body.get("stream"):
-                return self._send(200, payload(chat("web:" + sid, text, model)))
+                return self._send(200, payload(chat("web:" + sid, text, model, lang=lang)))
             # 流式：边查边把每一步（查行情、读公告…）推给网页，最后一条是完整回答
             import queue
             q, box = queue.Queue(), {}
-            th = threading.Thread(target=lambda: (box.__setitem__("r", chat("web:" + sid, text, model, on_event=q.put)), q.put(None)), daemon=True)
+            th = threading.Thread(target=lambda: (box.__setitem__("r", chat("web:" + sid, text, model, on_event=q.put, lang=lang)), q.put(None)), daemon=True)
             th.start()
             self.send_response(200)
             self.send_header("Content-Type", "text/event-stream; charset=utf-8")
@@ -550,7 +553,7 @@ class Web(BaseHTTPRequestHandler):
                 goal, mins = inquiry.parse_minutes(str(body.get("goal") or "")[:500])
                 if not goal:
                     return self._send(400, {"error": "研究目标不能为空"})
-                st = inquiry.start(goal, body.get("minutes") or mins, body.get("every_days"), MEM)
+                st = inquiry.start(goal, body.get("minutes") or mins, body.get("every_days"), MEM, lang=str(body.get("lang") or ""))
                 return self._send(200, inquiry.summary(st))
             iid, _, act = path[len("/api/inquiries/"):].partition("/")
             if act == "stop":
