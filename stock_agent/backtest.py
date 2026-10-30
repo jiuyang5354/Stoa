@@ -667,9 +667,14 @@ def listing(limit: int = 30) -> list[dict]:
         p = j.get("params") or {}
         if j.get("status") == "running" and time.time() - f.stat().st_mtime > 3600:
             j["status"], j["error"] = "error", "中断（服务重启或进程退出）"
-        out.append({"id": j.get("id", f.stem), "status": j.get("status"), "created": j.get("created"), "agent": p.get("agent"),
+        hd = j.get("headline")
+        if j.get("mode") == "rank" and j.get("status") == "done":
+            h0 = str((p.get("horizons") or [20])[0])
+            a = (j.get("results") or {}).get("agent", {}).get(h0, {})
+            hd = {"ic": (a.get("ic") or {}).get("mean"), "p": (a.get("ic") or {}).get("p_nw"), "ls": (a.get("long_short%") or {}).get("mean")}
+        out.append({"id": j.get("id", f.stem), "status": j.get("status"), "created": j.get("created"), "agent": p.get("agent"), "mode": j.get("mode", "timing"),
                     "start": p.get("start"), "end": p.get("end"), "step": p.get("step"), "horizons": p.get("horizons"),
-                    "symbols": len(p.get("symbols") or []), "data": p.get("data"), "headline": j.get("headline"),
+                    "symbols": len(p.get("symbols") or []), "data": p.get("data"), "headline": hd,
                     "error": j.get("error"), "chart": j.get("chart")})
     return out
 

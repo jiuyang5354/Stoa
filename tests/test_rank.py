@@ -157,3 +157,15 @@ def test_events_payload_blind(home):
     txt = llm.seen[0]
     assert "茅台" not in txt and "回购" in txt and "未来的公告" not in txt and "2025" not in txt
     assert r.stats["events_items"] >= 2
+
+
+def test_listing_shows_rank_headline(home):
+    res = rank.run_rank(start="2025-10-01", end="2026-01-30", step=10, horizons=[20], synthetic=True, llm_kind="mock", random_seeds=5, concurrency=1)
+    it = next(x for x in bt.listing() if x["id"] == res["id"])
+    assert it["mode"] == "rank" and it["headline"]["ic"] == res["results"]["agent"]["20"]["ic"]["mean"]
+
+
+def test_report_footer_says_not_significant():
+    from stock_agent import report
+    import inspect
+    assert "不具统计显著性" in inspect.getsource(report)

@@ -640,7 +640,7 @@
       </div>
       <div class="tools" id="tools"></div>
     </form>
-    <div class="label disclaim">仅供参考 · 不构成投资建议 · Non consilium, sed observatio</div>
+    <div class="label disclaim">择时判断不具统计显著性 · 仅供参考，不构成投资建议 · Non consilium, sed observatio</div>
   </div>
 </div></main>
 <div class="hist" id="hist" hidden role="dialog" aria-label="对话历史">
@@ -991,7 +991,7 @@ function agoraHTML(d){
   <div class="agsec"><h5><i>IV</i>裁决 · Sententia</h5><div class="agv"><div><span class="big ${STC(v.view)}">${esc(v.view || '—')}</span><span class="cf">置信度 <b>${v.confidence ?? '—'}%</b></span><span class="cf">周期 <b>${v.horizon_days ?? '—'}</b> 日</span></div>
     <div>${v.summary ? `<p style="margin:0 0 6px">${C(v.summary)}</p>` : ''}${(v.key_points || []).length ? `<ul>${v.key_points.map(k => `<li>${C(k)}</li>`).join('')}</ul>` : ''}
     ${v.invalidation ? `<div class="inv"><span>失效条件</span>${C(v.invalidation)}</div>` : ''}${v.risk_override ? `<div class="inv"><span>风控</span>${esc(v.risk_override)}</div>` : ''}</div></div></div>
-  <div class="agfoot"><span>${esc(d.version || '')} · ${esc(d.mode === 'backtest' ? '回测' : '实盘')}</span>${(d.degraded || []).length ? `<span>降级：${esc(d.degraded.join('、'))}</span>` : '<span>全部角色正常发言</span>'}${d.record_call ? `<span>${esc(d.record_call)}</span>` : ''}<span>${esc(d.id)}</span></div>`;
+  <div class="agfoot"><span>${esc(d.version || '')} · ${esc(d.mode === 'backtest' ? '回测' : '实盘')}</span>${(d.degraded || []).length ? `<span>降级：${esc(d.degraded.join('、'))}</span>` : '<span>全部角色正常发言</span>'}${d.record_call ? `<span>${esc(d.record_call)}</span>` : ''}<span>${esc(d.id)}</span><span>方向判断经回测不具统计显著性，仅供参考</span></div>`;
 }
 /* ---------- 账本地形：每条判断一根石柱，按日期排列，可搜索 ---------- */
 let LEDGER = [];
@@ -1515,7 +1515,7 @@ function pbCharts(r){
 }
 async function loadPb(id){
   const L = (await (await fetch('/api/backtests', {headers:H})).json()).items || [];
-  const pick = id || (L.find(x => x.status === 'done') || L[0] || {}).id;
+  const pick = id || (L.find(x => x.status === 'done' && x.mode !== 'rank') || L.find(x => x.status === 'done') || L[0] || {}).id;
   const cur = pick ? await (await fetch('/api/backtests/' + encodeURIComponent(pick), {headers:H})).json() : null;
   const evals = await (await fetch('/api/evals', {headers:H})).json().catch(() => null);
   S.pb = {list: L, cur, evals}; if (scur === 'probatio' && !$('set').hidden) show('probatio');
@@ -1605,9 +1605,15 @@ const PANES = {
   probatio: () => {
     if (!S.pb) return `<h3>回测与评测</h3><p class="lead">读取中…</p>`;
     const L = S.pb.list, r = S.pb.cur, E = S.pb.evals, f1 = v => v == null ? '—' : (+v).toFixed(1), sg = v => v == null ? '—' : (v >= 0 ? '+' : '') + (+v).toFixed(1) + '%';
-    const AG = {baseline: '规则 Agent（均线）', llm: '大模型 Agent'};
+    const AG = {baseline: '规则 Agent（均线）', llm: '大模型 Agent', debate: 'Agora 辩论', rank: '相对强弱排序', 'rank-events': '排序 + 公告/财报'};
     let top = `<p class="muted">还没有回测。点下面「开始回测」，或命令行 <span class="ep">python -m stock_agent backtest</span>。</p>`;
-    if (r && r.status === 'done') {
+    const isRank = r && r.mode === 'rank';
+    if (r && r.status === 'done' && isRank) {
+      const p = r.params, h = String(p.horizons[0]), R = k => r.results[k][h], ic = R('agent').ic, ls = R('agent')['long_short%'], f3 = v => v == null ? '—' : (+v).toFixed(3), pv = v => v == null ? '—' : (+v).toFixed(2);
+      top = `<div class="pbh"><b>${f3(ic.mean)}</b><div><span class="pbk">Rank IC 均值 · 未来 ${h} 日相对强弱</span><small>${p.events ? '行情 + 公告/财报' : '只有行情'} · ${p.symbols.length} 只 · ${p.scored_days} 个决策日 · ${esc(p.start)} → ${esc(p.end)} · 每 ${p.step} 个工作日</small></div></div>
+        <div class="pbn"><span>ICIR<b>${pv(ic.ir)}</b></span><span>p（NW）<b>${pv(ic.p_nw)}</b></span><span>头尾多空<b>${sg(ls.mean)}</b></span><span>动量 IC<b>${f3(R('momentum20').ic.mean)}</b></span></div>
+        <table class="pbt"><tr><th>方法</th><th>IC 均值</th><th>95% 区间</th><th>p</th><th>多空/期</th></tr>${[['agent','Stoa'],['momentum20','动量 20 日'],['reversal5','反转 5 日'],['random','随机']].map(([k, n]) => { const x = R(k); return `<tr><td>${n}</td><td>${f3(x.ic.mean)}</td><td>${(x.ic.ci95 || []).map(f3).join(' ~ ')}</td><td>${pv(x.ic.p_nw)}</td><td>${sg(x['long_short%'].mean)}</td></tr>`; }).join('')}</table>`;
+    } else if (r && r.status === 'done') {
       const p = r.params, h = String(p.horizons[0]), A = r.results.agent['全部'], hd = r.headline, B = hd.baselines;
       top = `<div class="pbh"><b>${f1(hd['hit_dir%'])}<span>%</span></b><div><span class="pbk">方向胜率 · 持有 ${h} 日</span><small>${esc(AG[p.agent] || p.agent)} · ${p.symbols.length} 只标的 · ${A.horizons[h].n} 次判断 · ${esc(p.start)} → ${esc(p.end)} · 每 ${p.step} 个交易日${/synthetic/.test(p.data) ? ' · 合成行情' : ''}</small></div></div>
         <div class="pbn"><span>多空累计<b>${sg(hd['long_short%'])}</b></span><span>买入持有<b>${sg(hd['buy_hold%'])}</b></span><span>动量基线<b>${f1(B.momentum20['hit_dir%'])}%</b></span><span>随机基线<b>${f1(B.random['hit_dir%'])}%</b></span></div>
@@ -1615,7 +1621,7 @@ const PANES = {
     } else if (r && r.status === 'running') top = `<p class="muted">回测进行中…（${esc(r.id)}）</p>`;
     else if (r && r.status === 'error') top = `<p class="muted">这次回测失败：${esc(r.error || '')}</p>`;
     let mk = '';
-    if (r && r.status === 'done') {
+    if (r && r.status === 'done' && !isRank) {
       const h = String(r.params.horizons[0]), h2 = r.params.horizons[1] ? String(r.params.horizons[1]) : null;
       mk = grp('Fora · 分市场', `<table class="pbt"><tr><th>市场</th><th>胜率 ${h}日</th>${h2 ? `<th>胜率 ${h2}日</th>` : ''}<th>多空</th><th>买入持有</th><th>动量基线</th></tr>${
         ['A股','港股','美股','全部'].filter(m => r.results.agent[m]).map(m => { const a = r.results.agent[m], b = r.results.momentum20[m];
@@ -1625,14 +1631,14 @@ const PANES = {
     const run = grp('Novum · 新回测', `<div class="fr"><span><b>判断者</b><small>规则 Agent 不需要模型；大模型 Agent 每个时点调用一次（有缓存，最多 200 次）；辩论 = Agora 回测版，每个时点约 5 次调用（只给截断行情，最多 600 次）</small></span><span>${sseg('pbAgent', [['baseline','规则'],['llm','大模型'],['debate','辩论']])}</span></div>
       <div class="fr"><span><b>标的</b><small>留空用默认 12 只 A / 港 / 美股</small></span><input type="text" id="pbsym" placeholder="600519.SS, 0700.HK, NVDA"></div>
       <div class="addrow" style="justify-content:space-between"><small class="muted">近一年 · 每 5 个交易日 · 持有 5 / 20 日；未来数据一律屏蔽</small><button class="x dark" id="pbrun">开始回测</button></div>`);
-    const hist = grp('Historia · 记录', `<ul class="ml pbr">${L.map((x, i) => `<li data-pb="${esc(x.id)}" class="${r && x.id === r.id ? 'on' : ''}"><i>${roman(L.length - i)}</i><span>${esc(x.created || '')} · ${esc(AG[x.agent] || x.agent || '')} <em>${x.status === 'done' && x.headline ? `胜率 ${f1(x.headline['hit_dir%'])}% · 多空 ${sg(x.headline['long_short%'])}` : x.status === 'running' ? '进行中' : '失败'}</em></span><span></span></li>`).join('') || '<li><i>—</i><span class="muted">还没有</span><span></span></li>'}</ul>`);
+    const hist = grp('Historia · 记录', `<ul class="ml pbr">${L.map((x, i) => `<li data-pb="${esc(x.id)}" class="${r && x.id === r.id ? 'on' : ''}"><i>${roman(L.length - i)}</i><span>${esc(x.created || '')} · ${esc(AG[x.agent] || x.agent || '')} <em>${x.status === 'done' && x.mode === 'rank' && x.headline ? `Rank IC ${(+x.headline.ic || 0).toFixed(3)} · p ${x.headline.p == null ? '—' : (+x.headline.p).toFixed(2)}` : x.status === 'done' && x.headline ? `胜率 ${f1(x.headline['hit_dir%'])}% · 多空 ${sg(x.headline['long_short%'])}` : x.status === 'running' ? '进行中' : '失败'}</em></span><span></span></li>`).join('') || '<li><i>—</i><span class="muted">还没有</span><span></span></li>'}</ul>`);
     let ex = `<p class="muted">还没有跑过评测。命令行 <span class="ep">python -m stock_agent eval</span>。</p>`;
     if (E && E.latest) {
       const s = E.latest.summary, pv = E.latest.previous;
       ex = `<div class="pbh"><b>${f1(s.total)}</b><div><span class="pbk">评测总分 · ${s.cases} 题 · 满分 ${s.perfect}</span><small>v${esc(E.latest.version)} · ${E.latest.llm === 'mock' ? 'mock 模型（只验证管线）' : esc(E.latest.llm)} · ${esc(E.latest.created)}${pv ? ` · 上次 ${f1(pv.total)}` : ''}</small></div></div>` +
         `<div class="lsw" style="grid-template-columns:1fr"><div class="lsg">${Object.entries(s.by_category).map(([k, v]) => `<div class="lsr" style="grid-template-columns:76px 1fr 46px 34px"><span>${esc(k)}</span><span class="lsb"><i style="width:${v}%"></i><em></em></span><b>${f1(v)}</b><small></small></div>`).join('')}</div></div>`;
     }
-    return `<h3>回测与评测</h3><p class="lead">Probatio：回到历史上的每一天，只给 Stoa 当时看得到的行情，再用之后的收盘价打分。</p>` +
+    return `<h3>回测与评测</h3><p class="lead">Probatio：回到历史上的每一天，只给 Stoa 当时看得到的行情，再用之后的收盘价打分。</p><p class="muted" style="margin:-4px 0 12px">目前的回测里，看多/看空的择时判断不具统计显著性（未胜过动量与随机基线），仅供参考。</p>` +
       grp('Ultima · 最近一次回测', top) + mk + run + hist + grp('Examen · 评测集', ex);
   },
   data: () => {

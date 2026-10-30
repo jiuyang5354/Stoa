@@ -274,3 +274,9 @@ def test_backtest_run_debate_mock_end_to_end():
                  agent="debate", synthetic=True, llm_kind="mock", save=False)
     assert res["params"]["agent"] == "debate" and res["llm"]["debates"] > 0 and res["llm"]["errors"] == 0
     assert res["results"]["agent"]["全部"]["horizons"]["5"]["n"] > 0
+
+
+def test_answer_says_timing_not_significant():
+    d, _ = make(AlwaysBull(), symbol="NVDA", name="英伟达")
+    rec = d.run()
+    assert "不具统计显著性" in rec["answer"] and "仅供参考" in rec["answer"]

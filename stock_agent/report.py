@@ -51,5 +51,5 @@ def render(snapshot: dict, session: str, ai: str | None) -> str:
     ]
     if alerts:
         lines += ["## 信号提醒", ""] + [f"- {a}" for a in alerts] + [""]
-    lines += ["---", "数据来源 Yahoo Finance，可能有延迟。仅供参考，不构成投资建议。"]
+    lines += ["---", "数据来源 Yahoo Finance，可能有延迟。信号与方向判断经回测不具统计显著性，仅供参考，不构成投资建议。"]
     return "\n".join(lines)

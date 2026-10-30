@@ -789,7 +789,7 @@ class Debate:
                if r.get("status") in ("degraded", "failed", "no_data")]
         if deg:
             L.append("\n部分角色未完整参与：" + "、".join(deg) + "，相关部分已用规则摘要或跳过。")
-        L += ["", "仅供参考，不构成投资建议。", f"[[debate:{self.id}]]"]
+        L += ["", "看多/看空属于择时判断，经回测不具统计显著性（未胜过动量与随机基线），仅供参考，不构成投资建议。", f"[[debate:{self.id}]]"]
         return "\n".join(L)
 
     def _vc(self) -> str:
