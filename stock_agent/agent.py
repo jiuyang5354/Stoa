@@ -227,7 +227,12 @@ def deep_tool(name: str, args: dict):
 
 
 def load_cfg() -> dict:
-    return yaml.safe_load(config_path().read_text(encoding="utf-8"))
+    for _ in range(5):  # 别的线程正在保存配置时可能读到空文件，稍等重读
+        cfg = yaml.safe_load(config_path().read_text(encoding="utf-8"))
+        if isinstance(cfg, dict):
+            return cfg
+        time.sleep(0.1)
+    return {}
 
 
 def save_watchlist(wl: list[dict]):

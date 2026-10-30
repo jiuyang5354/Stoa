@@ -9,6 +9,7 @@ import json
 import re
 import os
 import sqlite3
+import threading
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -28,7 +29,13 @@ def config_path() -> Path:
     p = home() / "config.yaml"
     if not p.exists():
         p.parent.mkdir(parents=True, exist_ok=True)
-        p.write_text((ROOT / "config.yaml").read_text(encoding="utf-8"), encoding="utf-8")
+        # 先写临时文件再改名：首次启动时几个线程同时读配置，不能读到写了一半的空文件
+        tmp = p.with_name(f"config.yaml.{os.getpid()}.{threading.get_ident()}.tmp")
+        tmp.write_text((ROOT / "config.yaml").read_text(encoding="utf-8"), encoding="utf-8")
+        try:
+            os.replace(tmp, p)
+        except OSError:
+            tmp.unlink(missing_ok=True)
     return p
 
 
