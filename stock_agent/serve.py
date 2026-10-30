@@ -431,7 +431,7 @@ class Web(BaseHTTPRequestHandler):
             def payload(reply):
                 meta = getattr((SESSIONS.get("web:" + sid) or {}).get("agent"), "last_meta", None) or {}
                 return {"reply": reply, "sources": meta.get("sources") or [], "verify": meta.get("verify"), "debate": meta.get("debate"), "cards": meta.get("cards"),
-                        "compressed": meta.get("compressed"), "archived": meta.get("archived") or 0, "steps": meta.get("steps") or [],
+                        "compressed": meta.get("compressed"), "archived": meta.get("archived") or 0, "steps": meta.get("steps") or [], "thoughts": meta.get("thoughts") or [],
                         "stopped": bool(meta.get("stopped"))}
             text = str(body.get("text", ""))[:4000]
             if not body.get("stream"):

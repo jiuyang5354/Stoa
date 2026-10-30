@@ -277,7 +277,11 @@ class LLM:
         j = r.json()
         record_usage(j.get("usage"))
         msg = j["choices"][0]["message"]
-        return {"role": "assistant", "content": msg.get("content"), "tool_calls": msg.get("tool_calls") or None}
+        out = {"role": "assistant", "content": msg.get("content"), "tool_calls": msg.get("tool_calls") or None}
+        think = _reasoning_text(msg.get("reasoning_content") or msg.get("reasoning") or msg.get("thinking"))
+        if think:
+            out["_reasoning"] = think  # 下划线开头：只给界面看，发回模型前会被剥掉（DeepSeek 等要求不回传）
+        return out
 
     # ---- Anthropic Messages API ----
     def _anthropic(self, messages, tools, temperature, timeout):
@@ -307,15 +311,20 @@ class LLM:
         r = requests.post(f"{self.base}/messages", json=body, timeout=timeout,
                           headers={"x-api-key": self.key, "anthropic-version": "2023-06-01"})
         r.raise_for_status()
-        text, calls = [], []
+        text, calls, think = [], [], []
         record_usage(r.json().get("usage"))
         for b in r.json().get("content", []):
-            if b["type"] == "text":
+            if b["type"] == "thinking":
+                think.append(b.get("thinking") or "")
+            elif b["type"] == "text":
                 text.append(b["text"])
             elif b["type"] == "tool_use":
                 calls.append({"id": b["id"], "type": "function",
                               "function": {"name": b["name"], "arguments": json.dumps(b.get("input") or {}, ensure_ascii=False)}})
-        return {"role": "assistant", "content": "".join(text) or None, "tool_calls": calls or None}
+        out = {"role": "assistant", "content": "".join(text) or None, "tool_calls": calls or None}
+        if "".join(think).strip():
+            out["_reasoning"] = "\n".join(think).strip()
+        return out
 
     # ---- Google Gemini generateContent ----
     def _gemini(self, messages, tools, temperature, timeout):
@@ -353,12 +362,29 @@ class LLM:
         r.raise_for_status()
         record_usage(r.json().get("usageMetadata"))
         parts = ((r.json().get("candidates") or [{}])[0].get("content") or {}).get("parts") or []
-        text = "".join(p.get("text", "") for p in parts)
+        text = "".join(p.get("text", "") for p in parts if not p.get("thought"))
+        think = "".join(p.get("text", "") for p in parts if p.get("thought")).strip()
         calls = [{"id": "call_" + uuid.uuid4().hex[:12], "type": "function",
                   "function": {"name": p["functionCall"]["name"],
                                "arguments": json.dumps(p["functionCall"].get("args") or {}, ensure_ascii=False)}}
                  for p in parts if "functionCall" in p]
-        return {"role": "assistant", "content": text or None, "tool_calls": calls or None}
+        out = {"role": "assistant", "content": text or None, "tool_calls": calls or None}
+        if think:
+            out["_reasoning"] = think
+        return out
+
+
+def _reasoning_text(v) -> str:
+    """各家中转的推理字段格式不一：字符串 / {"summary": [...]} / [{"text": ...}]。统一成纯文本。"""
+    if not v:
+        return ""
+    if isinstance(v, str):
+        return v.strip()
+    if isinstance(v, dict):
+        return _reasoning_text(v.get("summary") or v.get("text") or v.get("content"))
+    if isinstance(v, list):
+        return "\n".join(t for t in (_reasoning_text(x) for x in v) if t).strip()
+    return ""
 
 
 class Router:

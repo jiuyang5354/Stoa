@@ -502,6 +502,22 @@
   .hi{animation:rise .4s var(--ease) both;animation-delay:calc(var(--k,0) * 25ms);transition:background .2s,padding .3s var(--ease)}
   .hi:hover{background:rgba(176,146,89,.07);padding-left:10px}
   .thinking.leave{animation:fadeout .18s ease both}
+
+  /* 思路可见：每轮工具前一句「为什么查」，每步下面一行「查到什么」，模型自带的推理摘要折叠成一段 */
+  .steps li.why{display:block;border-top:0;padding:9px 0 1px;font:italic 13.5px/1.5 var(--serif),var(--cn);color:var(--ink-2);white-space:normal}
+  .steps li.why::before{content:'';display:inline-block;width:14px;border-top:1px solid var(--gold);vertical-align:4px;margin-right:8px}
+  .steps li.why+li{border-top:0}
+  .steps li .got{grid-column:2/-1;margin-top:-5px;font:11.5px/1.55 var(--sans);color:var(--mute);white-space:normal;overflow-wrap:anywhere;animation:rise .35s var(--ease) both}
+  .steps li .got::before{content:'→ ';color:var(--gold)}
+  .steps li.err .got{color:var(--terracotta)}
+  .steps li.think{display:block;border-top:0;padding:6px 0 2px}
+  .steps li.think summary{cursor:pointer;list-style:none;display:inline-flex;align-items:center;gap:8px;font:500 8.5px var(--sans);letter-spacing:.18em;color:var(--bronze);user-select:none}
+  .steps li.think summary::-webkit-details-marker{display:none}
+  .steps li.think summary::before{content:'';width:5px;height:5px;border-right:1px solid currentColor;border-bottom:1px solid currentColor;transform:rotate(-45deg);transition:transform .25s var(--ease)}
+  .steps li.think details[open] summary::before{transform:rotate(45deg)}
+  .steps li.think summary small{font:italic 12px var(--serif);letter-spacing:0;color:var(--mute)}
+  .steps li.think .tx{margin:6px 0 4px;padding:8px 12px;border-left:1px solid var(--gold);background:rgba(176,146,89,.06);font:italic 12.5px/1.75 var(--serif),var(--cn);color:var(--ink-2);white-space:pre-wrap;max-height:240px;overflow:auto;animation:rise .35s var(--ease) both}
+  .thinking .steps,.stepsum .steps{max-width:520px}
   @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
   /* ---- 设置（分栏参考 ChatGPT / Claude 桌面版、Cherry Studio、Hermes Dashboard：左侧分栏 + 右侧表单，Ctrl+, 打开） ---- */
   /* ---- 右栏宽度可拖 ---- */
@@ -1430,14 +1446,25 @@ async function send(text){
   const TW = ['翻阅行情', '查证数据', '回看记忆', '权衡利弊', '落笔'];
   let twi = 0, live = false; const twT = setInterval(() => { const el = out.querySelector('.tw'); if (!el || live || twi >= TW.length - 1) return; el.textContent = TW[++twi]; }, 2600);
   const steps = [];
-  const stepLi = s => `<li class="${s.done ? (s.ok ? 'ok' : 'err') : 'run'}" data-i="${esc(s.id)}"><b>${esc(s.label)}</b><span>${esc(s.arg || '')}</span><i>${s.done ? (s.cached ? '复用' : fmtMs(s.ms)) : ''}</i></li>`;
+  const stepLi = s => `<li class="${s.done ? (s.ok ? 'ok' : 'err') : 'run'}" data-i="${esc(s.id)}"><b>${esc(s.label)}</b><span>${esc(s.arg || '')}</span><i>${s.done ? (s.cached ? '复用' : fmtMs(s.ms)) : ''}</i>${s.got ? `<small class="got">${esc(s.got)}</small>` : ''}</li>`;
+  const whyLi = t => `<li class="why">${esc(t)}</li>`;
+  const thinkLi = t => `<li class="think"><details><summary>THINKING<small>思考摘要 · ${t.length} 字</small></summary><div class="tx">${esc(t)}</div></details></li>`;
+  /* 非流式（或回放）时按步骤里记下的 why 还原「为什么查」的分组 */
+  const chainHTML = (st, th) => { let last = '', h = '';
+    const T = (th || []).map(t => typeof t === 'string' ? {at: 0, text: t} : t), at = n => T.filter(t => t.at === n).map(t => thinkLi(t.text)).join('');
+    st.forEach((x, i) => { h += at(i); if (x.why && x.why !== last) { h += whyLi(x.why); last = x.why; } h += stepLi({...x, id: 's' + i, done: true}); });
+    return h + T.filter(t => t.at >= st.length).map(t => thinkLi(t.text)).join(''); };
+  let thoughts = 0;
   const onEv = ev => {
     if (ev.t === 'tool') {
       live = true; const s = {id: ev.id, label: ev.label, arg: ev.arg}; steps.push(s);
       const ol = out.querySelector('.steps'); if (ol) ol.insertAdjacentHTML('beforeend', stepLi(s));
       const tw = out.querySelector('.tw'); if (tw) tw.textContent = ev.label;
+    } else if (ev.t === 'why' || ev.t === 'think') {
+      live = true; const ol = out.querySelector('.steps'); if (ol) ol.insertAdjacentHTML('beforeend', ev.t === 'why' ? whyLi(ev.text) : thinkLi(ev.text));
+      if (ev.t === 'think') { thoughts++; const tw = out.querySelector('.tw'); if (tw) tw.textContent = '权衡利弊'; }
     } else if (ev.t === 'tool_done') {
-      const s = steps.find(x => x.id === ev.id); if (!s) return; Object.assign(s, {done: true, ok: ev.ok, ms: ev.ms, cached: ev.cached});
+      const s = steps.find(x => x.id === ev.id); if (!s) return; Object.assign(s, {done: true, ok: ev.ok, ms: ev.ms, cached: ev.cached, got: ev.got});
       const li = out.querySelector(`.steps li[data-i="${CSS.escape(ev.id)}"]`); if (li) li.outerHTML = stepLi(s);
       if (steps.every(x => x.done)) { const tw = out.querySelector('.tw'); if (tw) tw.textContent = '落笔'; }
     }
@@ -1463,8 +1490,8 @@ async function send(text){
     j = j || {reply: '（连接中断，回答已存进记录，可在 History 里查看）'};
     const th = out.querySelector('.thinking'); if (th) { th.classList.add('leave'); await new Promise(r => setTimeout(r, 170)); }
     render(out, j.reply || j.error || '（空回复）', seed); stagger(out, 'landed', 12);
-    const st = (j.steps && j.steps.length ? j.steps : steps.filter(x => x.done));
-    if (st.length) out.insertAdjacentHTML('beforeend', `<details class="stepsum"><summary>${st.length} 步 · ${fmtMs(performance.now() - t0)}${st.some(x => !x.ok) ? ` · ${st.filter(x => !x.ok).length} 步没取到` : ''}</summary><ol class="steps">${st.map((x, i) => stepLi({...x, id: 's' + i, done: true})).join('')}</ol></details>`);
+    const st = (j.steps && j.steps.length ? j.steps : steps.filter(x => x.done)), nth = (j.thoughts || []).length || thoughts;
+    if (st.length || nth) out.insertAdjacentHTML('beforeend', `<details class="stepsum"><summary>${st.length} 步 · ${fmtMs(performance.now() - t0)}${nth ? ` · 思考 ${nth} 段` : ''}${st.some(x => !x.ok) ? ` · ${st.filter(x => !x.ok).length} 步没取到` : ''}</summary><ol class="steps">${chainHTML(st, j.thoughts)}</ol></details>`);
     if (j.need_model) openSettings('model');
     if (j.archived) placeArchive(j.archived, null);
   } catch (e) {
