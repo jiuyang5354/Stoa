@@ -114,7 +114,7 @@
   @container (max-width:880px){header>.label{visibility:hidden}}
   .inner{width:100%;max-width:760px;margin:0 auto;display:flex;flex-direction:column;min-height:0;flex:1;position:relative}
   header{padding:26px 0 18px;text-align:center;border-bottom:1px solid var(--rule);position:relative}
-  header .label{display:block}
+  header .label{display:block;padding:0 236px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}  /* 左右各让出两枚按钮的宽度，英文长串不再压到按钮上 */
   h1{font:500 var(--fs7)/1.1 var(--display);letter-spacing:.15em;margin:10px 0 8px;text-transform:uppercase;padding-left:.15em}
   header em{font:italic 400 var(--fs2) var(--serif);color:var(--mute)}
   #log{flex:1;overflow:auto;padding:26px 0 20px;}
@@ -588,7 +588,7 @@
   .gside ul{list-style:none;margin:0;padding:0}.gside li{display:grid;grid-template-columns:18px 1fr auto;align-items:center;gap:6px;align-items:baseline;padding:6px 0;border-bottom:1px solid var(--rule);font:400 var(--fs0) var(--cn);cursor:pointer}
   .gside li i{display:flex;align-items:center;transform:scale(.8)}.gside li span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}.gside li small{font:var(--fsn1) var(--serif);color:var(--mute);font-style:italic}
   .gside li:hover span{text-decoration:underline;text-underline-offset:3px}
-  .gbar{display:grid;grid-template-columns:52px 1fr auto;gap:10px;align-items:center;font:var(--fsn1) var(--cn);margin:6px 0}.gbar i{height:3px;background:var(--rule);position:relative}.gbar i b{position:absolute;inset:0 auto 0 0;background:var(--ink)}.gbar small{font:var(--fsn1) var(--serif);color:var(--mute)}
+  .gbar{display:grid;grid-template-columns:auto 1fr auto;gap:10px;white-space:nowrap;align-items:center;font:var(--fsn1) var(--cn);margin:6px 0}.gbar i{height:3px;background:var(--rule);position:relative}.gbar i b{position:absolute;inset:0 auto 0 0;background:var(--ink)}.gbar small{font:var(--fsn1) var(--serif);color:var(--mute)}
   .gtrk{display:flex;gap:6px;margin:8px 0 4px}.gtrk i{width:12px;height:12px;border-radius:50%;cursor:pointer;border:1px solid var(--ink)}.gtrk i.v-对{background:#b5653f;border-color:#b5653f}.gtrk i.v-错{background:#7d8a5c;border-color:#7d8a5c}
   .gear{position:absolute;right:22px;top:24px;display:flex;align-items:center;gap:8px;border:1px solid var(--rule-2);background:transparent;color:var(--ink);font:500 var(--fsn3) var(--sans);letter-spacing:.2em;text-transform:uppercase;padding:8px 12px;cursor:pointer;transition:background .25s,border-color .25s}
   .gear:hover{background:var(--ink);color:var(--chalk);border-color:var(--ink)}
@@ -617,26 +617,27 @@
   html.en .tk b{font-size:var(--fs0)}
   .gph{position:fixed;inset:0;z-index:46;background:rgba(24,23,21,.32);animation:fadein .2s ease both;display:flex;align-items:center;justify-content:center}
   .gph[hidden]{display:none}
-  .gw{position:relative;width:min(1260px,96vw);height:min(860px,94vh);border:1px solid var(--rule-2);box-shadow:0 30px 80px -30px rgba(24,23,21,.35);display:grid;grid-template-columns:210px 1fr 310px;grid-template-rows:auto 1fr;overflow:hidden;background:#F6F3EC}
+  /* 图谱随窗口等比放大：JS 按窗口算 --gs（1260×860 为 1），字号、栏宽、留白一起乘 */
+  .gw{--gs:1;--fsn4:calc(8.0px * var(--gs));--fsn3:calc(9.0px * var(--gs));--fsn2:calc(10.5px * var(--gs));--fsn1:calc(11.5px * var(--gs));--fs0:calc(13.0px * var(--gs));--fs1:calc(14.5px * var(--gs));--fs2:calc(16.5px * var(--gs));--fs3:calc(18.5px * var(--gs));--fs4:calc(21.0px * var(--gs));--fs5:calc(23.5px * var(--gs));--fs6:calc(26.5px * var(--gs));--fs7:calc(29.5px * var(--gs));--fs8:calc(33.5px * var(--gs));--fs9:calc(37.5px * var(--gs));--fs10:calc(42.0px * var(--gs));--fs11:calc(47.5px * var(--gs));--fs12:calc(53.5px * var(--gs));--fs13:calc(60.0px * var(--gs));--fs15:calc(76.0px * var(--gs));--fs16:calc(85.5px * var(--gs));position:relative;width:min(calc(1260px * var(--gs)),96vw);height:min(calc(860px * var(--gs)),94vh);border:1px solid var(--rule-2);box-shadow:0 30px 80px -30px rgba(24,23,21,.35);display:grid;grid-template-columns:calc(210px * var(--gs)) 1fr calc(310px * var(--gs));grid-template-rows:auto 1fr;overflow:hidden;background:#F6F3EC}
   .gw>*{position:relative;z-index:1}
   .gw .gstar{display:inline-block;width:14px;height:14px;background:var(--ink);clip-path:polygon(50% 0,58% 42%,100% 50%,58% 58%,50% 100%,42% 58%,0 50%,42% 42%)}
-  .gtop{grid-column:1/-1;display:grid;grid-template-columns:auto auto 1fr auto;align-items:end;gap:18px;padding:26px 26px 16px;border-bottom:1px solid var(--rule-2);margin:0 14px}
+  .gtop{grid-column:1/-1;display:grid;grid-template-columns:auto auto 1fr auto;align-items:end;gap:calc(18px * var(--gs));padding:calc(26px * var(--gs)) calc(26px * var(--gs)) calc(16px * var(--gs));border-bottom:1px solid var(--rule-2);margin:0 14px}
   .gtop h3{font:400 var(--fs12)/.82 "Archeologicaps",var(--display);letter-spacing:.015em;margin:0;color:var(--ink)}
   .gtop .gstack{font:500 var(--fsn3)/1.75 var(--sans);letter-spacing:.24em;text-transform:uppercase;color:var(--ink);padding-bottom:4px}
   .gtop .gsr{justify-self:end;display:flex;align-items:center;gap:14px;padding-bottom:4px}
   .gtop .gsr small{font:500 var(--fsn3) var(--sans);letter-spacing:.24em;text-transform:uppercase;color:var(--mute)}
-  .gtop input{width:220px;border:0;border-bottom:1px solid var(--ink);background:transparent;font:var(--fs0) var(--sans);padding:6px 0;outline:0;color:var(--ink)}
+  .gtop input{width:calc(220px * var(--gs));border:0;border-bottom:1px solid var(--ink);background:transparent;font:var(--fs0) var(--sans);padding:6px 0;outline:0;color:var(--ink)}
   .gtop .sclose{position:static;align-self:start}
-  .gleg{padding:18px 16px 16px 26px;overflow:auto;display:flex;flex-direction:column}
+  .gleg{padding:calc(18px * var(--gs)) calc(16px * var(--gs)) calc(16px * var(--gs)) calc(26px * var(--gs));overflow:auto;display:flex;flex-direction:column}
   .gleg .gmoons{display:flex;gap:8px;margin:4px 0 14px}.gleg .gmoons i{width:13px;height:13px;border-radius:50%;border:1px solid var(--ink);display:block}
-  .gleg button{display:flex;align-items:center;gap:10px;width:100%;border:0;background:transparent;padding:8px 0;cursor:pointer;font:var(--fs0) var(--cn);color:var(--ink);border-bottom:1px solid var(--rule);text-align:left}
+  .gleg button{display:flex;align-items:center;gap:calc(10px * var(--gs));width:100%;border:0;background:transparent;padding:calc(8px * var(--gs)) 0;cursor:pointer;font:var(--fs0) var(--cn);color:var(--ink);border-bottom:1px solid var(--rule);text-align:left}
   .gleg button.off{opacity:.3}.gleg button svg{flex:none}.gleg button em{margin-left:auto;font:italic var(--fs1) var(--serif);color:var(--mute)}
   .gleg button span small{display:block;font:500 var(--fsn3) var(--display);letter-spacing:.26em;color:var(--mute)}
   .gleg .gnote{font:var(--fsn1)/1.6 var(--cn);color:var(--ink-2);margin-top:14px}
   .gleg .gquote{margin-top:auto;padding-top:16px;border-top:1px solid var(--ink);font:italic var(--fs0)/1.5 var(--serif);color:var(--ink-2)}
   .gleg .gquote b{display:block;font:500 var(--fsn3) var(--sans);font-style:normal;letter-spacing:.24em;margin-top:6px;color:var(--mute)}
-  .gmid{display:flex;flex-direction:column;min-width:0;min-height:0;padding:28px 16px 18px;position:relative}
-  .gcv{position:relative;flex:1;overflow:hidden;cursor:grab;border:1px solid var(--rule-2);border-radius:999px 999px 0 0/360px 360px 0 0;
+  .gmid{display:flex;flex-direction:column;min-width:0;min-height:0;padding:calc(28px * var(--gs)) calc(16px * var(--gs)) calc(18px * var(--gs));position:relative}
+  .gcv{position:relative;flex:1;overflow:hidden;cursor:grab;border:1px solid var(--rule-2);border-radius:999px 999px 0 0/calc(360px * var(--gs)) calc(360px * var(--gs)) 0 0;
     background:radial-gradient(ellipse 70% 55% at 50% 0%,#FFFFFF 0%,rgba(255,255,255,.6) 45%,transparent 75%),linear-gradient(180deg,#FBF9F4,#EFEBE2)}
   .gcv canvas{position:relative;z-index:1;display:block;width:100%;height:100%}
   .gcv.drag{cursor:grabbing}
@@ -645,7 +646,7 @@
   .gcv .gtip{position:absolute;pointer-events:none;z-index:4;background:#EEEAE1;color:var(--ink);font:var(--fsn1)/1.4 var(--cn);padding:6px 8px;max-width:280px;transform:translate(10px,10px);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border:1px solid var(--ink)}
   .gcv .gempty{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;font:italic var(--fs2)/1.6 var(--serif);color:var(--mute);padding:40px;z-index:2}
   .gcv .gzoom{position:absolute;right:50%;transform:translateX(50%);bottom:12px;display:flex;gap:4px;z-index:2}.gcv .gzoom .x{background:transparent}
-  .gcard{padding:18px 26px 16px 18px;overflow:auto}
+  .gcard{padding:calc(18px * var(--gs)) calc(26px * var(--gs)) calc(16px * var(--gs)) calc(18px * var(--gs));overflow:auto}
   .gcard .gk{font:500 var(--fsn3) var(--sans);letter-spacing:.24em;text-transform:uppercase;color:var(--mute);display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--ink);padding-bottom:8px}
   .gcard .gbig{font:400 var(--fs11)/.9 "Archeologicaps",var(--display);margin:16px 0 2px;white-space:nowrap;color:var(--ink)}
   .gcard .gbig.num{font:500 var(--fs10)/.95 var(--display);letter-spacing:.04em}
@@ -659,8 +660,8 @@
   .gcard .gstw{display:grid;grid-template-columns:1fr 1fr;border-top:1px solid var(--ink);margin:14px 0}
   .gcard .gstw span{padding:10px 0;border-bottom:1px solid var(--rule);font:500 var(--fsn3) var(--sans);letter-spacing:.18em;text-transform:uppercase;color:var(--mute)}.gcard .gstw b{display:block;font:400 var(--fs6)/1.05 var(--serif);color:var(--ink);letter-spacing:0;text-transform:none}
   .gcard ul{list-style:none;margin:6px 0 14px;padding:0}
-  .gcard li{display:flex;gap:10px;align-items:baseline;padding:8px 0;border-bottom:1px solid var(--rule);cursor:pointer;font:var(--fs0)/1.45 var(--cn)}
-  .gcard li:hover{background:rgba(24,23,21,.05)}.gcard li i{font:500 var(--fsn4) var(--display);font-style:normal;letter-spacing:.16em;color:var(--mute);min-width:52px}
+  .gcard li{display:flex;gap:calc(10px * var(--gs));align-items:baseline;padding:calc(8px * var(--gs)) 0;border-bottom:1px solid var(--rule);cursor:pointer;font:var(--fs0)/1.45 var(--cn)}
+  .gcard li:hover{background:rgba(24,23,21,.05)}.gcard li i{font:500 var(--fsn4) var(--display);font-style:normal;letter-spacing:.16em;color:var(--mute);min-width:calc(52px * var(--gs))}
   .gcard li small{margin-left:auto;font:italic var(--fs0) var(--serif);color:var(--mute);white-space:nowrap}
   .gcard .ask{width:100%;margin-top:6px;padding:12px;font-size:var(--fsn2);display:flex;align-items:center;justify-content:center;gap:10px}
   .gcard .ask .gstar{width:10px;height:10px;background:currentColor}
@@ -709,8 +710,8 @@
   .hfoot{padding:10px 22px 0;color:var(--mute)}
   .hempty{padding:22px 4px;color:var(--mute);font-size:var(--fs0)}
   /* 窄栏：顶部按钮收成图标，免得压到标题（必须写在 .gear 规则之后） */
-  @container (max-width:700px){.gear{font-size:0;gap:0;padding:8px 10px}.gear.hlg{left:66px}.gear.gl{right:66px}}
-  @container (max-width:430px){header{padding-top:62px}}
+  @container (max-width:700px){.gear{font-size:0;gap:0;padding:8px 10px}.gear.hlg{left:66px}.gear.gl{right:66px}header .label{padding:0 112px}}
+  @container (max-width:430px){header{padding-top:62px}header .label{padding:0}}
   .gear svg{transition:transform .6s var(--ease)}.gear:hover svg{transform:rotate(90deg)}
   .set{position:fixed;inset:0;z-index:50;display:grid;place-items:center;background:rgba(24,23,21,.32);backdrop-filter:blur(3px);animation:fadein .25s ease both}
   .set[hidden]{display:none}
@@ -2469,7 +2470,10 @@ function gicon(type){
 }
 const GSTILL = matchMedia('(prefers-reduced-motion: reduce)');
 let GOUT = 0;
+let GS = 1;
+function gscale(){ GS = Math.max(.85, Math.min(1.8, Math.min(innerWidth * .96 / 1260, innerHeight * .94 / 860))); document.querySelector('#gph .gw').style.setProperty('--gs', GS.toFixed(3)); }
 async function openGraph(){
+  gscale();
   const h3 = $('gph').querySelector('.gtop h3'); if (!h3.querySelector('span')) h3.innerHTML = [...h3.textContent].map((c, i) => `<span style="--i:${i}">${c}</span>`).join('');
   $('gph').classList.remove('out'); clearTimeout(GOUT);
   $('gph').hidden = false; $('gq').value = GQ = ''; GSEL = null;
@@ -2538,18 +2542,18 @@ function gdraw(){
     if (n._a < .05) continue; ctx.globalAlpha = n._a;
     if (!(hub && (!F || inF) ) && !(inF && GV.k > .6 && F.size < 40)) continue;
     if (!hub && n.type === 'call' && F && F.size > 12 && n !== (GHOV || GSEL)) continue;
-    const r = gsize(n), fs = (n.type === 'market' ? 12 : n.type === 'symbol' ? 12.5 : 11.5) / Math.max(.75, GV.k);
+    const r = gsize(n), fs = (n.type === 'market' ? 12 : n.type === 'symbol' ? 12.5 : 11.5) * GS / Math.max(.75, GV.k);
     ctx.font = n.type === 'theme' ? `italic ${fs}px ${FF.serif}` : n.type === 'market' ? `500 ${fs * .8}px ${FF.sans}` : `${fs}px ${FF.cn}`;
     const focus = GHOV || GSEL; let lb = n.label;
     if (focus && n !== focus && ['symbol','theme'].includes(focus.type) && lb.startsWith(focus.label)) lb = lb.slice(focus.label.length).trim() + (n.verdict ? ' · ' + n.verdict : '');
     const t = n.type === 'market' ? lb.toUpperCase() : (lb.length > 16 ? lb.slice(0, 15) + '…' : lb);
     ctx.lineWidth = 3 / GV.k; ctx.strokeStyle = C.paper; ctx.fillStyle = n.type === 'market' ? C.bronze : hub ? C.ink : C.mute;
     const off = n.type === 'symbol' ? r * 1.55 + 5 : r + 5;
-    const tx = n.type === 'market' ? n.x - ctx.measureText(t).width / 2 : n.x + off, ty = n.type === 'market' ? n.y + r + 16 / GV.k : n.y;
+    const tx = n.type === 'market' ? n.x - ctx.measureText(t).width / 2 : n.x + off, ty = n.type === 'market' ? n.y + r + 16 * GS / GV.k : n.y;
     ctx.strokeText(t, tx, ty); ctx.fillText(t, tx, ty);
     const dei = (n.type === 'theme' || n.type === 'market') && GDEI[n.label];
-    if (dei && (GV.k > .55 || inF)) { ctx.font = `500 ${7.5 / Math.max(.75, GV.k)}px ${FF.disp}`; ctx.fillStyle = C.bronze; ctx.globalAlpha = .85 * n._a; const d = dei[0].split('').join(' ');
-      const dx = n.type === 'market' ? n.x - ctx.measureText(d).width / 2 : tx, dy = ty + 11 / Math.max(.75, GV.k); ctx.strokeText(d, dx, dy); ctx.fillText(d, dx, dy); }
+    if (dei && (GV.k > .55 || inF)) { ctx.font = `500 ${7.5 * GS / Math.max(.75, GV.k)}px ${FF.disp}`; ctx.fillStyle = C.bronze; ctx.globalAlpha = .85 * n._a; const d = dei[0].split('').join(' ');
+      const dx = n.type === 'market' ? n.x - ctx.measureText(d).width / 2 : tx, dy = ty + 11 * GS / Math.max(.75, GV.k); ctx.strokeText(d, dx, dy); ctx.fillText(d, dx, dy); }
   }
   ctx.globalAlpha = 1;
 }
@@ -2579,7 +2583,7 @@ function gfit(initial){
   const xs = N.map(n => n.x), ys = N.map(n => n.y), W = $('gcv').clientWidth, Hh = $('gcv').clientHeight;
   const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
   const D = 2 * (G.R + 50); void x0; void x1; void y0; void y1;
-  GV.k = Math.max(.3, Math.min(1.6, Math.min(W / D, (Hh + 60) / D))); GV.x = 0; GV.y = 20; gdraw();
+  GV.k = Math.max(.3, Math.min(1.6 * GS, Math.min(W / D, (Hh + 60) / D))); GV.x = 0; GV.y = 20; gdraw();
 }
 function gusage(){
   const u = G.usage || {}, row = (k, t) => u[k] ? `<div class="gbar"><span>${t}</span><i><b style="width:${Math.min(100, u[k][0] * 100 / u[k][1]).toFixed(0)}%"></b></i><small>${u[k][0]} / ${u[k][1]} 字</small></div>` : '';
@@ -2675,7 +2679,7 @@ function gpick(ev){
   $('gph').onclick = e => { if (e.target === $('gph')) closeGraph(); };
   $('gq').oninput = () => { GQ = $('gq').value.trim().toLowerCase(); gsemantic(); const hit = GQ && G.nodes.filter(n => gvis(n) && gmatch(n)).sort((a, b) => (['symbol','theme','market'].includes(b.type)) - (['symbol','theme','market'].includes(a.type)) || b.deg - a.deg)[0];
     if (hit) gselect(hit, true); else { if (!GQ) GSEL = null; gcard(); gdraw(); } };
-  addEventListener('resize', () => { if (!$('gph').hidden) gdraw(); });
+  addEventListener('resize', () => { if ($('gph').hidden) return; const k0 = GS; gscale(); clearTimeout(window.__gsz); if (Math.abs(GS - k0) > .01) window.__gsz = setTimeout(() => gfit(false), 60); else gdraw(); });
 })();
 function closeHist(){ animHide($('hist')); }
 
