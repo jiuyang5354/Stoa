@@ -294,6 +294,22 @@ python -m stock_agent review   # 手动复盘到期的判断
 
 ![确定性计算卡](docs/quant.jpg)
 
+## 原始报表 · 盈利质量 · 反向 DCF（v0.27 · Fundamenta）
+
+深度研报改成专业分析师的做法：从原始报表和监管文件出发，所有比率、评分、估值由代码算。
+
+| 工具 | 做什么 |
+|---|---|
+| `get_statements` | 三表原始科目（A股东方财富原始报表，累计口径自动拆单季；港美股 Yahoo） |
+| `earnings_quality` | 杜邦分解、现金含量、应计比率、应收/存货 vs 营收、非经常性损益、Beneish M-score、Piotroski F-score、Altman Z、报表勾稽检查与红旗 |
+| `reverse_dcf` | 现价隐含的未来自由现金流增速，附折现率敏感性和历史增速对照 |
+| `dcf_scenarios` | 乐观/基准/悲观三情景估值与概率加权价值（港股自动处理报表与股价币种） |
+| `regulatory_letters` | 问询函、关注函、监管措施、处罚及回复；美股 SEC 意见信与公司回复 |
+
+内置技能 `equity-deep-dive` 重写：原始素材 → 驱动因素 → 盈利质量 → 反向 DCF/三情景/可比 → 催化剂、事前验尸、失效条件、跟踪指标；结论写入判断账本到期对账。
+
+![盈利质量与估值卡](docs/fundamentals.jpg)
+
 ## 每日新闻快照（v0.19 · Nuntius）
 
 个股新闻接口只能回溯 1–2 个月，一年前的新闻没法拿来公平回测。Stoa 从现在起每天把自选股和指数的相关新闻**带抓取时间**落盘，积累一份 point-in-time 新闻库：
