@@ -154,13 +154,19 @@ def headlines() -> dict:
             return _HEAD["data"]
     from concurrent.futures import ThreadPoolExecutor
     from . import research
-    kws = {"A": "A股", "HK": "港股", "US": "美股"}
+    # 搜索会匹配正文，所以多取一些、只留标题里真提到这个市场的
+    kws = {"A": ("A股", ("A股", "沪指", "上证", "深成指", "创业板", "沪深", "两市", "北向")),
+           "HK": ("港股", ("港股", "恒指", "恒生", "南向", "港交所")),
+           "US": ("美股", ("美股", "纳指", "纳斯达克", "标普", "道指", "道琼斯", "美联储", "华尔街", "美债"))}
 
-    def one(kw):
+    def one(spec):
+        kw, words = spec
         try:
-            return [{k: it.get(k, "") for k in ("time", "title", "source", "url")} for it in research._em_news(kw, 8)]
+            xs = [{k: it.get(k, "") for k in ("time", "title", "source", "url")} for it in research._em_news(kw, 30)]
         except Exception:
             return []
+        hit = [x for x in xs if any(w in x["title"] for w in words)]
+        return (hit if len(hit) >= 3 else hit + [x for x in xs if x not in hit])[:8]
     with ThreadPoolExecutor(3) as ex:
         res = dict(zip(kws, ex.map(one, kws.values())))
     out = {"items": res, "updated": datetime.now(CN_TZ).strftime("%H:%M")}
