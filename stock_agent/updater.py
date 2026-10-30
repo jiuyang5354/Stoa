@@ -86,10 +86,18 @@ def apply() -> dict:
     bat = tmp / "update.bat"
     bat.write_text(
         "@echo off\r\nchcp 65001 >nul\r\n"
-        f":wait\r\ntasklist /FI \"PID eq {os.getpid()}\" | find \"{os.getpid()}\" >nul && (timeout /t 1 /nobreak >nul & goto wait)\r\n"
+        f":wait\r\ntasklist /FI \"PID eq {os.getpid()}\" | find \"{os.getpid()}\" >nul && (ping -n 2 127.0.0.1 >nul & goto wait)\r\n"
         f"robocopy \"{src}\" \"{INSTALL}\" /E /R:3 /W:1 /NFL /NDL /NJH /NJS >nul\r\n"
         f"start \"\" \"{INSTALL / 'Stoa.exe'}\"\r\n"
         f"rmdir /s /q \"{tmp}\"\r\n", encoding="utf-8")
-    flags = 0x08000000 | 0x00000008  # CREATE_NO_WINDOW | DETACHED_PROCESS
-    subprocess.Popen(["cmd.exe", "/c", str(bat)], creationflags=flags, close_fds=True, cwd=str(tmp))
+    # 只用 CREATE_NO_WINDOW（+ 新进程组）：给 cmd 一个隐藏控制台，tasklist/find/robocopy 共用它。
+    # 以前叠加 DETACHED_PROCESS 时 cmd 没有控制台，每个子命令会各自新开一个终端窗口（用户看到 find "PID" 黑窗）。
+    # 等待用 ping 而不是 timeout：timeout 在隐藏控制台下读不到输入会立刻退出。
+    flags = 0x08000000 | 0x00000200  # CREATE_NO_WINDOW | CREATE_NEW_PROCESS_GROUP
+    si = None
+    if hasattr(subprocess, "STARTUPINFO"):
+        si = subprocess.STARTUPINFO()
+        si.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+        si.wShowWindow = 0  # SW_HIDE
+    subprocess.Popen(["cmd.exe", "/c", str(bat)], creationflags=flags, startupinfo=si, close_fds=True, cwd=str(tmp))
     return {"msg": f"正在更新到 v{info['latest']}，Stoa 会自动重开。", "restart": True}
