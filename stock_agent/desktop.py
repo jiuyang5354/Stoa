@@ -123,6 +123,118 @@ def tint_titlebar(title: str = TITLE, tries: int = 50) -> bool:
         return False
 
 
+class WinChrome:
+    """无边框窗口的自绘标题栏接口（js_api）。拖动/缩放交给 Windows 原生（WM_NCLBUTTONDOWN），贴靠和多屏都正常。"""
+    HT = {10, 11, 12, 13, 14, 15, 16, 17}
+
+    def __init__(self):
+        self._win = None
+        self._restore = None
+
+    def _hwnd(self):
+        if sys.platform != "win32":
+            return 0
+        import ctypes
+        return ctypes.windll.user32.FindWindowW(None, TITLE)
+
+    def _work_area(self, hwnd):
+        import ctypes
+        from ctypes import wintypes
+
+        class MI(ctypes.Structure):
+            _fields_ = [("cbSize", wintypes.DWORD), ("rcMonitor", wintypes.RECT), ("rcWork", wintypes.RECT), ("dwFlags", wintypes.DWORD)]
+        u = ctypes.windll.user32
+        mi = MI(); mi.cbSize = ctypes.sizeof(MI)
+        u.GetMonitorInfoW(u.MonitorFromWindow(hwnd, 2), ctypes.byref(mi))
+        return mi.rcWork
+
+    def _rect(self, hwnd):
+        import ctypes
+        from ctypes import wintypes
+        r = wintypes.RECT()
+        ctypes.windll.user32.GetWindowRect(hwnd, ctypes.byref(r))
+        return r
+
+    def is_max(self):
+        h = self._hwnd()
+        if not h:
+            return False
+        r, w = self._rect(h), self._work_area(h)
+        return (r.left, r.top, r.right, r.bottom) == (w.left, w.top, w.right, w.bottom)
+
+    def toggle_max(self):
+        """无边框窗口直接最大化会盖住任务栏，所以手动铺满当前屏幕的工作区。"""
+        h = self._hwnd()
+        if not h:
+            return False
+        import ctypes
+        u = ctypes.windll.user32
+        if self.is_max():
+            r = self._restore
+            if not r:
+                w = self._work_area(h)
+                cw, ch = min(1440, w.right - w.left - 80), min(920, w.bottom - w.top - 80)
+                r = (w.left + (w.right - w.left - cw) // 2, w.top + (w.bottom - w.top - ch) // 2, cw, ch)
+            u.SetWindowPos(h, 0, *r, 0x0014)  # NOZORDER | NOACTIVATE
+            return False
+        r = self._rect(h)
+        self._restore = (r.left, r.top, r.right - r.left, r.bottom - r.top)
+        w = self._work_area(h)
+        u.SetWindowPos(h, 0, w.left, w.top, w.right - w.left, w.bottom - w.top, 0x0014)
+        return True
+
+    def minimize(self):
+        h = self._hwnd()
+        if h:
+            import ctypes
+            ctypes.windll.user32.ShowWindow(h, 6)  # SW_MINIMIZE
+
+    def close(self):
+        if self._win is not None:
+            self._win.destroy()
+
+    def _nc(self, code: int):
+        h = self._hwnd()
+        if h:
+            import ctypes
+            u = ctypes.windll.user32
+            u.ReleaseCapture()
+            u.PostMessageW(h, 0xA1, code, 0)  # WM_NCLBUTTONDOWN：交给系统的移动/缩放循环
+
+    def drag(self):
+        if self.is_max() and self._restore:  # 最大化时拖标题栏 = 先还原到鼠标下面
+            import ctypes
+            from ctypes import wintypes
+            pt = wintypes.POINT(); ctypes.windll.user32.GetCursorPos(ctypes.byref(pt))
+            x, y, cw, ch = self._restore
+            self._restore = (pt.x - cw // 2, pt.y - 16, cw, ch)
+            self.toggle_max()
+        self._nc(2)  # HTCAPTION
+
+    def resize(self, edge):
+        if int(edge) in self.HT and not self.is_max():
+            self._nc(int(edge))
+
+
+def round_corners():
+    """Windows 11 圆角 + 细边框；Windows 10 静默跳过。"""
+    if sys.platform != "win32":
+        return
+    try:
+        import ctypes
+        from ctypes import wintypes
+        for _ in range(50):
+            h = ctypes.windll.user32.FindWindowW(None, TITLE)
+            if h:
+                break
+            time.sleep(0.1)
+        for attr, val in ((33, 2), (34, _colorref(CAPTION_BORDER))):  # 圆角、边框色
+            v = wintypes.DWORD(val)
+            ctypes.windll.dwmapi.DwmSetWindowAttribute(wintypes.HWND(h), attr, ctypes.byref(v), ctypes.sizeof(v))
+    except Exception as e:
+        print("圆角跳过:", e)
+
+
 def window_webview(url: str, home: Path) -> bool:
     """原生窗口。阻塞到窗口关闭；不可用返回 False。"""
     try:
@@ -135,12 +247,22 @@ def window_webview(url: str, home: Path) -> bool:
             webview.settings["ALLOW_DOWNLOADS"] = True  # 设置页「导出备份」
         except Exception:
             pass
-        win = webview.create_window(TITLE, url, width=1440, height=920, min_size=(960, 640),
-                                    background_color="#ECEAE5", text_select=True)
+        custom = sys.platform == "win32" and os.getenv("STOA_FRAME", "custom") != "native"
+        chrome = WinChrome()
+        if custom:  # 自绘标题栏：和界面同一套石色与字体；STOA_FRAME=native 可退回系统标题栏
+            url += ("&" if "?" in url else "?") + "frame=custom"
+            win = webview.create_window(TITLE, url, width=1440, height=920, min_size=(960, 640), frameless=True, easy_drag=False,
+                                        shadow=True, js_api=chrome, background_color="#ECEAE5", text_select=True)
+            chrome._win = win
+            after = round_corners
+        else:
+            win = webview.create_window(TITLE, url, width=1440, height=920, min_size=(960, 640),
+                                        background_color="#ECEAE5", text_select=True)
+            after = tint_titlebar
         try:
-            win.events.shown += lambda: threading.Thread(target=tint_titlebar, daemon=True).start()
+            win.events.shown += lambda: threading.Thread(target=after, daemon=True).start()
         except Exception:
-            threading.Thread(target=tint_titlebar, daemon=True).start()
+            threading.Thread(target=after, daemon=True).start()
         kw = {"private_mode": False, "storage_path": str(home / "webview")}
         if sys.platform == "win32":
             kw["gui"] = "edgechromium"

@@ -39,6 +39,29 @@
   .up{color:var(--up)}.down{color:var(--down)}
   .label{font:500 10px/1.4 var(--sans);letter-spacing:.18em;text-transform:uppercase;color:var(--mute)}
 
+  /* ---- 自绘标题栏（桌面版无边框窗口，?frame=custom）：与界面同一套石色、字体与细线 ---- */
+  #wbar{display:none}
+  .framed #wbar{display:flex;position:fixed;top:0;left:0;right:0;height:34px;z-index:10000;align-items:stretch;user-select:none;-webkit-user-select:none}
+  .framed .temple{top:34px}
+  #wbar .wt{flex:1;display:flex;align-items:center;gap:12px;padding-left:22px;min-width:0}
+  #wbar .wt b{font:500 11px var(--display);letter-spacing:.32em;color:var(--ink);padding-left:.32em}
+  #wbar .wt i{width:1px;height:9px;background:var(--rule-2)}
+  #wbar .wt span{font:500 9.5px var(--sans);letter-spacing:.2em;text-transform:uppercase;color:var(--mute)}
+  #wbar .wc{display:flex}
+  #wbar .wc button{width:46px;border:0;background:transparent;color:var(--ink);display:grid;place-items:center;cursor:default;transition:background .18s,color .18s}
+  #wbar .wc button:hover{background:rgba(24,23,21,.06)}
+  #wbar .wc button.x:hover{background:var(--ink);color:#F5F2EB}
+  #wbar .wc svg{width:10px;height:10px;stroke:currentColor;stroke-width:1;fill:none}
+  .wrs{display:none}
+  .framed:not(.wmax) .wrs{display:block;position:fixed;z-index:10001}
+  .wrs[data-e="12"]{top:0;left:6px;right:6px;height:4px;cursor:ns-resize}
+  .wrs[data-e="15"]{bottom:0;left:6px;right:6px;height:5px;cursor:ns-resize}
+  .wrs[data-e="10"]{left:0;top:6px;bottom:6px;width:5px;cursor:ew-resize}
+  .wrs[data-e="11"]{right:0;top:6px;bottom:6px;width:5px;cursor:ew-resize}
+  .wrs[data-e="13"]{top:0;left:0;width:8px;height:8px;cursor:nwse-resize}
+  .wrs[data-e="17"]{bottom:0;right:0;width:8px;height:8px;cursor:nwse-resize}
+  .wrs[data-e="14"]{top:0;right:0;width:8px;height:8px;cursor:nesw-resize}
+  .wrs[data-e="16"]{bottom:0;left:0;width:8px;height:8px;cursor:nesw-resize}
   /* 台基：通长 1px 细线把内容框起来 */
   .temple{position:fixed;inset:14px;border:1px solid var(--rule-2);display:flex;flex-direction:column;background:transparent}
   .temple::before{content:"";position:absolute;inset:4px;border:1px solid var(--rule);pointer-events:none}
@@ -634,6 +657,27 @@
     setTimeout(() => { el.remove(); document.body.classList.remove('wake'); }, 1000); };
   const t = q === 'hold' ? 0 : setTimeout(bye, 2900); el.addEventListener('click', () => { clearTimeout(t); bye(); });
   addEventListener('keydown', () => { clearTimeout(t); bye(); }, {once: true});
+})();</script>
+<script>if (new URLSearchParams(location.search).get('frame') === 'custom') document.documentElement.classList.add('framed');</script>
+<div id="wbar"><div class="wt" id="wdrag"><b>STOA</b><i></i><span>股市 · Agora</span></div>
+  <div class="wc"><button id="wmin" type="button" aria-label="最小化"><svg viewBox="0 0 10 10"><path d="M0 5.5h10"/></svg></button><button id="wmax" type="button" aria-label="最大化"><svg viewBox="0 0 10 10"><rect x=".5" y=".5" width="9" height="9"/></svg></button><button id="wcls" class="x" type="button" aria-label="关闭"><svg viewBox="0 0 10 10"><path d="M.5.5l9 9M9.5.5l-9 9"/></svg></button></div></div>
+<div class="wrs" data-e="12"></div><div class="wrs" data-e="15"></div><div class="wrs" data-e="10"></div><div class="wrs" data-e="11"></div><div class="wrs" data-e="13"></div><div class="wrs" data-e="14"></div><div class="wrs" data-e="16"></div><div class="wrs" data-e="17"></div>
+<script>(() => {
+  if (!document.documentElement.classList.contains('framed')) return;
+  const api = () => (window.pywebview && window.pywebview.api) || null;
+  const call = (f, ...a) => { const x = api(); if (x && x[f]) return x[f](...a); };
+  const maxIcon = m => { document.documentElement.classList.toggle('wmax', !!m);
+    document.querySelector('#wmax svg').innerHTML = m ? '<rect x="2.5" y=".5" width="7" height="7"/><path d="M.5 2.5v7h7"/>' : '<rect x=".5" y=".5" width="9" height="9"/>'; };
+  const toggle = async () => maxIcon(await call('toggle_max'));
+  document.getElementById('wmin').onclick = () => call('minimize');
+  document.getElementById('wmax').onclick = toggle;
+  document.getElementById('wcls').onclick = () => call('close');
+  const bar = document.getElementById('wdrag');
+  bar.addEventListener('mousedown', e => { if (e.button === 0 && e.detail === 1) call('drag'); });
+  bar.addEventListener('dblclick', toggle);
+  document.querySelectorAll('.wrs').forEach(el => el.addEventListener('mousedown', e => { if (e.button === 0) { e.preventDefault(); call('resize', +el.dataset.e); } }));
+  addEventListener('pywebviewready', async () => maxIcon(await call('is_max')));
+  addEventListener('resize', () => { clearTimeout(window.__wm); window.__wm = setTimeout(async () => maxIcon(await call('is_max')), 150); });
 })();</script>
 <div class="temple">
 <div class="ticker" id="ticker"><div class="ticker-track" id="track"><span class="tk"><span class="p">行情加载中…</span></span></div></div>

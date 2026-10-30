@@ -25,3 +25,11 @@ def test_titlebar_tint_colors():
     from stock_agent import desktop
     assert desktop._colorref((0xEC, 0xEA, 0xE5)) == 0xE5EAEC
     assert desktop.tint_titlebar() in (False, True)  # 非 Windows 直接跳过
+
+
+def test_custom_titlebar_wired():
+    from stock_agent import desktop
+    c = desktop.WinChrome()
+    assert c.is_max() is False and c.toggle_max() is False  # 非 Windows 无窗口时安全返回
+    html = open("stock_agent/web.html", encoding="utf-8").read()
+    assert 'id="wbar"' in html and "frame') === 'custom'" in html and "call('drag')" in html
