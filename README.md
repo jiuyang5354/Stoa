@@ -77,6 +77,8 @@ docker compose up -d
 | 本地 | ollama · lmstudio · vllm |
 | 原生 | anthropic（Claude）· gemini · azure |
 
+右侧栏：指数走势、市场脉搏（5 日 / 20 日涨跌、距一年高点、年化波动）和 A股 / 港股 / 美股要闻，左边缘可以拖动调宽度、双击还原；判断账本、财报事件、关于你、笔记在顶部「Ledger」（Ctrl+L）。
+
 任何别的服务（中转站、One API、自建网关、公司内网模型）：在「设置 → 模型 → 自定义来源」填名称、地址、密钥，选 OpenAI 兼容 / Anthropic / Gemini 协议，点「检测」能列出它有哪些模型；保存后在「服务商」里选它。也可以只填 `LLM_BASE_URL`。模型框会自动问服务商要模型列表，点「选择」挑一个。`LLM_FALLBACK=qwen,ollama:qwen2.5:7b` 让主模型挂了自动换。
 
 中转站示例（以 sui-xiang.com 为例，任何 `/v1/chat/completions` + function calling 的中转都一样）：
