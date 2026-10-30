@@ -456,8 +456,8 @@
   .slp .ft{border-top:1px solid var(--rule);margin-top:6px;padding:8px 16px 4px;font:500 8.5px var(--sans);letter-spacing:.16em;color:var(--mute)}
   .ucmd{display:inline-block;font:500 11px ui-monospace,SFMono-Regular,Menlo,monospace;border:1px solid currentColor;padding:0 6px;margin-right:8px;letter-spacing:.02em;vertical-align:1px}
   .gside{margin-top:18px}.gside .label{display:block;margin:14px 0 6px}
-  .gside ul{list-style:none;margin:0;padding:0}.gside li{display:grid;grid-template-columns:16px 1fr auto;gap:6px;align-items:baseline;padding:5px 0;border-bottom:1px solid var(--rule);font:400 12.5px var(--cn);cursor:pointer}
-  .gside li i{font:normal 9px var(--disp);color:var(--bronze)}.gside li span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}.gside li small{font:11px var(--serif);color:var(--mute);font-style:italic}
+  .gside ul{list-style:none;margin:0;padding:0}.gside li{display:grid;grid-template-columns:18px 1fr auto;align-items:center;gap:6px;align-items:baseline;padding:5px 0;border-bottom:1px solid var(--rule);font:400 12.5px var(--cn);cursor:pointer}
+  .gside li i{display:flex;align-items:center;transform:scale(.8)}.gside li span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}.gside li small{font:11px var(--serif);color:var(--mute);font-style:italic}
   .gside li:hover span{text-decoration:underline;text-underline-offset:3px}
   .gbar{display:grid;grid-template-columns:52px 1fr auto;gap:10px;align-items:center;font:12px var(--cn);margin:6px 0}.gbar i{height:3px;background:var(--rule);position:relative}.gbar i b{position:absolute;inset:0 auto 0 0;background:var(--ink)}.gbar small{font:11px var(--serif);color:var(--mute)}
   .gtrk{display:flex;gap:5px;margin:8px 0 4px}.gtrk i{width:12px;height:12px;border-radius:50%;cursor:pointer;border:1px solid var(--ink)}.gtrk i.v-对{background:#b5653f;border-color:#b5653f}.gtrk i.v-错{background:#7d8a5c;border-color:#7d8a5c}
@@ -2244,16 +2244,16 @@ function gside(){
   const N = G.nodes, today = new Date().toISOString().slice(0, 10);
   const recent = N.filter(n => ['user', 'note', 'call', 'chat'].includes(n.type) && n.date).sort((a, b) => b.date.localeCompare(a.date)).slice(0, 6);
   const open = N.filter(n => n.type === 'call' && n.verdict === '未到期' && n.due).sort((a, b) => a.due.localeCompare(b.due)).slice(0, 5);
-  const days = d => { const x = Math.round((new Date(d) - new Date(today)) / 864e5); return x <= 0 ? '今天到期' : x + ' 天后'; };
-  const li = (n, r) => `<li data-gn="${esc(n.id)}"><i>${GT[n.type].g}</i><span>${esc(n.label.length > 22 ? n.label.slice(0, 21) + '…' : n.label)}</span><small>${r}</small></li>`;
+  const days = d => { const x = Math.round((new Date(d) - new Date(today)) / 864e5); return x < 0 ? '已到期' : x === 0 ? '今天' : x + ' 天后'; };
+  const li = (n, r) => `<li data-gn="${esc(n.id)}"><i>${gicon(n.type)}</i><span>${esc(n.label.length > 22 ? n.label.slice(0, 21) + '…' : n.label)}</span><small>${r}</small></li>`;
   $('gleg').insertAdjacentHTML('beforeend', `<div class="gside"><span class="label">Recentia · 最近记下</span><ul>${recent.length ? recent.map(n => li(n, esc(n.date.slice(5)))).join('') : '<li class="muted">还没有</li>'}</ul>` +
     `<span class="label">Exspectata · 待复盘</span><ul>${open.length ? open.map(n => li(n, days(n.due))).join('') : '<li class="muted">没有未到期的判断</li>'}</ul></div>`);
   $('gleg').querySelectorAll('.gside [data-gn]').forEach(x => x.onclick = () => gselect(G.byId[x.dataset.gn], true));
 }
 function gleg(){
   const c = G.counts || {};
-  $('gleg').innerHTML = `<span class="label">Legenda · 星表</span>` + GORDER.filter(t => c[t]).map(t => `<button type="button" data-gt="${t}" class="${GOFF.has(t) ? 'off' : ''}">${gicon(t)}<span><small>${GT[t].g}</small>${GT[t].t}</span><em>${c[t]}</em></button>`).join('') +
-    gside();
+  $('gleg').innerHTML = `<span class="label">Legenda · 星表</span>` + GORDER.filter(t => c[t]).map(t => `<button type="button" data-gt="${t}" class="${GOFF.has(t) ? 'off' : ''}">${gicon(t)}<span><small>${GT[t].g}</small>${GT[t].t}</span><em>${c[t]}</em></button>`).join('');
+  gside();
   [...$('gleg').children].forEach((el, i) => el.style.setProperty('--i', i));
   $('gleg').querySelectorAll('[data-gt]').forEach(b => b.onclick = () => { const t = b.dataset.gt; GOFF.has(t) ? GOFF.delete(t) : GOFF.add(t); if (GSEL && GOFF.has(GSEL.type)) GSEL = null; gleg(); $('gleg').querySelectorAll(':scope>*').forEach(el => el.style.animation = 'none'); gkick(.4); });
 }
