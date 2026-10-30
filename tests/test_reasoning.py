@@ -16,7 +16,7 @@ def test_why_and_digest():
     assert _why_line("") == ""
     assert "1392.05" in _digest({"symbol": "600519.SS", "price": 1392.05, "change_pct": 2.81})
     assert _digest({"error": "无数据"}).startswith("没取到")
-    assert "条" in _digest({"items": [{"title": "公告"}], "_cite": 1})
+    assert "2 条" in _digest({"items": [{"title": "公告"}, {"title": "b"}], "_cite": 1})
     assert _digest("第一行\n第二行") == "第一行"
 
 

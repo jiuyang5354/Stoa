@@ -358,6 +358,34 @@ _DIGEST_KEYS = ("name", "名称", "price", "现价", "close", "收盘", "change_
                 "title", "标题", "result", "结果", "value", "implied_growth", "隐含增长", "verdict", "结论", "count", "total")
 
 
+def _scalars(d: dict, n: int = 3) -> list:
+    bits = []
+    for k in _DIGEST_KEYS:
+        v = d.get(k)
+        if isinstance(v, (int, float)) and not isinstance(v, bool):
+            bits.append(f"{k} {round(v, 4) if isinstance(v, float) else v}")
+        elif isinstance(v, str) and v and len(v) <= 40 and not v.startswith("http"):
+            bits.append(v)
+        if len(bits) >= n:
+            break
+    return bits
+
+
+def _brief(x) -> str:
+    if isinstance(x, dict):
+        if isinstance(x.get("close"), (int, float)):
+            c = x.get("chg_pct")
+            return f"收 {x['close']}" + (f"，{c:+.2f}%" if isinstance(c, (int, float)) else "") + (f"（{x['date']}）" if x.get("date") else "")
+        if x.get("period"):
+            vals = [f"{k} {v}" for k, v in x.items() if k != "period" and v not in (None, "") and not isinstance(v, (dict, list))][:2]
+            return str(x["period"]) + " " + " · ".join(vals)
+        t = x.get("title") or x.get("标题")
+        if t:
+            return ((str(x.get("time") or x.get("date") or "")[:10] + " ") if (x.get("time") or x.get("date")) else "") + str(t)
+        return " · ".join(_scalars(x))
+    return str(x)
+
+
 def _digest(result, err=False) -> str:
     """工具结果的一句话摘要：给步骤列表显示「查到什么」。不追求完整，只给人一眼看懂。"""
     try:
@@ -370,22 +398,13 @@ def _digest(result, err=False) -> str:
             for k in ("summary", "摘要", "headline", "one_line"):
                 if isinstance(result.get(k), str) and result[k].strip():
                     return result[k].strip()[:70]
-            bits = []
-            for k in _DIGEST_KEYS:
-                v = result.get(k)
-                if isinstance(v, (int, float)) and not isinstance(v, bool):
-                    bits.append(f"{k} {round(v, 4) if isinstance(v, float) else v}")
-                elif isinstance(v, str) and v and len(v) <= 40 and not v.startswith("http"):
-                    bits.append(v)
-                if len(bits) >= 3:
-                    break
-            for k, v in result.items():
-                if len(bits) >= 1:
-                    break
-                if isinstance(v, list) and v and not k.startswith("_"):
-                    first = v[0]
-                    brief = (first.get("title") or first.get("name") or first.get("date") or "") if isinstance(first, dict) else str(first)
-                    bits.append(f"{k} {len(v)} 条" + (f"，首条：{str(brief)[:30]}" if brief else ""))
+            quotes = [(k, v) for k, v in result.items() if isinstance(v, dict) and isinstance(v.get("close"), (int, float))]
+            if quotes:  # get_quotes：{代码: {close, chg_pct...}}
+                return "；".join(f"{k} " + _brief(v) for k, v in quotes[:2])[:70]
+            for k, v in result.items():  # 新闻/公告/行情列表：条数 + 首条
+                if isinstance(v, list) and v and not k.startswith("_") and k not in ("warnings",):
+                    return (f"{len(v)} 条，" + _brief(v[0]))[:70] if len(v) > 1 else _brief(v[0])[:70]
+            bits = _scalars(result)
             return " · ".join(bits)[:70]
         if isinstance(result, list):
             return f"{len(result)} 条"

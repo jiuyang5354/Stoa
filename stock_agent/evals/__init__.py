@@ -180,7 +180,8 @@ class MockLLM:
             self._sys = system
             calls = self.plan(q)
             if calls:
-                why = "先把" + "、".join(dict.fromkeys(n for n, _ in calls)) + "取齐，再下判断。"
+                from ..agent import TOOL_LABELS
+                why = "先把" + "、".join(dict.fromkeys(TOOL_LABELS.get(n, n) for n, _ in calls)) + "取齐，再下判断。"
                 return {"role": "assistant", "content": why, "tool_calls": [
                     {"id": f"c{i}", "type": "function", "function": {"name": n, "arguments": json.dumps(a, ensure_ascii=False)}} for i, (n, a) in enumerate(calls)],
                         "_reasoning": f"用户问的是「{q[:40]}」。要回答得有据，先确定需要哪些数据：{len(calls)} 个工具一次并行取回，避免来回。拿到后对照价格、基本面和记忆里的旧判断，再决定结论。"}
