@@ -60,3 +60,58 @@ def test_tools_registered_and_skills():
     assert agent.QUANT_TOOLS - {"calc"} <= cards.CARD_TOOLS
     have = {s["name"] if isinstance(s, dict) else s.name for s in skills.list_skills()}
     assert {"trade-replay", "equity-deep-dive", "crowd-pulse", "options-strategy"} <= have
+
+
+# ---------------- v0.27 fundamentals ----------------
+from stock_agent import fundamentals as F
+
+
+def _p(rev, cogs, ni, cfo, ta, ar, inv, ca, cl, tl, eq, ppe=10.0, capex=5.0, sh=100.0):
+    return {"period": "x", "income": {"revenue": rev, "cogs": cogs, "net_income": ni, "parent_ni": ni, "selling": rev * .1, "admin": rev * .05, "pretax": ni * 1.25},
+            "balance": {"total_assets": ta, "receivables": ar, "inventory": inv, "current_assets": ca, "current_liab": cl, "total_liab": tl, "equity": eq,
+                        "parent_equity": eq, "ppe": ppe, "share_capital": sh, "retained": eq * .5, "cash": 20.0},
+            "cashflow": {"cfo": cfo, "capex": capex, "cfi": -capex, "cff": -10.0, "cash_change": cfo - capex - 10.0, "begin_cash": 10.0, "end_cash": 10.0 + cfo - capex - 10.0}}
+
+
+def test_tie_outs_and_scores():
+    t, p = _p(120, 60, 24, 30, 200, 20, 15, 100, 50, 80, 120), _p(100, 52, 18, 20, 180, 18, 14, 90, 50, 80, 100)
+    assert all(x["ok"] for x in F.tie_outs(t))
+    bad = _p(120, 60, 24, 30, 200, 20, 15, 100, 50, 80, 100)
+    assert any(not x["ok"] for x in F.tie_outs(bad))
+    m, _ = F._beneish(t, p)
+    assert m["m_score"] is not None and set(m["components"]) == {"DSRI", "GMI", "AQI", "SGI", "DEPI", "SGAI", "LVGI", "TATA"}
+    f = F._piotroski(t, p)
+    assert 0 <= f["f_score"] <= 9 and f["signals"]["ROA>0"] and f["signals"]["经营现金流 > 净利润"]
+    z = F._altman(t, 300.0)
+    assert z["z_score"] > 0
+
+
+def test_pv_monotonic_and_reverse_solves():
+    assert F._pv(100, 0.10, 10, 0.09, 0.025) > F._pv(100, 0.05, 10, 0.09, 0.025)
+    target = F._pv(100, 0.08, 10, 0.09, 0.025)
+    lo, hi = -0.5, 1.5
+    for _ in range(80):
+        mid = (lo + hi) / 2
+        lo, hi = (mid, hi) if F._pv(100, mid, 10, 0.09, 0.025) < target else (lo, mid)
+    assert abs(mid - 0.08) < 1e-6
+
+
+def test_quarter_split(monkeypatch):
+    rows = {"income": [{"REPORT_DATE": d + " 00:00:00", "TOTAL_OPERATE_INCOME": v, "NETPROFIT": v / 10, "BASIC_EPS": v / 100}
+                       for d, v in [("2026-09-30", 300), ("2026-06-30", 200), ("2026-03-31", 90), ("2025-12-31", 400)]],
+            "balance": [{"REPORT_DATE": d + " 00:00:00", "TOTAL_ASSETS": 1000} for d in ("2026-09-30", "2026-06-30", "2026-03-31", "2025-12-31")],
+            "cashflow": [{"REPORT_DATE": d + " 00:00:00", "NETCASH_OPERATE": v} for d, v in [("2026-09-30", 60), ("2026-06-30", 50), ("2026-03-31", 5), ("2025-12-31", 80)]]}
+    monkeypatch.setattr(F, "_em_rows", lambda secu, kind, n=24: rows[kind])
+    st = F._statements_a({"code": "600000", "name": "T", "symbol": "600000.SS"}, "quarter", 3)
+    q = {p["period"]: p for p in st["periods"]}
+    assert q["2026Q3"]["income"]["revenue"] == 100 and q["2026Q2"]["income"]["revenue"] == 110 and q["2026Q1"]["income"]["revenue"] == 90
+    assert q["2026Q3"]["cashflow"]["cfo"] == 10 and q["2026Q3"]["income"]["eps"] is None and q["2026Q1"]["income"]["eps"] == 0.9
+    st = F._statements_a({"code": "600000", "name": "T", "symbol": "600000.SS"}, "annual", 3)
+    assert [p["period"] for p in st["periods"]] == ["2025年报"]
+
+
+def test_reg_pattern_and_registration():
+    assert F.REG_PAT.search("关于对公司2025年年报的问询函的回复公告") and not F.REG_PAT.search("2026年第三季度报告")
+    names = {t["name"] for t in agent.TOOLS}
+    assert agent.FUND_TOOLS <= names and agent.FUND_TOOLS <= set(agent.TOOL_LABELS)
+    assert {"earnings_quality", "reverse_dcf", "dcf_scenarios"} <= cards.CARD_TOOLS

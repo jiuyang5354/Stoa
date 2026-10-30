@@ -1218,7 +1218,7 @@ function pc(v, d){ return v == null ? '—' : (v * 100).toFixed(d == null ? 1 : 
 function cardQuality(c){
   const q = c.quality || {}, dp = c.dupont || {}, fl = c.flags || [];
   const gauge = (label, v, lo, hi, good, txt) => { if (v == null) return ''; const t = Math.max(0, Math.min(1, (v - lo) / (hi - lo)));
-    return `<div class="gq"><span>${label}</span><svg viewBox="0 0 120 8"><line x1="0" x2="120" y1="4" y2="4" stroke="var(--rule-2)" stroke-width="2"/><circle cx="${(t * 120).toFixed(1)}" cy="4" r="3.2" fill="${good ? 'var(--olive)' : 'var(--terracotta)'}"/></svg><b>${N(v, 2)}</b><small>${esc(txt || '')}</small></div>`; };
+    return `<div class="gq"><span>${label}</span><svg viewBox="0 0 120 8"><line x1="0" x2="120" y1="4" y2="4" stroke="var(--rule-2)" stroke-width="2"/><circle cx="${(t * 120).toFixed(1)}" cy="4" r="3.2" fill="${good ? 'var(--olive)' : 'var(--terracotta)'}"/></svg><b>${N(v, Number.isInteger(v) ? 0 : 2)}</b><small>${esc(txt || '')}</small></div>`; };
   return `<div class="dc wide"><h6>盈利质量<i>Examen rationum</i><small>${esc(c.name || c.symbol || '')} · ${esc(c.period || '')}${csup(c.cite)}</small></h6>
     ${gauge('Beneish M', c.m, -4, 0, c.m != null && c.m <= -1.78, c.m == null ? '' : c.m <= -1.78 ? '< −1.78 未见操纵迹象' : '> −1.78 需细查')}
     ${gauge('Piotroski F', c.f, 0, 9, c.f >= 5, c.f >= 7 ? '强' : c.f <= 3 ? '弱' : '中等')}
@@ -1229,12 +1229,12 @@ function cardQuality(c){
 }
 function cardRdcf(c){
   const sv = Object.entries(c.sensitivity_by_discount || {}); if (c.implied_initial_growth == null) return '';
-  const vs = sv.map(([, v]) => v).filter(v => v != null).concat([c.hist_revenue_cagr || 0, 0]), mx = Math.max(...vs.map(Math.abs), .05);
-  const W = 300, H = 70, bw = W / Math.max(sv.length, 1), Y = v => H / 2 - v / mx * (H / 2 - 8);
-  const bars = sv.map(([k, v], i) => v == null ? '' : `<rect x="${(i * bw + 10).toFixed(1)}" y="${Math.min(Y(v), H / 2).toFixed(1)}" width="${(bw - 20).toFixed(1)}" height="${Math.abs(Y(v) - H / 2).toFixed(1)}" fill="${Math.abs(v - c.implied_initial_growth) < 1e-9 ? 'var(--ink)' : 'var(--bronze)'}" opacity=".8"/><text x="${(i * bw + bw / 2).toFixed(1)}" y="${H + 9}" text-anchor="middle" font-size="7.5" fill="var(--mute)" ${FT}>r ${esc(k)}</text><text x="${(i * bw + bw / 2).toFixed(1)}" y="${(v >= 0 ? Y(v) - 2 : Y(v) + 8).toFixed(1)}" text-anchor="middle" font-size="7.5" fill="var(--ink-2)" ${FT}>${pc(v)}</text>`).join('');
+  const vs = sv.map(([, v]) => v).filter(v => v != null).concat([c.hist_revenue_cagr || 0, 0]), hi = Math.max(...vs, .02), lo = Math.min(...vs, 0);
+  const W = 300, H = 70, bw = W / Math.max(sv.length, 1), Y = v => 10 + (hi - v) / (hi - lo) * (H - 18), Z = Y(0);
+  const bars = sv.map(([k, v], i) => v == null ? '' : `<rect x="${(i * bw + 10).toFixed(1)}" y="${Math.min(Y(v), Z).toFixed(1)}" width="${(bw - 20).toFixed(1)}" height="${Math.abs(Y(v) - Z).toFixed(1)}" fill="${Math.abs(v - c.implied_initial_growth) < 1e-9 ? 'var(--ink)' : 'var(--bronze)'}" opacity=".8"/><text x="${(i * bw + bw / 2).toFixed(1)}" y="${H + 9}" text-anchor="middle" font-size="7.5" fill="var(--mute)" ${FT}>r ${esc(k)}</text><text x="${(i * bw + bw / 2).toFixed(1)}" y="${(v >= 0 ? Y(v) - 2 : Y(v) + 8).toFixed(1)}" text-anchor="middle" font-size="7.5" fill="var(--ink-2)" ${FT}>${pc(v)}</text>`).join('');
   const hl = c.hist_revenue_cagr != null ? `<line x1="0" x2="${W}" y1="${Y(c.hist_revenue_cagr).toFixed(1)}" y2="${Y(c.hist_revenue_cagr).toFixed(1)}" stroke="var(--terracotta)" stroke-dasharray="3 3" stroke-width=".8"/>` : '';
   return `<div class="dc"><h6>反向 DCF<i>Quid pretium sperat</i><small>${esc(c.name || c.symbol || '')}${csup(c.cite)}</small></h6>
-    <svg viewBox="0 0 ${W} ${H + 12}"><line x1="0" x2="${W}" y1="${H / 2}" y2="${H / 2}" stroke="var(--rule-2)" stroke-width=".6"/>${bars}${hl}</svg>
+    <svg viewBox="0 0 ${W} ${H + 12}"><line x1="0" x2="${W}" y1="${Z}" y2="${Z}" stroke="var(--rule-2)" stroke-width=".6"/>${bars}${hl}</svg>
     <div class="kv"><span>隐含增速 <b>${pc(c.implied_initial_growth)}</b></span><span>折现率 <b>${pc(c.discount_rate)}</b></span><span>永续 <b>${pc(c.terminal_growth)}</b></span><span>历史营收复合 <b style="color:var(--terracotta)">${pc(c.hist_revenue_cagr)}</b></span></div>${dcFoot(c)}</div>`;
 }
 function cardScen(c){
