@@ -150,7 +150,7 @@ LLM_RETRIES=5                  # 中转限流（429）/网关 5xx 时退避重�
 
 中转常限并发：回测 `--concurrency 1–2`，辩论回测慢时加 `--role-timeout 120`。
 
-**行情源**：`DATA_PROVIDERS` 按顺序尝试，默认 `tencent,eastmoney,yahoo`（免费、免密钥；腾讯证券和东方财富国内网络直连，A股/港股/美股和主要指数都有，Yahoo 只做兜底）。
+**行情源**：`DATA_PROVIDERS` 按顺序尝试，默认 `tencent,eastmoney,akshare,yahoo`（免费、免密钥；腾讯证券、东方财富、新浪财经（经 AKShare）都是国内网络直连，A股/港股/美股和主要指数都有，Yahoo 只做兜底）。交易时段右栏每分钟用新浪批量实时报价刷新 A股和港股。
 
 | 源 | A股 | 港股 | 美股 | 指数 | 密钥 |
 |---|---|---|---|---|---|

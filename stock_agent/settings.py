@@ -22,7 +22,7 @@ FIELDS = {
     "LLM_MODEL": ("model", "模型", False, "留空用服务商默认"),
     "LLM_BASE_URL": ("model", "接口地址", False, "中转 / 自建网关时填"),
     "LLM_FALLBACK": ("model", "备用模型", False, "主模型出错时依次换用，如 qwen,ollama:qwen2.5:7b"),
-    "DATA_PROVIDERS": ("data", "行情源顺序", False, "tencent eastmoney yahoo tushare finnhub alphavantage polygon twelvedata tiingo fmp custom"),
+    "DATA_PROVIDERS": ("data", "行情源顺序", False, "tencent eastmoney akshare yahoo tushare finnhub alphavantage polygon twelvedata tiingo fmp custom"),
     "TUSHARE_TOKEN": ("data", "Tushare", True, ""),
     "FINNHUB_API_KEY": ("data", "Finnhub", True, ""),
     "ALPHAVANTAGE_API_KEY": ("data", "Alpha Vantage", True, ""),

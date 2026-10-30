@@ -134,20 +134,40 @@ _IDX = {"ts": 0, "data": None}
 _IDX_LOCK = threading.Lock()
 
 
+def trading_now(t: datetime | None = None) -> bool:
+    """A股/港股交易时段（北京时间工作日 9:15–16:15，含午休，粗略即可）：这时右栏每分钟覆盖一次实时价。"""
+    t = t or datetime.now(CN_TZ)
+    return t.weekday() < 5 and (9, 15) <= (t.hour, t.minute) <= (16, 15)
+
+
 def indices() -> list[dict]:
     with _IDX_LOCK:
-        if _IDX["data"] is not None and time.time() - _IDX["ts"] < 600:
+        live = trading_now()
+        if _IDX["data"] is not None and time.time() - _IDX["ts"] < (60 if live else 600):
             return _IDX["data"]
-        from .data import fetch_closes
+        from .data import fetch_closes, live_quotes
         cfg = load_cfg()
         items = [(mkt, x) for mkt, xs in cfg.get("indices", {}).items() for x in xs]
         items += [("自选", x) for x in cfg.get("watchlist") or []]
-        closes = fetch_closes([x["symbol"] for _, x in items], period="1y")
+        syms = [x["symbol"] for _, x in items]
+        if _IDX.get("closes") is None or time.time() - _IDX.get("cts", 0) >= 600 or set(_IDX.get("syms") or []) != set(syms):
+            _IDX.update(closes=fetch_closes(syms, period="1y"), cts=time.time(), syms=syms)
+        closes = _IDX["closes"]
+        rt = live_quotes(syms) if live else {}
         out = []
         for mkt, x in items:
             ser = closes.get(x["symbol"])
             if ser is None or len(ser) < 2:
                 continue
+            q = rt.get(x["symbol"])
+            if q:  # 新浪实时价：今天的 K 线还没出来就补一根，已有就改成最新价
+                import pandas as pd
+                d = pd.Timestamp(q[1])
+                ser = ser.copy()
+                if ser.index[-1] == d:
+                    ser.iloc[-1] = q[0]
+                elif ser.index[-1] < d:
+                    ser.loc[d] = q[0]
             last, prev = float(ser.iloc[-1]), float(ser.iloc[-2])
             out.append({"market": mkt, "symbol": x["symbol"], "name": x.get("name", x["symbol"]),
                         "last": round(last, 2), "chg": round(last - prev, 2), "pct": round((last / prev - 1) * 100, 2),

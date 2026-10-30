@@ -1,4 +1,4 @@
-"""行情数据：可插拔多数据源（DATA_PROVIDERS），默认 腾讯证券 → 东方财富 → Yahoo Finance → 昨收兜底（国内网络可直连）。"""
+"""行情数据：可插拔多数据源（DATA_PROVIDERS），默认 腾讯证券 → 东方财富 → 新浪（AKShare）→ Yahoo Finance → 昨收兜底（国内网络可直连）。"""
 import os
 import re
 import time
@@ -259,7 +259,73 @@ def p_custom(symbol, days):
     return _series([(x.get("date"), x.get("close")) for x in rows or []], symbol)
 
 
-PROVIDERS = {"tencent": p_tencent, "tushare": p_tushare, "finnhub": p_finnhub, "alphavantage": p_alphavantage, "polygon": p_polygon,
+# ---- AKShare（新浪财经日线）：腾讯/东财都挂了时的第三个国内源；没装 akshare 就跳过 ----
+def p_akshare(symbol, days):
+    try:
+        import akshare as ak
+    except Exception:
+        return None
+    s = symbol.upper()
+    mkt, code = _split(s)
+    start = _start(days).strftime("%Y%m%d")
+    if s in A_INDEX:
+        df = ak.stock_zh_index_daily(symbol=mkt + code)
+    elif mkt in ("sh", "sz"):
+        df = ak.stock_zh_a_daily(symbol=mkt + code, start_date=start, adjust="qfq")
+    elif s == "^HSI" or (mkt == "hk" and not code.isdigit()):
+        df = ak.stock_hk_index_daily_sina(symbol="HSI" if s == "^HSI" else code)
+    elif mkt == "hk":
+        df = ak.stock_hk_daily(symbol=code.zfill(5), adjust="qfq")
+    elif s in AK_US_INDEX:
+        df = ak.index_us_stock_sina(symbol=AK_US_INDEX[s])
+    elif mkt == "us":
+        df = ak.stock_us_daily(symbol=code.replace("-", "."), adjust="qfq")
+    else:
+        return None
+    if df is None or df.empty:
+        return None
+    ser = _series(zip(pd.to_datetime(df["date"]).dt.strftime("%Y-%m-%d"), df["close"]), symbol)
+    return ser.iloc[-(days + 1):] if ser is not None else None
+
+
+AK_US_INDEX = {"^GSPC": ".INX", "^IXIC": ".IXIC", "^DJI": ".DJI", "^NDX": ".NDX"}
+
+
+# ---- 新浪实时报价（批量一次请求）：交易时段给右栏指数/自选覆盖最新价 ----
+def live_quotes(symbols: list[str]) -> dict[str, tuple[float, str]]:
+    """返回 {代码: (最新价, 日期 YYYY-MM-DD)}，只支持 A股（含指数）和港股（含恒指/恒科）。"""
+    m = {}
+    for s in symbols:
+        u = s.upper()
+        mkt, code = _split(u)
+        if mkt in ("sh", "sz"):
+            m[mkt + code] = s
+        elif u == "^HSI":
+            m["rt_hkHSI"] = s
+        elif mkt == "hk":
+            m[("hk" + code.zfill(5)) if code.isdigit() else ("rt_hk" + code)] = s
+    if not m:
+        return {}
+    try:
+        r = requests.get("https://hq.sinajs.cn/list=" + ",".join(m), headers={"Referer": "https://finance.sina.com.cn/", "User-Agent": "Mozilla/5.0"}, timeout=6)
+        r.encoding = "gbk"
+        text = r.text
+    except Exception:
+        return {}
+    out = {}
+    for key, body in re.findall(r'hq_str_(\w+)="([^"]*)"', text):
+        f = body.split(",")
+        try:
+            if key[:2] in ("sh", "sz") and len(f) > 30 and float(f[3]) > 0:
+                out[m[key]] = (float(f[3]), f[30])
+            elif key.startswith(("hk", "rt_hk")) and len(f) > 17 and float(f[6]) > 0:
+                out[m[key]] = (float(f[6]), f[17].replace("/", "-"))
+        except (ValueError, KeyError):
+            continue
+    return out
+
+
+PROVIDERS = {"tencent": p_tencent, "akshare": p_akshare, "tushare": p_tushare, "finnhub": p_finnhub, "alphavantage": p_alphavantage, "polygon": p_polygon,
              "twelvedata": p_twelvedata, "tiingo": p_tiingo, "fmp": p_fmp, "eastmoney": p_eastmoney, "custom": p_custom}
 PERIOD_DAYS = {"1mo": 22, "3mo": 66, "6mo": 126, "1y": 252, "2y": 504, "5y": 1260}
 
@@ -281,7 +347,7 @@ def _yahoo(symbols: list[str], period: str) -> dict[str, pd.Series]:
     return out
 
 
-SOURCE_NAMES = {"tencent": "腾讯证券", "eastmoney": "东方财富", "tushare": "Tushare", "finnhub": "Finnhub", "alphavantage": "Alpha Vantage", "polygon": "Polygon",
+SOURCE_NAMES = {"tencent": "腾讯证券", "akshare": "新浪财经（AKShare）", "eastmoney": "东方财富", "tushare": "Tushare", "finnhub": "Finnhub", "alphavantage": "Alpha Vantage", "polygon": "Polygon",
                 "twelvedata": "Twelve Data", "tiingo": "Tiingo", "fmp": "FMP", "custom": "自定义数据源"}
 
 
@@ -294,7 +360,7 @@ def provider_order() -> list[str]:
     return [n for n in names if n == "yahoo" or n in PROVIDERS] or DEFAULT_ORDER.split(",")
 
 
-DEFAULT_ORDER = "tencent,eastmoney,yahoo"
+DEFAULT_ORDER = "tencent,eastmoney,akshare,yahoo"
 
 
 def fetch_closes(symbols: list[str], period: str = "1y") -> dict[str, pd.Series]:

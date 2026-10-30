@@ -1779,7 +1779,7 @@ $('mdl').onclick = e => { e.preventDefault(); e.stopPropagation(); modelMenu(); 
 document.addEventListener('click', e => { if (!e.target.closest('#mdlp')) modelMenu(false); });
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && $('mdlp').classList.contains('on')) modelMenu(false); });
 periods(); loadModels(); seg(); loadIndices(); loadMemory(); loadEvents(); watchAlerts(); setTimeout(() => checkUpdate(false), 4000);
-setInterval(loadIndices, 10*60*1000);
+setInterval(loadIndices, 60*1000);  // 后端非交易时段缓存 10 分钟、交易时段 1 分钟，这里轮询便宜
 addEventListener('resize', () => { seg(); periods(); });
 
 /* ---------- 设置：通用 · 模型 · 记忆 · 自选与行情 · 推送 · 定时 · 工具与接口 · 数据与关于 ---------- */

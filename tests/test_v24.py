@@ -42,3 +42,30 @@ def test_stop_mid_turn_keeps_context_valid():
     a._stop, a._tool = threading.Event(), real
     assert "已停止" not in a.ask("腾讯现在多少钱？")  # 停止后下一问照常
     assert issubclass(Cancelled, Exception)
+
+
+def test_live_quotes_parse(monkeypatch):
+    body = ('var hq_str_sh000001="上证指数,3605.6,3651.4,3599.0166,3660.2,3595.2,0,0,1,2' + ',0' * 20 + ',2026-10-30,15:00:00,00";\n'
+            'var hq_str_rt_hkHSI="HSI,恒生指数,23011.29,22958.65,23400.02,22947.96,23294.420,335.77,1.46,0,0,1,2,0,0,0,0,2026/10/30,16:08:32";\n')
+
+    class R:
+        text, encoding = body, None
+    monkeypatch.setattr(data.requests, "get", lambda *a, **k: R())
+    out = data.live_quotes(["000001.SS", "^HSI", "AAPL"])
+    assert out == {"000001.SS": (3599.0166, "2026-10-30"), "^HSI": (23294.42, "2026-10-30")}
+
+
+def test_indices_overlay_live(monkeypatch, tmp_path):
+    import pandas as pd
+    from datetime import datetime
+    from stock_agent import serve
+    monkeypatch.setenv("STOCK_AGENT_HOME", str(tmp_path))
+    ser = pd.Series([100.0, 101.0], index=pd.to_datetime(["2026-10-28", "2026-10-29"]))
+    monkeypatch.setattr(data, "fetch_closes", lambda syms, period="1y": {s: ser for s in syms})
+    monkeypatch.setattr(data, "live_quotes", lambda syms: {"000001.SS": (103.0, "2026-10-30")})
+    real_tn = serve.trading_now
+    monkeypatch.setattr(serve, "trading_now", lambda t=None: True)
+    serve._IDX.clear(); serve._IDX.update(ts=0, data=None)
+    sh = next(x for x in serve.indices() if x["symbol"] == "000001.SS")
+    assert sh["last"] == 103.0 and sh["dates"][-1] == "2026-10-30" and sh["pct"] == round((103 / 101 - 1) * 100, 2)
+    assert real_tn(datetime(2026, 10, 30, 10, 0)) and not real_tn(datetime(2026, 10, 31, 10, 0)) and not real_tn(datetime(2026, 10, 30, 17, 0))
