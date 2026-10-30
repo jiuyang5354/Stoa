@@ -39,6 +39,32 @@
   .up{color:var(--up)}.down{color:var(--down)}
   .label{font:500 10px/1.4 var(--sans);letter-spacing:.18em;text-transform:uppercase;color:var(--mute)}
 
+  /* 对话框里的模型选择：衬线小字 + 细线下拉，和 pill 同一套排印 */
+  .composer{position:relative}
+  .mdl{flex:none;border:0;background:transparent;display:flex;align-items:center;gap:7px;height:40px;padding:0 4px;cursor:pointer;color:var(--mute);font:500 10px var(--sans);letter-spacing:.14em;text-transform:uppercase;max-width:220px}
+  .mdl b{font:400 13px var(--serif);letter-spacing:0;text-transform:none;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border-bottom:1px solid var(--rule-2);padding-bottom:1px}
+  .mdl svg{width:8px;height:8px;stroke:currentColor;fill:none;stroke-width:1.2;flex:none;transition:transform .3s var(--ease)}
+  .mdl:hover b{border-color:var(--ink)}
+  .mdl[aria-expanded="true"] svg{transform:rotate(180deg)}
+  .mdlp{position:absolute;right:0;bottom:calc(100% - 6px);width:300px;max-height:320px;overflow:auto;z-index:60;background:rgba(246,244,239,.98);border:1px solid var(--ink);box-shadow:4px 4px 0 -1px rgba(246,244,239,.98),4px 4px 0 0 var(--ink);padding:8px 0;opacity:0;transform:translateY(6px);pointer-events:none;transition:opacity .2s,transform .3s var(--ease)}
+  .mdlp.on{opacity:1;transform:none;pointer-events:auto}
+  .mdlp .h{padding:6px 16px 8px;border-bottom:1px solid var(--rule);margin-bottom:4px;display:flex;justify-content:space-between}
+  .mdlp button{display:flex;width:100%;align-items:center;gap:10px;border:0;background:transparent;text-align:left;padding:7px 16px;font:400 13.5px var(--serif);color:var(--ink);cursor:pointer}
+  .mdlp button:hover,.mdlp button.k{background:rgba(24,23,21,.06)}
+  .mdlp button i{width:5px;height:5px;border-radius:50%;flex:none;background:transparent;border:1px solid var(--rule-2)}
+  .mdlp button.on i{background:var(--ink);border-color:var(--ink)}
+  .mdlp button small{margin-left:auto;font:500 9px var(--sans);letter-spacing:.14em;text-transform:uppercase;color:var(--mute)}
+  .mdlp .f{border-top:1px solid var(--rule);margin-top:4px;padding-top:4px}
+  .mdlp .f button{font:500 10px var(--sans);letter-spacing:.14em;text-transform:uppercase;color:var(--mute)}
+  /* 滚动条（参考 21st shadcn Scroll Area）：无箭头、透明轨道，一根细线，悬停或滚动时才加深 */
+  ::-webkit-scrollbar{width:9px;height:9px}
+  ::-webkit-scrollbar-track,::-webkit-scrollbar-corner{background:transparent}
+  ::-webkit-scrollbar-button{display:none;width:0;height:0}
+  ::-webkit-scrollbar-thumb{background:rgba(24,23,21,.10);background-clip:content-box;border:3px solid transparent;border-radius:9px;min-height:40px}
+  :hover::-webkit-scrollbar-thumb{background-color:rgba(24,23,21,.24)}
+  ::-webkit-scrollbar-thumb:hover{background-color:rgba(24,23,21,.42);border-width:2.5px}
+  ::-webkit-scrollbar-thumb:active{background-color:var(--ink)}
+  @supports not selector(::-webkit-scrollbar){*{scrollbar-width:thin;scrollbar-color:rgba(24,23,21,.24) transparent}}
   /* ---- 自绘标题栏（桌面版无边框窗口，?frame=custom）：与界面同一套石色、字体与细线 ---- */
   #wbar{display:none}
   .framed #wbar{display:flex;position:fixed;top:0;left:0;right:0;height:34px;z-index:10000;align-items:stretch;user-select:none;-webkit-user-select:none}
@@ -89,7 +115,7 @@
   header .label{display:block}
   h1{font:500 30px/1.1 var(--display);letter-spacing:.15em;margin:10px 0 8px;text-transform:uppercase;padding-left:.15em}
   header em{font:italic 400 16px var(--serif);color:var(--mute)}
-  #log{flex:1;overflow:auto;padding:26px 0 20px;scrollbar-width:thin;scrollbar-color:var(--rule-2) transparent}
+  #log{flex:1;overflow:auto;padding:26px 0 20px;}
 
   .m{display:grid;grid-template-columns:64px 1fr;gap:0 18px;margin:0 0 26px;animation:rise .6s var(--ease) both}
   @keyframes rise{from{opacity:0;transform:translateY(8px)}}
@@ -168,7 +194,7 @@
   .disclaim{display:flex;justify-content:center;align-items:center;gap:14px;margin-top:10px;font-size:9px}
 
   /* ---- 右侧柱廊 ---- */
-  aside{width:384px;border-left:1px solid var(--rule-2);padding:0 26px 26px;overflow:auto;flex:none;scrollbar-width:thin;scrollbar-color:var(--rule-2) transparent;position:relative}
+  aside{width:384px;border-left:1px solid var(--rule-2);padding:0 26px 26px;overflow:auto;flex:none;position:relative}
   aside::before{content:"";position:absolute;left:4px;top:0;bottom:0;border-left:1px solid var(--rule)}
   .sh{display:flex;align-items:baseline;gap:12px;padding:22px 0 12px;border-bottom:1px solid var(--ink);margin-bottom:14px;position:relative}
   .sh::after{content:"";position:absolute;left:0;right:0;bottom:-4px;border-bottom:1px solid var(--rule)}
@@ -493,7 +519,7 @@
   .rail button:hover{background:var(--marble-2);padding-left:26px}
   .rail button.on{background:var(--ink);color:var(--chalk)}.rail button.on i{color:var(--chalk)}
   .rail .ver{margin-top:auto;padding:14px 22px 0;font:500 8.5px var(--sans);letter-spacing:.18em;color:var(--mute);text-transform:uppercase}
-  .pane{overflow:auto;padding:26px 34px 90px;scrollbar-width:thin;scrollbar-color:var(--rule-2) transparent}
+  .pane{overflow:auto;padding:26px 34px 90px;}
   .pane h3{font:500 22px/1.2 var(--cn);margin:0 0 4px;letter-spacing:.04em}
   .pane .lead{font:italic 16px/1.5 var(--serif);color:var(--mute);margin:0 0 20px}
   .grp{border-top:1px solid var(--ink);margin:0 0 26px}
@@ -697,12 +723,14 @@
     <form class="box" id="box">
       <div class="row">
         <div class="field"><input id="t" autocomplete="off" aria-label="输入消息"><div class="ph" id="ph"></div></div>
+        <button class="mdl" id="mdl" type="button" aria-haspopup="listbox" aria-expanded="false" title="本对话使用的模型" hidden><b id="mdln">—</b><svg viewBox="0 0 10 10"><path d="M1 3.5l4 4 4-4"/></svg></button>
         <button class="send" id="b" aria-label="发送" disabled>Ask
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="square"><path d="M4 12h16M14 6l6 6-6 6"/></svg>
         </button>
       </div>
       <div class="tools" id="tools"></div>
     </form>
+    <div class="mdlp" id="mdlp" role="listbox"></div>
     <div class="label disclaim">择时判断不具统计显著性 · 仅供参考，不构成投资建议 · Non consilium, sed observatio</div>
   </div>
 </div></main>
@@ -1116,7 +1144,7 @@ async function send(text){
   const seed = turn * 131 + Date.now() % 97;
   const out = add('a', `<div class="thinking">${dropcap('', seed, true)}<span class="dots">神谕斟酌中<i>.</i><i>.</i><i>.</i></span></div>`);
   try {
-    const r = await fetch('/api/chat', {method:'POST', headers:H, body:JSON.stringify({text, session:sid})});
+    const r = await fetch('/api/chat', {method:'POST', headers:H, body:JSON.stringify({text, session:sid, model: MDL.pick || undefined})});
     const j = await r.json(); render(out, j.reply || j.error || '（空回复）', seed);
     if (j.need_model) openSettings('model');
     if (j.archived) placeArchive(j.archived, null);
@@ -1557,7 +1585,32 @@ async function loadMemory(){
 }
 $('tq').oninput = terrain;
 $('pbo').onclick = () => openSettings('probatio');
-periods(); seg(); loadIndices(); loadMemory(); loadEvents(); watchAlerts(); setTimeout(() => checkUpdate(false), 4000);
+/* ---------- 对话框模型选择：只影响本对话（存本机），全局默认仍在「设置 → 模型」 ---------- */
+const MDL = {pick: localStorage.getItem('stoa-model') || '', list: [], cur: ''};
+async function loadModels(){
+  let j; try { j = await (await fetch('/api/models', {headers:H})).json(); } catch (_) { return; }
+  MDL.list = j.models || []; MDL.cur = j.current || '';
+  if (MDL.pick && !MDL.list.includes(MDL.pick)) MDL.list.unshift(MDL.pick);
+  $('mdl').hidden = !j.ready || !MDL.list.length; paintModel();
+}
+function paintModel(){ $('mdln').textContent = MDL.pick || MDL.cur || '—'; }
+function modelMenu(open){
+  const p = $('mdlp'), on = open ?? !p.classList.contains('on');
+  $('mdl').setAttribute('aria-expanded', on); p.classList.toggle('on', on);
+  if (!on) return;
+  const sel = MDL.pick || MDL.cur;
+  p.innerHTML = `<div class="h label"><span>Model · 本对话</span><span>${esc(String(MDL.list.length))}</span></div>` +
+    MDL.list.map(m => `<button type="button" role="option" data-m="${esc(m)}" class="${m === sel ? 'on' : ''}"><i></i><span>${esc(m)}</span>${m === MDL.cur ? '<small>默认</small>' : ''}</button>`).join('') +
+    `<div class="f"><button type="button" id="mdls">在设置里改默认模型 →</button></div>`;
+  p.querySelectorAll('[data-m]').forEach(b => b.onclick = e => { e.stopPropagation(); MDL.pick = b.dataset.m === MDL.cur ? '' : b.dataset.m;
+    MDL.pick ? localStorage.setItem('stoa-model', MDL.pick) : localStorage.removeItem('stoa-model'); paintModel(); modelMenu(false); $('t').focus(); });
+  $('mdls').onclick = e => { e.stopPropagation(); modelMenu(false); openSettings('model'); };
+  const k = p.querySelector('button.on'); if (k) k.scrollIntoView({block:'nearest'});
+}
+$('mdl').onclick = e => { e.preventDefault(); e.stopPropagation(); modelMenu(); };
+document.addEventListener('click', e => { if (!e.target.closest('#mdlp')) modelMenu(false); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && $('mdlp').classList.contains('on')) modelMenu(false); });
+periods(); loadModels(); seg(); loadIndices(); loadMemory(); loadEvents(); watchAlerts(); setTimeout(() => checkUpdate(false), 4000);
 setInterval(loadIndices, 10*60*1000);
 addEventListener('resize', () => { seg(); periods(); });
 
@@ -1815,7 +1868,7 @@ async function saveSettings(quiet){
   setSt('保存中…');
   const j = await (await fetch('/api/settings', {method:'POST', headers:H, body:JSON.stringify(body)})).json();
   if (!j.ok) { setSt(j.error || '保存失败', 'bad'); return; }
-  const s = await (await fetch('/api/settings', {headers:H})).json(); S = s; dirty = {}; wl = null;
+  const s = await (await fetch('/api/settings', {headers:H})).json(); S = s; dirty = {}; wl = null; loadModels();
   setSt('已保存，立即生效', 'ok'); if (body.watchlist) loadIndices(); if (!quiet) show(scur);
 }
 /* ---------- 多会话 ---------- */

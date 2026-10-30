@@ -46,7 +46,37 @@ def llm_ready() -> bool:
         return True  # 判断不了就交给真正的调用去报错
 
 
-def chat(channel: str, text: str) -> str:
+_MODELS = {"at": 0, "key": None, "list": []}
+
+
+def models_list() -> dict:
+    """对话框的模型下拉：当前模型 + 服务商 /models 返回的列表（OpenAI 兼容，缓存 10 分钟）+ 备用链 + config.yaml llm.models。"""
+    from .providers import LLM
+    cfg = load_cfg().get("llm", {})
+    cur = LLM(cfg=cfg)
+    out = [cur.model]
+    out += [x for x in (cfg.get("models") or []) if isinstance(x, str)]
+    out += [s.partition(":")[2] for s in os.getenv("LLM_FALLBACK", "").split(",") if ":" in s]
+    remote = []
+    key = (cur.base, cur.model, bool(cur.key))
+    if cur.ready and cur.proto in ("openai", "azure") and cur.key != "local" or cur.name in ("ollama", "lmstudio", "vllm"):
+        if _MODELS["key"] == key and time.time() - _MODELS["at"] < 600:
+            remote = _MODELS["list"]
+        else:
+            try:
+                r = requests.get(f"{cur.base}/models", headers={"Authorization": f"Bearer {cur.key}"} if cur.key else {}, timeout=8)
+                remote = sorted({m.get("id") for m in (r.json().get("data") or []) if isinstance(m, dict) and m.get("id")}) if r.ok else []
+            except Exception:
+                remote = []
+            _MODELS.update(at=time.time(), key=key, list=remote)
+    seen, models = set(), []
+    for m in out + [m for m in remote if not re.search(r"embed|tts|whisper|dall-e|image|audio|moderation|rerank", m, re.I)]:
+        if m and m not in seen:
+            seen.add(m); models.append(m)
+    return {"provider": cur.name, "current": cur.model, "models": models[:60], "ready": cur.ready}
+
+
+def chat(channel: str, text: str, model: str | None = None) -> str:
     with LOCK:
         s = SESSIONS.get(channel)
         if text.strip() in ("/new", "/reset") and s:
@@ -60,6 +90,11 @@ def chat(channel: str, text: str) -> str:
             # 网页每个对话一个 id，存成 web-<id>，重启后接着聊能带回上下文
             s = SESSIONS[channel] = {"agent": Agent(MEM, channel=kind, session=f"web-{sid}" if kind == "web" and sid else None)}
         s["last"] = time.time()
+        if model:  # 对话框里选的模型：只换这个对话的主模型，不改全局设置
+            try:
+                s["agent"].llm.chain[0].model = model
+            except Exception:
+                pass
         try:
             return s["agent"].ask(text) or "（空回复）"
         except Exception as e:
@@ -266,6 +301,11 @@ class Web(BaseHTTPRequestHandler):
             return self._send(200, {"user": MEM.entries("user"), "memory": MEM.entries("memory"),
                                     "usage": {"user": MEM.usage("user"), "memory": MEM.usage("memory")},
                                     "calls": MEM.call_stats(), "ledger": MEM.recent_calls()})
+        if self.path == "/api/models":
+            try:
+                return self._send(200, models_list())
+            except Exception as e:
+                return self._send(200, {"models": [], "current": "", "error": str(e)[:120]})
         if self.path == "/api/indices":
             try:
                 return self._send(200, {"items": indices(), "updated": datetime.now(CN_TZ).strftime("%H:%M")})
@@ -301,7 +341,8 @@ class Web(BaseHTTPRequestHandler):
             if not llm_ready():  # 没配模型：不报错、不弹窗，前端直接打开「设置 → 模型」
                 return self._send(200, {"reply": "还没配置大模型。已打开「设置 → 模型」：选服务商、填密钥，保存后立即生效，不用重启。行情、早晚报页面不受影响。", "need_model": True})
             sid = re.sub(r"[^A-Za-z0-9_-]", "", str(body.get("session", "default")))[:40] or "default"
-            reply = chat("web:" + sid, str(body.get("text", ""))[:4000])
+            model = re.sub(r"[^A-Za-z0-9._:/@+-]", "", str(body.get("model") or ""))[:120] or None
+            reply = chat("web:" + sid, str(body.get("text", ""))[:4000], model)
             meta = getattr((SESSIONS.get("web:" + sid) or {}).get("agent"), "last_meta", None) or {}
             return self._send(200, {"reply": reply, "sources": meta.get("sources") or [], "verify": meta.get("verify"), "debate": meta.get("debate"), "cards": meta.get("cards"),
                                     "compressed": meta.get("compressed"), "archived": meta.get("archived") or 0})
