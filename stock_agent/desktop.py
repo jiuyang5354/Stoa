@@ -385,7 +385,7 @@ def smoke(port: int, home: Path):
             return r.status, r.read()
 
     for path, need in (("/", b"Stoa"), ("/api/settings", b"version"), ("/api/alerts", b"rules"), ("/api/memory", b"usage"),
-                       ("/assets/bust.glb", b"glTF"), ("/api/update", b"current")):
+                       ("/assets/zeno.glb", b"glTF"), ("/api/update", b"current")):
         try:
             code, body = get(path)
             res[path] = code == 200 and need in body

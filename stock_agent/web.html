@@ -1515,7 +1515,7 @@ function md(s){ return tags(esc(s).replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>
 const TAGS = {'〔数据〕':['d','数据'], '〔推断〕':['i','推断'], '〔未知〕':['u','未知'], '[Data]':['d','Data'], '[Inference]':['i','Inference'], '[Unknown]':['u','Unknown']};
 function tags(h){ return h.replace(/〔(数据|推断|未知)〕|\[(Data|Inference|Unknown)\]/g, m => { const t = TAGS[m]; return t ? `<span class="tg tg-${t[0]}" data-noi18n>${t[1]}</span>` : m; }); }
 function empty(){
-  log.innerHTML = `<div class="empty"><figure><div class="fig">${BURST}<span class="stem"></span><div class="arch">${TEMPLE}</div></div><figcaption class="label">Fig. I — 大理石胸像 · 实时点阵渲染<br>Poly Haven · CC0</figcaption></figure>
+  log.innerHTML = `<div class="empty"><figure><div class="fig">${BURST}<span class="stem"></span><div class="arch">${TEMPLE}</div></div><figcaption class="label">Fig. I — 芝诺 · 彩绘柱廊<br>SMK KAS745 · Public Domain</figcaption></figure>
     <div><span class="label">Stoa Poikile · 今日之问</span><div class="poster"><em>the</em>STOA</div><h2>今天想看什么？</h2><p class="lead">它记得你的持仓与偏好；每一次判断都刻进账本，到期自行复盘。</p><div class="chips">${
     SUGGEST.map((s,i)=>`<button class="chip" style="animation-delay:${120+i*60}ms" data-q="${esc(s)}"><i>${roman(i+1)}</i><span>${esc(s)}</span></button>`).join('')}</div></div></div>`;
   log.querySelectorAll('.chip').forEach(c => c.onclick = () => send(c.dataset.q));
@@ -1672,9 +1672,9 @@ $('evx').onclick = e => { if (e.target === $('evx')) animHide($('evx')); };
 /* ---------- 拱门里的 three.js 神庙（无构建：运行时从 CDN 动态 import；失败则保留 SVG 线稿） ---------- */
 const THREE_URL = '/assets/three.module.min.js';  // 随程序本地分发，国内网络也能加载
 // 极简 GLB 解析：只读一个网格 + 法线贴图，省掉 GLTFLoader 和 importmap
-async function loadBust(T){
+async function loadBust(T, url = '/assets/zeno.glb'){
   try {
-    const buf = await (await fetch('/assets/bust.glb')).arrayBuffer(), dv = new DataView(buf);
+    const buf = await (await fetch(url)).arrayBuffer(), dv = new DataView(buf);
     if (dv.getUint32(0, true) !== 0x46546C67) return null;
     const jl = dv.getUint32(12, true), j = JSON.parse(new TextDecoder().decode(new Uint8Array(buf, 20, jl))), b0 = 20 + jl + 8;
     const CT = {5126: Float32Array, 5125: Uint32Array, 5123: Uint16Array}, N = {SCALAR: 1, VEC2: 2, VEC3: 3, VEC4: 4};
@@ -1682,9 +1682,9 @@ async function loadBust(T){
       return new C(buf.slice(b0 + (v.byteOffset||0) + (a.byteOffset||0), b0 + (v.byteOffset||0) + (a.byteOffset||0) + a.count*N[a.type]*C.BYTES_PER_ELEMENT)); };
     const pr = j.meshes[0].primitives[0], g = new T.BufferGeometry();
     g.setAttribute('position', new T.BufferAttribute(acc(pr.attributes.POSITION), 3));
-    g.setAttribute('normal', new T.BufferAttribute(acc(pr.attributes.NORMAL), 3));
-    g.setAttribute('uv', new T.BufferAttribute(acc(pr.attributes.TEXCOORD_0), 2));
+    if (pr.attributes.TEXCOORD_0 != null) g.setAttribute('uv', new T.BufferAttribute(acc(pr.attributes.TEXCOORD_0), 2));
     g.setIndex(new T.BufferAttribute(acc(pr.indices), 1));
+    if (pr.attributes.NORMAL != null) g.setAttribute('normal', new T.BufferAttribute(acc(pr.attributes.NORMAL), 3)); else g.computeVertexNormals();
     const im = j.images && j.images[0];
     if (im) { const v = j.bufferViews[im.bufferView]; const bmp = await createImageBitmap(new Blob([new Uint8Array(buf, b0 + (v.byteOffset||0), v.byteLength)], {type: im.mimeType}), {imageOrientation: 'none'});
       const tx = new T.Texture(bmp); tx.flipY = false; tx.needsUpdate = true; g.userData.nor = tx; }
@@ -1795,23 +1795,77 @@ async function temple3d(host){
     if (!host.isConnected || !geo) return;
     temple.visible = false; disc.visible = false;
     const g = new T.Group(); S.add(g);
-    const tex = geo.userData.nor, mat = new T.MeshStandardMaterial({color: 0xF2EEE6, roughness: .55, metalness: 0, normalMap: tex || null});
-    const bust = new T.Mesh(geo, mat); bust.castShadow = bust.receiveShadow = true; bust.scale.setScalar(21); bust.position.y = 2.2; bust.rotation.y = Math.PI/2 - .5; g.add(bust);
+    // 芝诺（Zeno of Citium）胸像：SMK 皇家石膏像馆 KAS745 扫描，公有领域
+    const mat = new T.MeshStandardMaterial({color: 0xF2EEE6, roughness: .62, metalness: 0});
+    const bust = new T.Mesh(geo, mat); bust.castShadow = bust.receiveShadow = true; bust.scale.setScalar(21); bust.position.y = 1.6; bust.rotation.y = -.38; g.add(bust);
     const dm = new T.Mesh(geo, depthMat); dm.scale.copy(bust.scale); dm.position.copy(bust.position); dm.rotation.copy(bust.rotation); dm.layers.set(1); g.add(dm);
-    // 柱础：方形台座，带粉笔描边
-    [[new T.BoxGeometry(6.2, 1.6, 5.4), .8], [new T.BoxGeometry(7, .5, 6.2), .25]].forEach(([bg, y]) => {
-      const m = new T.Mesh(bg, slab); m.position.y = y; m.castShadow = m.receiveShadow = true; g.add(m);
+    // 台座：方形，正面刻 ΖΗΝΩΝ（芝诺）
+    const plq = document.createElement('canvas'); plq.width = 512; plq.height = 128; const pc = plq.getContext('2d');
+    pc.fillStyle = '#ECE6DA'; pc.fillRect(0, 0, 512, 128); pc.fillStyle = '#5a554c'; pc.textAlign = 'center'; pc.textBaseline = 'middle';
+    pc.font = '600 74px "Optimus Princeps", "Times New Roman", serif'; pc.fillText('ΖΗΝΩΝ', 256, 70);
+    const plqT = new T.CanvasTexture(plq); plqT.colorSpace = T.SRGBColorSpace;
+    const faceM = new T.MeshStandardMaterial({map: plqT, roughness: .9});
+    [[new T.BoxGeometry(6.2, 1.6, 5.4), .8], [new T.BoxGeometry(7, .5, 6.2), .25]].forEach(([bg, y], i) => {
+      const m = new T.Mesh(bg, i ? slab : [slab, slab, slab, slab, faceM, slab]); m.position.y = y; m.castShadow = m.receiveShadow = true; g.add(m);
       const dd = new T.Mesh(bg, depthMat); dd.position.y = y; dd.layers.set(1); g.add(dd);
       const e = new T.LineSegments(new T.EdgesGeometry(bg), chalk); e.position.y = y; e.layers.set(1); g.add(e);
     });
-    Object.assign(V, {a0: .2, sw: .2, d: 31, cy: 7.2, ty: 6.9}); // 略压低视点，让台座离开底部渐隐带
+    // 柱廊（Stoa Poikile）：两排多立克柱向远处退去，额枋、横梁和顶棚，地面铺回纹石板
+    const stoa = new T.Group(); S.add(stoa);
+    const CH = 15, CR = .95, XW = 7.6, ZS = [-14, -22, -30, -38, -46, -54, -62];
+    const colGeo = shaft.clone(); colGeo.scale(CR / r, CH / H, CR / r); colGeo.translate(0, CH / 2, 0);
+    const capE = new T.CylinderGeometry(CR * 1.3, CR * .86, .7, 40), capA = new T.BoxGeometry(CR * 2.9, .42, CR * 2.9);
+    const sp = (geo, m, x, y, z, edge = true) => { const o = new T.Mesh(geo, m); o.position.set(x, y, z); o.castShadow = o.receiveShadow = true; stoa.add(o);
+      if (edge) { const e = new T.LineSegments(geo.userData.edges || (geo.userData.edges = new T.EdgesGeometry(geo, 30)), chalk); e.position.copy(o.position); e.layers.set(1); stoa.add(e);
+        const d2 = new T.Mesh(geo, depthMat); d2.position.copy(o.position); d2.layers.set(1); stoa.add(d2); } return o; };
+    ZS.forEach(z => [-XW, XW].forEach(x => { sp(colGeo, shaftM, x, 0, z, false); sp(capE, marble, x, CH + .35, z); sp(capA, marble, x, CH + .91, z); }));
+    const L0 = ZS[0] + 4, L1 = ZS[ZS.length - 1] - 4, LL = L0 - L1, LZ = (L0 + L1) / 2;
+    const beam = new T.BoxGeometry(2.6, 1.5, LL); [-XW, XW].forEach(x => sp(beam, band, x, CH + 1.87, LZ));
+    // 檐壁三陇板：沿两侧额枋排开
+    const tg = new T.BoxGeometry(.7, 1.2, .16);
+    for (let z = L0 - 1; z > L1; z -= 2.4) [-XW - 1.32, XW + 1.32].forEach(x => { const o = sp(tg, marble, x, CH + 3.2, z, false); o.rotation.y = Math.PI / 2; });
+    sp(new T.BoxGeometry(2 * XW + 3.4, 1.1, LL), stone, 0, CH + 3.2, LZ);            // 檐壁 + 顶棚
+    for (let z = L0 - 2; z > L1; z -= 4) sp(new T.BoxGeometry(2 * XW, .5, .5), marble, 0, CH + 2.45, z); // 天花梁
+    // 远端：一道门楣刻 ΣΤΟΑ ΠΟΙΚΙΛΗ（彩绘柱廊）
+    const ins = document.createElement('canvas'); ins.width = 1024; ins.height = 128; const ic = ins.getContext('2d');
+    ic.fillStyle = '#E8E1D3'; ic.fillRect(0, 0, 1024, 128); ic.fillStyle = '#4a463f'; ic.textAlign = 'center'; ic.textBaseline = 'middle';
+    ic.font = '600 78px "Optimus Princeps", "Times New Roman", serif'; ic.fillText('ΣΤΟΑ · ΠΟΙΚΙΛΗ', 512, 70);
+    const insT = new T.CanvasTexture(ins); insT.colorSpace = T.SRGBColorSpace;
+    const lint = new T.BoxGeometry(2 * XW + 2.6, 1.9, 1.2), lm = new T.MeshStandardMaterial({map: insT, roughness: .9});
+    sp(lint, [band, band, band, band, lm, band], 0, CH + 1.85, ZS[3] + 1.4);
+    // 地面：方石板 + 中线一道回纹
+    const fc = document.createElement('canvas'); fc.width = fc.height = 512; const f = fc.getContext('2d');
+    f.fillStyle = '#D9D2C4'; f.fillRect(0, 0, 512, 512); f.strokeStyle = '#8f877a'; f.lineWidth = 3;
+    for (let i = 0; i <= 512; i += 128) { f.beginPath(); f.moveTo(i, 0); f.lineTo(i, 512); f.stroke(); f.beginPath(); f.moveTo(0, i); f.lineTo(512, i); f.stroke(); }
+    const floorT = new T.CanvasTexture(fc); floorT.colorSpace = T.SRGBColorSpace; floorT.wrapS = floorT.wrapT = T.RepeatWrapping; floorT.repeat.set(6, 22); floorT.anisotropy = 4;
+    const floor = new T.Mesh(new T.PlaneGeometry(2 * XW + 8, 120), new T.MeshStandardMaterial({map: floorT, roughness: .95}));
+    floor.rotation.x = -Math.PI / 2; floor.position.set(0, .01, -40); floor.receiveShadow = true; stoa.add(floor);
+    const mq = document.createElement('canvas'); mq.width = 64; mq.height = 64; const q = mq.getContext('2d');
+    q.fillStyle = '#E2DCCF'; q.fillRect(0, 0, 64, 64); q.strokeStyle = '#5e584e'; q.lineWidth = 5;
+    q.beginPath(); q.moveTo(4, 60); q.lineTo(4, 4); q.lineTo(60, 4); q.lineTo(60, 48); q.lineTo(18, 48); q.lineTo(18, 18); q.lineTo(46, 18); q.lineTo(46, 34); q.lineTo(32, 34); q.stroke();
+    const mqT = new T.CanvasTexture(mq); mqT.colorSpace = T.SRGBColorSpace; mqT.wrapS = mqT.wrapT = T.RepeatWrapping; mqT.repeat.set(1, 40);
+    const strip = new T.Mesh(new T.PlaneGeometry(2.2, 100), new T.MeshStandardMaterial({map: mqT, roughness: .95}));
+    strip.rotation.x = -Math.PI / 2; strip.position.set(0, .02, -50); stoa.add(strip);
+    ground.visible = false;
+    S.fog.near = 36; S.fog.far = 96;
+    Object.assign(V, {a0: .16, sw: .14, d: 31, cy: 7.6, ty: 7.4});
     hemi.intensity = .14; sun.intensity = .55; glow.intensity = 0; halo.material.opacity = .26; halo.position.y = 6.4;
     bustKey = new T.SpotLight(0xFFFFFF, 260, 48, .45, .6, 1.6); bustKey.target.position.set(0, 7.5, 0); bustKey.castShadow = true; bustKey.shadow.mapSize.set(1024, 1024);
     S.add(bustKey, bustKey.target);
     const rim = new T.DirectionalLight(0xFFF1D6, .9); rim.position.set(-8, 9, -10); S.add(rim);
-    // 台座掠射侧光：贴着正面从上斜扫下来，把石灰华的横纹沟槽挑出来；只照台座高度，不碰胸像
     const rake = new T.SpotLight(0xFFF6EA, 40, 30, .5, .5, 1.2); rake.position.set(7, 4.2, 6.2); rake.target.position.set(-1, .6, 2.6); S.add(rake, rake.target);
-    if (still) R.render(S, cam);
+    // 白天：一束斜射的正午阳光穿过柱间，在地上投出柱影；夜里：两侧火盆样的暖色点光沿柱廊排开
+    const noon = new T.DirectionalLight(0xFFF8EC, 2.4); noon.position.set(30, 34, 6); noon.target.position.set(0, 0, -30); noon.castShadow = true;
+    noon.shadow.mapSize.set(1024, 1024); Object.assign(noon.shadow.camera, {left: -40, right: 40, top: 40, bottom: -40, near: 1, far: 120}); noon.shadow.bias = -.0008;
+    S.add(noon, noon.target);
+    const torches = [-22, -38, -54].flatMap(z => [-XW + 1.6, XW - 1.6].map(x => { const l = new T.PointLight(0xFFB070, 0, 22, 1.6); l.position.set(x, 9, z); S.add(l); return l; }));
+    S.userData.relight = dk => {
+      noon.intensity = dk ? 0 : 2.4; hemi.intensity = dk ? .1 : .5; hemi.color.set(dk ? 0x9fa6b8 : 0xFFFFFF);
+      torches.forEach(l => l.intensity = dk ? 46 : 0); bustKey.color.set(dk ? 0xFFD9A8 : 0xFFFFFF); bustKey.intensity = dk ? 300 : 220;
+      rim.intensity = dk ? .5 : .9; halo.material.opacity = dk ? .26 : .1;
+    };
+    S.userData.relight(!!S.userData.dark);
+    if (still) requestAnimationFrame(frame);
   });
   let mx = 0, my = 0; host.onpointermove = e => { const b = host.getBoundingClientRect(); mx = (e.clientX-b.left)/b.width - .5; my = (e.clientY-b.top)/b.height - .5; };
   host.onpointerleave = () => { mx = my = 0; };
@@ -1821,9 +1875,11 @@ async function temple3d(host){
   // 量化前先做一次局部反差增强（原图减去周围均值），让石纹这类高频明暗在点阵里留下来
   const rt = new T.WebGLRenderTarget(2, 2, {samples: 0});
   const qc = new T.OrthographicCamera(-1, 1, 1, -1, 0, 1), qs = new T.Scene();
-  const qm = new T.ShaderMaterial({uniforms: {tex: {value: rt.texture}, res: {value: new T.Vector2(2, 2)}, cell: {value: 2}},
+  const PAL = {dark: [[.051,.051,.047],[.29,.278,.255],[.62,.6,.56],[.913,.902,.874]], light: [[.16,.15,.135],[.52,.49,.45],[.80,.77,.72],[.955,.944,.918]]};
+  const qm = new T.ShaderMaterial({uniforms: {tex: {value: rt.texture}, res: {value: new T.Vector2(2, 2)}, cell: {value: 2},
+      p0: {value: new T.Vector3()}, p1: {value: new T.Vector3()}, p2: {value: new T.Vector3()}, p3: {value: new T.Vector3()}},
     vertexShader: 'void main(){ gl_Position = vec4(position.xy, 0., 1.); }',
-    fragmentShader: `uniform sampler2D tex; uniform vec2 res; uniform float cell;
+    fragmentShader: `uniform sampler2D tex; uniform vec2 res; uniform float cell; uniform vec3 p0, p1, p2, p3;
       float b2(vec2 a){ a = floor(a); return fract(a.x*.5 + a.y*a.y*.75); }
       float b4(vec2 a){ return b2(.5*a)*.25 + b2(a); }
       float lum(vec2 uv){ return pow(clamp(dot(texture2D(tex, uv).rgb, vec3(.299,.587,.114)), 0., 1.), 1./2.2); }
@@ -1832,9 +1888,17 @@ async function temple3d(host){
         l += (l - m)*1.1*smoothstep(.06, .3, l);
         l = clamp((l - .1)*1.08, 0., 1.);
         float q = l*3., f = floor(q), k = min(f + step(b4(px) + .03, q - f), 3.);
-        vec3 c = k < .5 ? vec3(.051,.051,.047) : k < 1.5 ? vec3(.29,.278,.255) : k < 2.5 ? vec3(.62,.6,.56) : vec3(.913,.902,.874);
+        vec3 c = k < .5 ? p0 : k < 1.5 ? p1 : k < 2.5 ? p2 : p3;
         gl_FragColor = vec4(c, 1.); }`, depthTest: false, depthWrite: false});
   const quad = new T.Mesh(new T.PlaneGeometry(2, 2), qm); quad.frustumCulled = false; qs.add(quad);
+  /* 日 / 夜：浅色是正午的柱廊（纸色底、墨色阴影），深色是夜里的柱廊（石板黑底、烛光） */
+  const LOOK = {light: {clear: 0xE6E0D4, fog: 0xE6E0D4, chalk: 0x2A2723, chalkO: .38, dust: 0x6E685E},
+                dark:  {clear: 0x0d0d0c, fog: 0x0d0d0c, chalk: 0xEDEAE3, chalkO: .62, dust: 0xEDEAE3}};
+  const theme = () => { const d = document.documentElement.classList.contains('dark'), L = LOOK[d ? 'dark' : 'light'];
+    PAL[d ? 'dark' : 'light'].forEach((c, i) => qm.uniforms['p' + i].value.set(...c));
+    R.setClearColor(L.clear, 1); S.fog.color.set(L.fog); chalk.color.set(L.chalk); chalk.opacity = L.chalkO; dust.material.color.set(L.dust);
+    S.userData.dark = d; if (S.userData.relight) S.userData.relight(d); if (still) requestAnimationFrame(frame); };
+  document.addEventListener('stoa-theme', theme); theme();
   function size(){ const w = host.clientWidth, h = host.clientHeight, pr = R.getPixelRatio(); R.setSize(w, h, false); cam.aspect = w/h; cam.updateProjectionMatrix();
     rt.setSize(Math.round(w*pr), Math.round(h*pr)); qm.uniforms.res.value.set(Math.round(w*pr), Math.round(h*pr)); qm.uniforms.cell.value = Math.max(2, Math.round(1.6*pr)); }
   new ResizeObserver(size).observe(host); size();
