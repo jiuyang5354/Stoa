@@ -116,3 +116,63 @@ def test_eval_mock_hallucination_is_caught():
     out = ev.run("mock", only="cite-04", save=False)
     r = out["results"][0]
     assert r["verify"]["first_unverified"] == ["18.6"] and r["verify"]["fixed"] and r["score"] == 1
+
+
+# ---------------------------------------------------------------- 埋错例：核对器本身也要被核对
+# 每条正确回答配三个「必须被拦下」的变体：数字改一位、涨跌方向写反、日期错一天。
+# 任何一个变体通过，说明核对器有盲区，之前所有「已核实」都要打问号（参考 REA/TH08：字节比对通过、常量却错了）。
+GOOD = "腾讯 10 月 28 日收盘 512.4 港元，上涨 2.35%，茅台市盈率 21.3 倍。"
+PLANTED = {
+    "数字改一位": ("腾讯 10 月 28 日收盘 512.4 港元，上涨 2.35%，茅台市盈率 23.1 倍。", "23.1"),
+    "涨跌写反": ("腾讯 10 月 28 日收盘 512.4 港元，下跌 2.35%，茅台市盈率 21.3 倍。", "2.35%"),
+    "日期错一天": ("腾讯 10 月 27 日收盘 512.4 港元，上涨 2.35%，茅台市盈率 21.3 倍。", "10 月 27 日"),
+}
+
+
+def test_planted_good_passes():
+    s, _ = src()
+    assert cite.verify(GOOD, s)["ok"], cite.verify(GOOD, s)["unverified"]
+
+
+@pytest.mark.parametrize("kind", list(PLANTED))
+def test_planted_failures_are_rejected(kind):
+    s, _ = src()
+    text, culprit = PLANTED[kind]
+    v = cite.verify(text, s)
+    assert not v["ok"], f"埋的错例「{kind}」没被拦下：核对器有盲区"
+    assert v["unverified"] == [culprit]
+    assert v["why"][culprit] != "找不到出处" or kind == "数字改一位"
+
+
+def test_direction_and_date_reasons_reach_the_model():
+    s, _ = src()
+    v = cite.verify(PLANTED["涨跌写反"][0], s)
+    p = cite.correction_prompt(v["unverified"], v["why"])
+    assert "方向" in p and "2.35%" in p
+    t, bad = cite.flag(PLANTED["日期错一天"][0], s)
+    assert "10 月 27 日（未核实）" in t and bad == ["10 月 27 日"]
+
+
+def test_direction_check_is_not_overeager():
+    s = cite.Sources()
+    s.add("get_quotes", {}, {"X": {"date": "2026-10-28", "close": 10.0, "chg_pct": -2.35}})
+    s.add("web_search", {}, {"results": [{"title": "公司三季度亏损 120 亿元", "url": "u"}]})
+    assert cite.verify("下跌 2.35%，跌幅 2.35%，-2.35%，三季度亏损 120 亿元。", s)["ok"]
+    assert not cite.verify("上涨 2.35%", s)["ok"]
+    assert cite.verify("较 20 日线高 2.35%", s)["ok"]  # 没有方向词紧挨着：不判方向
+
+
+def test_date_check_ignores_today_and_distant_history():
+    s, _ = src()
+    t = f"今天是 {cite.today()}。上次年报在 2026 年 3 月 20 日发布，10 月 28 日收盘 512.4 港元。"
+    assert cite.verify(t, s)["ok"], cite.verify(t, s)["unverified"]
+
+
+def test_data_tag_without_source_is_downgraded():
+    s, _ = src()
+    t, used = cite.finalize("要点：\n1. 〔数据〕腾讯收盘 512.4 港元\n2. 〔数据〕估值偏贵\n3. 〔推断〕短线偏强\n4. 〔未知〕下季度回购节奏\n- [Data] valuation looks rich", s)
+    lines = t.split("\n")
+    assert lines[1].startswith("1. 〔数据〕") and "[1]" in lines[1]
+    assert lines[2] == "2. 〔推断〕估值偏贵"
+    assert lines[3] == "3. 〔推断〕短线偏强" and lines[4] == "4. 〔未知〕下季度回购节奏"
+    assert lines[5] == "- [Inference] valuation looks rich"

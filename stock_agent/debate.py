@@ -904,10 +904,9 @@ class Debate:
         L = [f"**Agora · {nm} 查证与风险**", ""]
         L.append("**查证要点**（建议逐条点开出处核对）")
         items = [c for c in br["checklist"] if c["kind"] != "数据缺口"]
-        L += [f"{i}. {c['text']}" + ("" if c["cited"] else "（待核：没有出处）") for i, c in enumerate(items, 1)] or ["- 没有可核对的具体依据。"]
+        L += [f"{i}. " + ("〔数据〕" if c["cited"] else "〔推断〕") + c["text"] + ("" if c["cited"] else "（没有出处，需自行核对）") for i, c in enumerate(items, 1)] or ["- 没有可核对的具体依据。"]
         gaps = [c["text"] for c in br["checklist"] if c["kind"] == "数据缺口"]
-        if gaps:
-            L.append("- 数据缺口：" + "；".join(gaps))
+        L += [f"- 〔未知〕{g}" for g in gaps]
         L += ["", "**风险清单**"]
         L += [f"- {r['level']}：{r['text']}" for r in br["risks"]] or ["- 没有发现需要特别提示的风险。"]
         mode_note = "（无持仓信息，只做红线规则检查）" if risk.get("mode") == "rules_only" and risk.get("status") == "rules" else ""
@@ -943,7 +942,7 @@ class Debate:
             return text
         if self.budget.left() > 0:
             try:
-                new = self.ask("editor", EDITOR, cite.correction_prompt(v["unverified"]) + "\n\n" + text).strip()
+                new = self.ask("editor", EDITOR, cite.correction_prompt(v["unverified"], v.get("why")) + "\n\n" + text).strip()
                 if new and "[[debate:" not in new:
                     new += f"\n[[debate:{self.id}]]"
                 if new and cite.verify(new, self.sources)["ok"]:

@@ -77,6 +77,37 @@ def numbers_in(obj, out: list | None = None) -> list[float]:
     return out
 
 
+def numeric_in(obj, out: list | None = None) -> list[float]:
+    """只取真正的数值字段（int/float），带正负号；字符串里的数字丢了上下文（「亏损 120 亿」），不算。"""
+    out = [] if out is None else out
+    if isinstance(obj, dict):
+        for k, v in obj.items():
+            if k not in ("_cite", "url", "link"):
+                numeric_in(v, out)
+    elif isinstance(obj, (list, tuple)):
+        for v in obj:
+            numeric_in(v, out)
+    elif isinstance(obj, (int, float)) and not isinstance(obj, bool):
+        out.append(float(obj))
+    return out
+
+
+SRC_DATE_RE = re.compile(r"(20\d\d)[-/年.](\d{1,2})[-/月.](\d{1,2})|(?<!\d)(20\d\d)(\d\d)(\d\d)(?!\d)")
+
+
+def dates_in(obj) -> set[str]:
+    """数据里出现过的日期（YYYY-MM-DD），用来核对回答里写的「10 月 29 日收盘」是不是数据那天。"""
+    out = set()
+    for m in SRC_DATE_RE.finditer(str(obj)):
+        g = m.groups()
+        y, mo, d = (g[0], g[1], g[2]) if g[0] else (g[3], g[4], g[5])
+        try:
+            out.add(datetime(int(y), int(mo), int(d)).strftime("%Y-%m-%d"))
+        except ValueError:
+            pass
+    return out
+
+
 DATA_LABELS = {"get_fund_flow": "资金流", "get_northbound": "北向资金", "get_dragon_tiger": "龙虎榜", "get_consensus": "分析师一致预期",
                "get_intraday": "分钟线", "get_options": "期权"}
 
@@ -87,6 +118,8 @@ class Sources:
     def __init__(self):
         self.items: list[dict] = []
         self.nums: list[tuple[float, int]] = []
+        self.snums: list[tuple[float, int]] = []  # 只含数值字段（带符号），核对涨跌方向用
+        self.dates: set[str] = set()
         self.lock = threading.Lock()
 
     def new(self, name: str, url: str = "", as_of: str = "", kind: str = "tool", tool: str = "") -> int:
@@ -96,12 +129,19 @@ class Sources:
                     return it["id"]
             sid = len(self.items) + 1
             self.items.append({"id": sid, "name": name, "url": url or "", "as_of": as_of or "", "kind": kind, "tool": tool})
+            if kind != "user":
+                self.dates |= dates_in(as_of or "")
             return sid
 
     def bind(self, obj, sid: int):
         vals = numbers_in(obj)
+        sv = numeric_in(obj)
+        it = self.get(sid) or {}
+        ds = dates_in(obj) if it.get("kind") not in ("user",) else set()
         with self.lock:
             self.nums += [(v, sid) for v in vals]
+            self.snums += [(v, sid) for v in sv]
+            self.dates |= ds
 
     def get(self, sid: int) -> dict | None:
         return self.items[sid - 1] if 0 < sid <= len(self.items) else None
@@ -229,6 +269,24 @@ class Sources:
         return result
 
     # -------------------------------------------------- 比对
+    def direction_conflict(self, value: float, dec: int, scale: float, want: int) -> bool:
+        """回答说「涨 2.35%」而数据里同一个数是 -2.35（或反过来）：只有反号的直接匹配、没有同号的，算方向写反。"""
+        tol = .5 * 10 ** -dec * scale + 1e-9
+        av = abs(value)
+        with self.lock:
+            nums, snums = list(self.nums), list(self.snums)
+
+        def hits(pairs):
+            out = []
+            for s, _ in pairs:
+                for c in (s, s * 100 if abs(s) < 5 else None):
+                    if c is not None and abs(av - abs(c)) <= max(abs(c) * .005, tol):
+                        out.append(c)
+            return out
+        if any(c == 0 or (c > 0) == (want > 0) for c in hits(nums)):
+            return False
+        return any(c != 0 and (c > 0) != (want > 0) for c in hits(snums))
+
     def match(self, value: float, dec: int, scale: float = 1.0, pct: bool | None = None) -> list[int] | None:
         """value 能否由本轮数字得出。返回来源编号（可能两个），找不到返回 None。"""
         with self.lock:
@@ -349,22 +407,99 @@ def key_numbers(text: str) -> list[dict]:
     return out
 
 
+UP_WORDS = re.compile(r"(?:上涨|涨了|涨幅|大涨|收涨|上升|增长|增加|提升|升至?|增|涨|流入|净买入|盈利)[^，。；,;\n\d]{0,3}$")
+DOWN_WORDS = re.compile(r"(?:下跌|跌了|跌幅|大跌|收跌|下降|下滑|回落|减少|降至?|减|跌|流出|净卖出|亏损|亏)[^，。；,;\n\d]{0,3}$")
+ANS_DATE_RE = re.compile(r"(20\d\d)\s?[-/年]\s?(\d{1,2})\s?[-/月]\s?(\d{1,2})\s?日?|(?<![\d年])(\d{1,2})\s?月\s?(\d{1,2})\s?日")
+
+
+def _want_sign(body: str, n: dict) -> int:
+    """数字自带 +/- 号，或紧挨着「涨/跌/增/减/流入/流出」这类词，返回期望符号；否则 0。"""
+    tok = n["text"].lstrip()
+    if tok[:1] in "-−":
+        return -1
+    if tok[:1] == "+":
+        return 1
+    pre = body[max(0, n["start"] - 8):n["start"]]
+    if DOWN_WORDS.search(pre):
+        return -1
+    if UP_WORDS.search(pre):
+        return 1
+    return 0
+
+
+def answer_dates(body: str) -> list[dict]:
+    """回答里写到具体某天的日期（只认年月日或月日），带位置。月日没写年份时取离今天最近的那一年。"""
+    now = datetime.now(CN_TZ).replace(tzinfo=None)
+    out = []
+    for m in ANS_DATE_RE.finditer(body):
+        g = m.groups()
+        try:
+            if g[0]:
+                d = datetime(int(g[0]), int(g[1]), int(g[2]))
+            else:
+                cands = []
+                for y in (now.year - 1, now.year, now.year + 1):
+                    try:
+                        cands.append(datetime(y, int(g[3]), int(g[4])))
+                    except ValueError:
+                        pass
+                d = min(cands, key=lambda x: abs((x - now).days))
+        except (ValueError, TypeError):
+            continue
+        out.append({"start": m.start(), "end_num": m.end(), "text": m.group(0), "date": d})
+    return out
+
+
+def date_mismatches(body: str, src: Sources) -> list[dict]:
+    """离数据日期很近（±10 天）却又不是任何一个数据日期的「某月某日」：多半是把收盘日写错了一天。今天的日期、远处的历史日期不管。"""
+    with src.lock:
+        ds = set(src.dates)
+    if not ds:
+        return []
+    known = [datetime.strptime(x, "%Y-%m-%d") for x in ds]
+    today_s = today()
+    bad = []
+    for a in answer_dates(body):
+        k = a["date"].strftime("%Y-%m-%d")
+        if k in ds or k == today_s:
+            continue
+        near = min(abs((a["date"] - x).days) for x in known)
+        if 0 < near <= 10:
+            bad.append(a)
+    return bad
+
+
 def verify(text: str, src: Sources) -> dict:
-    """返回 {ok, numbers: [{text, value, sids}], unverified: [text...]}。已标「未核实」的数字不再算错。"""
+    """返回 {ok, numbers: [{text, value, sids}], unverified: [text...], why: {text: 原因}}。已标「未核实」的数字不再算错。
+    三类错：数字找不到出处；数字对得上但涨跌方向写反；日期离数据日只差几天却对不上。"""
     body = strip_sources(text)
-    nums = []
+    nums, why = [], {}
     for n in key_numbers(body):
         flagged = body[n["end_num"]:n["end_num"] + len(UNVERIFIED) + 4].lstrip(" [0123456789]").startswith(UNVERIFIED)
         p = n["text"].rstrip().endswith(("%", "％"))
         sids = src.match(n["value"], n["dec"], n["scale"], p) or (src.match(n["raw"], n["dec"], 1, p) if n["scale"] != 1 else None)
+        want = _want_sign(body, n)
+        if sids and want and src.direction_conflict(n["value"], n["dec"], n["scale"], want):
+            why[n["text"]] = "涨跌方向和数据相反"
+            sids = None
+        elif not sids and not flagged:
+            why[n["text"]] = "找不到出处"
         nums.append({**n, "sids": sids, "flagged": flagged})
+    for d in date_mismatches(body, src):
+        flagged = body[d["end_num"]:d["end_num"] + len(UNVERIFIED) + 4].lstrip(" [0123456789]").startswith(UNVERIFIED)
+        nums.append({**d, "sids": None, "flagged": flagged, "date_only": True})
+        if not flagged:
+            why[d["text"]] = "日期和数据日期对不上（数据日期：" + "、".join(sorted(src.dates)[-3:]) + "）"
     bad = [n["text"] for n in nums if not n["sids"] and not n["flagged"]]
-    return {"ok": not bad, "numbers": nums, "unverified": bad}
+    return {"ok": not bad, "numbers": nums, "unverified": bad, "why": why}
 
 
-def correction_prompt(bad: list[str]) -> str:
-    return ("[系统核对：你回答里的这些数字在本轮工具结果里找不到出处：" + "、".join(dict.fromkeys(bad)) +
-            "。请重写回答：要么调用工具取得出处，要么删掉或改成「查不到」，不要估算或凭记忆写数字。关键数字后保留 [编号]。直接给出完整的新回答。]")
+def correction_prompt(bad: list[str], why: dict | None = None) -> str:
+    why = why or {}
+    items = [f"{b}（{why[b]}）" if why.get(b) and why[b] != "找不到出处" else b for b in dict.fromkeys(bad)]
+    return ("[系统核对：你回答里的这些数字或日期和本轮工具结果对不上：" + "、".join(items) +
+            "。请重写回答：找不到出处的要么调用工具取得出处，要么删掉或改成「查不到」；方向写反的按数据改正涨跌；日期以工具结果里的数据日期为准。"
+            "不要估算或凭记忆写数字。关键数字后保留 [编号]。直接给出完整的新回答。]")
 
 
 def flag(text: str, src: Sources) -> tuple[str, list[str]]:
@@ -375,7 +510,7 @@ def flag(text: str, src: Sources) -> tuple[str, list[str]]:
     for n in sorted(bad, key=lambda x: -x["end_num"]):
         body = body[:n["end_num"]] + UNVERIFIED + body[n["end_num"]:]
     if bad:
-        body += f"\n\n注：标「未核实」的 {len(bad)} 个数字在本轮数据里找不到出处，请勿据此决策。"
+        body += f"\n\n注：标「未核实」的 {len(bad)} 处数字或日期和本轮数据对不上，请勿据此决策。"
     return body + ("\n\n" + tail if tail else ""), [n["text"] for n in bad]
 
 
@@ -408,6 +543,20 @@ def page_cites(body: str, src: Sources) -> str:
     return "".join(out) + body[last:]
 
 
+TAG_DATA = re.compile(r"^(\s*(?:[-*•]|\d+[.、)])?\s*)(〔数据〕|\[Data\])", re.M)
+
+
+def fix_tags(body: str) -> str:
+    """〔数据〕标签也要被核对：那一行里没有 [n] 出处角标，就降成〔推断〕（英文 [Data] → [Inference]）。"""
+    out = []
+    for line in body.split("\n"):
+        m = TAG_DATA.match(line)
+        if m and not re.search(r"\[\d+\]", line[m.end():]):
+            line = line[:m.start(2)] + ("〔推断〕" if m.group(2) == "〔数据〕" else "[Inference]") + line[m.end(2):]
+        out.append(line)
+    return "\n".join(out)
+
+
 def finalize(text: str, src: Sources) -> tuple[str, list[dict]]:
     """补引用角标、清理无效角标、按出现顺序重新编号，末尾附来源清单。返回 (文本, 用到的来源)。"""
     body, _ = split_sources(text)
@@ -415,7 +564,7 @@ def finalize(text: str, src: Sources) -> tuple[str, list[dict]]:
     body = re.sub(r"\[(\d+)\]", lambda m: m.group(0) if src.get(int(m.group(1))) else "", body)
     v = verify(body, src)
     for n in sorted(v["numbers"], key=lambda x: -x["end_num"]):
-        if not n["sids"]:
+        if not n["sids"] or n.get("date_only"):
             continue
         sids = [s for s in n["sids"] if (src.get(s) or {}).get("kind") != "user"]
         if not sids:
@@ -434,6 +583,7 @@ def finalize(text: str, src: Sources) -> tuple[str, list[dict]]:
             continue
         body = body[:at] + "".join(f"[{s}]" for s in sids[:2]) + rest
     body = page_cites(body, src)
+    body = fix_tags(body)
     order = list(dict.fromkeys(int(x) for x in re.findall(r"\[(\d+)\]", body)))
     remap = {old: i + 1 for i, old in enumerate(order)}
     body = re.sub(r"\[(\d+)\]", lambda m: f"[{remap.get(int(m.group(1)), m.group(1))}]", body)
