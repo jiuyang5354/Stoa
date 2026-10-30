@@ -38,7 +38,7 @@ def build_snapshot(cfg: dict, with_news: bool) -> dict:
 
 def sub_command() -> bool:
     """chat / review / memory 子命令；其余参数走报告模式。"""
-    if len(sys.argv) < 2 or sys.argv[1] not in ("chat", "review", "memory", "serve", "mcp", "providers", "desktop", "backtest", "eval", "earnings"):
+    if len(sys.argv) < 2 or sys.argv[1] not in ("chat", "review", "memory", "serve", "mcp", "providers", "desktop", "backtest", "eval", "earnings", "news-snapshot"):
         return False
     cmd = sys.argv[1]
     if cmd == "chat":
@@ -70,6 +70,9 @@ def sub_command() -> bool:
     elif cmd == "eval":
         from .evals import main as ev
         ev(sys.argv[2:])
+    elif cmd == "news-snapshot":
+        from .newsdaily import main as nm
+        nm(sys.argv[2:])
     elif cmd == "earnings":
         from .earnings import main as em
         em(sys.argv[2:])

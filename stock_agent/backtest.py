@@ -769,6 +769,9 @@ def main(argv=None):
     p.add_argument("--step", type=int, default=5, help="每隔几个交易日做一次判断")
     p.add_argument("--horizons", default="5,20", help="持有期（交易日），逗号分隔，第一个是主周期")
     p.add_argument("--mode", choices=["timing", "rank"], default="timing", help="timing = 单只择时（默认）；rank = 同批股票相对强弱排序（Rank IC，每个决策日一次调用）")
+    p.add_argument("--universe", choices=["csi300"], help="rank 模式：从沪深 300 成分（决策期开始时的历史成分）里抽样，代替 --symbols")
+    p.add_argument("--n", type=int, default=100, help="--universe 抽样只数")
+    p.add_argument("--group-size", type=int, default=50, help="rank 模式：每次调用最多打分的只数，超过就分组（组内百分位合并）")
     p.add_argument("--with-events", action="store_true", help="rank 模式：另给 point-in-time 公告标题与已披露财报（发布日严格早于决策日）")
     p.add_argument("--agent", choices=["baseline", "llm", "debate"], default="baseline")
     p.add_argument("--rounds", type=int, default=1, help="debate 模式的多空辩论轮数（1–3）")
@@ -792,7 +795,7 @@ def main(argv=None):
         hz = [int(x) for x in a.horizons.split(",")] if a.horizons != "5,20" else [20, 5]
         res = run_rank(symbols=[s.strip() for s in a.symbols.split(",")] if a.symbols else None, start=a.start, end=a.end, step=a.step,
                        horizons=hz, synthetic=a.synthetic, concurrency=a.concurrency, max_calls=a.max_calls, blind=not a.no_blind,
-                       seed=a.seed, llm_kind=a.llm_kind, events=a.with_events)
+                       seed=a.seed, llm_kind=a.llm_kind, events=a.with_events, universe=a.universe, n=a.n, group_size=a.group_size)
         if a.json:
             print(json.dumps({k: v for k, v in res.items() if k != "scores"}, ensure_ascii=False, indent=1))
         else:

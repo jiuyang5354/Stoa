@@ -35,7 +35,8 @@ import pandas as pd
 from . import indicators
 
 RANK_VERSION = "rank-1"
-TOP_K = 3
+TOP_K = 3  # 头尾分组：小横截面（<15 只）取前/后 3 只；大横截面取前/后 20%（见 top_k()）
+GROUP_SIZE = 50  # 一天的股票多于这个数就随机分组打分（每组一次调用），组内分数转成百分位后合并
 STALE_DAYS = 6  # 某市场放长假（如 A股国庆）时，最后收盘距决策日超过这么多天就不参加当日排序
 LABELS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 NAMES = {  # 盲测时从公告标题里抹掉的公司名
@@ -187,6 +188,34 @@ def cross_sections(pit, start, end, step: int, horizons: list[int]):
     return out
 
 
+def top_k(n: int) -> int:
+    return TOP_K if n < 15 else max(TOP_K, int(round(n * 0.2)))
+
+
+def day_labels(day, syms) -> dict:
+    """每日打乱的代号。≤26 只用单个字母（与第三轮一致）；更多用「字母+数字」A0…Z9。"""
+    order = sorted(syms, key=lambda s: hashlib.md5(f"lab|{day:%Y-%m-%d}|{s}".encode()).hexdigest())
+    if len(order) <= len(LABELS):
+        return {s: LABELS[i] for i, s in enumerate(order)}
+    return {s: f"{LABELS[i // 10]}{i % 10}" for i, s in enumerate(order)}
+
+
+def groups(day, syms, size: int) -> list[list[str]]:
+    """把一天的股票按哈希打乱后均分成若干组（每组 ≤ size），与行情无关、可复现。"""
+    syms = sorted(syms, key=lambda s: hashlib.md5(f"grp|{day:%Y-%m-%d}|{s}".encode()).hexdigest())
+    if len(syms) <= size:
+        return [syms]
+    k = math.ceil(len(syms) / size)
+    return [syms[i::k] for i in range(k)]
+
+
+def to_pct(sc: dict) -> dict:
+    """组内分数 → 百分位 (0,1)，并列取平均名次。"""
+    k = list(sc)
+    r = rankdata([sc[s] for s in k])
+    return {s: r[i] / (len(k) + 1) for i, s in enumerate(k)}
+
+
 def _market(s: str) -> str:
     from .backtest import market
     return market(s)
@@ -264,7 +293,7 @@ def stock_block(c: pd.Series, market: str, blind: bool = True) -> dict:
             "最近40日收盘(归一)": [round(float(v), 1) for v in c.tail(40)]}
 
 
-RANK_SYSTEM = """你是「Stoa」的回测排序模式。现在是历史上的某一天，下面是同一天的一批股票（来自 A股/港股/美股，代号随机、价格已归一化到最新价 = 100），
+RANK_SYSTEM = """你是「Stoa」的回测排序模式。现在是历史上的某一天，下面是同一天的一批股票（来自 {universe}，代号随机、价格已归一化到最新价 = 100），
 你只能看到截至这一天的数据{extra}。
 任务：按「之后 {h} 个交易日的相对表现（涨跌幅，在这批股票里比高低）」给每只股票打分 0–100，分数越高 = 预计相对越强。
 - 必须给每个代号打分，分数尽量拉开、不要并列；这是相对排序，不是判断大盘涨跌。
@@ -277,7 +306,7 @@ class LLMRanker:
     """每个决策日一次调用，对整批打分。带缓存、并发上限与统计。"""
 
     def __init__(self, llm=None, blind: bool = True, horizon: int = 20, max_calls: int = 300, events: bool = False,
-                 cache=None, events_loader=None):
+                 cache=None, events_loader=None, group_size: int = GROUP_SIZE):
         from .backtest import LLMCache, bt_dir
         if llm is None:
             from .agent import load_cfg
@@ -287,6 +316,7 @@ class LLMRanker:
         self.model = repr(llm)
         self.cache = cache or LLMCache(bt_dir() / "llm_cache.db")
         self.events_loader = events_loader
+        self.group_size = max(2 * TOP_K, int(group_size))
         self._ev = {}
         self.stats = {"calls": 0, "cache_hits": 0, "errors": 0, "skipped_cap": 0, "tokens_in_est": 0, "tokens_out_est": 0,
                       "seconds": 0.0, "events_stocks_days": 0, "events_items": 0}
@@ -307,8 +337,7 @@ class LLMRanker:
 
     def labels(self, day, syms) -> dict:
         """每日打乱的代号（同一天有/无公告两组用同一套，消融只差信息）。"""
-        order = sorted(syms, key=lambda s: hashlib.md5(f"lab|{day:%Y-%m-%d}|{s}".encode()).hexdigest())
-        return {s: LABELS[i] for i, s in enumerate(order)}
+        return day_labels(day, syms)
 
     def payload(self, day, closes) -> tuple[dict, dict]:
         from . import pit_events
@@ -328,6 +357,18 @@ class LLMRanker:
         return out, lab
 
     def __call__(self, day, closes, **_) -> dict | None:
+        gs = groups(day, list(closes), self.group_size)
+        if len(gs) == 1:
+            return self.score(day, closes)
+        out = {}
+        for g in gs:  # 每组一次调用；任何一组失败，这一天整体作废（不拿半批去评估）
+            sc = self.score(day, {s: closes[s] for s in g})
+            if not sc:
+                return None
+            out.update(to_pct(sc))
+        return out
+
+    def score(self, day, closes) -> dict | None:
         k = self.key(day, closes)
         hit = self.cache.get(k)
         if hit:
@@ -340,7 +381,9 @@ class LLMRanker:
                 return None
             self.stats["calls"] += 1
         pl, lab = self.payload(day, closes)
-        msgs = [{"role": "system", "content": RANK_SYSTEM.format(h=self.h, extra=EVENTS_NOTE if self.events else "")},
+        mk = sorted({_market(s) for s in closes})
+        uni = "A股/港股/美股" if len(mk) > 1 or mk != ["A股"] else "同一个 A股指数的成分股"
+        msgs = [{"role": "system", "content": RANK_SYSTEM.format(h=self.h, extra=EVENTS_NOTE if self.events else "", universe=uni)},
                 {"role": "user", "content": json.dumps({"截至": "T 日（日期已隐去）" if self.blind else f"{day:%Y-%m-%d}",
                                                          "持有期（交易日）": self.h, "股票": pl}, ensure_ascii=False)}]
         t0 = time.time()
@@ -381,7 +424,7 @@ def parse_scores(text: str, label_to_sym: dict) -> dict:
             out[s] = float(v)
         except (TypeError, ValueError):
             continue
-    if len(out) < max(2 * TOP_K, int(len(label_to_sym) * 0.8)):
+    if len(out) < max(2 * TOP_K, int(len(label_to_sym) * 0.9)):
         raise ValueError(f"只给了 {len(out)}/{len(label_to_sym)} 只的分数")
     return out
 
@@ -399,13 +442,14 @@ class MockRanker:
 
 
 # ====================================================================== 评估
-def evaluate(scores_by_day: list[tuple], horizons: list[int], step: int) -> dict:
-    """scores_by_day: [(day, {sym: score}, {sym: {h: ret}})]。"""
+def evaluate(scores_by_day: list[tuple], horizons: list[int], step: int, industries: dict | None = None) -> dict:
+    """scores_by_day: [(day, {sym: score}, {sym: {h: ret}})]。industries={sym: 行业} 时另算行业中性 IC
+    （收益先减去同日同行业均值；当日只有 1 只的行业不参加）。"""
     res = {}
     for h in horizons:
         lag = max(0, math.ceil(h / step) - 1)
         block = max(1, math.ceil(h / step))
-        ic, icn, ls, top, bot, days = [], [], [], [], [], []
+        ic, icn, ici, ls, top, bot, days = [], [], [], [], [], [], []
         for day, sc, fwd in scores_by_day:
             syms = [s for s in sc if fwd.get(s, {}).get(h) is not None]
             if len(syms) < 2 * TOP_K:
@@ -419,14 +463,24 @@ def evaluate(scores_by_day: list[tuple], horizons: list[int], step: int) -> dict
             a, b = spearman(x, y), spearman(x, yn)
             if a is None:
                 continue
+            if industries:
+                g = {}
+                for s in syms:
+                    if s in industries:
+                        g.setdefault(industries[s], []).append(fwd[s][h])
+                ks = [s for s in syms if s in industries and len(g[industries[s]]) >= 2]
+                ri = spearman([sc[s] for s in ks], [fwd[s][h] - sum(g[industries[s]]) / len(g[industries[s]]) for s in ks]) if len(ks) >= 2 * TOP_K else None
+                ici.append(ri if ri is not None else 0.0)
             order = sorted(syms, key=lambda s: sc[s])
-            t_ = sum(fwd[s][h] for s in order[-TOP_K:]) / TOP_K
-            b_ = sum(fwd[s][h] for s in order[:TOP_K]) / TOP_K
+            kk = top_k(len(syms))
+            t_ = sum(fwd[s][h] for s in order[-kk:]) / kk
+            b_ = sum(fwd[s][h] for s in order[:kk]) / kk
             ic.append(a), icn.append(b if b is not None else 0.0), ls.append(t_ - b_), top.append(t_), bot.append(b_), days.append(f"{day:%Y-%m-%d}")
         res[str(h)] = {"days": len(days), "ic": summarize(ic, lag, block), "ic_mkt_neutral": summarize(icn, lag, block),
+                       **({"ic_ind_neutral": summarize(ici, lag, block)} if industries else {}),
                        "long_short%": summarize(ls, lag, block), "top_mean%": round(sum(top) / len(top), 3) if top else None,
                        "bottom_mean%": round(sum(bot) / len(bot), 3) if bot else None, "nw_lag": lag, "block": block,
-                       "_series": {"days": days, "ic": [round(v, 4) for v in ic], "ic_mn": [round(v, 4) for v in icn], "ls": [round(v, 3) for v in ls]}}
+                       "_series": {"days": days, "ic": [round(v, 4) for v in ic], "ic_mn": [round(v, 4) for v in icn], "ic_in": [round(v, 4) for v in ici], "ls": [round(v, 3) for v in ls]}}
     return res
 
 
@@ -440,7 +494,8 @@ def paired(a: dict, b: dict, h: str, lag: int, block: int, key: str = "ic") -> d
 
 def run_rank(symbols=None, start=None, end=None, step=5, horizons=(20, 5), synthetic=False, concurrency=2, max_calls=300,
              blind=True, seed=7, llm=None, llm_kind="auto", events=False, run_id=None, save=True, closes=None,
-             ranker=None, random_seeds: int = 200) -> dict:
+             ranker=None, random_seeds: int = 200, universe: str | None = None, n: int = 100, group_size: int = GROUP_SIZE,
+             industries: dict | None = None) -> dict:
     from .backtest import DEFAULT_SYMBOLS, PointInTime, bt_dir, load_prices, new_run_id, synthetic_prices, CN_TZ
     from .providers import usage_since
     horizons = [int(h) for h in horizons]
@@ -448,9 +503,14 @@ def run_rank(symbols=None, start=None, end=None, step=5, horizons=(20, 5), synth
     today = pd.Timestamp.now().normalize()
     end = pd.Timestamp(end) if end else today - pd.Timedelta(days=int(max(horizons) * 1.6) + 3)
     start = pd.Timestamp(start) if start else end - pd.Timedelta(days=365)
+    uni = None
+    if universe == "csi300" and not symbols:
+        from . import universe as U
+        uni = U.csi300_sample(f"{start:%Y-%m-%d}", n=n, seed=seed)
+        symbols, industries = uni["symbols"], industries or uni["industries"]
     symbols = symbols or DEFAULT_SYMBOLS
     t0, u0 = time.time(), usage_since()
-    agent_name = "rank-events" if events else "rank"
+    agent_name = ("rank-events" if events else "rank") + ("-csi300" if uni else "")
     if not run_id:
         run_id = new_run_id(agent_name) if save else f"{datetime.now(CN_TZ):%Y%m%d-%H%M%S}-{agent_name}"
     if closes is not None:
@@ -465,7 +525,7 @@ def run_rank(symbols=None, start=None, end=None, step=5, horizons=(20, 5), synth
         if llm_kind == "mock":
             ranker = MockRanker()
         else:
-            ranker = LLMRanker(llm=llm, blind=blind, horizon=h0, max_calls=max_calls, events=events)
+            ranker = LLMRanker(llm=llm, blind=blind, horizon=h0, max_calls=max_calls, events=events, group_size=group_size)
             if hasattr(ranker.llm, "ready") and not ranker.llm.ready:
                 raise SystemExit("没有可用的大模型：设置 LLM_PROVIDER / LLM_API_KEY，或加 --llm mock 只跑通管线。")
 
@@ -485,7 +545,7 @@ def run_rank(symbols=None, start=None, end=None, step=5, horizons=(20, 5), synth
                **{k: [(d, fn(d, c), f) for d, c, f in xs] for k, fn in BASELINES.items()},
                "random": [(d, random_scores(seed)(d, c), f) for d, c, f in xs]}
     ok_days = {d for d, _, _ in agent_rows}
-    results = {k: evaluate([r for r in v if r[0] in ok_days] if k != "agent" else v, horizons, step) for k, v in methods.items()}
+    results = {k: evaluate([r for r in v if r[0] in ok_days] if k != "agent" else v, horizons, step, industries) for k, v in methods.items()}
     # 随机基线的经验分布：200 个种子的 IC 均值
     dist = {}
     for h in horizons:
@@ -505,9 +565,14 @@ def run_rank(symbols=None, start=None, end=None, step=5, horizons=(20, 5), synth
     for h in horizons:
         r0 = results["agent"][str(h)]
         pairs[str(h)] = {f"agent_vs_{b}": paired(results["agent"], results[b], str(h), r0["nw_lag"], r0["block"]) for b in ("momentum20", "reversal5", "random", "momentum60", "lowvol20")}
+        if industries:
+            pairs[str(h)].update({f"agent_vs_{b}_ind": paired(results["agent"], results[b], str(h), r0["nw_lag"], r0["block"], "ic_in") for b in ("momentum20", "momentum60", "random")})
     out = {"id": run_id, "status": "done", "mode": "rank", "created": datetime.now(CN_TZ).strftime("%Y-%m-%d %H:%M"),
            "params": {"symbols": list(pit.symbols), "requested": list(symbols), "start": f"{start:%Y-%m-%d}", "end": f"{end:%Y-%m-%d}",
-                      "step": step, "horizons": horizons, "agent": agent_name, "blind": blind, "events": bool(events), "top_k": TOP_K,
+                      "step": step, "horizons": horizons, "agent": agent_name, "blind": blind, "events": bool(events),
+                      "top_k": top_k(len(pit.symbols)), "group_size": group_size,
+                      "universe": ({k: uni[k] for k in ("date", "source", "survivorship", "n_members", "industry_source")} if uni else None),
+                      "industries": industries or None,
                       "decision_days": len(xs), "scored_days": len(agent_rows), "seed": seed, "data": source, "llm_kind": llm_kind,
                       "missing": [s for s in symbols if s not in pit.symbols]},
            "results": results, "random_dist": dist, "paired": pairs, "similarity": similarity(agent_rows, xs),
@@ -522,16 +587,20 @@ def run_rank(symbols=None, start=None, end=None, step=5, horizons=(20, 5), synth
 
 def print_rank(res: dict):
     p = res["params"]
+    if p.get("universe"):
+        print(f"股票池：{p['universe']['source']}，{p['universe']['n_members']} 只里确定性抽 {len(p['symbols'])} 只；"
+              f"{'历史成分（无幸存者偏差）' if p['universe']['survivorship'] == 'historical' else '当前成分（有幸存者偏差）'}；行业：{p['universe'].get('industry_source')}")
     print(f"Probatio · 相对强弱排序 {res['id']}  {'有公告/财报' if p['events'] else '只有行情'}  {p['start']} → {p['end']}  每 {p['step']} 个工作日  "
           f"{len(p['symbols'])} 只  评分日 {p['scored_days']}/{p['decision_days']}  数据 {p['data']}")
     for h in [str(x) for x in p["horizons"]]:
         print(f"\n【未来 {h} 日】NW 滞后 {res['results']['agent'][h]['nw_lag']}，自助块长 {res['results']['agent'][h]['block']}")
-        print(f"  {'':11}{'IC均值':>8}{'ICIR':>7}{'t(NW)':>8}{'p(NW)':>8}{'IC>0':>7}  {'95%区间':<18}{'中性IC':>8}{'p':>7}{'多空%':>8}{'p':>7}")
+        ind = "ic_ind_neutral" in res["results"]["agent"][h]
+        print(f"  {'':11}{'IC均值':>8}{'ICIR':>7}{'t(NW)':>8}{'p(NW)':>8}{'IC>0':>7}  {'95%区间':<18}{'行业中性IC' if ind else '中性IC':>8}{'p':>7}{'多空%':>8}{'p':>7}")
         for k in ("agent", "momentum20", "reversal5", "random", "momentum60", "lowvol20"):
             if k not in res["results"]:
                 continue
             r = res["results"][k][h]
-            ic, mn, ls = r["ic"], r["ic_mkt_neutral"], r["long_short%"]
+            ic, mn, ls = r["ic"], (r.get("ic_ind_neutral") if ind else r["ic_mkt_neutral"]), r["long_short%"]
             if ic.get("n", 0) < 3:
                 print(f"  {k:11} 样本不足")
                 continue

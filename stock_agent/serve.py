@@ -470,12 +470,14 @@ def main():
     settings.load_env_file()
     port, host = int(os.getenv("PORT", "8080")), os.getenv("HOST", "0.0.0.0")
     from . import vectors
-    for fn in (reaper, telegram, scheduler, lambda: alerts.loop(log), lambda: vectors.indexer_loop(MEM, log)):
+    from . import newsdaily
+    for fn in (reaper, telegram, scheduler, lambda: alerts.loop(log), lambda: vectors.indexer_loop(MEM, log), lambda: newsdaily.loop(log)):
         threading.Thread(target=fn, daemon=True).start()
     log(f"Stoa 已启动：http://{host}:{port}  数据目录 {home()}")
     from .data import provider_order
     from .providers import Router
     log(f"大模型 {Router(load_cfg().get('llm', {}))}  行情源 {' → '.join(provider_order())}")
     log(f"对外接口：OpenAI 兼容 /v1/chat/completions · MCP /mcp · REST /api/*")
+    log(f"新闻快照：{','.join(newsdaily.snapshot_times()) or '关'}（北京时间，每天；存 data/news/）")
     log(f"记忆 USER {MEM.usage('user')} · MEMORY {MEM.usage('memory')} · 代码执行 {'开' if os.getenv('ALLOW_CODE') == '1' else '关'}")
     ThreadingHTTPServer((host, port), Web).serve_forever()

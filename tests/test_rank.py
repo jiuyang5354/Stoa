@@ -169,3 +169,64 @@ def test_report_footer_says_not_significant():
     from stock_agent import report
     import inspect
     assert "不具统计显著性" in inspect.getsource(report)
+
+
+# ---------------------------------------------------------------- 第四轮：大横截面（沪深 300 抽样）
+def test_labels_groups_pct_for_large_universe():
+    import pandas as pd
+    from stock_agent import rank as rk
+    day = pd.Timestamp("2026-03-02")
+    syms = [f"{600000 + i}.SS" for i in range(100)]
+    lab = rk.day_labels(day, syms)
+    assert len(set(lab.values())) == 100 and all(len(v) == 2 for v in lab.values())
+    assert rk.day_labels(day, syms[:12]) == rk.day_labels(day, syms[:12]) and all(len(v) == 1 for v in rk.day_labels(day, syms[:12]).values())
+    gs = rk.groups(day, syms, 50)
+    assert len(gs) == 2 and sorted(sum(gs, [])) == sorted(syms) and all(len(g) == 50 for g in gs)
+    assert rk.groups(day, syms[:30], 50) == [sorted(syms[:30], key=lambda s: rk.hashlib.md5(f"grp|{day:%Y-%m-%d}|{s}".encode()).hexdigest())]
+    p = rk.to_pct({"a": 10, "b": 30, "c": 20})
+    assert p["b"] > p["c"] > p["a"] and 0 < p["a"] < p["b"] < 1
+    assert rk.top_k(12) == 3 and rk.top_k(100) == 20
+
+
+def test_grouped_ranker_merges_and_fails_whole_day():
+    import json as _j
+    import pandas as pd
+    from stock_agent import rank as rk
+    from stock_agent.backtest import LLMCache
+    import tempfile, os
+
+    class L:
+        ready = True
+        def __init__(self, fail_second=False):
+            self.n, self.fail_second = 0, fail_second
+        def __repr__(self):
+            return "fake"
+        def chat(self, msgs, tools=None, temperature=0, timeout=0):
+            self.n += 1
+            if self.fail_second and self.n == 2:
+                raise RuntimeError("boom")
+            st = _j.loads(msgs[1]["content"])["股票"]
+            assert "同一个 A股指数" in msgs[0]["content"]
+            return {"content": _j.dumps({"scores": {k: i for i, k in enumerate(st)}})}
+    idx = pd.bdate_range("2025-01-01", periods=80)
+    closes = {f"{600000 + i}.SS": pd.Series([10 + i * .01 * k for k in range(80)], index=idx) for i in range(60)}
+    d = tempfile.mkdtemp()
+    r = rk.LLMRanker(llm=L(), group_size=30, cache=LLMCache(os.path.join(d, "a.db")))
+    sc = r(idx[-1], closes)
+    assert r.llm.n == 2 and len(sc) == 60 and all(0 < v < 1 for v in sc.values())
+    r2 = rk.LLMRanker(llm=L(fail_second=True), group_size=30, cache=LLMCache(os.path.join(d, "b.db")))
+    assert r2(idx[-1], closes) is None
+
+
+def test_industry_neutral_ic():
+    import pandas as pd
+    from stock_agent import rank as rk
+    day = pd.Timestamp("2026-01-05")
+    syms = [f"S{i}.SS" for i in range(12)]
+    ind = {s: ("银行" if i < 6 else "电子") for i, s in enumerate(syms)}
+    # 收益全由行业决定（电子 +10），模型分数只是行业哑变量 → 原始 IC 高，行业中性 IC ≈ 0
+    fwd = {s: {20: (10.0 if ind[s] == "电子" else 0.0) + (i % 3) * 0.01} for i, s in enumerate(syms)}
+    sc = {s: (1.0 if ind[s] == "电子" else 0.0) for s in syms}
+    res = rk.evaluate([(day, sc, fwd)] * 5, [20], 5, ind)
+    assert res["20"]["ic"]["mean"] > 0.8
+    assert abs(res["20"]["ic_ind_neutral"]["mean"] or 0) < 1e-9
