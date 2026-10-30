@@ -1407,7 +1407,10 @@ box.onclick = () => input.focus();
 input.onfocus = input.oninput = sync;
 document.addEventListener('mousedown', e => { if (!box.contains(e.target)) setTimeout(() => { if (!input.value) { input.blur(); sync(); } }); });
 box.onsubmit = e => { e.preventDefault(); send(); };
-showPh(); sync(); empty(); openSession(sid, true);
+/* 每次打开 Stoa 都从欢迎页开始（旧对话在 History 里）；同一次运行内刷新页面才接着上次的对话 */
+let freshRun = false; try { freshRun = sessionStorage.getItem('stoa-run') !== '1'; sessionStorage.setItem('stoa-run', '1'); } catch (_) {}
+if (freshRun) sid = localStorage.sid = newSid();
+showPh(); sync(); empty(); if (!freshRun) openSession(sid, true);
 
 /* ---------- 行情 ---------- */
 const MARKETS = ['A股','港股','美股','自选'];
