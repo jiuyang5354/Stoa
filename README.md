@@ -77,7 +77,7 @@ docker compose up -d
 | 本地 | ollama · lmstudio · vllm |
 | 原生 | anthropic（Claude）· gemini · azure |
 
-任何别的 OpenAI 兼容服务（中转站、One API、自建网关）：`LLM_BASE_URL` 填地址即可。`LLM_FALLBACK=qwen,ollama:qwen2.5:7b` 让主模型挂了自动换。
+任何别的服务（中转站、One API、自建网关、公司内网模型）：在「设置 → 模型 → 自定义来源」填名称、地址、密钥，选 OpenAI 兼容 / Anthropic / Gemini 协议，点「检测」能列出它有哪些模型；保存后在「服务商」里选它。也可以只填 `LLM_BASE_URL`。模型框会自动问服务商要模型列表，点「选择」挑一个。`LLM_FALLBACK=qwen,ollama:qwen2.5:7b` 让主模型挂了自动换。
 
 中转站示例（以 sui-xiang.com 为例，任何 `/v1/chat/completions` + function calling 的中转都一样）：
 

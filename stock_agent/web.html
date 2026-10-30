@@ -1808,7 +1808,7 @@ const PANES = {
       <label class="fr"><span><b>名称</b></span><input type="text" id="sname" value="${esc(E.name || '')}" placeholder="如：我的中转" autocomplete="off"></label>
       <label class="fr"><span><b>接口地址</b><small>一般以 /v1 结尾</small></span><input type="text" id="sbase" value="${esc(E.base || '')}" placeholder="https://api.example.com/v1" autocomplete="off" spellcheck="false"></label>
       <label class="fr"><span><b>API 密钥</b></span><input type="password" id="skey" value="${esc(E.key || '')}" placeholder="${E.old ? '留空不改' : '本地模型可不填'}" autocomplete="off"></label>
-      <div class="fr"><span><b>协议</b></span><span class="seg2" id="sproto">${Object.entries(PN).map(([v, t]) => `<button type="button" data-v="${v}" class="${(E.proto || 'openai') === v ? 'on' : ''}">${t}</button>`).join('')}</span></div>
+      <div class="fr"><span><b>协议</b><small>中转、vLLM、Ollama 等都选 OpenAI 兼容</small></span><span><span class="seg2" id="sproto">${Object.entries(PN).map(([v, t]) => `<button type="button" data-v="${v}" class="${(E.proto || 'openai') === v ? 'on' : ''}">${t}</button>`).join('')}</span></span></div>
       <div class="srcb"><small id="sst" class="muted">${esc(E.msg || '')}</small><span>${E.old ? '<button class="x" id="scancel" type="button">取消</button> ' : ''}<button class="x" id="stest" type="button">检测</button> <button class="x" id="ssave" type="button">保存</button></span></div></div>`;
     return `<h3>模型</h3><p class="lead">Stoa 用哪个大模型思考。国内直连推荐 DeepSeek、通义、Kimi；也能接本地 Ollama，或在下面添加自己的来源。</p>` +
     grp('Provider · 服务商', `<label class="fr"><span><b>服务商</b><small>${p.custom ? esc(PN[p.proto] || '') + ' · 自定义' : p.local ? '本地模型，不需要密钥' : esc(p.base || '')}</small></span>${sel}</label>` + conn + mfield) +
