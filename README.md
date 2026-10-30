@@ -1,6 +1,55 @@
-# Stoa · 股市 Agent
+<div align="center">
 
-一个**有记忆**、能自己跑的股市助手，覆盖 **A股 / 港股 / 美股**：拉取指数和自选股行情，算技术信号，可选用大模型写中文点评，每个交易日自动生成早报、晚报并推送到微信 / 企业微信 / 飞书 / Telegram。
+<img src="docs/logo.png" width="120" alt="Stoa">
+
+# Stoa
+
+**有记忆的股市 Agent，覆盖 A股、港股、美股。**
+
+查行情、读公告财报、做多空辩论、写早晚报，并记住你的持仓和每一次判断。
+
+A stock-market agent with memory for China A-shares, Hong Kong and US stocks — quotes, filings, multi-analyst debate and daily briefings, all remembering your holdings and every call it made.
+
+[![version](https://img.shields.io/github/v/release/jiuyang5354/Stoa?label=version&color=c9a24a)](https://github.com/jiuyang5354/Stoa/releases)
+![platform](https://img.shields.io/badge/Windows-10%2B-3a6ea5)
+![python](https://img.shields.io/badge/python-3.10%2B-3776ab)
+![docker](https://img.shields.io/badge/docker-ready-2496ed)
+[![license](https://img.shields.io/badge/license-MIT-lightgrey)](LICENSE)
+
+[下载 Windows 版](https://github.com/jiuyang5354/Stoa/releases/latest) · [快速开始](#快速开始) · [能做什么](#能做什么) · [外接 API](#外接-api全部兼容) · [回测与评测](#回测与评测v014--probatio)
+
+简体中文 | [English](README.en.md)
+
+</div>
+
+> **English summary**
+>
+> Stoa is a self-hosted stock-market agent for A-shares, Hong Kong and US stocks. It pulls quotes, news, announcements and financials, runs a multi-role "Agora" debate (four analysts, bull vs. bear, a risk officer and a portfolio manager), cites every number it states, and writes morning and evening briefings pushed to WeChat, WeCom, Feishu or Telegram. It keeps a long-term memory of your holdings, preferences and every call it made, and reviews those calls when they come due. Bring your own model key (20+ presets, plus any OpenAI-compatible, Anthropic or Gemini endpoint). There is no Stoa server: your data stays in a local folder or your own Docker volume.
+>
+> Runs as a Windows desktop app, a Docker service, or plain Python. Also exposes an OpenAI-compatible API and an MCP server. Licensed under MIT. See the [full English README](README.en.md).
+
+<p align="center"><img src="docs/screenshot.jpg" width="900" alt="Stoa 主界面"></p>
+
+## 当前状态
+
+- 公开测试版，更新很快，每个版本做了什么见 [Releases](https://github.com/jiuyang5354/Stoa/releases)。
+- 看多、看空这类择时判断在回测里**不具统计显著性**，表现接近简单动量。Stoa 更适合查资料、看风险、写早晚报，不要拿它的方向判断直接下单。
+- Windows 自绘标题栏的拖动、缩放和一键更新还缺真机反馈，遇到问题欢迎提 [Issue](https://github.com/jiuyang5354/Stoa/issues)。
+- **仅供参考，不构成投资建议。**
+
+## 快速开始
+
+| 方式 | 适合 | 怎么做 |
+|---|---|---|
+| Windows 绿色版 | 只想用 | 下载 [Stoa-Windows.zip](https://github.com/jiuyang5354/Stoa/releases/latest)，解压双击 `Stoa.exe` |
+| Docker 常驻 | 24 小时在线、推送早晚报 | `cp .env.example .env` 填模型密钥，`docker compose up -d`，打开 http://localhost:8080 |
+| Python | 开发、命令行 | `pip install -r requirements.txt`，`python -m stock_agent serve` |
+
+第一次发消息时如果还没配模型，会自动打开「设置 → 模型」。看行情和早晚报不需要模型。
+
+常用操作：输入框打 `/` 弹出命令（`/deep 腾讯` 深度分析、`/news`、`/compare`、`/risk`、`/alert` 等）；顶部 History（Ctrl+J）看旧对话，Ledger（Ctrl+L）看判断账本与记忆，Graph（Ctrl+G）看记忆图谱。
+
+<p align="center"><img src="docs/graph.jpg" width="900" alt="记忆图谱"></p>
 
 ## 能做什么
 
