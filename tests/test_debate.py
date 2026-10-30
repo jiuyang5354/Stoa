@@ -17,6 +17,7 @@ def _home(tmp_path, monkeypatch):
     monkeypatch.setenv("STOCK_AGENT_HOME", str(tmp_path))
     for k in ("LLM_API_KEY", "DEEPSEEK_API_KEY", "LLM_PROVIDER", "LLM_FALLBACK"):
         monkeypatch.delenv(k, raising=False)
+    monkeypatch.setattr(db, "_today", lambda: "2026-10-30")  # fixture 行情日期固定，别让停牌红线随真实日期漂移
 
 
 FX = ev.load_cases()["fixtures"]
@@ -280,3 +281,71 @@ def test_answer_says_timing_not_significant():
     d, _ = make(AlwaysBull(), symbol="NVDA", name="英伟达")
     rec = d.run()
     assert "不具统计显著性" in rec["answer"] and "仅供参考" in rec["answer"]
+
+
+# ---------------------------------------------------------------- 风控：无持仓只做红线，默认通过
+class AlwaysVeto(db.MockRoleLLM):
+    def reply(self, role, user):
+        if role == "pm":
+            return json.dumps({"view": "看多", "confidence": 66, "horizon_days": 20, "summary": "看多", "key_points": [], "invalidation": "x"})
+        if role == "risk":
+            return json.dumps({"decision": "否决", "max_position_pct": 5, "notes": ["分歧太大"]})
+        return super().reply(role, user)
+
+
+def test_no_position_rules_only_passes_without_llm():
+    llm = AlwaysVeto()
+    d, _ = make(llm)
+    rec = d.run()
+    assert "risk" not in llm.calls  # 没有持仓信息：不请 LLM 风控官
+    assert rec["risk"]["decision"] == "通过" and rec["risk"]["mode"] == "rules_only" and not rec["risk"]["redlines"]
+    assert "默认通过" in rec["risk"]["notes"][0]
+    assert rec["verdict"]["view"] == "看多" and rec["verdict"]["confidence"] == 66 and not rec["verdict"].get("risk_override")
+
+
+def test_llm_cannot_veto_without_redline():
+    llm = AlwaysVeto()
+    d, _ = make(llm, symbol="NVDA", name="英伟达", user=["[2026-10-02] 持有 NVDA，占仓位 10%"])
+    rec = d.run()
+    assert "risk" in llm.calls
+    assert rec["risk"]["decision"] == "降级" and rec["risk"]["mode"] == "llm"  # 想否决，没有红线 → 最多降级
+    assert rec["verdict"]["view"] == "看多" and rec["verdict"]["confidence"] == 58
+
+
+def test_leverage_question_is_redline_veto():
+    src = cite.Sources()
+    d = db.Debate(db.MockRoleLLM(), "0700.HK", "腾讯", "想借钱加杠杆买腾讯，深度分析一下", tools=lambda n, a: src.add(n, a, ev.fixture_tool(FX, n, a)),
+                  budget=db.Budget(14, 60000, 10), sources=src)
+    rec = d.run()
+    assert rec["risk"]["decision"] == "否决" and any("杠杆" in r for r in rec["risk"]["redlines"])
+    assert rec["verdict"]["view"] != "看多"
+
+
+def test_redline_check_rules():
+    ok = db.redline_check({"close": 10, "vol_20d": 30.0, "chg_pct": 1.2, "date": "2026-10-29"}, "腾讯", "深度分析")
+    assert ok["decision"] == "通过" and not ok["red"] and {"停牌", "波动", "杠杆"} <= set(ok["checked"])
+    assert db.redline_check({"close": 10, "date": "2026-10-01"}, "腾讯")["decision"] == "否决"  # 停牌/数据中断
+    assert db.redline_check({"close": 10, "vol_20d": 95.0}, "x", meta={"backtest": True})["decision"] == "降级"
+    assert db.redline_check({"close": 10, "vol_20d": 160.0}, "x", meta={"backtest": True})["decision"] == "否决"
+    assert db.redline_check({"close": 10}, "*ST 某某", meta={"backtest": True})["decision"] == "否决"
+    assert db.redline_check({"close": 10}, "STMicroelectronics", meta={"backtest": True})["decision"] == "通过"
+    assert db.redline_check({"close": 10}, "x", meta={"backtest": True, "amount_avg20": 3e6})["decision"] == "否决"
+    assert db.redline_check({"close": 10}, "x", user_entries=["[2026-10-01] 不碰杠杆"], meta={"backtest": True})["decision"] == "通过"
+    assert db.redline_check({"close": 10}, "x", user_entries=["[2026-10-01] 两融账户融资买入 3 万"], meta={"backtest": True})["decision"] == "否决"
+    assert db.redline_check({"close": 10}, "x", meta={"backtest": True, "stale_days": 9})["decision"] == "否决"
+
+
+def test_has_position_info():
+    assert not db.has_position_info([]) and not db.has_position_info(["[2026-10-01] 喜欢看半导体"])
+    assert db.has_position_info(["[2026-10-01] 持有腾讯 200 股"]) and db.has_position_info(["风险偏好保守"])
+
+
+def test_backtest_debate_risk_rules_only(tmp_path):
+    c = pd.Series([100 + i * 0.1 for i in range(120)], index=pd.bdate_range("2026-01-01", periods=120))
+    llm = AlwaysVeto()
+    agent = db.DebateBTAgent(llm=llm, cache=bt.LLMCache(tmp_path / "c.db"))
+    out = agent(bt.Snapshot("0700.HK", "港股", c.index[-1], c, 5))
+    assert "risk" not in llm.calls and out["risk"] == "通过" and out["view"] == "看多"
+    # 决策日前 10 个工作日没有成交：停牌红线 → 否决
+    out2 = agent(bt.Snapshot("0700.HK", "港股", c.index[-1] + pd.offsets.BDay(10), c, 5))
+    assert out2["risk"] == "否决" and out2["view"] != "看多"

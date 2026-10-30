@@ -39,6 +39,8 @@ def analyze(close: pd.Series, alerts: dict) -> dict:
         "rsi": r,
         "high_52w": round(float(close.tail(250).max()), 3) if len(close) >= 60 else None,
         "low_52w": round(float(close.tail(250).min()), 3) if len(close) >= 60 else None,
+        # 近 20 日年化波动率（%），风控红线用
+        "vol_20d": round(float(close.pct_change().tail(20).std() * (252 ** 0.5) * 100), 1) if len(close) >= 21 else None,
     }
     sig = []
     move = alerts.get("daily_move_pct", 3.0)

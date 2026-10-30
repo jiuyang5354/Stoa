@@ -29,7 +29,7 @@ from pathlib import Path
 from . import cite
 
 CN_TZ = timezone(timedelta(hours=8))
-VERSION = "agora-3"  # agora-2：置信度按证据强度分档（CONF_TIERS）；agora-3：风控降级改为按比例向 50 收拢，PM 不再自行二次下调
+VERSION = "agora-4"  # agora-4：无持仓/仓位信息时风控只做红线规则检查、默认通过，否决只在命中红线时； agora-2：置信度按证据强度分档（CONF_TIERS）；agora-3：风控降级改为按比例向 50 收拢，PM 不再自行二次下调
 VIEWS = ("看多", "看空", "中性")
 SIGN = {"看多": 1, "看空": -1, "中性": 0}
 DEEP_RE = re.compile(r"深度分析|深入分析|全面分析|深度研究|该不该(?:买|卖|加仓|减仓|入手|清仓|抄底)|值不值得(?:买|入手|投资)|多空辩论|辩论一下|deep\s*analysis", re.I)
@@ -207,7 +207,10 @@ BEAR = """你是空方研究员，立场是找出风险和卖出的理由。基�
 只输出 JSON：{{"argument": "不超过 120 字的空方论点", "points": ["要点1", "要点2"], "rebuttal": "对多方的反驳（第一轮可留空）"}}
 [ROLE:bear]"""
 RISK = """你是风控官。根据用户持仓与风险偏好、规则检查结果和多空双方的论点，决定这次结论能否放行：
-- 通过：正常给结论；降级：置信度下调、仓位从轻；否决：不得给出「看多/加仓」结论。
+- 通过：正常给结论（默认）；降级：置信度下调、仓位从轻；否决：不得给出「看多/加仓」结论。
+- 只有命中明确红线（规则检查 redlines 非空：停牌、ST、流动性不足、极端波动、杠杆、单票仓位 ≥40%）才可以否决；
+  看多/看空观点有分歧、股价涨了或跌了本身都不是降级理由——那是基金经理的置信度要管的事。
+- 只有和用户持仓/偏好直接相关的具体问题（如已偏重仓、偏好保守而波动大）才降级。
 规则检查是硬约束，你只能比它更严，不能放松。
 只输出 JSON：{"decision": "通过|降级|否决", "max_position_pct": 建议单票最大仓位百分比整数, "stop_loss": "止损参考（带数字和 [编号]，没有数据就写原则）", "notes": ["理由1", "理由2"]}
 [ROLE:risk]"""
@@ -461,18 +464,85 @@ def holdings_check(user_entries: list[str], symbol: str, names: set[str], quote:
 
 STRICT = {"通过": 0, "降级": 1, "否决": 2}
 
+# 风控红线阈值（明确、可解释的硬规则；没命中就默认通过）
+RED = {"stale_days": 6,          # 最后一根 K 线距决策日超过 6 个工作日 → 视为停牌/无法交易
+       "vol_veto": 150.0,        # 20 日年化波动率 ≥150% → 否决
+       "vol_warn": 80.0,         # ≥80% → 降级
+       "amount_min": 1e7,        # 近 20 日日均成交额 < 1000 万（本币）→ 流动性不足，否决（有成交额数据时才检查）
+       "day_move": 15.0}         # 单日涨跌幅绝对值 ≥15% → 降级（异常波动）
+LEVER_RE = re.compile(r"杠杆|融资买|配资|借钱|借款炒|两融|保证金|期货|爆仓|满仓加")
+LEVER_HELD_RE = re.compile(r"(融资|两融)(买入|持仓|负债)|配资|杠杆\s*\d|\d\s*倍杠杆|借钱(炒|买)")
+ST_RE = re.compile(r"^\s*(\*|S\*?)?ST\s?[\u4e00-\u9fff]|退市|退$")
+
+
+def _today() -> str:
+    return datetime.now(CN_TZ).strftime("%Y-%m-%d")
+
+
+def has_position_info(user_entries: list[str], symbol: str = "", names: set[str] | None = None) -> bool:
+    """用户是否给过持仓/仓位/风险偏好信息——只有给过，LLM 风控官才有东西可判。"""
+    for e in user_entries or []:
+        if re.search(r"持有|持仓|仓位|占.{0,6}\d{1,3}(\.\d+)?\s?%|买入了|成本价|保守|稳健|激进|风险偏好|杠杆|融资", e):
+            return True
+    return False
+
+
+def redline_check(quote: dict | None, name: str = "", question: str = "", user_entries: list[str] | None = None,
+                  meta: dict | None = None) -> dict:
+    """明确红线：停牌/数据中断、ST/退市、流动性不足、极端波动、用杠杆。返回 {decision, red:[命中的红线], findings, checked}。
+    这里只看能客观判定的东西，不看方向；没命中任何一条 → 通过。"""
+    meta, red, warn, checked = meta or {}, [], [], []
+    k = _c(quote) if quote else ""
+    stale = meta.get("stale_days")
+    if stale is None and quote and quote.get("date") and not meta.get("backtest"):
+        try:
+            import numpy as _np
+            stale = int(_np.busday_count(str(quote["date"])[:10], _today()))
+        except Exception:
+            stale = None
+    if stale is not None:
+        checked.append("停牌")
+        if stale > RED["stale_days"]:
+            red.append(f"最近 {stale} 个工作日没有成交数据，疑似停牌或数据中断，无法正常交易")
+    if name and name not in ("某股票",):
+        checked.append("ST")
+        if ST_RE.search(name):
+            red.append(f"{name} 属于 ST/退市整理类股票，风险警示")
+    amt = meta.get("amount_avg20") or (quote or {}).get("amount_avg20")
+    if amt is not None:
+        checked.append("流动性")
+        if float(amt) < RED["amount_min"]:
+            red.append(f"近 20 日日均成交额约 {float(amt) / 1e4:.0f} 万，流动性不足，进出困难")
+    vol = (quote or {}).get("vol_20d")
+    if vol is not None:
+        checked.append("波动")
+        if vol >= RED["vol_veto"]:
+            red.append(f"20 日年化波动率 {vol}%{k}，极端波动")
+        elif vol >= RED["vol_warn"]:
+            warn.append(f"20 日年化波动率 {vol}%{k}，波动很大，仓位要轻")
+    mv = (quote or {}).get("chg_pct")
+    if mv is not None and abs(mv) >= RED["day_move"]:
+        warn.append(f"单日涨跌 {mv}%{k}，异常波动")
+    checked.append("杠杆")
+    if (question and LEVER_RE.search(question)) or any(LEVER_HELD_RE.search(e) and not re.search(r"不(碰|用|加)杠杆", e) for e in user_entries or []):
+        red.append("涉及杠杆/融资/借钱交易：亏损会被放大并可能被强平，不给看多/加仓结论")
+    dec = "否决" if red else "降级" if warn else "通过"
+    return {"decision": dec, "red": red, "findings": red + warn, "checked": checked}
+
 
 # ====================================================================== 辩论
 class Debate:
     def __init__(self, llm, symbol: str, name: str = "", question: str = "", tools=None, rounds: int = 1,
                  budget: Budget | None = None, user_entries: list[str] | None = None, sources: cite.Sources | None = None,
-                 mode: str = "live", snapshot_payload: dict | None = None, horizon: int = 20, on_step=None, flow_payload: dict | None = None):
+                 mode: str = "live", snapshot_payload: dict | None = None, horizon: int = 20, on_step=None, flow_payload: dict | None = None,
+                 risk_meta: dict | None = None):
         self.llm, self.symbol, self.name, self.question = llm, symbol, name or symbol, question
         self.tools, self.rounds, self.mode = tools, max(1, min(3, int(rounds))), mode
         self.budget = budget or Budget()
         self.user_entries = user_entries or []
         self.sources = sources or cite.Sources()
         self.payload, self.horizon, self.on_step = snapshot_payload, int(horizon), on_step
+        self.risk_meta = risk_meta  # 风控红线的额外事实（回测：stale_days；有成交额时 amount_avg20）
         self.flow_payload = flow_payload  # 回测：按决策日截断的资金流（只有 --with-flow 时才有）
         self.id = f"{datetime.now(CN_TZ):%Y%m%d-%H%M%S}-{uuid.uuid4().hex[:4]}"
         self.roles: dict[str, dict] = {}
@@ -647,25 +717,39 @@ class Debate:
 
     # -------------------------------------------------- 风控
     def risk(self, rounds) -> dict:
+        """风控 = 红线规则（总是跑）+ 持仓规则 + LLM 风控官（只有用户给过持仓/仓位/偏好时才请）。
+        否决只在命中红线（含持仓 ≥40% 的集中度红线）时出现；LLM 想否决但没有红线 → 最多降级。"""
         from .graph import aliases
         quote = self._quote
         names = aliases(self.name) if self.name != self.symbol else set()
-        rule = holdings_check(self.user_entries if self.mode != "backtest" else [], self.symbol, names, quote)
-        sys = RISK
-        user = (f"标的：{self.name if self.mode != 'backtest' else '某股票'}\n用户持仓与偏好（USER.md）：{_short(self.user_entries, 1500) if self.mode != 'backtest' else '回测模式：无'}\n"
-                f"规则检查：{_short(rule)}\n多空辩论：{_short(rounds, 3000)}")
+        entries = self.user_entries if self.mode != "backtest" else []
+        rule = holdings_check(entries, self.symbol, names, quote)
+        rl = redline_check(quote, self.name if self.mode != "backtest" else "", self.question, entries,
+                           {**(self.risk_meta or {}), "backtest": self.mode == "backtest"})
+        red = list(rl["red"]) + ([f for f in rule["findings"] if "严重集中" in f] if rule["decision"] == "否决" else [])
+        base = max((rule["decision"], rl["decision"]), key=STRICT.get)
+        findings = rl["findings"] + [f for f in rule["findings"] if f not in rl["findings"]]
+        common = {"rule_decision": base, "redlines": red, "checked": rl["checked"], "findings": findings,
+                  "max_position_pct": min(rule["max_position_pct"], 10) if base != "通过" else rule["max_position_pct"], "stop_loss": rule["stop_loss"]}
+        if not has_position_info(entries, self.symbol, names):
+            note = "没有持仓/仓位信息，只做红线规则检查（" + "、".join(rl["checked"]) + "）" + ("，未命中红线，默认通过" if not red else "")
+            out = {"status": "rules", "mode": "rules_only", "decision": base, "notes": [note], **common}
+            self._rec("risk", **out)
+            return out
+        user = (f"标的：{self.name}\n用户持仓与偏好（USER.md）：{_short(entries, 1500)}\n"
+                f"规则检查：{_short({**rule, 'decision': base, 'findings': findings, 'redlines': red})}\n多空辩论：{_short(rounds, 3000)}")
         try:
-            j = parse_json(self.ask("risk", sys, user))
+            j = parse_json(self.ask("risk", RISK, user))
             dec = j.get("decision") if j.get("decision") in STRICT else "通过"
-            final = dec if STRICT[dec] > STRICT[rule["decision"]] else rule["decision"]
+            if dec == "否决" and not red:
+                dec = "降级"  # 没有红线不许否决
+            final = dec if STRICT[dec] > STRICT[base] else base
             notes = [self._flag(str(x)[:160])[0] for x in (j.get("notes") or [])][:4]
-            cap = min(int(j.get("max_position_pct") or rule["max_position_pct"]), rule["max_position_pct"]) if str(j.get("max_position_pct", "")).strip() else rule["max_position_pct"]
+            cap = min(int(j.get("max_position_pct") or common["max_position_pct"]), common["max_position_pct"]) if str(j.get("max_position_pct", "")).strip() else common["max_position_pct"]
             stop = self._flag(str(j.get("stop_loss") or rule["stop_loss"])[:160])[0]
-            out = {"status": "ok", "decision": final, "rule_decision": rule["decision"], "findings": rule["findings"], "notes": notes,
-                   "max_position_pct": cap, "stop_loss": stop}
+            out = {"status": "ok", "mode": "llm", **common, "decision": final, "notes": notes, "max_position_pct": cap, "stop_loss": stop}
         except Exception as e:
-            out = {"status": "degraded", "error": f"{type(e).__name__}: {str(e)[:100]}", "decision": rule["decision"], "rule_decision": rule["decision"],
-                   "findings": rule["findings"], "notes": [], "max_position_pct": rule["max_position_pct"], "stop_loss": rule["stop_loss"]}
+            out = {"status": "degraded", "mode": "rules_only", "error": f"{type(e).__name__}: {str(e)[:100]}", **common, "decision": base, "notes": []}
         self._rec("risk", **out)
         return out
 
@@ -928,7 +1012,8 @@ class DebateBTAgent:
         t0 = time.time()
         try:
             d = Debate(self.llm, snap.symbol, "某股票", "", tools=None, rounds=self.rounds, budget=budget, sources=src,
-                       mode="backtest", snapshot_payload=payload, horizon=snap.horizon, flow_payload=fp)
+                       mode="backtest", snapshot_payload=payload, horizon=snap.horizon, flow_payload=fp,
+                       risk_meta={"stale_days": _stale_days(snap)})
             rec = d.run(record=False, save=False)
         except Exception as e:
             with self.lock:
@@ -954,6 +1039,14 @@ class DebateBTAgent:
         s["model"] = self.model
         s["rounds"] = self.rounds
         return s
+
+
+def _stale_days(snap) -> int | None:
+    try:
+        import numpy as _np
+        return int(_np.busday_count(snap.closes.index.max().strftime("%Y-%m-%d"), snap.date.strftime("%Y-%m-%d")))
+    except Exception:
+        return None
 
 
 # ====================================================================== mock（无密钥时跑通管线 / 测试）
