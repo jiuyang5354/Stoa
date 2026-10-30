@@ -111,8 +111,6 @@
   .wrap{flex:1;display:flex;min-height:0;margin:0 4px 4px}
   main{flex:1;display:flex;flex-direction:column;min-width:0;padding:0 clamp(24px,5vw,72px);container-type:inline-size}
   @container (max-width:880px){header>.label{visibility:hidden}}
-  @container (max-width:880px){.gear{font-size:0;gap:0;padding:7px 9px}.gear.hlg{left:66px}.gear.gl{right:66px}}
-  @container (max-width:430px){header{padding-top:62px}}
   .inner{width:100%;max-width:760px;margin:0 auto;display:flex;flex-direction:column;min-height:0;flex:1}
   header{padding:26px 0 18px;text-align:center;border-bottom:1px solid var(--rule);position:relative}
   header .label{display:block}
@@ -421,9 +419,9 @@
   body.asz-drag{cursor:col-resize;user-select:none}body.asz-drag iframe{pointer-events:none}
   /* ---- 市场脉搏 ---- */
   .pul{display:grid}
-  .pr,.ph{display:grid;grid-template-columns:1fr 52px 52px 52px 40px;gap:6px;align-items:baseline}
-  .ph{font:500 7.5px/1 var(--sans);letter-spacing:.18em;text-transform:uppercase;color:var(--mute);padding:0 2px 6px;border-bottom:1px solid var(--ink)}
-  .ph span:nth-child(n+2),.pr span:nth-child(n+2){text-align:right}
+  .pr,.pqh{display:grid;grid-template-columns:1fr 52px 52px 52px 40px;gap:6px;align-items:baseline}
+  .pqh{font:500 7.5px/1 var(--sans);letter-spacing:.18em;text-transform:uppercase;color:var(--mute);padding:0 2px 6px;border-bottom:1px solid var(--ink)}
+  .pqh span:nth-child(n+2),.pr span:nth-child(n+2){text-align:right}
   .pr{padding:7px 2px;border-bottom:1px solid var(--rule);font:500 12.5px/1.25 var(--serif);font-variant-numeric:tabular-nums;cursor:pointer}
   .pr:hover{background:rgba(24,23,21,.035)}
   .pr b{font:500 12px/1.25 var(--cn);letter-spacing:.04em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -563,6 +561,9 @@
   .hi input{width:100%;font:500 14px var(--serif);border:0;border-bottom:1px solid currentColor;background:transparent;color:inherit;outline:none}
   .hfoot{padding:10px 22px 0;color:var(--mute)}
   .hempty{padding:22px 4px;color:var(--mute);font-size:13px}
+  /* 窄栏：顶部按钮收成图标，免得压到标题（必须写在 .gear 规则之后） */
+  @container (max-width:700px){.gear{font-size:0;gap:0;padding:7px 9px}.gear.hlg{left:66px}.gear.gl{right:66px}}
+  @container (max-width:430px){header{padding-top:62px}}
   .gear svg{transition:transform .6s var(--ease)}.gear:hover svg{transform:rotate(90deg)}
   .set{position:fixed;inset:0;z-index:50;display:grid;place-items:center;background:rgba(24,23,21,.32);backdrop-filter:blur(3px);animation:fadein .25s ease both}
   .set[hidden]{display:none}
@@ -2378,7 +2379,7 @@ function pulse(){
   const f = v => v == null ? '—' : (v >= 0 ? '+' : '') + v.toFixed(1);
   const MK = {A: 'A股', HK: '港股', US: '美股', '自选': '自选'};
   const rows = items.map(x => { const c = x.closes || []; return {x, r5: ret(c, 5), r20: ret(c, 20), dd: c.length ? (c[c.length-1] / Math.max(...c) - 1) * 100 : null, v: vol(c)}; });
-  let html = '<div class="ph"><span>名称</span><span>5日%</span><span>20日%</span><span>距高%</span><span>波动</span></div>', last = '';
+  let html = '<div class="pqh"><span>名称</span><span>5日%</span><span>20日%</span><span>距高%</span><span>波动</span></div>', last = '';
   rows.forEach(({x, r5, r20, dd, v}) => {
     if (x.market !== last) { last = x.market; html += `<div class="pm">${esc(MK[x.market] || x.market)}</div>`; }
     html += `<div class="pr" data-s="${esc(x.symbol)}" title="${esc(x.symbol)}"><b>${esc(x.name)}</b><span class="${cls(r5 || 0)}">${f(r5)}</span><span class="${cls(r20 || 0)}">${f(r20)}</span><span class="${dd > -3 ? '' : 'down'}">${dd == null ? '—' : dd.toFixed(1)}</span><span class="v">${v == null ? '—' : v.toFixed(0)}</span></div>`;
