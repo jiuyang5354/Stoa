@@ -18,6 +18,40 @@ def home(tmp_path, monkeypatch):
 
 
 # ------------------------------------------------------------------ (a) 断点续跑
+def test_task_file_save_waits_for_active_reader(home, monkeypatch):
+    from concurrent.futures import ThreadPoolExecutor
+    from pathlib import Path
+    from stock_agent import tasks
+    tasks.save([{"id": "before"}])
+    reading, release, replacing = threading.Event(), threading.Event(), threading.Event()
+    original_read, original_replace = Path.read_text, Path.replace
+
+    def read(path, *args, **kwargs):
+        if path == tasks._path():
+            reading.set()
+            assert release.wait(2)
+        return original_read(path, *args, **kwargs)
+
+    def replace(path, target):
+        busy = reading.is_set() and not release.is_set()
+        replacing.set()
+        if busy:
+            raise PermissionError("task file is open for reading")
+        return original_replace(path, target)
+
+    monkeypatch.setattr(Path, "read_text", read)
+    monkeypatch.setattr(Path, "replace", replace)
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        reader = pool.submit(tasks.load)
+        assert reading.wait(2)
+        writer = pool.submit(tasks.save, [{"id": "after"}])
+        replacing.wait(1)
+        release.set()
+        assert reader.result() == [{"id": "before"}]
+        writer.result()
+    assert tasks.load() == [{"id": "after"}]
+
+
 class ScriptLLM:
     """第 1 次：调 get_quotes + record_call；第 2 次：回答。crash_at=n 时第 n 次调用抛异常（模拟进程中途挂掉）。"""
 

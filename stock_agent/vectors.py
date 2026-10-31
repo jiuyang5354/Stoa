@@ -63,6 +63,7 @@ def _h(tok: str) -> int:
 
 def tokens(text: str, unigrams: bool = True) -> list[str]:
     """切分：中文单字 + 双字，英文/数字按词（代码 0700.hk 保留点）。本地向量用全部；BM25 用 unigrams=False（单字太噪，只留双字）。"""
+    text = re.sub(r"【(?:计划|历史持仓|待确认|已确认持仓)】", "", text or "")
     out = []
     for m in re.finditer(r"[\u3400-\u9fff]+|[a-z0-9$^][a-z0-9.\-]*", (text or "").lower()):
         s = m.group().strip(".-")

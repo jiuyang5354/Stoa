@@ -112,6 +112,17 @@ def test_agent_flags_when_model_refuses_to_fix():
     assert a.last_meta["verify"]["flagged"] == ["688.8"] and not a.last_meta["verify"]["fixed"]
 
 
+def test_software_metadata_is_not_a_financial_source(monkeypatch):
+    from stock_agent import agent
+    from stock_agent.memory import Memory
+    monkeypatch.setattr(agent, "_about_stoa", lambda: "\n\n## 关于 Stoa 自己\n当前版本 v0.34.0，示例目标价 688.8 港元。")
+    a = agent.Agent(Memory())
+    a._begin_sources("腾讯现在多少钱？")
+    a.sources.add("get_quotes", {"symbols": ["0700.HK"]}, {"0700.HK": {"close": 512.4}})
+    assert "688.8" in a._sys_base
+    assert cite.verify("腾讯目标价 688.8 港元。", a.sources)["unverified"] == ["688.8"]
+
+
 def test_eval_mock_hallucination_is_caught():
     out = ev.run("mock", only="cite-04", save=False)
     r = out["results"][0]

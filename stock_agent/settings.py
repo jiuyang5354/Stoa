@@ -116,6 +116,7 @@ def get(mem) -> dict:
         "alerts": cfg.get("alerts") or {},
         "pa": alerts.listing(),
         "memory": {"user": mem.entries("user"), "memory": mem.entries("memory"),
+                   "changes": mem.changes(),
                    "usage": {"user": mem.usage("user"), "memory": mem.usage("memory")},
                    "skills": skills.list_skills(), "stats": mem.call_stats()},
     }

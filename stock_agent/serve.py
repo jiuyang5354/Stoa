@@ -12,6 +12,7 @@ import time
 from datetime import datetime, timedelta, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 import requests
 
@@ -110,8 +111,8 @@ def chat(channel: str, text: str, model: str | None = None, on_event=None, lang:
             s = SESSIONS[channel] = {"agent": Agent(MEM, channel=kind, session=f"web-{sid}" if kind == "web" and sid else None)}
         s["last"] = time.time()
         lock = s.setdefault("lock", threading.Lock())
-        stop = s["stop"] = threading.Event()  # 每个请求一个停止开关；/api/chat/stop 按下它
     with lock:
+        stop = s["stop"] = threading.Event()  # 等前一轮退出后再替换，停止请求不会误中排队的下一轮
         ag = s["agent"]
         if stop.is_set():
             return "已停止。"
@@ -175,20 +176,46 @@ def trading_now(t: datetime | None = None) -> bool:
     return t.weekday() < 5 and (9, 15) <= (t.hour, t.minute) <= (16, 15)
 
 
+def market_metadata(symbol: str, is_index: bool = False, at: datetime | None = None) -> dict:
+    """交易时段仅按工作日/本地钟点判断，不冒充已核验的交易所节假日日历。"""
+    if symbol.endswith(".HK") or symbol in ("^HSI", "HSTECH.HK"):
+        zone, currency, windows = "Asia/Hong_Kong", "HKD", [((9, 30), (12, 0)), ((13, 0), (16, 0))]
+    elif symbol.endswith((".SS", ".SZ", ".BJ")):
+        zone, currency, windows = "Asia/Shanghai", "CNY", [((9, 30), (11, 30)), ((13, 0), (15, 0))]
+    else:
+        zone, currency, windows = "America/New_York", "USD", [((9, 30), (16, 0))]
+    local = (at or datetime.now(CN_TZ)).astimezone(ZoneInfo(zone))
+    opened = local.weekday() < 5 and any(a <= (local.hour, local.minute) < b for a, b in windows)
+    return {"currency": "points" if is_index else currency, "timezone": zone,
+            "market_state": "schedule_open" if opened else "schedule_closed", "calendar_verified": False}
+
+
 def indices() -> list[dict]:
     with _IDX_LOCK:
         live = trading_now()
         if _IDX["data"] is not None and time.time() - _IDX["ts"] < (60 if live else 600):
-            return _IDX["data"]
-        from .data import fetch_closes, live_quotes
+            return [{**x, "cached": True, "cache_age_s": max(0, int(time.time() - _IDX["ts"]))} for x in _IDX["data"]]
+        from .data import fetch_closes, live_quotes, SOURCE_NAMES, provider_order
         cfg = load_cfg()
         items = [(mkt, x) for mkt, xs in cfg.get("indices", {}).items() for x in xs]
         items += [("自选", x) for x in cfg.get("watchlist") or []]
         syms = [x["symbol"] for _, x in items]
+        index_symbols = {x["symbol"] for xs in cfg.get("indices", {}).values() for x in xs}
+        history_refreshed, history_failed = False, False
         if _IDX.get("closes") is None or time.time() - _IDX.get("cts", 0) >= 600 or set(_IDX.get("syms") or []) != set(syms):
-            _IDX.update(closes=fetch_closes(syms, period="1y"), cts=time.time(), syms=syms)
-        closes = _IDX["closes"]
+            try:
+                fresh = fetch_closes(syms, period="1y")
+            except Exception as exc:
+                log("行情刷新失败", type(exc).__name__)
+                fresh = {}
+            if fresh:
+                _IDX.update(closes=fresh, cts=time.time(), syms=syms)
+                history_refreshed = True
+            else:
+                history_failed = True
+        closes = _IDX.get("closes") or {}
         rt = live_quotes(syms) if live else {}
+        primary = SOURCE_NAMES.get(provider_order()[0], provider_order()[0])
         out = []
         for mkt, x in items:
             ser = closes.get(x["symbol"])
@@ -204,10 +231,17 @@ def indices() -> list[dict]:
                 elif ser.index[-1] < d:
                     ser.loc[d] = q[0]
             last, prev = float(ser.iloc[-1]), float(ser.iloc[-2])
+            source = "新浪财经" if q else ser.attrs.get("source") or "未知来源"
             out.append({"market": mkt, "symbol": x["symbol"], "name": x.get("name", x["symbol"]),
                         "last": round(last, 2), "chg": round(last - prev, 2), "pct": round((last / prev - 1) * 100, 2),
                         "closes": [round(float(v), 2) for v in ser.tolist()],
-                        "dates": [d.strftime("%Y-%m-%d") for d in ser.index]})
+                        "dates": [d.strftime("%Y-%m-%d") for d in ser.index],
+                        **market_metadata(x["symbol"], x["symbol"] in index_symbols),
+                        "source": source, "quote_time": ser.index[-1].strftime("%Y-%m-%d"), "quote_precision": "date",
+                        "retrieved_at": datetime.fromtimestamp(time.time() if q else _IDX.get("cts", time.time()), CN_TZ).isoformat(timespec="seconds"),
+                        "data_kind": "snapshot" if q else "close", "cached": not q and not history_refreshed, "cache_age_s": 0,
+                        "refresh_failed": history_failed and not q,
+                        "fallback": False if q else source != "未知来源" and source != primary})
         _IDX.update(ts=time.time(), data=out)
         return out
 
@@ -689,7 +723,7 @@ class Web(BaseHTTPRequestHandler):
                     pass
             self.close_connection = True
             return
-        if path.startswith("/api/settings") or path in ("/api/memory/delete", "/api/memory/add", "/api/skills/delete", "/api/skills/view", "/api/alerts/add", "/api/alerts/delete", "/api/alerts/check", "/api/events/check", "/api/update/apply", "/api/sessions/delete", "/api/sessions/rename", "/api/sessions/restore", "/api/sessions/purge") or path.startswith("/api/mcp/"):
+        if path.startswith("/api/settings") or path in ("/api/memory/delete", "/api/memory/add", "/api/memory/undo", "/api/memory/confirm", "/api/skills/delete", "/api/skills/view", "/api/alerts/add", "/api/alerts/delete", "/api/alerts/check", "/api/events/check", "/api/update/apply", "/api/sessions/delete", "/api/sessions/rename", "/api/sessions/restore", "/api/sessions/purge") or path.startswith("/api/mcp/"):
             if not self._local_ok():
                 return self._send(403, {"error": "设置页只能在本机打开，或先设 WEB_TOKEN"})
             body = self._body()
@@ -770,10 +804,17 @@ class Web(BaseHTTPRequestHandler):
             if path == "/api/skills/view":
                 return self._send(200, skills.view(str(body.get("name", "")), count=False))
             if path.startswith("/api/memory/"):
+                if path.endswith("undo"):
+                    return self._send(200, {"msg": MEM.undo_change(int(body.get("id") or 0))})
                 t = body.get("target")
                 if t not in ("user", "memory"):
                     return self._send(400, {"error": "target"})
                 text = str(body.get("text", ""))[:600]
+                if path.endswith("confirm"):
+                    from .memory import position_state
+                    if t != "user" or position_state(text) != "pending":
+                        return self._send(400, {"error": "仅能确认待确认的持仓记录"})
+                    return self._send(200, {"msg": MEM.replace(t, text, text.replace("【待确认】", "【已确认持仓】"), source="user")})
                 return self._send(200, {"msg": MEM.add(t, text) if path.endswith("add") else MEM.remove(t, text)})
         if path == "/api/inquiries" or path.startswith("/api/inquiries/"):
             from . import inquiry

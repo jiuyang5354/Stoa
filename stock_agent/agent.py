@@ -13,7 +13,7 @@ import yaml
 from . import alerts, cards, cite, context, data, indicators, research, skills
 from . import sandbox
 from .memory import Memory, config_path, now
-from .providers import Router
+from .providers import Router, RequestCancelled
 
 RESUME_MSGS = 40  # 恢复旧对话时最多带回的原文条数；更早的（或超出上下文预算的）滚动摘要成会话纪要，不再直接丢掉
 NUDGE_EVERY = 6  # 每隔几轮提醒自己是否该存记忆
@@ -88,6 +88,7 @@ SYSTEM = """你是「Stoa」，用户的长期助手：本职是股市（A股、
 
 记忆（像 Hermes Agent 一样，你自己负责维护）：
 - USER.md 存用户画像：持仓与成本、风险偏好、投资风格、关注板块、不喜欢什么、沟通偏好。
+- 【计划】【历史持仓】【待确认】不代表当前实际持仓。新记下的持仓等待用户在记忆页确认；整理时保留这些状态，不自行升级为已确认。
 - MEMORY.md 存你自己的笔记：复盘得出的经验、对某只股票的长期观察、用户纠正过你的地方、数据源的坑。
 - 用户透露了以后还用得上的信息，当场用 memory 工具保存；信息变了就 replace，过时就 remove。
 - 不要存：一次性的行情数字、闲聊、能随时再查到的东西。条目要短、可独立理解，带日期。
@@ -212,7 +213,7 @@ TOOLS = [
                                                      "horizon_days": {"type": "integer"}, "reason": {"type": "string"},
                                                      "confidence": {"type": "integer", "description": "50-95，按证据强弱给；到期会按置信度分组看准不准"}},
                     "required": ["symbol", "view", "horizon_days", "reason"]}},
-    {"name": "run_python", "description": "在隔离沙箱里运行一段 Python 做自定义分析（已装 pandas、yfinance、numpy）。用 print 输出结果；可以在当前目录读写文件，文件会保留。超时 60 秒。",
+    {"name": "run_python", "description": "在独立 Docker 沙箱里运行 Python 做离线分析（pandas、numpy）。用 print 输出结果；只挂载 workspace 工作目录，不联网、不读取应用配置。超时 60 秒。没有隔离环境时返回不可用。",
      "parameters": {"type": "object", "properties": {"code": {"type": "string"}}, "required": ["code"]}},
     {"name": "calc", "description": "确定性计算器：expressions 是一个表达式或 {名字: 表达式}（可引用前面算出的名字），variables 传原始数字。支持 + - * / ** %、括号、abs round min max sum sqrt log exp，以及 pct(a,b)=a相对b变化%、share(a,b)=a占b的%、cagr(末值,初值,年数)。",
      "parameters": {"type": "object", "properties": {"expressions": {"description": "表达式字符串，或 {名字: 表达式}"}, "variables": {"type": "object"}}, "required": ["expressions"]}},
@@ -387,6 +388,8 @@ def save_watchlist(wl: list[dict]):
 def quotes(symbols: list[str], check: bool = False) -> dict:
     """check=True：再拿实时报价源（新浪/腾讯/Yahoo）和日线收盘比对，偏差超过 QUOTE_DIFF_PCT（默认 0.5%）写 warnings。"""
     cfg = load_cfg()
+    names = {x["symbol"]: x.get("name", "") for xs in cfg.get("indices", {}).values() for x in xs}
+    names.update({x["symbol"]: x.get("name", "") for x in cfg.get("watchlist") or []})
     closes = data.fetch_closes(symbols)
     out = {}
     for s in symbols:
@@ -394,6 +397,8 @@ def quotes(symbols: list[str], check: bool = False) -> dict:
             out[s] = "无数据"
             continue
         a = indicators.analyze(closes[s], cfg.get("alerts", {}))
+        if a and names.get(s):
+            a["name"] = names[s]
         if a and closes[s].attrs.get("source"):
             a["source"] = closes[s].attrs["source"]
         if isinstance(a, dict) and a.get("close"):
@@ -588,7 +593,9 @@ class Agent:
         st = self.mem.call_stats()
         ledger = "## 判断账本\n" + (f"已复盘 {st['closed']} 次，准确率 {st['准确率%']}%，最近：{st['最近10次']}，未到期 {st['open']} 次。"
                                    + (f" 短板：{st['短板']}。" if st.get("短板") else "") if st.get("closed") else f"还没有复盘过的判断，未到期 {st['open']} 次。")
-        return SYSTEM.format(now=now(), memory=self.mem.snapshot(), skills=skills.index(), ledger=ledger, reviews=rv) + _about_stoa()
+        system = SYSTEM.format(now=now(), memory=self.mem.snapshot(), skills=skills.index(), ledger=ledger, reviews=rv)
+        self._memory_source_context = system.split("当前时间：", 1)[-1]
+        return system + _about_stoa()
 
     # ----- 工具 -----
     def run_tool(self, name: str, args: dict):
@@ -669,7 +676,7 @@ class Agent:
             a, t = args["action"], args["target"]
             if a == "remove":
                 return m.remove(t, args.get("old_text", ""))
-            do = (lambda: m.add(t, args.get("content", ""))) if a == "add" else (lambda: m.replace(t, args.get("old_text", ""), args.get("content", "")))
+            do = (lambda: m.add(t, args.get("content", ""), source="agent")) if a == "add" else (lambda: m.replace(t, args.get("old_text", ""), args.get("content", ""), source="agent"))
             res = do()
             if "超出上限" in res:  # 满了：自动整理一次再写
                 note = self.consolidate(t)
@@ -925,7 +932,7 @@ class Agent:
         self.sources = cite.Sources()
         self.turn_cards = []
         self.sources.add_context(text, "你的提问", "user")
-        self.sources.add_context(self._sys_base.split("当前时间：", 1)[-1], "Stoa 记忆与判断账本", "memory")
+        self.sources.add_context(self._memory_source_context, "Stoa 记忆与判断账本", "memory")
         if self.digest and self.digest.get("text"):  # 纪要里的关键数字是早先对话的原话（带当时来源），复述时算有出处
             self.sources.add_context(self.digest["text"], "Stoa 会话纪要", "memory")
 
@@ -964,28 +971,38 @@ class Agent:
     def ask(self, text: str, on_tool=None) -> str:
         from . import ledger
         self._turn_start = len(self.messages)
+        if isinstance(self.llm, Router):
+            previous_control = (getattr(self.llm, "stop", None), getattr(self.llm, "on_event", None), getattr(self.llm, "deadline", float("inf")))
+            self.llm.stop = getattr(self, "_stop", None) or threading.Event()
+            self.llm.on_event = getattr(self, "on_event", None)
+            self.llm.deadline = min(previous_control[2], time.monotonic() + 300)
         try:
             reply = self._ask(text, on_tool)
             if getattr(self, "_run_id", None):
                 _quiet(ledger.run_finish, self._run_id, "done", reply)
             return reply
-        except Cancelled:
+        except (Cancelled, TimeoutError, RequestCancelled) as exc:
             if getattr(self, "_run_id", None):
-                _quiet(ledger.run_finish, self._run_id, "cancelled")
+                _quiet(ledger.run_finish, self._run_id, "failed" if isinstance(exc, TimeoutError) else "cancelled",
+                       None, str(exc)[:300] if isinstance(exc, TimeoutError) else None)
             # 停在半路：去掉这轮里没配对的工具调用，只留问题 + 一句「已停止」，下一轮上下文仍然合法
             if not getattr(self, "_cur_id", None):
                 self._cur_id = self.mem.log(self.session, "user", text)
-            note = "（已停止）"
+            timed_out = isinstance(exc, TimeoutError)
+            note = "模型等待超时，本轮已结束，可以重试。" if timed_out else "（已停止）"
             aid = self.mem.log(self.session, "assistant", note)
             self.messages = self.messages[:self._turn_start] + [{"role": "user", "content": text, "_id": self._cur_id},
                                                                  {"role": "assistant", "content": note, "_id": aid}]
             self.last_meta = {"sources": [], "verify": None, "debate": None, "cards": None, "compressed": None, "archived": 0,
-                              "steps": list(getattr(self, "_steps", None) or []), "stopped": True}
-            return "已停止。"
+                              "steps": list(getattr(self, "_steps", None) or []), "stopped": not timed_out, "timeout": timed_out}
+            return note if timed_out else "已停止。"
         except Exception as e:  # 异常中断：留在 failed，重开后可从断点续跑
             if getattr(self, "_run_id", None):
                 _quiet(ledger.run_finish, self._run_id, "failed", None, str(e)[:300])
             raise
+        finally:
+            if isinstance(self.llm, Router):
+                self.llm.stop, self.llm.on_event, self.llm.deadline = previous_control
 
     @classmethod
     def resume(cls, run_id: str, mem: Memory | None = None, on_event=None, stop=None) -> tuple["Agent", str]:

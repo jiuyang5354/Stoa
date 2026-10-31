@@ -15,7 +15,7 @@ from .memory import home
 CN = timezone(timedelta(hours=8))
 KINDS = {"daily": "每天", "weekdays": "工作日", "weekly": "每周", "interval": "每隔", "once": "一次"}
 WEEK = "一二三四五六日"
-LOCK = threading.Lock()
+LOCK = threading.RLock()
 MAX_TASKS = 50
 MIN_INTERVAL = 30          # 分钟
 CATCH_UP = timedelta(hours=6)
@@ -44,21 +44,23 @@ def _parse(s: str | None) -> datetime | None:
 
 
 def load() -> list[dict]:
-    p = _path()
-    if p.exists():
-        try:
-            return json.loads(p.read_text(encoding="utf-8")).get("tasks", [])
-        except Exception:
-            return []
-    return []
+    with LOCK:
+        p = _path()
+        if p.exists():
+            try:
+                return json.loads(p.read_text(encoding="utf-8")).get("tasks", [])
+            except Exception:
+                return []
+        return []
 
 
 def save(ts: list[dict]):
-    p = _path()
-    p.parent.mkdir(parents=True, exist_ok=True)
-    tmp = p.with_suffix(".tmp")
-    tmp.write_text(json.dumps({"tasks": ts}, ensure_ascii=False, indent=1), encoding="utf-8")
-    tmp.replace(p)
+    with LOCK:
+        p = _path()
+        p.parent.mkdir(parents=True, exist_ok=True)
+        tmp = p.with_suffix(".tmp")
+        tmp.write_text(json.dumps({"tasks": ts}, ensure_ascii=False, indent=1), encoding="utf-8")
+        tmp.replace(p)
 
 
 def _hm(s) -> tuple[int, int] | None:

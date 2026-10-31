@@ -373,7 +373,7 @@ def synthesize(st: dict, mem: Memory, llm, stop: threading.Event | None, on_even
             pass
     if st["one_line"]:
         try:
-            mem.add("memory", f"研究课题{st['id']}「{st['goal'][:40]}」结论：{st['one_line']}")
+            mem.add("memory", f"研究课题{st['id']}「{st['goal'][:40]}」结论：{st['one_line']}", source="agent")
         except Exception:
             pass
 
@@ -386,6 +386,9 @@ def run(iid: str, mem: Memory | None = None, stop: threading.Event | None = None
         raise ValueError(f"没有课题 {iid}")
     llm = _llm()
     stop = stop or threading.Event()
+    from .providers import Router
+    if isinstance(llm, Router):
+        llm.stop, llm.on_event = stop, on_event
     st["_t0"] = time.time()
     st["error"] = None
     try:
@@ -476,6 +479,9 @@ def run(iid: str, mem: Memory | None = None, stop: threading.Event | None = None
                 _announce(st, "研究完成", st.get("one_line") or st["goal"])
             except InterruptedError:
                 st["status"] = "paused"
+    except InterruptedError:
+        st["status"] = "paused"
+        _log(st, "已暂停，可以继续")
     except Exception as e:
         st["status"] = "error"
         st["error"] = str(e)[:300]
@@ -555,6 +561,10 @@ def followup(iid: str, reasons: list[str] | None = None, mem: Memory | None = No
     ag.on_event = on_event
     t0 = time.time()
     reply = ag.ask(prompt)
+    if (stop and stop.is_set()) or (getattr(ag, "last_meta", None) or {}).get("stopped") or (getattr(ag, "last_meta", None) or {}).get("timeout"):
+        st["status"] = "paused"
+        save(st)
+        return st
     meta = _meta(getattr(ag, "last_tail", "") or reply)
     reply = META_RE.sub("", reply).strip()
     verdict = meta.get("verdict") if meta.get("verdict") in ("维持", "加强", "削弱", "推翻") else "维持"
@@ -570,7 +580,7 @@ def followup(iid: str, reasons: list[str] | None = None, mem: Memory | None = No
     _announce(st, f"续研 · {verdict}", fu["one_line"] or "；".join(reasons), push=verdict in ("削弱", "推翻"))
     if verdict in ("削弱", "推翻"):
         try:
-            mem.add("memory", f"研究课题{st['id']}续研：结论被{verdict}——{fu['one_line']}")
+            mem.add("memory", f"研究课题{st['id']}续研：结论被{verdict}——{fu['one_line']}", source="agent")
         except Exception:
             pass
     return st
