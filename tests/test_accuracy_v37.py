@@ -220,3 +220,11 @@ def test_q7_board_flow_falls_back_to_sina(monkeypatch):
     monkeypatch.setattr(ed, "BOARD_SOURCES", (("东方财富", boom, {"industry": "u1"}, "x"), ("新浪财经", boom, {"industry": "u2"}, "y")))
     r = ed.board_flow("industry")
     assert r.get("error") and len(r["warnings"]) == 2
+
+
+def test_failed_call_is_not_a_source():
+    s = cite.Sources()
+    s.add("get_fund_flow", {"symbol": "600519.SS"}, {"error": "get_fund_flow 暂时取不到数据：502 Server Error", "missing_id": "abc"})
+    assert s.items == []
+    assert cite.verify("东方财富资金流接口返回 502，行业板块接口返回了 502 错误，HTTP 404。", s)["ok"]  # 状态码不是数据，也不该挂角标
+    assert cite.verify("主力净流入 502 亿元。", s)["unverified"] == ["502 亿"]

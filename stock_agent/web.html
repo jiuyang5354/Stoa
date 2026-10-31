@@ -388,6 +388,11 @@
   .dc .dlt{display:flex;gap:16px;margin:2px 0 4px;font:500 var(--fs3)/1 var(--serif);font-variant-numeric:lining-nums}
   .dc .dlt small{display:block;margin-top:4px;font:var(--fsn3) var(--sans);letter-spacing:.12em;color:var(--mute)}
   .dc .add{color:var(--terracotta)}.dc .del{color:var(--olive)}
+  .dc-miss th,.dc-miss td{text-align:left;vertical-align:top}.dc-miss td:first-child{white-space:nowrap;color:var(--ink)}
+  .dc-miss code{font:var(--fsn2)/1.4 var(--mono,ui-monospace,monospace);color:var(--mute);word-break:break-all}
+  .dc-miss td:last-child{text-align:right;width:1%}
+  .dc-miss .lk{white-space:nowrap;border:1px solid var(--g-line);background:transparent;color:var(--ink);font:500 var(--fsn3) var(--sans);letter-spacing:.14em;padding:3px 10px;cursor:pointer}
+  .dc-miss .lk:hover:not(:disabled){background:var(--g-on)}.dc-miss .lk:disabled{color:var(--mute);border-color:var(--rule);cursor:default}
   .dc .rbar{display:flex;height:5px;margin:4px 0 4px;border:1px solid var(--rule-2)}
   .dc .rbar i{display:block;height:100%}
   .agb{white-space:normal;display:flex;align-items:center;gap:12px;margin-top:16px;width:100%;border:0;border-top:1px solid var(--gold);border-bottom:1px solid var(--gold);background:transparent;padding:10px 2px;cursor:pointer;color:var(--ink);font:inherit;text-align:left}
@@ -1526,7 +1531,7 @@ function cardQuote(c){
 }
 function cardMissing(c){
   const it = c.items || [];
-  return `<div class="dc dc-miss"><h6>缺失的数据<i>Lacunae</i><small>${it.length} 次调用失败</small></h6><table><tr><th>工具</th><th>参数</th><th>错误</th><th></th></tr>${it.map(x => `<tr><td>${esc(x.label || x.tool)}</td><td><code>${esc(JSON.stringify(x.args || {}).slice(0, 80))}</code></td><td>${esc(x.error || '')}${x.count > 1 ? ` ×${x.count}` : ''}</td><td><button class="lk" onclick="replayMissing(this,'${esc(x.id)}')">重放</button></td></tr>`).join('')}</table>
+  return `<div class="dc wide dc-miss"><h6>缺失的数据<i>Lacunae</i><small>${it.length} 次调用失败</small></h6><table><tr><th>工具</th><th>参数</th><th>错误</th><th></th></tr>${it.map(x => `<tr><td>${esc(x.label || x.tool)}</td><td><code>${esc(JSON.stringify(x.args || {}).slice(0, 80))}</code></td><td>${esc(x.error || '')}${x.count > 1 ? ` ×${x.count}` : ''}</td><td><button class="lk" onclick="replayMissing(this,'${esc(x.id)}')">重放</button></td></tr>`).join('')}</table>
     <div class="kv"><span>原样重放同一调用（同工具、同参数），成功后标为已补齐</span></div></div>`;
 }
 async function replayMissing(btn, id){

@@ -274,6 +274,8 @@ class Sources:
     def _add(self, tool, args, result):
         if tool in NO_NUMBERS:  # 技能说明、写记忆的回执：里面的数字不是数据，不能当出处
             return result
+        if isinstance(result, dict) and result.get("error") and not (set(result) - {"error", "symbol", "missing_id", "warnings", "source", "url", "hint", "note"}):
+            return result  # 整次失败的调用不是出处（否则「502」会被当成数据角标）
         if tool == "get_quotes" and isinstance(result, dict):
             out = {}
             for sym, v in result.items():
@@ -663,6 +665,10 @@ def key_numbers(text: str) -> list[dict]:
             v = _scale(tok, unit if unit not in ("%", "％") else None)
         except ValueError:
             continue
+        if not has_dec and not unit and re.fullmatch(r"[45]\d\d", tok) and (
+                re.search(r"(?:返回|报|出现|HTTP|状态码?|错误码|error)\s*(?:了)?\s*$", masked[max(0, s - 8):s], re.I) or
+                re.match(r"\s*(?:错误|报错|Bad|Server|Not|Forbidden|Gateway|error)", masked[m.end(1):m.end(1) + 10], re.I)):
+            continue  # HTTP 状态码（「接口返回 502」）不是数据
         if not has_dec and not unit and abs(v) < 100:  # 小整数：序号、天数、个数
             continue
         if not has_dec and not unit and re.fullmatch(r"(19|20)\d\d", tok.lstrip("+-")):  # 年份
