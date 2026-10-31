@@ -918,6 +918,7 @@ class Agent:
                     ledger.step_put(rid, step, "tool", name, {"args": args, "result": raw})
                 except Exception:
                     pass
+        raw = self._screen(name, raw)
         res = self.sources.add(name, args, raw)
         if name in cards.CARD_TOOLS:
             try:
@@ -927,6 +928,21 @@ class Agent:
             except Exception:
                 pass
         return res
+
+    def _screen(self, name: str, raw):
+        """v0.35：数据合理性检查（sanity）+ 外部内容提示注入标记（taint）。只加 warnings，不改数字；
+        发现注入就把本轮标成受污染，guards 会拦下用户没要求的写操作。"""
+        from . import sanity, taint
+        try:
+            raw, _ = sanity.check(name, raw)
+            raw, frags = taint.mark(name, raw)
+        except Exception:
+            return raw
+        if frags:
+            counts = self.__dict__.setdefault("_turn_counts", {})
+            with self.__dict__.setdefault("_count_lock", threading.Lock()):
+                counts["_tainted"] = counts.get("_tainted", []) + [f"{name}：{frags[0]}"]
+        return raw
 
     def _begin_sources(self, text: str):
         self.sources = cite.Sources()
@@ -1097,6 +1113,11 @@ class Agent:
         content, images, corpus = uploads.for_model(text, vision=vision)
         if corpus:  # 附件里的数字算有出处
             self.sources.add_context(corpus, "你上传的文件", "user")
+            from . import taint
+            frags = taint.scan(corpus)
+            if frags:  # 附件正文里有疑似注入：同样标记本轮，并在附件后面提醒模型
+                self._turn_counts["_tainted"] = self._turn_counts.get("_tainted", []) + [f"附件：{frags[0]}"]
+                content += "\n\n[系统提醒：" + taint.warning(frags) + "]"
         if self.turns % NUDGE_EVERY == 0:
             content += "\n\n[系统提醒：回顾最近几轮，有没有值得写进 USER.md 或 MEMORY.md 的长期信息？有就顺手存，没有就忽略这条提醒。]"
         if getattr(self, "_heavy", False):
