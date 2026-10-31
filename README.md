@@ -496,6 +496,18 @@ Actions 页面也可以手动点 “Run workflow” 立即生成一份。
 - 背景岩壁与 3D 神庙石材：ambientCG「Travertine 009」（https://ambientcg.com/view?id=Travertine009），CC0。stock_agent/assets/travertine009_color.jpg 为原 1K 颜色图（重新压缩）；travertine009_normal.jpg 为原 NormalGL 叠加由颜色图亮度推导的浅浮雕法线（原法线图几乎是平的，这块是抛光板材）；travertine009_roughness.jpg 为原粗糙度图拉伸到 0.45–0.85 并缩到 512（原图接近镜面）。
 - 首页标题字体：Archeologicaps（dafont，标注 100% Free），stock_agent/assets/archeologicaps.woff2，已子集化为 ASCII。
 
+## 准确度 · 批量年报 · 投研 PPT（v0.37 · Accuratio）
+- 出处写真实数据源：来源清单写「东方财富 F10 财务分析」「腾讯证券行情」「东方财富 · 涨停板行情中心」「新浪财经板块资金流」等可打开的公开页，不写内部工具名；calc 写算式（「计算：loss = position*drop」）；整次失败的调用、HTTP 状态码（「接口返回 502」）不算出处
+- 推导不误报：calc 的结果和输入、题设数字（4% ↔ 0.04）、回答里写明的假设（「假设：……」及其下的列表）、由前文已核实数字再推一步的值都算已核实；由计算得出的数不做涨跌方向核对（「亏损 6,000」）。行情/财报字段的核对不变
+- 口径：`get_statements` 的 `freq=quarter` 每期标「单季」并附 `ytd` 年初至今累计原值，新增 `freq=ytd`；`get_financials` 的 A股主要指标分开给营业总收入/营业总收入同比% 与营业收入/营业收入同比%（东方财富利润表 OPERATE_INCOME），引用核对按字面区分两者
+- 板块资金：东方财富 push2 失败（常见 502）依次换新浪财经板块资金（口径注明：流入−流出成交额），另给行业/概念涨幅前五（`*_top_gainers`）
+- 质量门（`stock_agent/qgate.py`）：Agora 分析师报告空、过短（< 60 字符，`AGORA_QGATE_MIN_CHARS`）或含「无法获取 / 工具调用失败 / I cannot retrieve」→ 预算允许时带原因重做一次（`AGORA_QGATE_RETRY=off` 关闭），仍不合格降级为规则摘要（status=gated），辩论里标「规则降级」
+- 缺失调用（`stock_agent/missing.py`）：失败的工具调用记成条目（工具、参数、参数哈希、时间、错误、会话，数据目录/data/missing.json，最近 300 条，同一调用合并计数），回答下方「缺失的数据」卡可一键原样重放（`GET /api/missing`、`POST /api/missing/replay`，仅本机）；点踩归到 harness 层时待办附上可重放条目
+- 批量读年报 `sweep_filings`：N 家 × M 年 × 一个章节，一次调用出矩阵（数字按规则与字面口径，文字为原文摘句 + 页码），coverage 写明请求/取到/失败；`export=true` 直接出 xlsx
+- 工具面收敛（`stock_agent/toolsel.py`）：每轮下发 12 个常驻工具 + 按提问意图预选的工具组 + `tool_search`；系统提示只列域工具名。每轮固定开销 14,160 → 3,292–5,172 token（`TOOL_SELECT=all` 恢复全量）
+- 大中华历史数据（`cnhist.py`）与财务统一口径/双源校验（`finunify.py`，差异 > `FIN_DIFF_PCT`=5% 出「财务校验」卡）；Tushare 只在你自己填了 token 时启用
+- 投研 PPT（`stock_agent/deck.py`）：`write_file(format="pptx", deck={...})` 固定 8 页（结论 / 价格与估值 / 财务 / 利润结构瀑布 / 多空辩论摘要 / 风险清单 / 同行对比 / 失效条件与复盘日期），原生图表；缺的结论、辩论、风险、失效条件与复盘日期从本机该标的最近的 Agora 纪要与判断账本补，仍缺的页写「本页数据未提供」；生成后用 python-pptx 读回校验（8 页、页标题、每个输入数字都在页面或图表数据里），不通过不交付。依赖 `python-pptx`（Windows 安装包与绿色版已内置）
+
 ## 点踩与修正（v0.36 · Emendatio）
 - 每条回答下面有「点踩」，可选写一句原因；Telegram / 命令行发 `/bad 原因` 标记上一条回答，网页也能用 `/bad`
 - 归层：数据/工具缺失 · 检查规则漏网（answercheck 词表、引用核对简称、guards）· 辩论分工 · 记忆 · 仅表达/口径。先用确定性规则判断，判不出且写了原因时才调一次模型（同一进程至少间隔 60 秒，`LEARN_MODEL_GAP`）

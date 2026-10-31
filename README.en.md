@@ -63,6 +63,19 @@ Quote checks bind recognized stock symbols or known names to quote fields and da
 - New memories distinguish planned, historical, pending and confirmed holdings. Agent-added holdings require confirmation; changes can be audited and undone without overwriting newer edits. Concurrent history/chat requests use thread-local SQLite connections, and memory file reads share the write lock.
 - Updates verify the release asset SHA-256, retain the previous installation and roll back if the backend version fails its startup check.
 
+## v0.37 · Accuratio
+
+- **Sources you can open**: the source list names the real provider and a public page (Eastmoney F10 finance page, Tencent quotes, Eastmoney limit-up center, Sina sector flows) instead of internal tool names; calculations show the formula; a failed call or an HTTP status code ("returned 502") is never a source.
+- **No false "unverified" on derived numbers**: calc results and inputs, numbers from the question (4% ↔ 0.04), assumptions the answer states ("Assume: …" and the list under it) and values one step derived from already verified numbers all count as sourced; derived values skip the up/down sign check. Quote and financial field checks are unchanged.
+- **Calibers**: `get_statements` quarter mode labels each period as single-quarter and attaches the year-to-date originals (`ytd`), plus a new `freq=ytd`; A-share `get_financials` gives total operating revenue and operating revenue (with their own YoY) separately, and citation checks keep them apart.
+- **Sector flows**: when Eastmoney push2 fails (often 502) Stoa falls back to Sina sector flows and says the basis differs; industry/concept top gainers are included.
+- **Quality gate** for Agora analyst reports (empty, < 60 chars via `AGORA_QGATE_MIN_CHARS`, or give-up phrases): redo once within the call budget, otherwise a rule summary marked "gated" that the debate does not treat as the analyst's view.
+- **Missing-data card**: failed tool calls are recorded (tool, args, hash, time, error) and listed under the answer with a one-click verbatim replay (`/api/missing`, `/api/missing/replay`, local only).
+- **`sweep_filings`**: N companies × M years × one section in one call → a matrix with page links and honest coverage; `export=true` writes xlsx.
+- **Smaller tool surface**: 12 core tools + intent-selected groups + `tool_search` per turn; fixed overhead 14,160 → 3,292–5,172 tokens (`TOOL_SELECT=all` restores the old behaviour).
+- **Greater-China history data** and a unified financial layer with dual-source checks (> 5% shows a card); Tushare only with your own token.
+- **Research deck**: `write_file(format="pptx", deck={...})` builds a fixed 8-slide deck (conclusion, price & valuation, financials, profit waterfall, Agora debate, risks, peer matrix, invalidation & review date) with native charts, fills missing parts from your local Agora records and ledger, marks empty slides instead of inventing numbers, and reads the file back to check 8 slides and every input number before handing it over. `python-pptx` ships in the Windows installer and portable zip.
+
 ## v0.36 · Emendatio
 
 - **Flag an answer**: every answer has a Flag button with an optional one-line reason; in Telegram or the CLI send `/bad reason` to flag the previous answer (`/bad` also works on the web).
