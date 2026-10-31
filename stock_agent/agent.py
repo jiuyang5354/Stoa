@@ -121,7 +121,7 @@ TOOLS = [
      "parameters": {"type": "object", "properties": {"symbol": {"type": "string"}, "kinds": {"type": "array", "items": {"type": "string", "enum": ["lockup", "forecast", "survey", "holder", "buyback", "pledge"]}}}, "required": ["symbol"]}},
     {"name": "get_chips", "description": "A股筹码与杠杆：近 N 日融资余额/融资买入/融券余额及变化，最近几期股东户数及环比（户数减少=筹码集中）。只支持 A股。",
      "parameters": {"type": "object", "properties": {"symbol": {"type": "string"}, "days": {"type": "integer"}}, "required": ["symbol"]}},
-    {"name": "get_market_mood", "description": "A股市场情绪（当日或最近交易日）：涨停/炸板/跌停家数、炸板率、最高连板与连板梯队、涨停最多的行业、行业与概念板块主力资金净流入前五/流出前五。问「今天市场情绪」「什么板块在涨」「打板」时用。",
+    {"name": "get_market_mood", "description": "A股市场情绪（当日或最近交易日）：涨停/炸板/跌停家数、炸板率、最高连板与连板梯队、涨停最多的行业、行业与概念板块涨幅前五（*_top_gainers）与资金净流入前五/流出前五（东方财富 502 时自动换新浪财经，*_flow_source 写明来源与口径，复述时照写）。问「今天市场情绪」「什么板块在涨」「行业涨幅前五」「打板」时用。",
      "parameters": {"type": "object", "properties": {"date": {"type": "string", "description": "YYYYMMDD，可省略"}}}},
     {"name": "get_insiders", "description": "美股内部人交易（SEC Form 4）：近 N 天董事/高管/10% 股东的公开市场买入卖出、金额、交易后持股、是否 10b5-1 计划卖出。只支持美股。",
      "parameters": {"type": "object", "properties": {"symbol": {"type": "string"}, "days": {"type": "integer"}}, "required": ["symbol"]}},
@@ -174,8 +174,8 @@ TOOLS = [
     {"name": "trade_replay", "description": "行情重放（时光机）：用该股近几年日收益 5 日分块重抽样，模拟上万条未来路径，算这个交易计划先碰目标/先碰止损/都没碰的概率、收益分布和期望 R，并画路径扇形图。entry 默认现价；适合用户给了止损和目标价时做压力测试。",
      "parameters": {"type": "object", "properties": {"symbol": {"type": "string"}, "entry": {"type": "number"}, "stop": {"type": "number"}, "target": {"type": "number"},
                                                      "horizon": {"type": "integer", "description": "持有交易日，默认 20"}, "years": {"type": "integer", "description": "用几年历史，默认 3"}}, "required": ["symbol", "stop", "target"]}},
-    {"name": "get_statements", "description": "三张报表原始科目（营收、营业成本、销售/管理/研发费用、经营利润、净利、扣非；货币资金、应收、存货、固定资产、有息负债、权益；经营/投资/筹资现金流、资本开支、分红、折旧）。A股东方财富原始报表，freq=quarter 时累计口径由代码拆成单季；港美股 Yahoo。",
-     "parameters": {"type": "object", "properties": {"symbol": {"type": "string"}, "freq": {"type": "string", "enum": ["annual", "quarter"]}, "periods": {"type": "integer", "description": "期数，默认 4，最多 12"}}, "required": ["symbol"]}},
+    {"name": "get_statements", "description": "三张报表原始科目（营收、营业成本、销售/管理/研发费用、经营利润、净利、扣非；货币资金、应收、存货、固定资产、有息负债、权益；经营/投资/筹资现金流、资本开支、分红、折旧）。A股东方财富原始报表：freq=ytd 为年初至今累计原值（问「前三季度/上半年」用它），freq=quarter 为单季（代码相减，同时附 ytd 累计）；港美股 Yahoo。revenue=营业总收入，operating_revenue=营业收入，按题目字面取。",
+     "parameters": {"type": "object", "properties": {"symbol": {"type": "string"}, "freq": {"type": "string", "enum": ["annual", "quarter", "ytd"]}, "periods": {"type": "integer", "description": "期数，默认 4，最多 12"}}, "required": ["symbol"]}},
     {"name": "earnings_quality", "description": "盈利质量体检（全部由原始科目计算）：杜邦分解、经营现金流/净利、销售收现/营收、应计比率、应收和存货增速 vs 营收、非经常性损益占比、Beneish M-score、Piotroski F-score、Altman Z、报表勾稽检查，并列出红旗。",
      "parameters": {"type": "object", "properties": {"symbol": {"type": "string"}}, "required": ["symbol"]}},
     {"name": "reverse_dcf", "description": "反向 DCF：现在的企业价值（市值+有息负债−现金+少数股东）隐含未来 10 年自由现金流要以多快增长，附折现率敏感性和历史营收复合增速对照。",
@@ -990,9 +990,9 @@ class Agent:
         self.turn_cards = []
         self.turn_missing = []
         self._trace_log = []  # 本轮工具调用与结果（点踩时归层、生成回放题用）
-        self._trace_ctx = [(text, "你的提问", "user"), (self._memory_source_context, "Stoa 记忆与判断账本", "memory")]
+        self._trace_ctx = [(text, "你的提问", "user"), (self._memory_source_context, "你在 Stoa 的记忆与判断记录（非市场数据）", "memory")]
         if self.digest and self.digest.get("text"):  # 纪要里的关键数字是早先对话的原话（带当时来源），复述时算有出处
-            self._trace_ctx.append((self.digest["text"], "Stoa 会话纪要", "memory"))
+            self._trace_ctx.append((self.digest["text"], "本次对话早先的回答（会话纪要）", "memory"))
         for t, n, k in self._trace_ctx:
             self.sources.add_context(t, n, k)
 

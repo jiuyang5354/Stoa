@@ -80,7 +80,7 @@ def indicators(code: str = "", industry: str = "", report_date: str = "", sort: 
             if r.get(k):
                 r[k] = r[k][:10]
     return {"source": "东方财富数据中心 · 业绩报表（公司定期报告，合并口径）", "url": "https://data.eastmoney.com/bbsj/",
-            "fields": "TOTAL_OPERATE_INCOME 营业总收入(元) · PARENT_NETPROFIT 归母净利润(元) · WEIGHTAVG_ROE 加权ROE% · BASIC_EPS 元 · BPS 每股净资产 · XSMLL 销售毛利率% · YSTZ 营收同比% · SJLTZ 净利同比% · MGJYXJJE 每股经营现金流 · PUBLISHNAME 申万行业",
+            "fields": "TOTAL_OPERATE_INCOME 营业总收入(元) · PARENT_NETPROFIT 归母净利润(元) · WEIGHTAVG_ROE 加权ROE% · BASIC_EPS 元 · BPS 每股净资产 · XSMLL 销售毛利率% · YSTZ 营业总收入同比% · SJLTZ 净利同比% · MGJYXJJE 每股经营现金流 · PUBLISHNAME 申万行业",
             "note": "行业名用申万二级（带Ⅱ的要写全，如 白酒Ⅱ）；同一公司 A/B 股会各出现一行，题目问 A 股时去掉 B 股代码（2/9 开头）",
             "count": len(rows), "rows": rows}
 

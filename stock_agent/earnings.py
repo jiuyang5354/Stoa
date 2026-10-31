@@ -397,7 +397,8 @@ def yoy(sym: str, fin: dict, quarterly: list[dict], src: _Src) -> list[dict]:
         s = src.add(f"{(fin or {}).get('source') or '东方财富 F10'} · {sym} 主要指标", (fin or {}).get("url") or f"https://emweb.securities.eastmoney.com/PC_HSF10/FinanceAnalysis/Index?code={sym}", str(cur.get("报告期") or ""))
         for k, yk in (("营业总收入", "营收同比%"), ("归母净利润", "净利同比%"), ("扣非净利润", None), ("毛利率%", None), ("每股收益", None)):
             if cur.get(k) is not None:
-                rows.append({"指标": k, "本期": cur[k] if "%" in k or k == "每股收益" else _big(cur[k]), "同比%": cur.get(yk) if yk else None, "期": cur.get("报告期"), "cite": s})
+                yv = (cur.get(yk) if cur.get(yk) is not None else cur.get("营业总收入同比%") if yk == "营收同比%" else None) if yk else None
+                rows.append({"指标": k, "本期": cur[k] if "%" in k or k == "每股收益" else _big(cur[k]), "同比%": yv, "期": cur.get("报告期"), "cite": s})
         return rows
     if len(quarterly) >= 5:
         a, b = quarterly[0], quarterly[4]

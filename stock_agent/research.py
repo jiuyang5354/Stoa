@@ -187,6 +187,28 @@ def _num(x):
     return round(x, 4)
 
 
+def _f10(symbol: str) -> str:
+    from .cite import f10_url
+    return f10_url(symbol)
+
+
+def _add_operating_revenue(rows: list[dict], raw: list[dict], code: str):
+    """东方财富利润表 OPERATE_INCOME（营业收入）→ 每期加「营业收入」与按上年同期算的「营业收入同比%」（同为累计口径）。"""
+    r = _get("https://datacenter.eastmoney.com/securities/api/data/v1/get",
+             params={"reportName": "RPT_F10_FINANCE_GINCOME", "columns": "REPORT_DATE,TOTAL_OPERATE_INCOME,OPERATE_INCOME",
+                     "filter": f'(SECUCODE="{secucode(code)}")', "pageSize": 12, "sortColumns": "REPORT_DATE", "sortTypes": "-1"}, ttl=3600)
+    inc = {str(x.get("REPORT_DATE") or "")[:10]: x for x in ((r.json().get("result") or {}).get("data") or [])}
+    for row, rr in zip(rows, raw):
+        d = str(rr.get("REPORT_DATE") or "")[:10]
+        cur = inc.get(d)
+        if not cur or cur.get("OPERATE_INCOME") is None:
+            continue
+        row["营业收入"] = _num(cur["OPERATE_INCOME"])
+        prev = inc.get(f"{int(d[:4]) - 1}{d[4:]}") if d[:4].isdigit() else None
+        if prev and prev.get("OPERATE_INCOME"):
+            row["营业收入同比%"] = round((float(cur["OPERATE_INCOME"]) / float(prev["OPERATE_INCOME"]) - 1) * 100, 4)
+
+
 def financials(symbol: str) -> dict:
     info = resolve(symbol)
     out = {"symbol": symbol, "name": info["name"]}
@@ -224,7 +246,7 @@ def financials(symbol: str) -> dict:
             r = _get("https://datacenter.eastmoney.com/securities/api/data/v1/get",
                      params={"reportName": "RPT_F10_FINANCE_MAINFINADATA", "columns": cols, "filter": f'(SECUCODE="{secucode(info["code"])}")',
                              "pageSize": 6, "sortColumns": "REPORT_DATE", "sortTypes": "-1"})
-            names = {"REPORT_DATE_NAME": "报告期", "TOTALOPERATEREVE": "营业总收入", "TOTALOPERATEREVETZ": "营收同比%",
+            names = {"REPORT_DATE_NAME": "报告期", "TOTALOPERATEREVE": "营业总收入", "TOTALOPERATEREVETZ": "营业总收入同比%",
                      "PARENTNETPROFIT": "归母净利润", "PARENTNETPROFITTZ": "净利同比%", "KCFJCXSYJLR": "扣非净利润",
                      "EPSJB": "每股收益", "BPS": "每股净资产", "ROEJQ": "ROE%", "XSMLL": "毛利率%", "XSJLL": "净利率%",
                      "ZCFZL": "资产负债率%", "MGJYXJJE": "每股经营现金流"}
@@ -233,6 +255,13 @@ def financials(symbol: str) -> dict:
                                       for row in raw]
             unified["东方财富"] = finunify.from_eastmoney(raw)
             out["source"] = "东方财富 F10 + Yahoo Finance"
+            out["url"] = _f10(symbol)
+            try:  # 营业收入（不含利息收入等）与营业总收入分开给：盲评 Q14 把营业总收入同比 1.82% 写成了营业收入同比（实为 1.96%）
+                _add_operating_revenue(out["main_indicators"], raw, info["code"])
+            except Exception as e:
+                out["operating_revenue_error"] = str(e)[:80]
+            out["caliber"] = ("营业总收入 = 营业收入 + 利息收入/手续费等（集团有财务公司时两者不同）；营业总收入同比% ≠ 营业收入同比%，按题目字面取。"
+                              "数字均为年初至今累计（三季报 = 前三季度）。")
         except Exception as e:
             out["eastmoney_error"] = str(e)[:80]
         from .sources import tushare

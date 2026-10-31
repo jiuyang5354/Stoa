@@ -103,7 +103,7 @@ def test_quarter_split(monkeypatch):
             "cashflow": [{"REPORT_DATE": d + " 00:00:00", "NETCASH_OPERATE": v} for d, v in [("2026-09-30", 60), ("2026-06-30", 50), ("2026-03-31", 5), ("2025-12-31", 80)]]}
     monkeypatch.setattr(F, "_em_rows", lambda secu, kind, n=24: rows[kind])
     st = F._statements_a({"code": "600000", "name": "T", "symbol": "600000.SS"}, "quarter", 3)
-    q = {p["period"]: p for p in st["periods"]}
+    q = {p["period"].split()[0]: p for p in st["periods"]}  # v0.37：period 带「单季」后缀
     assert q["2026Q3"]["income"]["revenue"] == 100 and q["2026Q2"]["income"]["revenue"] == 110 and q["2026Q1"]["income"]["revenue"] == 90
     assert q["2026Q3"]["cashflow"]["cfo"] == 10 and q["2026Q3"]["income"]["eps"] is None and q["2026Q1"]["income"]["eps"] == 0.9
     st = F._statements_a({"code": "600000", "name": "T", "symbol": "600000.SS"}, "annual", 3)

@@ -61,7 +61,11 @@ def calc(expressions, variables: dict | None = None) -> dict:
         except Exception as ex:
             out[k] = None
             out.setdefault("errors", {})[k] = str(ex)[:120]
-    return {"results": out, "note": "确定性计算结果，回答里的派生数字以此为准。"}
+    res = {"results": out, "note": "确定性计算结果，回答里的派生数字以此为准。"}
+    if variables:  # 回显输入：题设/上文数字也登记为本次计算的出处，回答里复述输入（如收益率 0.04）不会被当成无出处
+        res["inputs"] = {k: v for k, v in variables.items() if isinstance(v, (int, float)) or _isnum(v)}
+    res["expressions"] = {k: str(e)[:300] for k, e in items} if isinstance(expressions, dict) else {"result": str(expressions)[:300]}
+    return res
 
 
 def _isnum(v):

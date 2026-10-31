@@ -10,7 +10,7 @@ from __future__ import annotations
 import os
 
 FIELDS = ("revenue", "revenue_yoy", "net_profit", "net_profit_yoy", "deducted_net_profit", "gross_margin", "net_margin", "roe", "eps", "bps", "debt_ratio", "ocf_ps")
-LABELS = {"revenue": "营业总收入", "revenue_yoy": "营收同比%", "net_profit": "归母净利润", "net_profit_yoy": "净利同比%", "deducted_net_profit": "扣非净利润",
+LABELS = {"revenue": "营业总收入", "revenue_yoy": "营业总收入同比%", "net_profit": "归母净利润", "net_profit_yoy": "净利同比%", "deducted_net_profit": "扣非净利润",
           "gross_margin": "毛利率%", "net_margin": "净利率%", "roe": "ROE%", "eps": "每股收益", "bps": "每股净资产", "debt_ratio": "资产负债率%", "ocf_ps": "每股经营现金流"}
 # 只拿口径一致的字段做双源比较：同比、扣非等各源定义差异大，不比
 COMPARE = ("revenue", "net_profit", "gross_margin", "roe", "eps")  # 净利率不比：东财 XSJLL 是含少数股东的销售净利率，Yahoo 是归母口径

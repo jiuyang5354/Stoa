@@ -166,17 +166,63 @@ def _zt(endpoint, date, sort="fbt:asc"):
 
 
 BOARD_FS = {"industry": "m:90+t:2", "concept": "m:90+t:3"}
+SINA_BK = "https://vip.stock.finance.sina.com.cn/quotes_service/api/json_v2.php/MoneyFlow.ssl_bkzj_bk"
+SINA_FENLEI = {"industry": 0, "concept": 1}  # 0 = 新浪行业，1 = 概念（2 = 证监会行业）
 
 
-def _boards(kind="industry", n=5):
+def _boards_em(kind):
     j = _fetch("https://push2.eastmoney.com/api/qt/clist/get",
                params={"pn": 1, "pz": 200, "po": 1, "np": 1, "fltt": 2, "invt": 2, "fid": "f62", "fs": BOARD_FS[kind], "fields": "f12,f14,f3,f62,f184,f204"},
                headers=EM_REF, ttl=300)
     rows = [{"name": x.get("f14"), "chg_pct": _f(x.get("f3"), 2), "main_net_yi": _f((_f(x.get("f62")) or 0) / 1e8, 2), "leader": x.get("f204")}
             for x in ((j.get("data") or {}).get("diff") or []) if isinstance(x, dict)]
-    rows = [r for r in rows if r["main_net_yi"] is not None]
-    rows.sort(key=lambda r: r["main_net_yi"], reverse=True)
-    return rows[:n], rows[-n:][::-1]
+    return [r for r in rows if r["main_net_yi"] is not None]
+
+
+def _boards_sina(kind):
+    """新浪财经板块资金流（东方财富 push2 502 时的备用源）。净额 = 流入 − 流出成交额，口径与东方财富「主力净流入」（超大单+大单）不同。"""
+    j = _fetch(SINA_BK, params={"page": 1, "num": 200, "sort": "netamount", "asc": 0, "fenlei": SINA_FENLEI[kind]},
+               headers={"User-Agent": "Mozilla/5.0", "Referer": "https://finance.sina.com.cn/"}, ttl=300)
+    rows = []
+    for x in j if isinstance(j, list) else []:
+        chg, net = _f(x.get("avg_changeratio")), _f(x.get("netamount"))
+        if net is None:
+            continue
+        rows.append({"name": x.get("name"), "chg_pct": _f(chg * 100, 2) if chg is not None else None, "main_net_yi": _f(net / 1e8, 2),
+                     "leader": x.get("ts_name")})
+    return rows
+
+
+BOARD_SOURCES = (("东方财富", _boards_em, {"industry": "https://data.eastmoney.com/bkzj/hy.html", "concept": "https://data.eastmoney.com/bkzj/gn.html"},
+                  "主力净流入（超大单+大单）"),
+                 ("新浪财经", _boards_sina, {"industry": "https://vip.stock.finance.sina.com.cn/moneyflow/#sczjlx", "concept": "https://vip.stock.finance.sina.com.cn/moneyflow/#sczjlx"},
+                  "净流入（流入−流出成交额，口径不同于东方财富主力净流入）"))
+
+
+def board_flow(kind="industry", n=5) -> dict:
+    """板块资金流前后 n 名 + 涨幅前 n 名。东方财富失败（常见 502）依次换新浪；每个源的失败写进 warnings，结果标明实际来源与口径。"""
+    warns = []
+    for name, fn, urls, basis in BOARD_SOURCES:
+        try:
+            rows = fn(kind)
+        except Exception as e:
+            warns.append(f"{name}{'行业' if kind == 'industry' else '概念'}板块资金流取不到：{_err(e)}")
+            continue
+        if not rows:
+            warns.append(f"{name}板块资金流返回空")
+            continue
+        by_flow = sorted(rows, key=lambda r: r["main_net_yi"], reverse=True)
+        by_chg = sorted([r for r in rows if r["chg_pct"] is not None], key=lambda r: r["chg_pct"], reverse=True)
+        return {"inflow": by_flow[:n], "outflow": by_flow[-n:][::-1], "top_gainers": by_chg[:n], "source": name, "url": urls[kind],
+                "basis": basis, "warnings": warns, "fallback": name != BOARD_SOURCES[0][0]}
+    return {"error": "；".join(warns) or "板块资金流取不到", "warnings": warns}
+
+
+def _boards(kind="industry", n=5):
+    r = board_flow(kind, n)
+    if r.get("error"):
+        raise RuntimeError(r["error"])
+    return r["inflow"], r["outflow"]
 
 
 def a_mood(date: str | None = None) -> dict:
@@ -215,12 +261,15 @@ def a_mood(date: str | None = None) -> dict:
         out["as_of"] = out["date"]
         out["sources"].append(src("东方财富 · 涨停/炸板/跌停池", out["url"], out["date"]))
     for kind, label in (("industry", "行业"), ("concept", "概念")):
-        try:
-            inflow, outflow = _boards(kind)
-            out[f"{kind}_inflow"], out[f"{kind}_outflow"] = inflow, outflow
-            out["sources"].append(src(f"东方财富 · {label}板块资金流", "https://data.eastmoney.com/bkzj/hy.html", now_cn().strftime("%Y-%m-%d")))
-        except Exception as e:
-            out["warnings"].append(f"{label}板块资金流取不到：{_err(e)}")
+        bf = board_flow(kind)
+        out["warnings"] += bf.get("warnings") or []
+        if bf.get("error"):
+            continue
+        out[f"{kind}_inflow"], out[f"{kind}_outflow"], out[f"{kind}_top_gainers"] = bf["inflow"], bf["outflow"], bf["top_gainers"]
+        out[f"{kind}_flow_source"] = f"{bf['source']} · {bf['basis']}"
+        out["sources"].append(src(f"{bf['source']} · {label}板块资金流（{bf['basis']}）", bf["url"], out.get("date") or now_cn().strftime("%Y-%m-%d")))
+    if any(k.endswith("_flow_source") and not v.startswith("东方财富") for k, v in out.items() if isinstance(v, str)):
+        out["source"] = out["source"] + " + 新浪财经板块资金流"
     if "as_of" not in out:
         out["as_of"] = now_cn().strftime("%Y-%m-%d")
     return out

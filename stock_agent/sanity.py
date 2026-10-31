@@ -77,7 +77,7 @@ def consensus_warnings(r: dict) -> list[str]:
 
 
 FIN_LIMITS = (
-    (("revenue_growth", "营收同比%", "营业收入同比%", "earnings_growth", "净利润同比%"), 500, "增速"),
+    (("revenue_growth", "营收同比%", "营业总收入同比%", "营业收入同比%", "earnings_growth", "净利润同比%"), 500, "增速"),
     (("roe", "ROE%", "ROE"), 150, "ROE"),
     (("dividend_yield", "股息率%", "股息率"), 30, "股息率"),
     (("pe", "市盈率TTM", "市盈率"), 3000, "市盈率"),

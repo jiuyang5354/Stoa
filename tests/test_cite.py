@@ -26,7 +26,7 @@ def test_tool_results_carry_source_and_timestamp():
     assert r["0700.HK"]["_cite"] == 2
     it = s.get(2)
     assert it["as_of"] == "2026-10-28" and "Yahoo Finance" in it["name"] and it["url"].endswith("0700.HK")
-    assert s.get(3)["url"] == "https://quote.eastmoney.com/sh600519.html"
+    assert s.get(3)["url"] == "https://emweb.securities.eastmoney.com/pc_hsf10/pages/index.html?type=web&code=SH600519#/cwfx"  # v0.37：财务出处指向 F10 财务分析页
 
 
 def test_catches_fabricated_numbers():

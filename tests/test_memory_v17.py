@@ -270,7 +270,7 @@ def test_citation_survives_compression():
     assert a.digest and "512.4" in a.digest["text"] and "行情 · 0700.HK" in a.digest["text"]
     ans = a.ask("我们最早查的腾讯收盘价是多少？")
     assert "512.4[" in ans and cite.parse_sources(ans)
-    assert any(s["name"] == "Stoa 会话纪要" for s in a.last_meta["sources"])
+    assert any(s["name"] == "本次对话早先的回答（会话纪要）" for s in a.last_meta["sources"])
     assert cite.verify(ans, a.sources)["ok"]
 
 

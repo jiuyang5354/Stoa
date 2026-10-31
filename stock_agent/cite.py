@@ -33,12 +33,64 @@ def today() -> str:
     return datetime.now(CN_TZ).strftime("%Y-%m-%d")
 
 
-def quote_url(symbol: str) -> str:
+def quote_url(symbol: str, source: str = "") -> str:
+    """行情出处链接：按实际数据源给对应的公开行情页（腾讯→gu.qq.com，新浪→新浪行情页），不再一律指向东方财富首页。"""
     s = symbol.upper()
     m = re.match(r"^(\d{6})\.(SS|SZ|BJ)$", s)
     if m:
-        return f"https://quote.eastmoney.com/{ {'SS': 'sh', 'SZ': 'sz', 'BJ': 'bj'}[m.group(2)] }{m.group(1)}.html"
+        ex = {'SS': 'sh', 'SZ': 'sz', 'BJ': 'bj'}[m.group(2)]
+        if "腾讯" in source:
+            return f"https://gu.qq.com/{ex}{m.group(1)}"
+        if "新浪" in source:
+            return f"https://finance.sina.com.cn/realstock/company/{ex}{m.group(1)}/nc.shtml"
+        return f"https://quote.eastmoney.com/{ex}{m.group(1)}.html"
+    h = re.match(r"^0*(\d{1,5})\.HK$", s)
+    if h and "腾讯" in source:
+        return f"https://gu.qq.com/hk{h.group(1).zfill(5)}"
     return f"https://finance.yahoo.com/quote/{s}"
+
+
+def f10_url(symbol: str) -> str:
+    """财务数据出处：A股给东方财富 F10「财务分析」页（报表原值可逐期核对），港美股给 Yahoo 财务报表页。"""
+    s = (symbol or "").upper()
+    m = re.match(r"^(\d{6})\.(SS|SZ|BJ)$", s)
+    if m:
+        return f"https://emweb.securities.eastmoney.com/pc_hsf10/pages/index.html?type=web&code={ {'SS': 'SH', 'SZ': 'SZ', 'BJ': 'BJ'}[m.group(2)] }{m.group(1)}#/cwfx"
+    return f"https://finance.yahoo.com/quote/{s}/financials" if s else ""
+
+
+# 没有专门登记分支的工具：出处名用「中文名 · 标的 · 实际数据源」，链接用结果里的 url（或按标的推出的公开页），不写内部工具名
+TOOL_TITLES = {"get_market_mood": "涨停与板块资金", "price_levels": "支撑阻力（由日线收盘价计算）", "financial_bridge": "利润结构拆解（由报表计算）",
+               "get_chips": "两融与股东户数", "get_corporate_events": "公司事件（分红/解禁/增减持/质押）", "get_insiders": "内部人交易",
+               "get_short_volume": "做空成交", "earnings_quality": "盈利质量（由报表计算）", "reverse_dcf": "反向 DCF（由报表计算）",
+               "dcf_scenarios": "情景估值（由报表计算）", "regulatory_letters": "问询函与监管措施", "trade_replay": "交易回放（由日线计算）",
+               "option_payoff": "期权到期损益（按输入计算）", "inquiry_status": "研究课题进度", "task_list": "定时任务", "pending_actions": "待确认操作"}
+F10_TOOLS = {"get_financials", "get_statements", "earnings_quality", "reverse_dcf", "dcf_scenarios", "financial_bridge"}
+CALC_TOOLS = {"calc", "run_python", "option_payoff"}  # 由输入推导的结果：数值本身没有「涨跌方向」含义（「亏损 6000」对 -6000 不算写反）
+
+
+def source_url(tool: str, sym: str, result) -> str:
+    url = (result.get("url") or result.get("link") or "") if isinstance(result, dict) else ""
+    if url:
+        return url
+    if not sym:
+        return ""
+    return f10_url(sym) if tool in F10_TOOLS else quote_url(sym, str(result.get("source") or "") if isinstance(result, dict) else "")
+
+
+def calc_label(args: dict, result) -> str:
+    """calc 出处写成可复核的算式（「计算：loss = 30000*0.2」），不写工具名。"""
+    exprs = (result or {}).get("expressions") if isinstance(result, dict) else None
+    if not exprs:
+        e = (args or {}).get("expressions")
+        exprs = e if isinstance(e, dict) else ({"result": e} if e else {})
+    parts = [f"{k} = {v}" if k != "result" else str(v) for k, v in list(exprs.items())[:4]]
+    txt = "；".join(parts)
+    if len(txt) > 110:
+        txt = txt[:108] + "…"
+    ins = (result or {}).get("inputs") if isinstance(result, dict) else None
+    tail = "，输入：" + "、".join(f"{k}={v}" for k, v in list(ins.items())[:6]) if ins else ""
+    return f"计算：{txt}{tail[:80]}（按题设与上文出处的数字推导）" if txt else "计算（按题设与上文出处的数字推导）"
 
 
 def _scale(tok: str, unit: str | None) -> float:
@@ -108,10 +160,11 @@ def dates_in(obj) -> set[str]:
     return out
 
 
+FALLBACK = {"营业收入": "营收", "营业收入同比%": "营收同比%"}
 DATA_LABELS = {"get_fund_flow": "资金流", "get_northbound": "北向资金", "get_dragon_tiger": "龙虎榜", "get_consensus": "分析师一致预期",
                "get_intraday": "分钟线", "get_options": "期权",
                "sec_filings": "SEC 申报清单", "sec_document": "SEC 原文", "sec_xbrl": "SEC XBRL", "sec_search": "SEC 全文检索",
-               "earnings_release": "业绩新闻稿", "price_history": "历史行情", "macro_series": "宏观数据 FRED", "cn_data": "国内结构化数据", "earnings_transcript": "电话会文字稿", "volume_profile": "成交分布"}
+               "earnings_release": "业绩新闻稿", "price_history": "历史行情", "macro_series": "宏观数据 FRED", "cn_data": "国内结构化数据", "get_statements": "原始报表", "earnings_transcript": "电话会文字稿", "volume_profile": "成交分布"}
 
 
 def report_period(text: str, basis: str = "") -> tuple | None:
@@ -203,6 +256,10 @@ class Sources:
         if text and re.search(r"\d", text):
             sid = self.new(name, kind=kind)
             self.bind(text, sid)
+            pcts = pct_decimals(text)  # 题设「收益率 4%」→ 回答里写 0.04 也算出自题设
+            if pcts:
+                with self.lock:
+                    self.nums += [(v, sid) for v in pcts]
             return sid
 
     def add(self, tool: str, args: dict, result):
@@ -222,7 +279,7 @@ class Sources:
             for sym, v in result.items():
                 if isinstance(v, dict) and v:
                     src = v.get("source") or "行情源"
-                    sid = self.new(f"行情 · {sym} · {src}", quote_url(sym), str(v.get("date") or today()), tool=tool)
+                    sid = self.new(f"行情 · {sym} · {src}", v.get("url") or quote_url(sym, str(src)), str(v.get("date") or today()), tool=tool)
                     self.bind(v, sid)
                     aliases = {sym, str(v.get("name") or "")} | name_aliases(sym, str(v.get("name") or ""))
                     if "." in sym:
@@ -250,7 +307,7 @@ class Sources:
                 return {**result, key: new + items[12:]}
         if tool == "get_financials" and isinstance(result, dict) and not result.get("error"):
             sym = str(result.get("symbol") or args.get("symbol") or "")
-            sid = self.new(f"财报与估值 · {sym} · {result.get('source') or '财务数据'}", result.get("url") or quote_url(sym),
+            sid = self.new(f"财报与估值 · {sym} · {result.get('source') or '财务数据'}", result.get("url") or f10_url(sym),
                            str(result.get("as_of") or today()), tool=tool)
             self.bind(result, sid)
             aliases = ({sym, str(result.get("name") or "")} | name_aliases(sym, str(result.get("name") or ""))) - {""}
@@ -266,7 +323,7 @@ class Sources:
         if tool in DATA_LABELS and isinstance(result, dict) and not result.get("error"):
             sym = str(result.get("symbol") or args.get("symbol") or "")
             name = " · ".join(x for x in (DATA_LABELS[tool], sym, str(result.get("source") or "")) if x)
-            sid = self.new(name, result.get("url") or "", str(result.get("as_of") or today()), tool=tool)
+            sid = self.new(name, source_url(tool, sym, result), str(result.get("as_of") or today()), tool=tool)
             self.bind({k: v for k, v in result.items() if k not in ("sources", "rule_note", "note")}, sid)
             return {**result, "_cite": sid}
         if tool == "read_filing" and isinstance(result, dict) and isinstance(result.get("passages"), list):
@@ -313,7 +370,7 @@ class Sources:
             out["_cite"] = sid
             return out
         if tool == "market_overview" and isinstance(result, dict):
-            sid = self.new("指数与自选一览 · 行情源", "", str(result.get("date") or result.get("as_of") or today()), tool=tool)
+            sid = self.new(f"指数与自选一览 · {result.get('source') or '腾讯证券 / 东方财富行情'}", result.get("url") or "", str(result.get("date") or result.get("as_of") or today()), tool=tool)
             self.bind(result, sid)
             return {**result, "_cite": sid}
         if tool == "fetch_url":
@@ -339,10 +396,26 @@ class Sources:
             sid = self.new("Agora 辩论纪要", "", today(), kind="debate", tool=tool)
             self.bind({k: v for k, v in (result or {}).items() if k != "answer"} if isinstance(result, dict) else result, sid)
             return result
-        names = {"memory_links": "Stoa 记忆图谱", "session_search": "Stoa 历史对话", "search_memory": "Stoa 语义记忆", "earnings_calendar": "Stoa 财报日历",
-                 "call_stats": "Stoa 判断账本",
-                 "record_call": "Stoa 判断账本", "alert_list": "Stoa 提醒", "watchlist": "Stoa 自选股", "run_python": "沙箱计算"}
-        sid = self.new(names.get(tool, tool), "", today(), kind="memory" if tool in names else "tool", tool=tool)
+        names = {"memory_links": "你在 Stoa 的笔记与记忆（非市场数据）", "session_search": "你和 Stoa 的历史对话", "search_memory": "你在 Stoa 的笔记与记忆（非市场数据）",
+                 "earnings_calendar": "财报日历（交易所/公司公告披露日）", "call_stats": "你的判断记录（Stoa 账本）",
+                 "record_call": "你的判断记录（Stoa 账本）", "alert_list": "你设的提醒", "watchlist": "你的自选股"}
+        sym = str((result.get("symbol") if isinstance(result, dict) else "") or (args or {}).get("symbol") or "")
+        if tool == "calc":
+            sid = self.new(calc_label(args, result), "", today(), tool=tool)
+            if isinstance(result, dict):  # 结果 + 输入 + 算式里的常数都算这次计算的出处
+                self.bind({"results": result.get("results"), "inputs": result.get("inputs")}, sid)
+                self.bind(" ".join(str(v) for v in (result.get("expressions") or {}).values()), sid)
+                return {**result, "_cite": sid} if "error" not in result else result
+        elif tool == "run_python":
+            sid = self.new("计算：沙箱 Python（代码与输出见本回答）", "", today(), tool=tool)
+        elif tool in names:
+            sid = self.new(names[tool], "", today(), kind="memory", tool=tool)
+        else:
+            title = TOOL_TITLES.get(tool) or ("外部工具 · " + tool.split("__")[1] if tool.startswith("mcp__") and tool.count("__") >= 2 else "数据")
+            srcname = str(result.get("source") or "") if isinstance(result, dict) else ""
+            name = " · ".join(x for x in (title, sym, srcname) if x)
+            asof = str((result.get("as_of") or result.get("date") or "") if isinstance(result, dict) else "") or today()
+            sid = self.new(name, source_url(tool, sym, result) if (srcname or sym) else "", asof, tool=tool)
         self.bind(result, sid)
         if isinstance(result, dict) and "error" not in result:
             return {**result, "_cite": sid}
@@ -370,7 +443,8 @@ class Sources:
             "市盈率TTM": (r"市盈率(?:TTM)?|\bPE\b", ("市盈率TTM", "pe")),
             "预期市盈率": (r"预期市盈率|预测市盈率", ("预期市盈率",)),
             "ROE%": (r"\bROE\b|净资产收益率", ("ROE%", "roe")),
-            "营收": (r"营业总收入|营业收入|营收|\brevenue\b", ("营业总收入", "Total Revenue", "revenue")),
+            "营收": (r"营业总收入|营收|\brevenue\b", ("营业总收入", "Total Revenue", "revenue")),
+            "营业收入": (r"营业收入", ("营业收入", "operating_revenue")),
             "净利润": (r"归母净利润|净利润|\bnet income\b", ("归母净利润", "Net Income", "net_profit")),
             "市净率": (r"市净率|\bPB\b", ("市净率",)),
             "市值": (r"市值|market cap", ("市值", "market_cap")),
@@ -378,7 +452,8 @@ class Sources:
             "股息率%": (r"股息率|分红收益率", ("股息率%",)),
             "净利率%": (r"净利率", ("净利率%", "net_margin")),
             "毛利率%": (r"毛利率", ("毛利率%", "gross_margin")),
-            "营收同比%": (r"营收同比|营业收入同比", ("营收同比%", "revenue_yoy")),
+            "营收同比%": (r"营收同比|营业总收入同比|(?:营收|营业总收入)(?:同比)?(?:增长|下降|下滑|增速|减少)", ("营收同比%", "营业总收入同比%", "revenue_yoy")),
+            "营业收入同比%": (r"营业收入同比|营业收入(?:同比)?(?:增长|下降|下滑|增速|减少)", ("营业收入同比%",)),
             "净利同比%": (r"净利同比|净利润同比", ("净利同比%", "盈利同比%", "net_profit_yoy")),
             "资产负债率%": (r"资产负债率", ("资产负债率%", "debt_ratio")),
             "自由现金流": (r"自由现金流", ("自由现金流",)),
@@ -395,12 +470,14 @@ class Sources:
         currency_text = body[n["end_num"]:n["end_num"] + 5]
         currency = next((v for word, v in (("美元", "USD"), ("港元", "HKD"), ("人民币", "CNY")) if word in currency_text), None)
         out = []
-        for row in scope:
-            if row.get("kind") != "financial" or (period and row["period"] != period):
-                continue
-            if currency and row.get("currency") != currency:
-                continue
-            for field in fields[key][1]:
+        rows = [row for row in scope if row.get("kind") == "financial" and not (period and row["period"] != period)
+                and not (currency and row.get("currency") != currency)]
+        cand = fields[key][1]
+        # 「营业收入」与「营业总收入」按字面区分：本轮数据里有营业收入就只认营业收入；数据源只给了营业总收入（港美股、旧数据）才退回去比
+        if key in FALLBACK and not any(row["data"].get(f) is not None for row in rows for f in cand):
+            cand = cand + fields[FALLBACK[key]][1]
+        for row in rows:
+            for field in cand:
                 raw = row["data"].get(field)
                 if raw is None:
                     continue
@@ -418,7 +495,7 @@ class Sources:
                     out.append(row["sid"])
         return True, list(dict.fromkeys(out)) or None
 
-    def quote_match(self, body: str, n: dict, scope: list[dict]) -> tuple[bool, list[int] | None]:
+    def quote_match(self, body: str, n: dict, scope: list[dict]) -> tuple[bool, list[int] | None]:  # noqa: E301
         """明确的行情指标按字段核对；推导、建议和无法识别的表述仍走通用数字核对。"""
         prefix = re.split(r"[，。；,;\n|]", body[:n["start"]])[-1]
         if re.search(r"较|相比|高于|低于|还差|相差|浮盈|收益|目标|建议|假设|如果|若|\b(?:above|below|target|if)\b", prefix, re.I):
@@ -663,11 +740,62 @@ def date_mismatches(body: str, src: Sources) -> list[dict]:
     return bad
 
 
+PCT_RE = re.compile(r"(?<![\d.])(\d+(?:\.\d+)?)\s?[%％]")
+ASSUME_RE = re.compile(r"假设|假定|设定|不妨设|例如|举例|示例|比如|例子|assum|suppose|for example|e\.g\.", re.I)
+CODE_RE = re.compile(r"(?<![\d.])\d{4,6}\.(?:HK|SS|SZ|BJ|SH)\b|(?<![\d.])[036]\d{5}(?![\d.])", re.I)
+
+
+def pct_decimals(text: str) -> list[float]:
+    """「4%」→ 0.04：百分数写成小数也算同一个数（只用于题设与回答里写明的假设）。"""
+    out = []
+    for m in PCT_RE.finditer(text or ""):
+        try:
+            out.append(round(float(m.group(1)) / 100, 10))
+        except ValueError:
+            pass
+    return out
+
+
+def assumption_values(body: str) -> list[float]:
+    """回答自己写明的假设（「假设：面值 100、票息 5、收益率 4%」及紧跟其后的列表/表格行）里的数字：是题设输入，不是事实陈述，
+    不需要数据出处；推导时可作为输入。只认带假设词的行，以「：」结尾时连同下面的列表项（到空行或标题为止）。"""
+    vals, lines, carry = [], body.split("\n"), False
+    for ln in lines:
+        st = ln.strip()
+        if not st or st.startswith("#"):
+            carry = False
+            continue
+        hit = bool(ASSUME_RE.search(st))
+        if hit or (carry and re.match(r"^(?:[-*•|]|\d+[.、)])", st)):
+            seg = CODE_RE.sub(" ", re.sub(r"\[\d+\]", " ", st))  # 股票代码不是假设数字
+            vals += numbers_in(seg) + pct_decimals(seg)
+            if hit:
+                carry = st.rstrip("*").endswith(("：", ":"))
+        else:
+            carry = False
+    return vals
+
+
+def _overlay(src: "Sources", extra: list[tuple[float, int]], label: str = "") -> "Sources":
+    """临时副本：额外数字（回答里的假设、前文已核实的数）参与推导，不改原登记处。假设用一个不在清单里的编号，不会生成角标。"""
+    import copy
+    s2 = copy.copy(src)
+    s2.lock = threading.Lock()
+    s2.items = list(src.items)
+    s2.nums = list(src.nums) + list(extra)
+    return s2
+
+
+ASSUME_SID = 10 ** 6  # 「回答中写明的假设」：不是登记的来源，finalize 不会给它加角标
+
+
 def verify(text: str, src: Sources) -> dict:
     """返回 {ok, numbers: [{text, value, sids}], unverified: [text...], why: {text: 原因}}。已标「未核实」的数字不再算错。
     三类错：数字找不到出处；数字对得上但涨跌方向写反；日期离数据日只差几天却对不上。"""
     body = strip_sources(text)
     nums, why = [], {}
+    av = assumption_values(body)
+    gsrc = _overlay(src, [(v, ASSUME_SID) for v in av]) if av else src  # 通用核对（非指定标的的数）可用回答里写明的假设
     for n in key_numbers(body):
         flagged = body[n["end_num"]:n["end_num"] + len(UNVERIFIED) + 4].lstrip(" [0123456789]").startswith(UNVERIFIED)
         p = n["text"].rstrip().endswith(("%", "％"))
@@ -685,14 +813,30 @@ def verify(text: str, src: Sources) -> dict:
                 scoped = True
                 sids = src.match(n["value"], n["dec"], n["scale"], p, None, derived=False)
         if not scoped and not move:
-            sids = src.match(n["value"], n["dec"], n["scale"], p, allowed) or (src.match(n["raw"], n["dec"], 1, p, allowed) if n["scale"] != 1 else None)
+            ms = gsrc if allowed is None else src
+            sids = ms.match(n["value"], n["dec"], n["scale"], p, allowed) or (ms.match(n["raw"], n["dec"], 1, p, allowed) if n["scale"] != 1 else None)
         want = _want_sign(body, n)
-        if sids and want and src.direction_conflict(n["value"], n["dec"], n["scale"], want, allowed):
+        derived = bool(sids) and all(s == ASSUME_SID or (src.get(s) or {}).get("tool") in CALC_TOOLS for s in sids)
+        if sids and want and not derived and src.direction_conflict(n["value"], n["dec"], n["scale"], want, allowed):
             why[n["text"]] = "涨跌方向和数据相反"
             sids = None
         elif not sids and not flagged:
             why[n["text"]] = "数字与该标的的指标、报告期或计价不符" if scoped else "找不到出处"
-        nums.append({**n, "sids": sids, "flagged": flagged})
+        nums.append({**n, "sids": sids, "flagged": flagged, "_scoped": bool(scope) or move, "_p": p, "_allowed": allowed})
+    # 第二遍：由前文已核实的数再推一步（3 万持仓 = 1 万 × 3 已核实 → 亏损 6000 = 3 万 × 20%），只用于没绑定具体标的的数
+    ok = [(x["value"], x["sids"][0]) for x in nums if x["sids"]]
+    if ok and any(not x["sids"] and not x["flagged"] and not x["_scoped"] for x in nums):
+        s3 = _overlay(gsrc, ok)
+        for x in nums:
+            if x["sids"] or x["flagged"] or x["_scoped"] or x["_allowed"] is not None:
+                continue
+            sids = s3.match(x["value"], x["dec"], x["scale"], x["_p"], None)
+            if sids:
+                x["sids"] = sids
+                why.pop(x["text"], None)
+    for x in nums:
+        for k in ("_scoped", "_p", "_allowed"):
+            x.pop(k, None)
     for d in date_mismatches(body, src):
         flagged = body[d["end_num"]:d["end_num"] + len(UNVERIFIED) + 4].lstrip(" [0123456789]").startswith(UNVERIFIED)
         nums.append({**d, "sids": None, "flagged": flagged, "date_only": True})
@@ -772,9 +916,9 @@ def finalize(text: str, src: Sources) -> tuple[str, list[dict]]:
     body = re.sub(r"\[(\d+)\]", lambda m: m.group(0) if src.get(int(m.group(1))) else "", body)
     v = verify(body, src)
     for n in sorted(v["numbers"], key=lambda x: -x["end_num"]):
-        if not n["sids"] or n.get("date_only"):
+        if not n["sids"] or n.get("date_only") or n.get("flagged"):  # 已标「未核实」的数不再补角标
             continue
-        sids = [s for s in n["sids"] if (src.get(s) or {}).get("kind") != "user"]
+        sids = [s for s in n["sids"] if (src.get(s) or {}).get("kind") not in ("user", None)]
         if not sids:
             continue
         at = n["end_num"]

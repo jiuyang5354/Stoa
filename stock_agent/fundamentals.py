@@ -45,6 +45,8 @@ YF_MAP = {
                  "cash_change": "Changes In Cash", "begin_cash": "Beginning Cash Position", "end_cash": "End Cash Position", "fx_effect": "Effect Of Exchange Rate Changes"},
 }
 FLOW = ("income", "cashflow")
+YTD_NAME = {"03-31": "一季度（累计）", "06-30": "上半年（累计）", "09-30": "前三季度（累计）", "12-31": "全年"}
+CALIBER = "revenue=营业总收入，operating_revenue=营业收入（两者不同，金融类子公司的利息收入等只在营业总收入里）；parent_ni=归母净利润，net_income=含少数股东净利润。"
 EM_REPORTS = {"income": "RPT_F10_FINANCE_GINCOME", "balance": "RPT_F10_FINANCE_GBALANCE", "cashflow": "RPT_F10_FINANCE_GCASHFLOW"}
 
 
@@ -80,12 +82,16 @@ def _statements_a(info: dict, freq: str, periods: int) -> dict:
     out = []
     if freq == "annual":
         for d in [d for d in dates if d.endswith("12-31")][:periods]:
-            out.append({"period": d[:4] + "年报", "end": d, **full[d]})
+            out.append({"period": d[:4] + "年报", "end": d, "basis": "全年（报表原值）", **full[d]})
+    elif freq == "ytd":  # 年初至今累计 = 定期报告原值（问「前三季度/上半年」用这个）
+        for d in dates[:periods]:
+            out.append({"period": d[:4] + YTD_NAME.get(d[5:], d[5:]), "end": d, "basis": "年初至今累计（报表原值）", **full[d]})
     else:  # 单季：流量科目 = 本期累计 − 上期累计（同一年内），存量科目照抄期末
         for d in dates[:periods]:
             y, md = d[:4], d[5:]
             prev = {"03-31": None, "06-30": f"{y}-03-31", "09-30": f"{y}-06-30", "12-31": f"{y}-09-30"}.get(md)
-            q = {"period": f"{y}Q{ {'03-31': 1, '06-30': 2, '09-30': 3, '12-31': 4}.get(md, '?') }", "end": d, "balance": full[d]["balance"]}
+            q = {"period": f"{y}Q{ {'03-31': 1, '06-30': 2, '09-30': 3, '12-31': 4}.get(md, '?') } 单季", "end": d,
+                 "basis": "单季（本期累计−上期累计，代码相减）" if prev else "单季（一季度即累计）", "balance": full[d]["balance"]}
             for k in FLOW:
                 cur = full[d][k]
                 if prev is None:
@@ -95,10 +101,15 @@ def _statements_a(info: dict, freq: str, periods: int) -> dict:
                 else:
                     q[k] = {f: None for f in cur}
             q["income"]["eps"] = None if prev else q["income"].get("eps")  # EPS 不能相减
+            if prev:  # 同时给出年初至今累计原值，避免把单季数当成「前三季度」（盲评 Q21：投资收益单季 23.43 亿被写成前三季度，实际累计 53.83 亿）
+                q["ytd"] = {"period": y + YTD_NAME.get(md, md), **{k: full[d][k] for k in FLOW}}
             out.append(q)
+    from .cite import f10_url
+    note = {"annual": "年报口径。", "ytd": "A股定期报告原值，年初至今累计口径（前三季度=1–9 月合计）。",
+            "quarter": "每期是单季（代码相减）；ytd 是同一报告期的年初至今累计原值。说「前三季度/上半年」时用 ytd，说「第三季度/单季」时用单季，不要混用。"}[freq]
     return {"symbol": info.get("symbol"), "name": info.get("name"), "currency": "CNY", "freq": freq, "periods": out,
-            "source": "东方财富 F10 原始报表（利润表/资产负债表/现金流量表）",
-            "note": "A股定期报告为年初至今累计口径；单季数据由代码相减得出。" if freq != "annual" else "年报口径。"}
+            "source": "东方财富 F10 原始报表（利润表/资产负债表/现金流量表）", "url": f10_url(str(info.get("symbol") or "")),
+            "note": note, "caliber": CALIBER}
 
 
 def _statements_yf(symbol: str, info: dict, freq: str, periods: int) -> dict:
@@ -117,6 +128,7 @@ def _statements_yf(symbol: str, info: dict, freq: str, periods: int) -> dict:
             cf["capex"] = abs(cf["capex"])  # Yahoo 资本开支记为负数，统一成正数（流出）
         if cf.get("dividends_paid") is not None:
             cf["dividends_paid"] = abs(cf["dividends_paid"])
+        p["basis"] = "全年" if freq == "annual" else "单季"
         out.append(p)
     try:
         fin_cur = (t.info or {}).get("financialCurrency")
@@ -129,7 +141,8 @@ def _statements_yf(symbol: str, info: dict, freq: str, periods: int) -> dict:
 def statements(symbol: str, freq: str = "annual", periods: int = 4) -> dict:
     from . import research
     info = {**research.resolve(symbol), "symbol": symbol}
-    freq = "quarter" if str(freq).lower().startswith("q") else "annual"
+    f = str(freq).lower()
+    freq = "quarter" if f.startswith("q") else "ytd" if f in ("ytd", "cumulative", "累计") else "annual"
     periods = max(1, min(int(periods or 4), 12))
     if info.get("market") == "A":
         try:
@@ -141,7 +154,7 @@ def statements(symbol: str, freq: str = "annual", periods: int = 4) -> dict:
             except Exception:
                 return {"symbol": symbol, "error": f"取不到报表：{err}"}
     try:
-        return _statements_yf(symbol, info, freq, periods)
+        return _statements_yf(symbol, info, "quarter" if freq == "ytd" else freq, periods)
     except Exception as e:
         return {"symbol": symbol, "error": f"取不到报表：{str(e)[:100]}"}
 
@@ -152,7 +165,11 @@ def compact(st: dict) -> dict:
         return st
     ps = []
     for p in st["periods"]:
-        ps.append({"period": p["period"], **{k: {f: v for f, v in p[k].items() if v is not None} for k in ("income", "balance", "cashflow")}})
+        row = {"period": p["period"], **({"basis": p["basis"]} if p.get("basis") else {}),
+               **{k: {f: v for f, v in p[k].items() if v is not None} for k in ("income", "balance", "cashflow")}}
+        if p.get("ytd"):
+            row["ytd"] = {"period": p["ytd"]["period"], **{k: {f: v for f, v in p["ytd"][k].items() if v is not None} for k in FLOW}}
+        ps.append(row)
     return {**{k: v for k, v in st.items() if k != "periods"}, "periods": ps}
 
 
