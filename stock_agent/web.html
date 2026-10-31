@@ -1860,8 +1860,8 @@ async function temple3d(host){
     S.add(noon, noon.target);
     const torches = [-22, -38, -54].flatMap(z => [-XW + 1.6, XW - 1.6].map(x => { const l = new T.PointLight(0xFFB070, 0, 22, 1.6); l.position.set(x, 9, z); S.add(l); return l; }));
     S.userData.relight = dk => {
-      noon.intensity = dk ? 0 : 2.4; hemi.intensity = dk ? .1 : .5; hemi.color.set(dk ? 0x9fa6b8 : 0xFFFFFF);
-      torches.forEach(l => l.intensity = dk ? 46 : 0); bustKey.color.set(dk ? 0xFFD9A8 : 0xFFFFFF); bustKey.intensity = dk ? 300 : 220;
+      noon.intensity = dk ? 0 : 1.9; hemi.intensity = dk ? .1 : .34; hemi.color.set(dk ? 0x9fa6b8 : 0xFFFFFF);
+      torches.forEach(l => l.intensity = dk ? 46 : 0); bustKey.color.set(dk ? 0xFFD9A8 : 0xFFFFFF); bustKey.intensity = dk ? 300 : 140;
       rim.intensity = dk ? .5 : .9; halo.material.opacity = dk ? .26 : .1;
     };
     S.userData.relight(!!S.userData.dark);
