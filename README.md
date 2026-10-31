@@ -121,7 +121,7 @@ docker compose up -d
 | 只读根文件系统 | 只有 `/data` 和 `/tmp`（256 MB 内存盘）可写 |
 | 去掉全部 Linux capabilities | `cap_drop: ALL` + `no-new-privileges` |
 | 资源上限 | 1.5 CPU、1.5 GB 内存、256 个进程 |
-| 代码执行再隔离 | 独立容器、60 秒超时、1 GB 内存上限；禁网、只读根目录，仅挂载 workspace，不传入应用密钥 |
+| 代码执行再隔离 | 优先独立容器（禁网、只读根目录、仅挂载 workspace）；没有 Docker 时本机受限模式（独立子进程、工作目录 workspace）。都是 60 秒超时、1 GB 内存上限、不传入应用密钥 |
 | 端口只绑本机 | 默认 `127.0.0.1:8080`，对外暴露需自己配 |
 
 数据都在 Docker 卷 `agent-data`（容器内 `/data`）：`memory/`（记忆）、`data/sessions.db`（对话与判断账本）、`config.yaml`（自选股）、`reports/`、`workspace/`（沙箱文件）。备份：`docker cp stoa:/data ./backup`。
@@ -495,6 +495,12 @@ Actions 页面也可以手动点 “Run workflow” 立即生成一份。
 - 首页胸像：芝诺（Zeno of Citium），SMK 丹麦国家美术馆皇家石膏像馆 KAS745 的 3D 扫描，公有领域（Public Domain Mark；stock_agent/assets/zeno.glb，已减面到 6.4 万面）。
 - 背景岩壁与 3D 神庙石材：ambientCG「Travertine 009」（https://ambientcg.com/view?id=Travertine009），CC0。stock_agent/assets/travertine009_color.jpg 为原 1K 颜色图（重新压缩）；travertine009_normal.jpg 为原 NormalGL 叠加由颜色图亮度推导的浅浮雕法线（原法线图几乎是平的，这块是抛光板材）；travertine009_roughness.jpg 为原粗糙度图拉伸到 0.45–0.85 并缩到 512（原图接近镜面）。
 - 首页标题字体：Archeologicaps（dafont，标注 100% Free），stock_agent/assets/archeologicaps.woff2，已子集化为 ASCII。
+
+## 可靠性与安装版修补（v0.34.1 · Constantia）
+- 停止回答会真的掐掉正在等的模型请求；行情卡标出来源、日期与缓存
+- 新持仓要你确认，记忆改动可撤销；引用按标的核对，不能借别家股票的数字
+- 一键更新校验 SHA-256，新版起不来自动回滚旧版
+- 没有 Docker 也能写代码分析：退回本机受限模式并注明；`CODE_SANDBOX=docker` 只用容器
 
 ## 早报判断 · 晚报复盘 · 断点续跑（v0.34 · Constantia）
 - 早报每个标的：判断 + 失效时间 + 翻转条件，记进判断账本
