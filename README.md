@@ -482,6 +482,12 @@ Actions 页面也可以手动点 “Run workflow” 立即生成一份。
 - 背景岩壁与 3D 神庙石材：ambientCG「Travertine 009」（https://ambientcg.com/view?id=Travertine009），CC0。stock_agent/assets/travertine009_color.jpg 为原 1K 颜色图（重新压缩）；travertine009_normal.jpg 为原 NormalGL 叠加由颜色图亮度推导的浅浮雕法线（原法线图几乎是平的，这块是抛光板材）；travertine009_roughness.jpg 为原粗糙度图拉伸到 0.45–0.85 并缩到 512（原图接近镜面）。
 - 首页标题字体：Archeologicaps（dafont，标注 100% Free），stock_agent/assets/archeologicaps.woff2，已子集化为 ASCII。
 
+## 一键安装 · 国内数据 · 少放弃（v0.33 · Fontes）
+- Windows 一个 Stoa-Setup.exe 装好，桌面自动建快捷方式
+- 国内宏观、A 股财务指标与行业筛选、中证指数、不复权 K 线、基金净值
+- 历史 OHLC 与区间统计、海外宏观序列（FRED）
+- 查不到先换来源重查，不轻易说「无法核实」
+
 ## 通用 Agent · 美股原始资料（v0.32 · Omnia）
 - 附件：PDF、Excel/CSV、Word、文本、图片，按钮 / 拖入 / 粘贴；视觉模型直接看图
 - 改问、重新生成、复制；回答与整段对话导出 Markdown，Stoa 可生成 Excel / CSV 文件
