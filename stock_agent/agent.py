@@ -67,6 +67,7 @@ SYSTEM = """你是「Stoa」，用户的长期助手：本职是股市（A股、
 - 某个历史日期的收盘价、两个日期之间的涨跌、公告后 N 天的股价变化 → price_history（非交易日按题意取前一或后一交易日并说明）；不要因为 get_quotes 只有近期数据就说查不到。
 - 计算题：题目给了口径或公式（如 EBITDAR = EBITDA + 租金、按实际天数算 DIO、用指引区间中点）就严格照题目口径，逐项列出输入数字和出处，再用 calc 算；不要换成别的口径。
   题目要的每一项都要给出数值；某个输入第一次没找到时，先换工具（sec_xbrl ↔ sec_document ↔ earnings_release ↔ read_filing）再试，确实找不到才标未知。
+- 成交密集区 / 支撑阻力 / 「震荡还是趋势」→ volume_profile（POC、价值区、平衡或失衡），配合 price_levels；它是结构描述，不当买卖信号。
 - 查数题（问某个历史数值、统计数、排名、某日价格）一定要落到一个具体答案，不要只给公式或让用户提供数据：
   1) 先想清楚这数字最权威的出处（国家统计局/外汇局/人民银行/交易所年度统计/公司年报/美联储 H.8、H.15/FRED/Ifo/IMF 等），结构化工具能直接取就直接取：
      中国宏观、A股财务指标与行业筛选、中证指数、不复权日线、基金净值 → cn_data；海外宏观 → macro_series；股票/指数/汇率/商品日线 → price_history；
@@ -256,6 +257,8 @@ from .macro import TOOL_SPECS as _MACRO_SPECS, TOOL_NAMES as MACRO_TOOLS  # noqa
 TOOLS += _MACRO_SPECS
 from .cndata import TOOL_SPECS as _CN_SPECS, TOOL_NAMES as CN_TOOLS  # noqa: E402  中国宏观/财务指标/中证指数/不复权日线/基金净值
 TOOLS += _CN_SPECS
+from .volprofile import TOOL_SPECS as _VP_SPECS, TOOL_NAMES as VP_TOOLS  # noqa: E402  成交分布 POC/价值区/平衡与失衡
+TOOLS += _VP_SPECS
 
 
 # 免责只给投资内容：强词本身就是投资语境；弱词（推荐、收益、该不该…）要同时出现投资语境词才算，「推荐一本书」不加免责
@@ -300,7 +303,7 @@ TOOL_LABELS = {"write_file": "写文件", "task_create": "建定时任务", "tas
                "option_payoff": "算期权收益", "trade_replay": "行情重放",
                "get_statements": "读原始报表", "earnings_quality": "查盈利质量", "reverse_dcf": "反向 DCF", "dcf_scenarios": "情景估值", "regulatory_letters": "查问询函", "get_insiders": "查内部人交易", "get_short_volume": "看做空",
                "sec_filings": "查 SEC 申报", "sec_document": "读 SEC 原文", "sec_xbrl": "取 XBRL 科目", "sec_search": "SEC 全文检索",
-               "earnings_release": "读业绩新闻稿", "price_history": "查历史行情", "macro_series": "查宏观数据", "cn_data": "查国内数据", "earnings_transcript": "读电话会"}
+               "earnings_release": "读业绩新闻稿", "price_history": "查历史行情", "macro_series": "查宏观数据", "cn_data": "查国内数据", "earnings_transcript": "读电话会", "volume_profile": "算成交分布"}
 
 
 def _guess_lang(text: str) -> str:
@@ -605,6 +608,9 @@ class Agent:
         if name == "market_overview":
             from .__main__ import build_snapshot
             return build_snapshot(load_cfg(), with_news=False)
+        if name in VP_TOOLS:
+            from . import volprofile
+            return volprofile.run_tool(name, args)
         if name in MACRO_TOOLS or name in CN_TOOLS:
             from . import macro, cndata
             try:
