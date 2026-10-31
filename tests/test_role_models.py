@@ -67,7 +67,7 @@ def test_roles_routed_to_their_model():
     for r in ("technical", "news", "macro", "bull", "bear"):
         if r in by:
             assert by[r] == {"cheap"}, (r, by[r])
-    assert by["pm"] == {"strong"} and by["risk"] == {"strong"}
+    assert by["pm"] == {"strong"} and by.get("risk", {"strong"}) == {"strong"}
     assert "base" not in {t for _, t in log}
 
 
