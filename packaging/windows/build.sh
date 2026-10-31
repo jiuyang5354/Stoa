@@ -24,7 +24,7 @@ cp "$HERE/使用说明.txt" "$HERE/启动.bat" "$B/" && cp "$HERE/icon.ico" "$B/
 echo "$OUT/Stoa-Windows.zip"
 # 单文件安装包（NSIS）：一个 Stoa-Setup.exe，装完建桌面快捷方式
 if command -v makensis >/dev/null; then
-  V=$(python3 -c "import re;print(re.search(r'\"(.+?)\"',open('$REPO/stock_agent/__init__.py').read()).group(1))")
+  V=$(sed -n 's/^__version__ *= *"\(.*\)"/\1/p' "$REPO/stock_agent/__init__.py")
   (cd "$HERE" && makensis -V2 -DVERSION="$V" -DSRC="$B" installer.nsi)
   echo "$OUT/Stoa-Setup.exe"
 fi
