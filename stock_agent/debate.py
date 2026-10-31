@@ -48,6 +48,10 @@ TITLES.update({"bull": ("多方研究员", "Bull"), "bear": ("空方研究员", 
                "pm": ("基金经理", "Arbiter"), "editor": ("核对修订", "Editor")})
 
 
+# 分角色模型：这些角色是「裁决 / 汇总」，其余（四位分析师、多空研究员）是「分析师」
+JUDGE_ROLES = {"risk", "pm", "editor"}
+
+
 def debates_dir() -> Path:
     from .memory import home
     d = home() / "data" / "debates"
@@ -540,8 +544,10 @@ class Debate:
     def __init__(self, llm, symbol: str, name: str = "", question: str = "", tools=None, rounds: int = 1,
                  budget: Budget | None = None, user_entries: list[str] | None = None, sources: cite.Sources | None = None,
                  mode: str = "live", snapshot_payload: dict | None = None, horizon: int = 20, on_step=None, flow_payload: dict | None = None,
-                 risk_meta: dict | None = None):
+                 risk_meta: dict | None = None, analyst_llm=None, judge_llm=None):
         self.llm, self.symbol, self.name, self.question = llm, symbol, name or symbol, question
+        # v0.35 分角色模型：分析师与多空研究员用 analyst_llm，风控 / 裁决 / 核对修订用 judge_llm；没配就都用 llm（与以前完全一致）
+        self.analyst_llm, self.judge_llm = analyst_llm or llm, judge_llm or llm
         self.tools, self.rounds, self.mode = tools, max(1, min(3, int(rounds))), mode
         self.budget = budget or Budget()
         self.user_entries = user_entries or []
@@ -563,8 +569,17 @@ class Debate:
         except Exception as e:
             return {"error": f"{name} 出错：{str(e)[:100]}"}
 
+    def llm_for(self, role: str):
+        return self.judge_llm if role in JUDGE_ROLES else self.analyst_llm
+
+    def models(self) -> dict | None:
+        """实际用到的模型（只在配了分角色模型时写进纪要）。"""
+        if self.analyst_llm is self.llm and self.judge_llm is self.llm:
+            return None
+        return {"analyst": repr(self.analyst_llm), "judge": repr(self.judge_llm)}
+
     def ask(self, role: str, system: str, user: str) -> str:
-        return self.budget.chat(self.llm, [{"role": "system", "content": system}, {"role": "user", "content": user}])
+        return self.budget.chat(self.llm_for(role), [{"role": "system", "content": system}, {"role": "user", "content": user}])
 
     def _rec(self, key, **kw):
         zh, en = TITLES[key]
@@ -850,6 +865,8 @@ class Debate:
                "record_call": call if isinstance(call, str) else None, "budget": self.budget.usage(), "seconds": round(time.time() - t0, 1),
                "answer": answer, "degraded": [TITLES[k][0] for k, r in self.roles.items() if r.get("status") in ("degraded", "failed", "timeout")]}
         rec["sources"] = [it for it in self.sources.items if it["kind"] != "user"]
+        if self.models():
+            rec["models"] = self.models()
         if save:
             (debates_dir() / f"{self.id}.json").write_text(json.dumps(rec, ensure_ascii=False, indent=1, default=str), encoding="utf-8")
         self.budget.close()
@@ -966,7 +983,24 @@ def cfg_values(cfg: dict | None = None) -> dict:
     c = dict((cfg or {}).get("debate") or {})
     return {"rounds": int(os.getenv("DEBATE_ROUNDS") or c.get("rounds", 1)), "max_calls": int(os.getenv("DEBATE_MAX_CALLS") or c.get("max_calls", 14)),
             "max_tokens": int(os.getenv("DEBATE_MAX_TOKENS") or c.get("max_tokens", 60000)),
-            "role_timeout": float(os.getenv("DEBATE_ROLE_TIMEOUT") or c.get("role_timeout", 60)), "horizon": int(c.get("horizon_days", 20))}
+            "role_timeout": float(os.getenv("DEBATE_ROLE_TIMEOUT") or c.get("role_timeout", 60)), "horizon": int(c.get("horizon_days", 20)),
+            "analyst_model": str(os.getenv("DEBATE_ANALYST_MODEL") or c.get("analyst_model") or "").split("#", 1)[0].strip(),
+            "judge_model": str(os.getenv("DEBATE_JUDGE_MODEL") or c.get("judge_model") or "").split("#", 1)[0].strip()}
+
+
+def role_llms(llm, cv: dict | None = None) -> tuple:
+    """(分析师模型, 裁决模型)。没配置或配置无效时就是 llm 本身。"""
+    from .providers import role_llm
+    cv = cv if cv is not None else cfg_values(_load_cfg())
+    return role_llm(llm, cv.get("analyst_model")), role_llm(llm, cv.get("judge_model"))
+
+
+def _load_cfg() -> dict:
+    try:
+        from .agent import load_cfg
+        return load_cfg()
+    except Exception:
+        return {}
 
 
 def run_for_agent(agent, symbol: str, question: str = "", rounds: int | None = None) -> dict:
@@ -976,9 +1010,10 @@ def run_for_agent(agent, symbol: str, question: str = "", rounds: int | None = N
     known = {w["symbol"]: w.get("name", "") for w in cfg.get("watchlist") or []}
     inv = {v: k for k, v in ALIAS.items()}
     name = known.get(symbol) or inv.get(symbol, symbol)
+    a_llm, j_llm = role_llms(agent.llm, cv)
     d = Debate(agent.llm, symbol, name, question, tools=agent._tool, rounds=rounds or cv["rounds"],
                budget=Budget(cv["max_calls"], cv["max_tokens"], cv["role_timeout"]), user_entries=agent.mem.entries("user"),
-               sources=agent.sources, horizon=cv["horizon"])
+               sources=agent.sources, horizon=cv["horizon"], analyst_llm=a_llm, judge_llm=j_llm)
     rec = d.run()
     rec["verify"] = getattr(d, "verify_log", {})
     return rec
@@ -1008,11 +1043,16 @@ class DebateBTAgent:
     """backtest --agent debate：每个决策点跑一场「回测版」辩论（只有截断行情，其它角色禁用）。"""
 
     def __init__(self, llm=None, blind: bool = True, rounds: int = 1, max_calls: int = 600, per_debate_calls: int = 8,
-                 role_timeout: float = 60, cache=None, band: float = 1.5, flow: bool = False, flow_loader=None):
+                 role_timeout: float = 60, cache=None, band: float = 1.5, flow: bool = False, flow_loader=None,
+                 analyst_llm=None, judge_llm=None):
         if llm is None:
             from .agent import load_cfg
             from .providers import Router
             llm = Router(load_cfg().get("llm", {}))
+            if analyst_llm is None and judge_llm is None:  # 从配置造的模型才读分角色配置；传进来的模型（测试 / mock）不动
+                analyst_llm, judge_llm = role_llms(llm)
+        self.analyst_llm = analyst_llm if analyst_llm is not None and analyst_llm is not llm else None
+        self.judge_llm = judge_llm if judge_llm is not None and judge_llm is not llm else None
         from .backtest import LLMCache, bt_dir
         self.llm, self.blind, self.rounds, self.max_calls, self.per = llm, blind, rounds, max_calls, per_debate_calls
         self.role_timeout, self.band = role_timeout, band
@@ -1043,6 +1083,8 @@ class DebateBTAgent:
 
     def key(self, snap) -> str:
         raw = f"{VERSION}|{self.model}|{snap.symbol}|{snap.date:%Y-%m-%d}|{snap.horizon}|{int(self.blind)}|{self.rounds}" + ("|flow" if self.flow else "")
+        if self.analyst_llm is not None or self.judge_llm is not None:  # 只在配了分角色模型时改缓存键，没配时旧缓存照常命中
+            raw += f"|a={self.analyst_llm!r}|j={self.judge_llm!r}"
         return hashlib.sha1(raw.encode()).hexdigest()
 
     def __call__(self, snap) -> dict | None:
@@ -1072,7 +1114,7 @@ class DebateBTAgent:
         try:
             d = Debate(self.llm, snap.symbol, "某股票", "", tools=None, rounds=self.rounds, budget=budget, sources=src,
                        mode="backtest", snapshot_payload=payload, horizon=snap.horizon, flow_payload=fp,
-                       risk_meta={"stale_days": _stale_days(snap)})
+                       risk_meta={"stale_days": _stale_days(snap)}, analyst_llm=self.analyst_llm, judge_llm=self.judge_llm)
             rec = d.run(record=False, save=False)
         except Exception as e:
             with self.lock:
@@ -1096,6 +1138,8 @@ class DebateBTAgent:
         s = dict(self.stats)
         s["seconds"] = round(s["seconds"], 1)
         s["model"] = self.model
+        if self.analyst_llm is not None or self.judge_llm is not None:
+            s["role_models"] = {"analyst": repr(self.analyst_llm or self.llm), "judge": repr(self.judge_llm or self.llm)}
         s["rounds"] = self.rounds
         return s
 

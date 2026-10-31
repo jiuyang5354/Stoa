@@ -563,3 +563,52 @@ class Router:
             except Exception as e:
                 err = e
         raise err
+
+
+class RoleRouter(Router):
+    """某个角色专用的模型（v0.35 辩论分角色模型）：只换主模型，备用链沿用原路由的备用模型；
+    取消信号 / 事件回调 / 截止时间这些运行时属性都转读原路由，所以「停止」照样能打断它。"""
+
+    def __init__(self, base, chain: list):
+        self._base = base
+        self.chain = chain
+
+    def __getattr__(self, k):
+        if k.startswith("__") or k == "_base":
+            raise AttributeError(k)
+        return getattr(self._base, k)
+
+
+def parse_model_spec(spec: str) -> tuple[str | None, str]:
+    """「模型名」或「服务商:模型名」。前缀不是已知服务商 / 自定义来源时整串当模型名（ollama 的 qwen2.5:7b 这类）。"""
+    spec = (spec or "").split("#", 1)[0].strip()
+    if not spec:
+        return None, ""
+    prov, sep, model = spec.partition(":")
+    p = prov.strip().lower()
+    if sep and (p in PRESETS or custom_source(p)):
+        return p, model.strip()
+    return None, spec
+
+
+def role_llm(base, spec: str | None):
+    """按 spec 给某个角色造一个模型；spec 为空、base 不是 Router（测试替身）或造不出来时原样返回 base——行为与不配置完全一致。
+    只换「用哪个模型」，不加请求：每个角色仍只调用一次，失败时走原路由的备用链（不额外回退到默认模型）。"""
+    prov, model = parse_model_spec(spec or "")
+    if not model or not isinstance(base, Router) or not getattr(base, "chain", None):
+        return base
+    import copy
+    head = base.chain[0]
+    try:
+        if prov and prov != head.name:
+            llm = LLM(prov, model or None, primary=False)
+            if not llm.ready:
+                return base
+        else:
+            llm = copy.copy(head)
+            llm.model = model
+    except Exception:
+        return base
+    if llm.name == head.name and llm.model == head.model and llm.base == head.base:
+        return base
+    return RoleRouter(base, [llm] + list(base.chain[1:]))

@@ -43,6 +43,9 @@ debate:
   max_tokens: 60000    # 估算 token 上限，超了后面的角色降级
   role_timeout: 60     # 每个角色的超时（秒），超时的角色降级为规则摘要
   horizon_days: 20     # 结论的观察周期（交易日），也是记账复盘的期限
+  # 分角色模型（可选，留空 = 都用上面 llm 的默认模型）。写「模型名」或「服务商:模型名」；环境变量 DEBATE_ANALYST_MODEL / DEBATE_JUDGE_MODEL 优先
+  # analyst_model: ""  # 四位分析师 + 多空研究员
+  # judge_model: ""    # 风控官、基金经理裁决、核对修订
 
 # 对话 Agent（v0.17）：工具循环最多几轮（上下文预算先用完会提前收尾）；上下文窗口按模型预设，LLM_CONTEXT 可覆盖
 agent:
