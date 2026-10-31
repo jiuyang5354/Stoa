@@ -121,9 +121,11 @@ def test_redirect_loop_is_bounded(monkeypatch):
     assert len(calls) <= 6
 
 
-def test_code_cannot_fall_back_to_host_execution(monkeypatch, tmp_path):
+def test_docker_only_mode_cannot_fall_back_to_host_execution(monkeypatch, tmp_path):
+    # 默认 auto 会退回本机受限模式（见 test_sandbox_fallback）；CODE_SANDBOX=docker 时绝不在本机跑
     monkeypatch.setattr(sandbox, "shutil", shutil, raising=False)
     monkeypatch.setenv("ALLOW_CODE", "1")
+    monkeypatch.setenv("CODE_SANDBOX", "docker")
     monkeypatch.setattr(sandbox, "home", lambda: tmp_path)
     monkeypatch.setattr(sandbox.shutil, "which", lambda name: None)
     monkeypatch.setattr(sandbox.subprocess, "run", lambda *a, **k: pytest.fail("host code must not run"))
