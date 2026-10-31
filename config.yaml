@@ -50,6 +50,7 @@ debate:
 # 对话 Agent（v0.17）：工具循环最多几轮（上下文预算先用完会提前收尾）；上下文窗口按模型预设，LLM_CONTEXT 可覆盖
 agent:
   max_tool_rounds: 12
+  turn_timeout: 900    # 单轮（一问）总时长上限，秒；到点前留出收尾时间，用已拿到的结果作答并注明未完成部分
 
 # 财报事件（v0.17）：跟踪 USER.md 持仓 + 自选股的财报日，财报前提醒、财报后自动生成事件研报（data/reports/events/）
 earnings:

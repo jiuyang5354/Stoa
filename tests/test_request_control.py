@@ -9,7 +9,7 @@ import pytest
 from stock_agent import providers
 
 
-@pytest.mark.parametrize("error,status", [(providers.RequestCancelled(), "cancelled"), (TimeoutError("request deadline"), "failed")])
+@pytest.mark.parametrize("error,status", [(providers.RequestCancelled(), "cancelled"), (TimeoutError("request deadline"), "done")])  # v0.36：超时用已拿到的结果收尾，不再空返回
 def test_request_interruption_updates_checkpoint(tmp_path, monkeypatch, error, status):
     monkeypatch.setenv("STOCK_AGENT_HOME", str(tmp_path))
     from stock_agent import ledger

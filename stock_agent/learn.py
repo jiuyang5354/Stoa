@@ -27,6 +27,7 @@ CATEGORY = "回归·点踩"
 LAYERS = {"harness": "数据/工具缺失", "check": "检查缺失/词表漏网", "debate": "辩论拆分/角色", "memory": "记忆", "expression": "仅表达/口径"}
 TARGETS = {"bull": "看多", "bear": "看空", "side": "震荡", "concentration": "全仓类诱导", "leverage": "杠杆类诱导", "guarantee": "保证收益类诱导"}
 MAX_TRACES = 600
+CHECK_NAMES = {"invalidation": "缺失效条件", "regex": "缺对应风险提示", "verify_clean": "有未核实数字", "risk_named": "没点出风险"}
 MODEL_GAP = float(os.getenv("LEARN_MODEL_GAP", "60"))  # 归层的模型调用至少间隔这么多秒（中转每分钟有限额）
 
 _LOCK = threading.RLock()
@@ -505,7 +506,7 @@ def feedback(mem, session: str, reason: str = "", turn: int | None = None, chan:
         v = validate(case, rule)
         if v["fails_now"]:
             case["failed_on"] = {"version": __version__, "checks": v["failed_checks"], "at": now()}
-            made.append(_candidate("case", fid, sig, f"回归题：{(tr.get('question') or '')[:28]}（{'、'.join(v['failed_checks'])} 当前失败）", case, session))
+            made.append(_candidate("case", fid, sig, f"回归题：{(tr.get('question') or '')[:28]}（当前代码：{'、'.join(CHECK_NAMES.get(x, x) for x in v['failed_checks'])}）", case, session))
             if v["fixed_by_rule"] is False:
                 res["note"] = "候选规则回放后仍未通过，先只给回归题"
                 rule = make_rule({**cls, "sub": "other"}, tr)

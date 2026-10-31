@@ -285,6 +285,19 @@ def gave_up(reply: str) -> bool:
     return bool(GIVE_UP_RE.search(reply or ""))
 
 
+TURN_TIMEOUT = 900  # 单轮（一问）总时长上限，秒；config agent.turn_timeout / AGENT_TURN_TIMEOUT 覆盖
+TIME_NOTE = "注：本轮用时接近 {t} 秒上限，以上基于已拿到的工具结果作答，之后的查询没有继续。"
+
+
+def turn_timeout() -> int:
+    """单轮时长上限：v0.34.1 写死 300 秒，长查询（读 SEC 原文、多只对比）会直接空返回；v0.36 改为可配置、默认 900 秒。"""
+    try:
+        v = os.getenv("AGENT_TURN_TIMEOUT") or (load_cfg().get("agent") or {}).get("turn_timeout")
+        return max(30, min(7200, int(float(v)))) if v else TURN_TIMEOUT
+    except Exception:
+        return TURN_TIMEOUT
+
+
 def post_check(question: str, reply: str, sources) -> tuple[str, list, dict]:
     """快问回答的事后检查（规则，不调模型）：引用核对标「未核实」→ answercheck 补失效条件 / 诱导风险。
     Agent 与点踩回放题（learn.replay）共用同一段，回放结果才和真实回答一致。"""
@@ -1012,17 +1025,26 @@ class Agent:
     def ask(self, text: str, on_tool=None) -> str:
         from . import ledger
         self._turn_start = len(self.messages)
+        T = self._turn_T = turn_timeout()
+        # 软上限：留出收尾时间（最多 120 秒），到点后不再给工具，让模型用已拿到的结果作答；硬上限 T 由模型请求的截止时间保证
+        self._soft_deadline = time.monotonic() + T - min(120, T * .15)
+        self._time_final = False
         if isinstance(self.llm, Router):
             previous_control = (getattr(self.llm, "stop", None), getattr(self.llm, "on_event", None), getattr(self.llm, "deadline", float("inf")))
             self.llm.stop = getattr(self, "_stop", None) or threading.Event()
             self.llm.on_event = getattr(self, "on_event", None)
-            self.llm.deadline = min(previous_control[2], time.monotonic() + 300)
+            self.llm.deadline = min(previous_control[2], time.monotonic() + T)
         try:
             reply = self._ask(text, on_tool)
             if getattr(self, "_run_id", None):
                 _quiet(ledger.run_finish, self._run_id, "done", reply)
             return reply
-        except (Cancelled, TimeoutError, RequestCancelled) as exc:
+        except TimeoutError as exc:  # 硬上限到了、模型也没来得及收尾：用已拿到的工具结果拼一份答复，注明未完成部分
+            reply = self._timeout_reply(text)
+            if getattr(self, "_run_id", None):
+                _quiet(ledger.run_finish, self._run_id, "done", reply, f"timeout: {str(exc)[:200]}")
+            return reply
+        except (Cancelled, RequestCancelled) as exc:
             if getattr(self, "_run_id", None):
                 _quiet(ledger.run_finish, self._run_id, "failed" if isinstance(exc, TimeoutError) else "cancelled",
                        None, str(exc)[:300] if isinstance(exc, TimeoutError) else None)
@@ -1044,6 +1066,29 @@ class Agent:
         finally:
             if isinstance(self.llm, Router):
                 self.llm.stop, self.llm.on_event, self.llm.deadline = previous_control
+
+    def _timeout_reply(self, text: str) -> str:
+        T = getattr(self, "_turn_T", TURN_TIMEOUT)
+        if not getattr(self, "_cur_id", None):
+            self._cur_id = self.mem.log(self.session, "user", text)
+        steps = list(getattr(self, "_steps", None) or [])
+        got = [f"- {s.get('label') or s.get('name')}{(' ' + s['arg']) if s.get('arg') else ''}：{s.get('got') or ('出错' if not s.get('ok') else '已完成')}" for s in steps]
+        body = (f"本轮到了 {T} 秒上限，模型没来得及给出完整结论。下面是已经拿到的结果：\n" + "\n".join(got)) if got else \
+            f"本轮到了 {T} 秒上限，还没拿到任何工具结果。"
+        body += "\n\n未完成：最终的分析与结论没有生成。可以点「重新生成」，或把问题拆小一点再问；上限可在 config.yaml 的 agent.turn_timeout 调整。"
+        if not hasattr(self, "sources"):
+            self._begin_sources(text)
+        try:
+            reply = self._finish(body, {"first_unverified": [], "fixed": False, "flagged": [], "timeout": True, "partial": True})
+        except Exception:
+            reply = body
+        self.last_meta = {**(getattr(self, "last_meta", None) or {}), "timeout": True, "partial": True, "stopped": False,
+                          "steps": steps}
+        aid = self.mem.log(self.session, "assistant", reply)
+        self.messages = self.messages[:self._turn_start] + [{"role": "user", "content": text, "_id": self._cur_id},
+                                                             {"role": "assistant", "content": cite.strip_sources(reply), "_id": aid}]
+        _quiet(self._trace, text, body, reply, aid)
+        return reply
 
     @classmethod
     def resume(cls, run_id: str, mem: Memory | None = None, on_event=None, stop=None) -> tuple["Agent", str]:
@@ -1170,6 +1215,9 @@ class Agent:
                     final = "上下文预算已用完"
             if final is None and rounds >= max_rounds:
                 final = f"工具调用已达上限（{max_rounds} 轮）"
+            if final is None and rounds and time.monotonic() >= getattr(self, "_soft_deadline", float("inf")):
+                final = f"本轮用时接近 {getattr(self, '_turn_T', TURN_TIMEOUT)} 秒上限"
+                self._time_final = True
             if final and not (self.messages[-1]["role"] == "user" and self.messages[-1]["content"].startswith("[系统：")):
                 self.messages.append({"role": "user", "content": FINAL_NUDGE.format(why=final)})
             msg = self._model_step(self.messages, None if final else "default")
@@ -1208,6 +1256,9 @@ class Agent:
                 raw_reply = reply
                 # 快问的事后检查（规则，不再调模型）：未核实数字打标；方向判断补失效条件；全仓/杠杆/保证涨类提问补风险提示
                 reply, flagged, added = post_check(text, reply, self.sources)
+                if getattr(self, "_time_final", False) and "秒上限" not in reply:
+                    body, tail = cite.split_sources(reply)
+                    reply = body.rstrip() + "\n\n" + TIME_NOTE.format(t=getattr(self, "_turn_T", TURN_TIMEOUT)) + ("\n\n" + tail if tail else "")
                 reply = self._finish(reply, {"first_unverified": first_bad, "fixed": bool(first_bad) and not flagged, "flagged": flagged,
                                              "rounds": rounds, "stopped": final, **({"added": added} if added else {})})
                 aid = self.mem.log(self.session, "assistant", reply)
