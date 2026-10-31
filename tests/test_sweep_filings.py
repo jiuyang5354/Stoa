@@ -144,8 +144,15 @@ def test_agent_routes_and_groups(monkeypatch):
 
 
 def test_process_warmup_falls_back_cleanly(monkeypatch):
-    """多进程预热（首次解析）：子进程拿不到测试替身时（Windows spawn）照样退回线程，结果一致。"""
+    """多进程预热（首次解析）：进程池起不来时照样退回线程，结果一致。
+    （不能真起子进程：Windows spawn 的子进程看不到这里的测试替身，会去真网上下载真年报写进同一缓存，结果就变了——CI windows 实测。）"""
+    import concurrent.futures as cf
     offline(monkeypatch)
     monkeypatch.setenv("SWEEP_PROCESSES", "auto")
+
+    class NoPool:
+        def __init__(self, *a, **k):
+            raise OSError("进程池起不来（模拟受限环境）")
+    monkeypatch.setattr(cf, "ProcessPoolExecutor", NoPool)
     r = sweep.sweep_filings(SYMS, [2024, 2025], "mdna", ["营业收入"])
     assert len(r["rows"]) == 4 and all(x[3] == "1234.56亿元" for x in r["rows"])
