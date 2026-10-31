@@ -499,6 +499,7 @@ def metrics(rows: list[dict], horizons: list[int], band5: float = 1.5, step: int
             "hit_all%": round(sum(hits_all) / len(hits_all) * 100, 1) if hits_all else None,
             "avg_signed_ret%": round(sum(SIGN[r["view"]] * r[f"ret{h}"] for r in d) / len(d), 3) if d else None,
             "calibration": cal}
+        out["horizons"][str(h)]["ic"] = model_ic(rs, h, step)
     ls = _curve(rows, lambda r: SIGN[r["view"]])
     bh = _curve(rows, lambda r: 1)
     out["portfolio"] = {"long_short%": ls[-1][1] if ls else None, "buy_hold%": bh[-1][1] if bh else None,
@@ -506,6 +507,17 @@ def metrics(rows: list[dict], horizons: list[int], band5: float = 1.5, step: int
     out["curve"] = ls
     out["curve_bh"] = bh
     return out
+
+
+def model_ic(rows: list[dict], h: int, step: int) -> dict:
+    """把判断当因子：分数 = 方向 × 置信度（中性 0），每个决策日做横截面 Rank IC，再汇总 IC / ICIR（qlib 口径，见 factors.py）。"""
+    from . import factors
+    by = {}
+    for r in rows:
+        if r.get(f"ret{h}") is not None:
+            by.setdefault(r["date"], {})[r["symbol"]] = (SIGN[r["view"]] * (r.get("confidence") or 50), r[f"ret{h}"])
+    ics = [factors.daily_ic({s: v[0] for s, v in d.items()}, {s: v[1] for s, v in d.items()}) for _, d in sorted(by.items())]
+    return factors.ic_stats(ics, h, step)
 
 
 def sleeves(curves: list[list]) -> list[tuple[str, float]]:
@@ -682,6 +694,12 @@ def listing(limit: int = 30) -> list[dict]:
         if j.get("status") == "running" and time.time() - f.stat().st_mtime > 3600:
             j["status"], j["error"] = "error", "中断（服务重启或进程退出）"
         hd = j.get("headline")
+        if j.get("mode") == "factors" and j.get("status") == "done":
+            r = j.get("results") or {}
+            h0 = str((p.get("horizons") or [5])[0])
+            b = r.get("best")
+            hd = {"best": b, "name": (r.get("factors", {}).get(b) or {}).get("name"), "ic": ((r.get("factors", {}).get(b) or {}).get(h0) or {}).get("ic"),
+                  "icir": ((r.get("factors", {}).get(b) or {}).get(h0) or {}).get("icir")} if b else None
         if j.get("mode") == "rank" and j.get("status") == "done":
             h0 = str((p.get("horizons") or [20])[0])
             a = (j.get("results") or {}).get("agent", {}).get(h0, {})
@@ -774,6 +792,9 @@ def print_report(res: dict):
                 print(f"  {h}日：方向 {x['n_dir']} 题，单边二项 p={x['p_binom']}，按日自助 95% 区间 {x.get('ci95')}；"
                       f"Brier 自报 {x.get('brier_raw')} / 事后校准 {x.get('brier_cal')}（恒 50% = 0.25），ECE {x.get('ece_raw')} / {x.get('ece_cal')} 个百分点"
                       + (f"；pcal≥55 的 {sel.get('n')} 题胜率 {_f(sel.get('hit%'))}" if sel else ""))
+                ic = x.get("ic") or {}
+                if ic.get("ic") is not None:
+                    print(f"       判断当因子：Rank IC {ic['ic']:+.3f}，ICIR {ic.get('icir')}（年化 {ic.get('icir_ann')}），IC>0 {ic.get('pos%')}%，p_NW={ic.get('p_nw')} → {ic.get('verdict')}")
                 if x.get("overlap", 1) > 1:
                     print(f"       窗口重叠 ×{x['overlap']}：校正后 p={x.get('p_eff')}；只取不重叠的 {x.get('n_nonoverlap')} 题，胜率 {_f(x.get('hit_nonoverlap%'))}，p={x.get('p_nonoverlap')}")
     if res.get("llm"):
@@ -794,7 +815,7 @@ def main(argv=None):
     p.add_argument("--end")
     p.add_argument("--step", type=int, default=5, help="每隔几个交易日做一次判断")
     p.add_argument("--horizons", default="5,20", help="持有期（交易日），逗号分隔，第一个是主周期")
-    p.add_argument("--mode", choices=["timing", "rank"], default="timing", help="timing = 单只择时（默认）；rank = 同批股票相对强弱排序（Rank IC，每个决策日一次调用）")
+    p.add_argument("--mode", choices=["timing", "rank", "factors"], default="timing", help="timing = 单只择时（默认）；rank = 同批股票相对强弱排序（Rank IC，每个决策日一次调用）；factors = 经典因子 IC/ICIR 检验（不调模型）")
     p.add_argument("--universe", choices=["csi300"], help="rank 模式：从沪深 300 成分（决策期开始时的历史成分）里抽样，代替 --symbols")
     p.add_argument("--n", type=int, default=100, help="--universe 抽样只数")
     p.add_argument("--group-size", type=int, default=50, help="rank 模式：每次调用最多打分的只数，超过就分组（组内百分位合并）")
@@ -822,6 +843,15 @@ def main(argv=None):
         return
     from . import settings
     settings.load_env_file()
+    if a.mode == "factors":
+        from .factors import print_factors, run_factors
+        res = run_factors(symbols=[s.strip() for s in a.symbols.split(",")] if a.symbols else None, start=a.start, end=a.end, step=a.step,
+                          horizons=[int(x) for x in a.horizons.split(",")], synthetic=a.synthetic, universe=a.universe, n=a.n, seed=a.seed)
+        if a.json:
+            print(json.dumps(res, ensure_ascii=False, indent=1, default=str))
+        else:
+            print_factors(res)
+        return
     if a.mode == "rank":
         from .rank import print_rank, run_rank
         hz = [int(x) for x in a.horizons.split(",")] if a.horizons != "5,20" else [20, 5]
