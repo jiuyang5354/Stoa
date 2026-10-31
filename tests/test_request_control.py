@@ -9,6 +9,26 @@ import pytest
 from stock_agent import providers
 
 
+@pytest.mark.parametrize("error,status", [(providers.RequestCancelled(), "cancelled"), (TimeoutError("request deadline"), "failed")])
+def test_request_interruption_updates_checkpoint(tmp_path, monkeypatch, error, status):
+    monkeypatch.setenv("STOCK_AGENT_HOME", str(tmp_path))
+    from stock_agent import ledger
+    from stock_agent.agent import Agent
+    from stock_agent.memory import Memory
+    mem = Memory(tmp_path)
+    agent = Agent(mem, session="web-interrupted")
+
+    def interrupt(text, on_tool=None):
+        agent._cur_id = mem.log(agent.session, "user", text)
+        agent._run_id = ledger.run_start(agent.session, "web", text, agent._cur_id)
+        raise error
+
+    monkeypatch.setattr(agent, "_ask", interrupt)
+    agent.ask("checkpoint interruption")
+    assert ledger.run_get(agent._run_id)["status"] == status
+    assert agent.llm.stop is None and agent.llm.on_event is None
+
+
 @pytest.fixture
 def slow_model(monkeypatch):
     started, disconnected = threading.Event(), threading.Event()

@@ -19,6 +19,7 @@ from datetime import datetime, timedelta, timezone
 
 CN = timezone(timedelta(hours=8))
 _LOCK = threading.RLock()
+RETRY_AFTER = timedelta(minutes=5)  # 计划执行出错后，至少隔这么久再重试
 _DB: dict[str, sqlite3.Connection] = {}
 
 
@@ -131,7 +132,7 @@ def interrupted(max_age_hours: float = 6, stale_seconds: float = 0) -> list[dict
 
 def runs_list(limit: int = 30) -> list[dict]:
     return _q("SELECT r.run_id, r.session, r.status, r.started, r.updated, r.attempts, substr(r.text,1,80) AS text, r.error, "
-              "(SELECT COUNT(*) FROM run_steps s WHERE s.run_id=r.run_id) AS n_steps FROM runs r ORDER BY started DESC LIMIT ?", (limit,))
+              "(SELECT COUNT(*) FROM run_steps s WHERE s.run_id=r.run_id) AS n_steps FROM runs r ORDER BY started DESC, rowid DESC LIMIT ?", (limit,))
 
 
 def prune(days: int = 7) -> int:
@@ -158,15 +159,19 @@ def job_get(key: str) -> dict | None:
     return _q("SELECT * FROM jobs WHERE key=?", (key,), one=True)
 
 
-def job_claim(key: str, kind: str, planned: str, late: bool = False) -> bool:
+def job_claim(key: str, kind: str, planned: str, late: bool = False, force: bool = False) -> bool:
     """原子占位：pending/不存在/上次 running 已超时 → running，返回 True；已 done/skipped/正在跑 → False。"""
     with _LOCK:
         j = job_get(key)
         if j and j["status"] in ("done", "skipped"):
             return False
-        if j and j["status"] == "running":
+        if j and j["status"] == "running" and not force:
             started = datetime.strptime(j["started"], "%Y-%m-%d %H:%M:%S").replace(tzinfo=CN)
             if datetime.now(CN) - started < timedelta(minutes=30):
+                return False
+        if j and j["status"] == "error" and j.get("finished") and not force:  # 出错后至少隔 5 分钟再重试
+            fin = datetime.strptime(j["finished"], "%Y-%m-%d %H:%M:%S").replace(tzinfo=CN)
+            if datetime.now(CN) - fin < RETRY_AFTER:
                 return False
         _x("INSERT OR REPLACE INTO jobs(key, kind, planned, status, started, late, note) VALUES(?,?,?,?,?,?,?)",
            (key, kind, planned, "running", now(), int(late), (j or {}).get("note")))
@@ -196,6 +201,11 @@ def approval_add(kind: str, title: str, payload: dict, session: str | None = Non
     aid = uuid.uuid4().hex[:10]
     _x("INSERT INTO approvals(id, kind, title, payload, status, created, session) VALUES(?,?,?,?,?,?,?)",
        (aid, kind, title, json.dumps(payload, ensure_ascii=False, default=str), "pending", now(), session))
+    try:  # 网页弹 toast「待确认」
+        from . import alerts
+        alerts.add_events([{"time": now()[:16], "kind": "approval", "title": title, "approval": aid}])
+    except Exception:
+        pass
     return approval_get(aid)
 
 
@@ -264,3 +274,8 @@ def wait_until(pred, timeout: float = 5.0, every: float = 0.05) -> bool:  # 测�
             return True
         time.sleep(every)
     return False
+
+
+def jobs_stuck(kind: str) -> list[dict]:
+    """上个进程留下的 running（重启时调用：这些一定是跑到一半被打断的）。"""
+    return _q("SELECT * FROM jobs WHERE kind=? AND status='running' ORDER BY planned", (kind,))
