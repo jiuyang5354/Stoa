@@ -76,6 +76,23 @@ def models_list() -> dict:
     return {"provider": cur.name, "current": cur.model, "models": models[:200], "ready": cur.ready}
 
 
+class Busy(Exception):
+    pass
+
+
+def truncate_for_edit(channel: str, turn: int) -> dict | None:
+    """改问题 / 重新生成：删掉第 turn 问及之后的记录，丢掉内存里的 Agent（下一问按剩下的记录重建上下文）。正在回答时不允许。"""
+    kind, _, sid = channel.partition(":")
+    if kind != "web" or not sid:
+        return None
+    with LOCK:
+        s = SESSIONS.get(channel)
+        if s and s.get("lock") and s["lock"].locked():
+            raise Busy()
+        SESSIONS.pop(channel, None)
+    return MEM.truncate_turn(f"web-{sid}", int(turn))
+
+
 def chat(channel: str, text: str, model: str | None = None, on_event=None, lang: str | None = None) -> str:
     """全局锁只管会话表；每个会话自己一把锁，一个对话在查数据时，别的对话和 Telegram 不用排队。"""
     with LOCK:
@@ -108,7 +125,11 @@ def chat(channel: str, text: str, model: str | None = None, on_event=None, lang:
         if lang in ("zh", "en"):  # 界面语言：英文界面时 Agent 用英文回答
             ag.lang = lang
         try:
-            return ag.ask(text) or "（空回复）"
+            reply = ag.ask(text) or "（空回复）"
+            if kind_of(channel) == "web" and ag.turns == 1 and not channel.startswith("web:task-"):
+                from . import titles  # 第一轮答完：后台起标题，不拖慢回答
+                threading.Thread(target=lambda: _safe(titles.auto_title, MEM, ag.session, text, reply, ag.llm), daemon=True).start()
+            return reply
         except Exception as e:
             log("chat error", e)
             return f"出错了：{e}"
@@ -117,9 +138,21 @@ def chat(channel: str, text: str, model: str | None = None, on_event=None, lang:
             s["last"] = time.time()
 
 
+def kind_of(channel: str) -> str:
+    return channel.partition(":")[0]
+
+
+def _safe(fn, *a):
+    try:
+        return fn(*a)
+    except Exception as e:
+        log("background error", fn.__name__, e)
+
+
 def reaper():
     while True:
         time.sleep(60)
+        _safe(MEM.purge_deleted)
         with LOCK:
             for ch, s in list(SESSIONS.items()):
                 if time.time() - s.get("last", 0) > IDLE_END and not (s.get("lock") and s["lock"].locked()):
@@ -272,7 +305,7 @@ class Web(BaseHTTPRequestHandler):
         auth = self.headers.get("Authorization", "")
         if not got and auth.lower().startswith("bearer "):
             got = auth[7:].strip()
-        if not got and self.command == "GET" and self.path.startswith("/poster"):  # 新窗口打开长图带不了请求头
+        if not got and self.command == "GET" and self.path.startswith(("/poster", "/api/exports/", "/api/uploads/", "/api/sessions/")):  # 新窗口 / 下载链接 / <img> 带不了请求头
             from urllib.parse import parse_qs, urlparse
             got = (parse_qs(urlparse(self.path).query).get("token") or [""])[0]
         return not token or hmac.compare_digest(token, got)
@@ -355,15 +388,44 @@ class Web(BaseHTTPRequestHandler):
                 return self._send(403, {"error": "forbidden"})
             from .mcpclient import MCP, path as mcp_path
             return self._send(200, {"servers": MCP.status(), "path": str(mcp_path())})
+        if self.path.split("?")[0] == "/api/tasks":
+            from . import tasks
+            return self._send(200, {"tasks": tasks.listing()})
+        if self.path.split("?")[0] == "/api/exports":
+            from . import exports
+            return self._send(200, {"files": exports.listing()})
+        if self.path.startswith("/api/exports/") or self.path.startswith("/api/uploads/"):
+            return self._download()
+        if self.path.split("?")[0].endswith("/export.md") and self.path.startswith("/api/sessions/"):
+            from . import exports
+            sid = re.sub(r"[^A-Za-z0-9_-]", "", self.path.split("?")[0][len("/api/sessions/"):-len("/export.md")])[:40]
+            title = next((x["title"] for x in MEM.sessions() if x["id"] == sid), "Stoa 对话")
+            md = exports.conversation_md(title, MEM.history(f"web-{sid}", limit=5000)).encode("utf-8")
+            from urllib.parse import quote
+            self.send_response(200)
+            self.send_header("Content-Type", "text/markdown; charset=utf-8")
+            fname = quote((re.sub(r'[\\/:*?<>|"]+', "_", title)[:60] or "stoa") + ".md")
+            self.send_header("Content-Disposition", f"attachment; filename=\"stoa-{sid}.md\"; filename*=UTF-8''{fname}")
+            self.send_header("Content-Length", str(len(md)))
+            self.end_headers()
+            return self.wfile.write(md)
         if self.path.split("?")[0] == "/api/sessions":
             from urllib.parse import parse_qs, urlparse
-            q = parse_qs(urlparse(self.path).query).get("q", [""])[0][:100]
-            return self._send(200, {"sessions": MEM.sessions(query=q)})
+            qs = parse_qs(urlparse(self.path).query)
+            q = qs.get("q", [""])[0][:100]
+            arch = (qs.get("archived") or ["0"])[0]
+            ss = MEM.sessions(query=q, archived=None if arch == "all" else arch == "1")
+            n_arch = MEM.db.execute("SELECT COUNT(*) FROM session_meta WHERE session LIKE 'web-%' AND archived=1 AND deleted_at IS NULL").fetchone()[0]
+            return self._send(200, {"sessions": ss, "archived_count": n_arch})
         if self.path.startswith("/api/sessions/"):
             sid = re.sub(r"[^A-Za-z0-9_-]", "", self.path.split("?")[0].rsplit("/", 1)[-1])[:40]
             d = MEM.digest(f"web-{sid}")
             _lk = (SESSIONS.get("web:" + sid) or {}).get("lock")
-            return self._send(200, {"id": sid, "messages": MEM.history(f"web-{sid}", limit=2000), "running": bool(_lk and _lk.locked()),
+            msgs = MEM.history(f"web-{sid}", limit=2000)
+            from . import uploads
+            fids = {i for m in msgs if m["role"] == "user" and "[[files:" in m["text"] for i in uploads.split(m["text"])[1]}
+            files = {i: {"name": f["name"], "kind": f["kind"]} for i in fids if (f := uploads.get(i))}
+            return self._send(200, {"id": sid, "messages": msgs, "files": files, "running": bool(_lk and _lk.locked()),
                                     "digest": {k: d[k] for k in ("upto_id", "text", "ts", "n_msgs")} if d else None})
         if self.path.split("?")[0] == "/api/changelog":
             from . import changelog
@@ -461,6 +523,32 @@ class Web(BaseHTTPRequestHandler):
             return self._send(200, {"markdown": p.read_text(encoding="utf-8") if p.exists() else "还没有报告。"})
         self._send(404, {"error": "not found"})
 
+    def _download(self):
+        """导出文件 / 附件下载：只认文件名或附件 id，不接受路径；附件里的图片内联显示，其余一律当附件下载。"""
+        from urllib.parse import quote, unquote
+        from . import exports, uploads
+        rest = self.path.split("?")[0]
+        if rest.startswith("/api/exports/"):
+            p = exports.resolve(rest[len("/api/exports/"):])
+            ctype, inline = (exports.ctype(p), False) if p else (None, False)
+        else:
+            fid = unquote(rest[len("/api/uploads/"):]).split("/")[0]
+            p = uploads.file_path(fid)
+            m = uploads.get(fid) if p else None
+            ctype = (m.get("mime") if m and m.get("kind") == "image" else "application/octet-stream") if p else None
+            inline = bool(m and m.get("kind") == "image")
+        if not p:
+            return self._send(404, {"error": "not found"})
+        data = p.read_bytes()
+        self.send_response(200)
+        self.send_header("Content-Type", ctype)
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("Content-Disposition", ("inline" if inline else "attachment") + f"; filename*=UTF-8''{quote(p.name)}")
+        self.send_header("Content-Length", str(len(data)))
+        self.send_header("Cache-Control", "private, max-age=3600")
+        self.end_headers()
+        self.wfile.write(data)
+
     def _poster(self):
         """战报长图：读最近一次早晚报的快照；没有就现抓一份行情（不调模型、不抓新闻）。"""
         import json as _json
@@ -498,6 +586,31 @@ class Web(BaseHTTPRequestHandler):
             if ev is not None:
                 ev.set()
             return self._send(200, {"ok": True, "running": bool(s.get("lock") and s["lock"].locked())})
+        if path == "/api/upload":
+            from urllib.parse import parse_qs, unquote, urlparse
+            from . import uploads
+            n = int(self.headers.get("Content-Length", 0) or 0)
+            if n > uploads.MAX_BYTES + 1024:
+                self.rfile.read(min(n, 64 * 1024 * 1024))
+                return self._send(413, {"error": f"文件太大，上限 {uploads.MAX_BYTES // 1048576} MB"})
+            name = unquote((parse_qs(urlparse(self.path).query).get("name") or [""])[0]) or self.headers.get("X-Filename", "file")
+            res = uploads.save(name, self.rfile.read(n))
+            return self._send(400 if res.get("error") else 200, res)
+        if path in ("/api/tasks/delete", "/api/tasks/toggle", "/api/tasks/run"):
+            if not self._local_ok():
+                return self._send(403, {"error": "forbidden"})
+            from . import tasks
+            body = self._body()
+            tid = str(body.get("id", ""))
+            if path.endswith("delete"):
+                return self._send(200, tasks.remove(tid))
+            if path.endswith("toggle"):
+                return self._send(200, tasks.set_active(tid, bool(body.get("active"))))
+            t = next((x for x in tasks.load() if x["id"] == tid), None)
+            if not t:
+                return self._send(404, {"error": "not found"})
+            threading.Thread(target=lambda: tasks.run_one(dict(t, next_run=None), task_runner, log=log), daemon=True).start()
+            return self._send(200, {"ok": True, "msg": "已开始运行，完成后弹提醒", "session": "task-" + tid})
         if path == "/api/chat":
             body = self._body()
             if not llm_ready():  # 没配模型：不报错、不弹窗，前端直接打开「设置 → 模型」
@@ -509,7 +622,18 @@ class Web(BaseHTTPRequestHandler):
                 return {"reply": reply, "sources": meta.get("sources") or [], "verify": meta.get("verify"), "debate": meta.get("debate"), "cards": meta.get("cards"),
                         "compressed": meta.get("compressed"), "archived": meta.get("archived") or 0, "steps": meta.get("steps") or [], "thoughts": meta.get("thoughts") or [],
                         "stopped": bool(meta.get("stopped"))}
-            text = str(body.get("text", ""))[:4000]
+            text = str(body.get("text", ""))[:8000]
+            if body.get("files"):
+                from . import uploads
+                text = uploads.mark(text, [str(x) for x in body["files"]][:uploads.MAX_FILES])
+            if body.get("edit"):  # 改第 n 问 / 重新生成第 n 问的回答
+                try:
+                    if truncate_for_edit("web:" + sid, int(body["edit"])) is None:
+                        return self._send(400, {"error": "找不到要修改的那一问"})
+                except Busy:
+                    return self._send(409, {"error": "这段对话还在回答，先停止再改"})
+                except (TypeError, ValueError):
+                    return self._send(400, {"error": "edit 要填第几问"})
             lang = "en" if body.get("lang") == "en" else "zh"
             if not body.get("stream"):
                 return self._send(200, payload(chat("web:" + sid, text, model, lang=lang)))
@@ -545,7 +669,7 @@ class Web(BaseHTTPRequestHandler):
                     pass
             self.close_connection = True
             return
-        if path.startswith("/api/settings") or path in ("/api/memory/delete", "/api/memory/add", "/api/skills/delete", "/api/skills/view", "/api/alerts/add", "/api/alerts/delete", "/api/alerts/check", "/api/events/check", "/api/update/apply", "/api/sessions/delete", "/api/sessions/rename") or path.startswith("/api/mcp/"):
+        if path.startswith("/api/settings") or path in ("/api/memory/delete", "/api/memory/add", "/api/skills/delete", "/api/skills/view", "/api/alerts/add", "/api/alerts/delete", "/api/alerts/check", "/api/events/check", "/api/update/apply", "/api/sessions/delete", "/api/sessions/rename", "/api/sessions/restore", "/api/sessions/purge") or path.startswith("/api/mcp/"):
             if not self._local_ok():
                 return self._send(403, {"error": "设置页只能在本机打开，或先设 WEB_TOKEN"})
             body = self._body()
@@ -578,15 +702,28 @@ class Web(BaseHTTPRequestHandler):
                 if act == "test":
                     return self._send(200, mc.MCP.test(name))
                 return self._send(404, {"error": "not found"})
-            if path in ("/api/sessions/delete", "/api/sessions/rename"):
+            if path in ("/api/sessions/delete", "/api/sessions/rename", "/api/sessions/restore", "/api/sessions/purge"):
                 sid = re.sub(r"[^A-Za-z0-9_-]", "", str(body.get("id", "")))[:40]
                 if not sid:
                     return self._send(400, {"error": "id"})
                 with LOCK:
+                    s = SESSIONS.get(f"web:{sid}")
+                    if path.endswith("delete") and s and s.get("lock") and s["lock"].locked():
+                        return self._send(409, {"error": "这段对话还在回答，先停止再删"})
                     SESSIONS.pop(f"web:{sid}", None)  # 删掉/改名后下次重新从库里载入
-                if path.endswith("delete"):
-                    return self._send(200, {"msg": f"已删除对话（{MEM.delete_session('web-' + sid)} 条消息）"})
-                MEM.rename_session("web-" + sid, body.get("title"), body.get("pinned"))
+                if path.endswith("delete"):  # 软删除：UNDO_SECONDS 内 /api/sessions/restore 可撤销
+                    from .memory import UNDO_SECONDS
+                    ok = MEM.soft_delete("web-" + sid)
+                    return self._send(200, {"msg": "已删除对话" if ok else "没有这段对话", "undo": UNDO_SECONDS if ok else 0})
+                if path.endswith("restore"):
+                    return self._send(200, {"ok": MEM.restore_session("web-" + sid), "msg": "已恢复"})
+                if path.endswith("purge"):  # 撤销提示关掉后立刻真删
+                    if MEM.db.execute("SELECT 1 FROM session_meta WHERE session=? AND deleted_at IS NOT NULL", ("web-" + sid,)).fetchone():
+                        MEM.delete_session("web-" + sid)
+                    return self._send(200, {"ok": True})
+                t = body.get("title")
+                MEM.rename_session("web-" + sid, t if isinstance(t, str) else None, body.get("pinned"),
+                                   body.get("archived") if isinstance(body.get("archived"), bool) else None)
                 return self._send(200, {"msg": "已更新"})
             if path == "/api/update/apply":
                 try:
@@ -730,6 +867,17 @@ def telegram():
             time.sleep(5)
 
 
+# ---------------- 通用定时任务 ----------------
+def task_runner(sid: str, text: str) -> str:
+    """定时任务的结果写进它自己的对话 web-task-<id>，在 History 里显示成「定时 · 标题」。"""
+    from . import tasks
+    sess = f"web-{sid}"
+    t = next((x for x in tasks.load() if "task-" + x["id"] == sid), None)
+    if t and not MEM.db.execute("SELECT title FROM session_meta WHERE session=? AND title IS NOT NULL", (sess,)).fetchone():
+        MEM.rename_session(sess, title=f"定时 · {t['title']}")
+    return chat("web:" + sid, text)
+
+
 # ---------------- 定时早晚报 ----------------
 def report_times() -> dict:
     """REPORT_TIMES=morning=08:30,evening=21:00；设成 off 就关掉。每轮重读，设置页改了立即生效。"""
@@ -757,7 +905,12 @@ def main():
     port, host = int(os.getenv("PORT", "8080")), os.getenv("HOST", "0.0.0.0")
     from . import vectors
     from . import newsdaily, inquiry
-    for fn in (reaper, telegram, scheduler, lambda: inquiry.loop(log, MEM), lambda: alerts.loop(log), lambda: vectors.indexer_loop(MEM, log), lambda: newsdaily.loop(log)):
+    from . import tasks, uploads
+    try:
+        uploads.cleanup()
+    except Exception:
+        pass
+    for fn in (reaper, telegram, scheduler, lambda: tasks.loop(task_runner, log), lambda: inquiry.loop(log, MEM), lambda: alerts.loop(log), lambda: vectors.indexer_loop(MEM, log), lambda: newsdaily.loop(log)):
         threading.Thread(target=fn, daemon=True).start()
     log(f"Stoa 已启动：http://{host}:{port}  数据目录 {home()}")
     from .data import provider_order

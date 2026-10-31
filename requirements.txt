@@ -5,3 +5,4 @@ pyyaml>=6.0
 requests>=2.31
 akshare>=1.17      # 新浪财经日线，国内第三个行情源
 pypdf>=4.0          # 年报 PDF 抽文本（纯 Python，约 1MB）
+openpyxl>=3.1        # 附件读 Excel、导出 xlsx

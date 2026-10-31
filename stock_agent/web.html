@@ -980,6 +980,54 @@
   html.dark svg.temple,html.dark .temple svg{filter:brightness(.78) contrast(1.05)}
   html.dark img,html.dark canvas.bust{filter:brightness(.9)}
   html.theming *,html.theming *::before,html.theming *::after{transition:background-color .35s ease,color .35s ease,border-color .35s ease,fill .35s ease!important}
+
+  /* ---- 通用 Agent：附件、问答操作、代码块、对话管理（2026-10-31） ---- */
+  .atts{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 8px}
+  .atts:empty{display:none}
+  .fchip{display:inline-flex;align-items:center;gap:6px;max-width:240px;height:26px;padding:0 4px 0 6px;border:1px solid var(--rule-2);background:rgba(var(--paper-rgb),.7);font:var(--fsn1) var(--sans);color:var(--ink-2)}
+  .fchip img{width:18px;height:18px;object-fit:cover;border:1px solid var(--rule)}
+  .fchip .fk{font:500 var(--fsn4) var(--sans);letter-spacing:.14em;color:var(--gold);text-transform:uppercase}
+  .fchip b{font-weight:400;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .fchip small{color:var(--mute);font-size:var(--fsn3)}
+  .fchip button{border:0;background:none;color:var(--mute);cursor:pointer;width:18px;height:18px;font-size:var(--fs0)}
+  .fchip button:hover{color:var(--ink)}
+  .fchip.up{opacity:.55}.fchip.bad{border-color:var(--terracotta);color:var(--terracotta)}
+  .m.u .ufiles{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;font-style:normal;white-space:normal}
+  .m.u .ufiles a.fchip{text-decoration:none}
+  .att{flex:none;width:32px;height:32px;border:0;background:none;color:var(--mute);cursor:pointer;display:grid;place-items:center;transition:color .2s}
+  .att:hover,.att.on{color:var(--ink)}
+  body.dropping .box{border-color:var(--gold);box-shadow:4px 4px 0 -1px rgba(var(--paper-rgb),.9),4px 4px 0 0 var(--gold)}
+  html.en body.dropping .box::after{content:'Drop to attach · PDF / Excel / Word / images'}
+  body.dropping .box::after{content:'松手上传附件 · PDF / Excel / Word / 图片';position:absolute;inset:0;display:grid;place-items:center;background:var(--g-wash);font:italic var(--fs1) var(--serif);color:var(--ink-2);z-index:3}
+  .qa{display:flex;gap:16px;margin-top:12px;white-space:normal;opacity:0;transition:opacity .2s}
+  .m:hover .qa,.qa:focus-within{opacity:1}
+  .qa button{border:0;background:none;padding:2px 0;font:500 var(--fsn3) var(--sans);letter-spacing:.16em;text-transform:uppercase;color:var(--mute);cursor:pointer;border-bottom:1px solid transparent}
+  .qa button:hover{color:var(--ink);border-color:var(--gold)}
+  .m.u .qa{justify-content:flex-start;margin-top:6px}
+  .uedit textarea{width:100%;min-height:72px;resize:vertical;border:1px solid var(--rule-2);background:var(--paper-hi);color:var(--ink);font:italic var(--fs2)/1.5 var(--serif);padding:8px 10px;outline:none}
+  .uedit textarea:focus{border-color:var(--gold)}
+  .uedit .qa{opacity:1}
+  .uedit .qa .go{color:var(--ink);border-color:var(--gold)}
+  pre.code{position:relative;margin:2px 0;padding:22px 14px 12px;background:var(--marble-2);border:1px solid var(--rule);border-left:2px solid var(--gold);white-space:pre;overflow:auto;font:var(--fsn1)/1.6 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:var(--ink)}
+  pre.code .cl{position:absolute;left:14px;top:5px;font:500 var(--fsn4) var(--sans);letter-spacing:.16em;text-transform:uppercase;color:var(--mute)}
+  pre.code .ccp{position:absolute;right:6px;top:3px;border:0;background:none;font:500 var(--fsn4) var(--sans);letter-spacing:.16em;color:var(--mute);cursor:pointer}
+  pre.code .ccp:hover{color:var(--ink)}
+  .body code{font:.92em ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;background:var(--g-wash);padding:0 4px}
+  pre.code code{font:inherit;background:none;padding:0}
+  .body a.dl{display:inline-flex;align-items:center;gap:8px;padding:4px 10px;border:1px solid var(--gold);color:var(--ink);text-decoration:none;font:var(--fsn1) var(--sans);white-space:nowrap}
+  .body a.dl::before{content:'↓';color:var(--gold)}
+  .body a.dl:hover{background:var(--g-hover)}
+  .m.flash{animation:mflash 1.6s var(--ease)}
+  @keyframes mflash{0%,40%{background:var(--g-on)}100%{background:transparent}}
+  .htabs{display:flex;gap:18px;margin:12px 22px 0;border-bottom:1px solid var(--rule)}
+  .htabs button{border:0;background:none;padding:6px 0;font:500 var(--fsn2) var(--sans);letter-spacing:.16em;text-transform:uppercase;color:var(--mute);cursor:pointer;border-bottom:1px solid transparent;margin-bottom:-1px}
+  .htabs button.on{color:var(--ink);border-color:var(--gold)}
+  .htabs button i{font-style:normal;color:var(--gold);margin-left:4px}
+  .hi small mark,.hit mark{background:none;color:var(--ink);border-bottom:1px solid var(--gold)}
+  .hi .hit{display:block;font:italic var(--fsn1)/1.45 var(--serif);color:var(--ink-2);margin-top:3px;white-space:normal;max-height:2.9em;overflow:hidden}
+  .hi .auto{font:500 var(--fsn4) var(--sans);letter-spacing:.14em;color:var(--mute);margin-left:6px}
+  .toast .undo{border:0;background:none;padding:0;margin:6px 0 0;font:500 var(--fsn2) var(--sans);letter-spacing:.16em;text-transform:uppercase;color:var(--ink);cursor:pointer;border-bottom:1px solid var(--gold);position:static}
+  .tsk .st-ok{color:var(--olive)}.tsk .st-error{color:var(--terracotta)}
 </style>
 </head>
 <body>
@@ -1115,8 +1163,11 @@
   <div class="composer">
     <div class="slp" id="slp" role="listbox" aria-label="命令"></div>
     <button class="tolast" id="tolast" type="button">↓ 回到最新</button>
+    <div class="atts" id="atts" aria-live="polite"></div>
     <form class="box" id="box">
       <div class="row">
+        <button class="att" id="att" type="button" aria-label="添加附件（PDF、Excel、Word、图片；也可拖入或粘贴）" title="添加附件"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="square"><path d="M20 11.5l-8 8a5 5 0 0 1-7-7l8.5-8.5a3.3 3.3 0 0 1 4.7 4.7L9.7 17.2a1.7 1.7 0 0 1-2.4-2.4L15 7"/></svg></button>
+        <input type="file" id="attf" multiple hidden accept=".pdf,.xlsx,.xlsm,.xls,.csv,.tsv,.docx,.txt,.md,.markdown,.json,.log,.py,.js,.ts,.html,.css,.yaml,.yml,.xml,.sql,.png,.jpg,.jpeg,.gif,.webp">
         <div class="field"><input id="t" autocomplete="off" aria-label="输入消息"><div class="ph" id="ph"></div></div>
         <button class="mdl" id="mdl" type="button" aria-haspopup="listbox" aria-expanded="false" title="本对话使用的模型" hidden><b id="mdln">—</b><svg viewBox="0 0 10 10"><path d="M1 3.5l4 4 4-4"/></svg></button>
         <button class="send" id="b" aria-label="发送" disabled><span class="sl">Ask</span>
@@ -1146,6 +1197,7 @@
   <div class="hw">
     <div class="hh"><span class="label">Annales · 对话</span><button class="sclose" id="hx" aria-label="关闭">×</button></div>
     <button class="hnew" id="hnew" type="button"><span>新对话</span><i>+</i></button>
+    <div class="htabs" id="htabs"><button type="button" data-h="0" class="on">对话</button><button type="button" data-h="1">归档<i id="harn"></i></button></div>
     <div class="hq"><input id="hq" placeholder="搜索全部对话" aria-label="搜索对话" autocomplete="off"><span id="hqn"></span></div>
     <div class="hl2" id="hlist"></div>
     <div class="label hfoot">Ctrl+J 打开 · 输入 /new 新建</div>
@@ -1367,6 +1419,8 @@ function render(out, text, seed){
   bindCites(out, c.src);
   const dcb = out.querySelector('.dcards'); if (dcb) loadCards(dcb, c.src);
   const ab = out.querySelector('.agb'); if (ab) ab.onclick = () => toggleAgora(ab);
+  out.querySelectorAll('pre.code .ccp').forEach(b => b.onclick = () => { copyText(b.parentElement.querySelector('code').textContent); b.textContent = 'COPIED'; setTimeout(() => b.textContent = 'COPY', 1400); });
+  out._raw = text; answerActions(out);
   out.dataset.seed = seed; requestAnimationFrame(() => { annotate(out, seed); penRO.observe(out); });
 }
 
@@ -1612,7 +1666,17 @@ function terrain(){
     el.insertAdjacentHTML('beforeend', `<div class="tcard" style="left:${Math.min(b.getBoundingClientRect().left - el.getBoundingClientRect().left, el.clientWidth - 214)}px;bottom:104px"><small>${esc((c.ts||'').slice(0,10))} · ${esc(c.symbol)}</small><b>${esc(c.name||c.symbol)} · ${esc(c.view)}</b><br>${esc(c.reason||'')}<br>${res}</div>`); };
     b.onpointerleave = () => el.querySelector('.tcard')?.remove(); });
 }
-function md(s){ return tags(esc(s).replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>').replace(/^#+\s*(.+)$/gm,'<strong>$1</strong>')); }
+function md(s){
+  /* 代码块先取出（不参与加粗/标签替换），行内代码、链接（http(s) 与 /api/exports/ 下载）再处理 */
+  const blocks = [];
+  s = String(s).replace(/```([\w+#.-]*)[^\n]*\n([\s\S]*?)```/g, (_, l, c) => { blocks.push([l, c.replace(/\n$/, '')]); return `\u0000${blocks.length - 1}\u0000`; });
+  let h = tags(esc(s).replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>').replace(/^#+\s*(.+)$/gm,'<strong>$1</strong>'));
+  h = h.replace(/`([^`\n]+)`/g, '<code>$1</code>');
+  h = h.replace(/\[([^\]\n]+)\]\(((?:https?:\/\/|\/api\/exports\/)[^\s)]+)\)/g, (m, t, u) => u.startsWith('/api/exports/')
+    ? `<a class="dl" href="${u}${token ? (u.includes('?') ? '&' : '?') + 'token=' + encodeURIComponent(token) : ''}" download>${t}</a>`
+    : `<a href="${u}" target="_blank" rel="noopener">${t}</a>`);
+  return h.replace(/\u0000(\d+)\u0000/g, (_, i) => { const [l, c] = blocks[+i]; return `<pre class="code" data-noi18n>${l ? `<span class="cl">${esc(l)}</span>` : ''}<button type="button" class="ccp">COPY</button><code>${esc(c)}</code></pre>`; });
+}
 /* 数据 / 推断 / 未知：行首标签渲染成小号字母标，颜色只分墨色深浅，不加新强调色 */
 const TAGS = {'〔数据〕':['d','数据'], '〔推断〕':['i','推断'], '〔未知〕':['u','未知'], '[Data]':['d','Data'], '[Inference]':['i','Inference'], '[Unknown]':['u','Unknown']};
 function tags(h){ return h.replace(/〔(数据|推断|未知)〕|\[(Data|Inference|Unknown)\]/g, m => { const t = TAGS[m]; return t ? `<span class="tg tg-${t[0]}" data-noi18n>${t[1]}</span>` : m; }); }
@@ -1631,6 +1695,16 @@ function add(role, html){
   d.innerHTML = `<div class="who"><span class="rn">${role === 'u' ? roman(turn) : '—'}</span><span class="label">${role === 'u' ? 'Quaestio' : 'Responsum'}</span></div><div class="body">${html}</div>`;
   log.append(d); stick(role === 'u'); return d.querySelector('.body');
 }
+/* 用户提问气泡：正文 + 附件小签 + 「改问题」；raw 是带 [[files:…]] 标记的原文 */
+function addUser(raw, files, mid, shownHTML){
+  const {text, ids} = splitFiles(raw);
+  const b = add('u', (shownHTML ?? esc(text)) + fileChips(ids, files));
+  b._raw = raw; if (mid) b.parentElement.dataset.mid = mid;
+  b.insertAdjacentHTML('beforeend', `<div class="qa"><button type="button" data-q="edit">改问题</button><button type="button" data-q="cp">复制</button></div>`);
+  b.querySelector('[data-q=edit]').onclick = () => editTurn(b.parentElement);
+  b.querySelector('[data-q=cp]').onclick = e => { copyText(text); flashBtn(e.target, '已复制'); };
+  return b;
+}
 /* 每个对话各跑各的：切到别的对话，这边照样查完、写完；回来接着看，没回来就弹提醒 */
 const RUNS = {};
 Object.defineProperty(window, 'busy', {get: () => !!RUNS[sid]});
@@ -1641,8 +1715,12 @@ function stopChat(){
   fetch('/api/chat/stop', {method:'POST', headers:H, body:JSON.stringify({session:sid})}).catch(() => {});
   R.ctl.abort();
 }
-async function send(text){
-  text = (text ?? input.value).trim(); if (!text || busy) return;
+async function send(text, opt = {}){
+  text = (text ?? input.value).trim();
+  const ready = opt.files ? null : ATT.filter(a => a.id);
+  if (!text && ready && ready.length) text = '请看附件。';
+  if (!text || busy) return;
+  if (!opt.files && ATT.some(a => !a.id && !a.err)) { toast({kind: 'reply', time: '', title: '附件还在上传，稍等一下再发送。'}); return; }
   let shown = esc(text);
   if (text === '/reset') text = '/new';
   if (/^(看看)?(更新公告|更新日志|版本更新|更新了什么|新功能|changelog|what'?s new|release notes)[？?。!！]*$/i.test(text)) { input.value = ''; sync(); CL = null; openChangelog(); return; }
@@ -1653,7 +1731,10 @@ async function send(text){
   }
   const mySid = sid, R = RUNS[mySid] = {ctl: new AbortController(), stopped: false, q: text, nodes: []};
   input.value = ''; sync(); $('b').disabled = true;
-  R.nodes.push(add('u', shown).parentElement);
+  const files = opt.files || (ready || []).map(a => a.id), fmeta = opt.fmeta || Object.fromEntries((ready || []).map(a => [a.id, a]));
+  if (!opt.files) { ATT = []; drawAtts(); }
+  const ub = addUser(files.length ? text + `\n[[files:${files.join(',')}]]` : text, fmeta, null, shown);
+  R.nodes.push(ub.parentElement);
   const seed = turn * 131 + Date.now() % 97, t0 = performance.now();
   const out = add('a', `<div class="thinking">${dropcap('', seed, true)}<span class="dots"><b class="tw">翻阅行情</b><i>.</i><i>.</i><i>.</i></span><ol class="steps"></ol></div>`);
   R.nodes.push(out.parentElement);
@@ -1687,7 +1768,7 @@ async function send(text){
   };
   const ctl = R.ctl; sync();
   try {
-    const r = await fetch('/api/chat', {method:'POST', headers:H, signal: ctl.signal, body:JSON.stringify({text, session:mySid, model: MDL.pick || undefined, stream: true, lang: I18N.lang})});
+    const r = await fetch('/api/chat', {method:'POST', headers:H, signal: ctl.signal, body:JSON.stringify({text, session:mySid, model: MDL.pick || undefined, stream: true, lang: I18N.lang, files: files.length ? files : undefined, edit: opt.edit || undefined})});
     let j;
     if ((r.headers.get('content-type') || '').includes('event-stream') && r.body) {
       const rd = r.body.getReader(), dec = new TextDecoder(); let buf = '';
@@ -2037,7 +2118,7 @@ function sync(){
   ph.style.display = (active ? 'none' : '');
   const b = $('b'); b.classList.toggle('stop', busy);
   b.querySelector('.sl').textContent = busy ? 'Stop' : 'Ask'; b.setAttribute('aria-label', busy ? '停止' : '发送');
-  b.disabled = busy ? stopped : !input.value.trim();
+  b.disabled = busy ? stopped : !(input.value.trim() || (ATT && ATT.some(a => a.id) && !ATT.some(a => !a.id && !a.err)));
 }
 setInterval(() => { if (document.activeElement === input || input.value) return;
   ph.classList.add('out'); setTimeout(() => { phi = (phi + 1) % PH.length; showPh(); }, 380); }, 3000);
@@ -2206,16 +2287,21 @@ function toast(e){
   let box = document.getElementById('toasts');
   if (!box) { box = document.createElement('div'); box.id = 'toasts'; document.body.appendChild(box); }
   const t = document.createElement('div'); t.className = 'toast';
-  const lab = {announcement: 'NOTICE · 公告', update: 'RENOVATIO · 更新', earnings_report: 'EVENTUS · 财报研报', earnings_soon: 'EVENTUS · 财报将至', inquiry: 'INQUISITIO · 研究课题', reply: 'RESPONSUM · 回答'}[e.kind] || 'VIGILIA · 价格提醒';
+  const lab = {announcement: 'NOTICE · 公告', update: 'RENOVATIO · 更新', earnings_report: 'EVENTUS · 财报研报', earnings_soon: 'EVENTUS · 财报将至', inquiry: 'INQUISITIO · 研究课题', reply: 'RESPONSUM · 回答', task: 'HORAE · 定时任务', undo: 'DELETA · 已删除'}[e.kind] || 'VIGILIA · 价格提醒';
   t.innerHTML = `<span class="label">${lab}${e.time ? ' · ' + esc(e.time.slice(11)) : ''}</span><p>${esc(e.title)}</p>${e.session ? `<a href="#" data-ss="${esc(e.session)}">打开对话 →</a>` : e.inquiry ? `<a href="#" data-iq="${esc(e.inquiry)}">看课题 →</a>` : e.report ? `<a href="#" data-ev="${esc(e.report)}">读研报 →</a>` : e.changelog || (e.kind === 'update' && e.url) ? `<a href="#" data-cl="1">看更新内容 →</a>` : e.url ? `<a href="${esc(e.url)}" target="_blank" rel="noopener">读原文 →</a>` : ''}<button aria-label="关闭">×</button>`;
-  t.querySelector('button').onclick = () => t.remove();
+  t.querySelector('button').onclick = () => { t.remove(); e.onclose && e.onclose(); };
+  if (e.undo) { const u = document.createElement('button'); u.className = 'undo'; u.type = 'button'; u.textContent = '撤销'; t.querySelector('p').after(u);
+    u.onclick = () => { e.onclose = null; t.remove(); e.undo(); }; }
+  if (e.kind === 'task') { loadTasks(); if ($('hist') && !$('hist').hidden) loadHist(); }
   const ev = t.querySelector('[data-ev]'); if (ev) ev.onclick = x => { x.preventDefault(); openEvent(ev.dataset.ev); };
   const ss = t.querySelector('[data-ss]'); if (ss) ss.onclick = x => { x.preventDefault(); t.remove(); openSession(ss.dataset.ss); };
   const cl = t.querySelector('[data-cl]'); if (cl) cl.onclick = x => { x.preventDefault(); t.remove(); openChangelog(); };
   const iq = t.querySelector('[data-iq]'); if (iq) iq.onclick = x => { x.preventDefault(); openInquiry(iq.dataset.iq); };
   if (e.kind === 'inquiry') loadInquiries();
   if (e.kind && e.kind.startsWith('earnings')) loadEvents();
-  box.appendChild(t); setTimeout(() => t.classList.add('out'), 30000); setTimeout(() => t.remove(), 31000);
+  const life = e.life || 30000;
+  box.appendChild(t); setTimeout(() => t.classList.add('out'), life); setTimeout(() => { if (t.isConnected) { t.remove(); e.onclose && e.onclose(); } }, life + 1000);
+  return t;
 }
 async function loadMemory(){
   try {
@@ -2526,7 +2612,8 @@ const PANES = {
       grp('Reports · 报告', row('morning', '早报', 'A股 / 港股盘前 + 美股隔夜', '08:30') + row('evening', '晚报', 'A股 / 港股收盘 + 美股盘前', '21:00')) +
       grp('Vigilia · 提醒', `<ul class="ml">${rules}</ul><div class="addrow"><input id="asym" placeholder="代码，如 0700.HK" style="flex:.6"><select id="akind">${Object.entries(KN).map(([k, t]) => `<option value="${k}">${t}</option>`).join('')}</select><input id="aval" placeholder="价格或百分比" style="flex:.5"><label class="muted" style="font-size:var(--fsn1);white-space:nowrap"><input type="checkbox" id="arep"> 每天</label><button class="x" id="aadd">添加</button></div>` +
         field('ALERT_INTERVAL') + field('ANN_WATCH')) +
-      grp('Acta · 最近触发', `<ul class="ml">${evs}</ul><button class="x" id="acheck">立即检查一次</button>`);
+      grp('Acta · 最近触发', `<ul class="ml">${evs}</ul><button class="x" id="acheck">立即检查一次</button>`) +
+      grp('Horae · 定时任务', tasksHTML());
   },
   tools: () => {
     const code = (dirty.ALLOW_CODE ?? S.env.ALLOW_CODE.value) === '1', o = location.origin;
@@ -2588,6 +2675,7 @@ function show(k){
   if (k === 'model') bindModelPane(pane);
   if (k === 'probatio') bindPb(pane);
   const aReq = async (path, body) => { const j = await (await fetch(path, {method:'POST', headers:H, body:JSON.stringify(body)})).json(); setSt(j.msg || j.error || (j.events ? `检查完毕，新触发 ${j.events.length} 条` : ''), j.error ? '' : 'ok'); S.pa = await (await fetch('/api/alerts', {headers:H})).json(); show('tasks'); };
+  if (k === 'tasks') { bindTasks(pane); if (!TASKS) loadTasks(); }
   pane.querySelectorAll('[data-adel]').forEach(b => b.onclick = () => aReq('/api/alerts/delete', {id:b.dataset.adel}));
   if ($('aadd')) { $('akind').onchange = () => { $('aval').disabled = $('akind').value === 'announcement'; }; $('aadd').onclick = () => { const sym = $('asym').value.trim(); if (sym) aReq('/api/alerts/add', {symbol:sym, kind:$('akind').value, value:$('aval').value.trim(), repeat:$('arep').checked}); }; $('acheck').onclick = () => { setSt('检查中…'); aReq('/api/alerts/check', {}); }; }
   const memReq = async (path, body) => { const j = await (await fetch(path, {method:'POST', headers:H, body:JSON.stringify(body)})).json(); setSt(j.msg || j.error || '', /已|added|成功/.test(j.msg || '') ? 'ok' : ''); const s = await (await fetch('/api/settings', {headers:H})).json(); S.memory = s.memory; show('memory'); loadMemory(); };
@@ -2615,43 +2703,47 @@ async function saveSettings(quiet){
 function newChat(){
   sid = localStorage.sid = newSid(); turn = 0; empty(); closeHist(); sync(); input.focus();
 }
-async function openSession(id, quiet){
+async function openSession(id, quiet, focusMid){
   let j; try { j = await (await fetch('/api/sessions/' + encodeURIComponent(id), {headers:H})).json(); } catch (_) { return; }
   const ms = (j.messages || []).filter(m => m.role === 'user' || m.role === 'assistant');
   const R = RUNS[id];
   if (!ms.length && !R && !j.running) { if (!quiet) { sid = localStorage.sid = id; turn = 0; empty(); sync(); } return; }
   sid = localStorage.sid = id; turn = 0; log.innerHTML = '';
-  ms.forEach((m, i) => { if (m.role === 'user') add('u', esc(m.text)); else render(add('a', ''), m.text, i * 131 + 7); });
+  ms.forEach((m, i) => { if (m.role === 'user') addUser(m.text, j.files || {}, m.id); else { const b = add('a', ''); b.parentElement.dataset.mid = m.id; render(b, m.text, i * 131 + 7); } });
   if (j.digest) placeArchive(ms.filter(m => m.id <= j.digest.upto_id).length, j.digest.text);
   if (R) { /* 还在跑：把实时那一轮接回来（问题若已存进记录就不重复） */
-    const last = ms[ms.length - 1], saved = last && last.role === 'user' && last.text === R.q;
+    const last = ms[ms.length - 1], saved = last && last.role === 'user' && splitFiles(last.text).text === R.q;
     R.nodes.forEach((n, i) => { if (!(i === 0 && saved)) log.append(n); });
   } else if (j.running) { /* 页面刷新过：后台还在答，等它写完再载入 */
     const b = add('a', '<p class="stopnote">还在回答，写完自动显示…</p>');
     const poll = setInterval(async () => { if (sid !== id || !b.isConnected) return clearInterval(poll); let k; try { k = await (await fetch('/api/sessions/' + encodeURIComponent(id), {headers:H})).json(); } catch (_) { return; } if (!k.running) { clearInterval(poll); openSession(id, true); } }, 3000);
   }
   log.scrollTop = 1e9; closeHist(); sync();
+  if (focusMid) { const el = log.querySelector(`.m[data-mid="${CSS.escape(String(focusMid))}"]`); if (el) { el.scrollIntoView({block: 'center'}); el.classList.add('flash'); setTimeout(() => el.classList.remove('flash'), 1700); } }
 }
 let HQT = 0;
 async function loadHist(){
   const q = $('hq').value.trim();
-  let j; try { j = await (await fetch('/api/sessions' + (q ? '?q=' + encodeURIComponent(q) : ''), {headers:H})).json(); } catch (e) { $('hlist').innerHTML = `<p class="hempty">读取失败：${esc(e)}</p>`; return; }
+  let j; try { j = await (await fetch('/api/sessions?archived=' + (HARCH ? '1' : '0') + (q ? '&q=' + encodeURIComponent(q) : ''), {headers:H})).json(); } catch (e) { $('hlist').innerHTML = `<p class="hempty">读取失败：${esc(e)}</p>`; return; }
   const ss = j.sessions || [], today = new Date(), d0 = s => new Date(s.replace(' ', 'T') + ':00+08:00');
-  const bucket = s => { if (s.pinned) return '置顶 · Pinned'; const days = Math.floor((today - d0(s.updated)) / 864e5); return days < 1 && d0(s.updated).getDate() === today.getDate() ? '今天 · Hodie' : days < 2 ? '昨天 · Heri' : days < 7 ? '七天内 · Hebdomas' : days < 30 ? '三十天内 · Mensis' : '更早 · Antea'; };
+  $('harn').textContent = j.archived_count ? ' ' + j.archived_count : '';
+  const bucket = s => { if (s.archived) return '归档 · Archivum'; if (s.pinned) return '置顶 · Pinned'; const days = Math.floor((today - d0(s.updated)) / 864e5); return days < 1 && d0(s.updated).getDate() === today.getDate() ? '今天 · Hodie' : days < 2 ? '昨天 · Heri' : days < 7 ? '七天内 · Hebdomas' : days < 30 ? '三十天内 · Mensis' : '更早 · Antea'; };
   $('hqn').textContent = q ? `${ss.length} 个` : '';
   let last = '', html = '';
   ss.forEach((s, i) => {
     const b = bucket(s); if (b !== last) { html += `<div class="hg">${b}</div>`; last = b; }
-    html += `<div class="hi ${s.id === sid ? 'on' : ''}" data-id="${esc(s.id)}"><i>${roman(i+1)}</i><div><b>${esc(s.title)}</b><small>${s.match === '语义' ? `<span class="sem">≈ 语义</span>` : ''}${esc(s.updated.slice(5))} · ${Math.ceil(s.count / 2)} 问 · ${esc(s.match === '语义' && s.hit ? s.hit : (s.preview || ''))}</small></div>
-      <span class="ha"><button data-act="pin" title="${s.pinned ? '取消置顶' : '置顶'}">${s.pinned ? '◆' : '◇'}</button><button data-act="ren" title="改名">✎</button><button data-act="del" title="删除">×</button></span></div>`;
+    html += `<div class="hi ${s.id === sid ? 'on' : ''}" data-id="${esc(s.id)}"><i>${roman(i+1)}</i><div><b>${esc(s.title)}</b><small>${s.match === '语义' ? `<span class="sem">≈ 语义</span>` : ''}${esc(s.updated.slice(5))} · ${Math.ceil(s.count / 2)} 问${q && s.hit ? '' : ' · ' + esc(s.preview || '')}</small>${q && s.hit ? `<span class="hit">${hiMark(s.hit, q)}</span>` : ''}</div>
+      <span class="ha">${s.archived ? '' : `<button data-act="pin" title="${s.pinned ? '取消置顶' : '置顶'}">${s.pinned ? '◆' : '◇'}</button>`}<button data-act="ren" title="改名">✎</button><button data-act="exp" title="导出 Markdown">⇩</button><button data-act="arc" title="${s.archived ? '取消归档' : '归档'}">${s.archived ? '↥' : '⊟'}</button><button data-act="del" title="删除">×</button></span></div>`;
   });
-  $('hlist').innerHTML = html || `<p class="hempty">${q ? '没有找到相关对话。' : '还没有对话。问 Stoa 一个问题，这里就会出现。'}</p>`;
+  $('hlist').innerHTML = html || `<p class="hempty">${q ? '没有找到相关对话。' : HARCH ? '没有归档的对话。' : '还没有对话。问 Stoa 一个问题，这里就会出现。'}</p>`;
   $('hlist').querySelectorAll('.hi').forEach((el, i) => el.style.setProperty('--k', Math.min(i, 14)));
   $('hlist').querySelectorAll('.hi').forEach(el => {
     const id = el.dataset.id, s = ss.find(x => x.id === id);
-    el.onclick = e => { if (e.target.closest('.ha') || e.target.tagName === 'INPUT') return; openSession(id); };
-    el.querySelector('[data-act=pin]').onclick = () => sessReq('rename', {id, pinned: !s.pinned});
-    el.querySelector('[data-act=del]').onclick = async () => { if (!confirm(`删除「${s.title}」？这段对话会从记录里永久删除。`)) return; await sessReq('delete', {id}); if (id === sid) newChat(); };
+    el.onclick = e => { if (e.target.closest('.ha') || e.target.tagName === 'INPUT') return; openSession(id, false, q ? s.hit_id : null); };
+    const pb = el.querySelector('[data-act=pin]'); if (pb) pb.onclick = () => sessReq('rename', {id, pinned: !s.pinned});
+    el.querySelector('[data-act=arc]').onclick = () => sessReq('rename', {id, archived: !s.archived});
+    el.querySelector('[data-act=exp]').onclick = () => exportSession(id);
+    el.querySelector('[data-act=del]').onclick = () => deleteSession(id, s.title);
     el.querySelector('[data-act=ren]').onclick = () => {
       const b = el.querySelector('b'); b.innerHTML = `<input value="${esc(s.title)}" maxlength="60">`; const inp = b.querySelector('input'); inp.focus(); inp.select();
       const done = ok => { inp.onblur = null; ok && inp.value.trim() && inp.value.trim() !== s.title ? sessReq('rename', {id, title: inp.value.trim()}) : loadHist(); };
@@ -2660,7 +2752,7 @@ async function loadHist(){
   });
 }
 async function sessReq(act, body){ await fetch('/api/sessions/' + act, {method:'POST', headers:H, body:JSON.stringify(body)}); loadHist(); }
-function openHist(){ $('hist').hidden = false; $('hq').value = ''; loadHist(); setTimeout(() => $('hq').focus(), 50); }
+function openHist(){ $('hist').hidden = false; $('hq').value = ''; HARCH = false; $('htabs').querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.h === '0')); loadHist(); setTimeout(() => $('hq').focus(), 50); }
 /* ---------- 记忆图谱：自写力导向布局，Canvas 绘制，无依赖 ---------- */
 const GT = {
   symbol:{t:'股票', k:'Astrum', g:'ΑΣΤΡΑ'}, theme:{t:'主题', k:'Numen', g:'ΘΕΟΙ'}, market:{t:'市场', k:'Moira', g:'ΜΟΙΡΑΙ'},
@@ -3246,6 +3338,9 @@ const CMDS = [
   {c: '/backtest', g: '界面', d: '回测与评测', run: () => openSettings('probatio')},
   {c: '/model', g: '界面', d: '切换本对话的模型', run: () => { const b = $('mdl'); if (b && !b.hidden) b.click(); else openSettings('model'); }},
   {c: '/poster', g: '界面', d: '战报长图：最近一次早晚报排成竖版图，可存 PNG', run: () => window.open('/poster' + (token ? `?token=${encodeURIComponent(token)}` : ''), '_blank')},
+  {c: '/export', g: '界面', d: '把当前对话导出成 Markdown', run: () => exportSession(sid)},
+  {c: '/archive', g: '界面', d: '归档当前对话', run: async () => { await fetch('/api/sessions/rename', {method:'POST', headers:H, body:JSON.stringify({id: sid, archived: true})}); newChat(); toast({kind:'reply', time:'', title:'已归档，可在 History → 归档 里找回。'}); }},
+  {c: '/tasks', g: '界面', d: '定时任务', run: () => openSettings('tasks')},
   {c: '/changelog', g: '界面', d: '更新日志 · 每个版本改了什么', run: () => openChangelog()},
   {c: '/theme', g: '界面', d: '切换浅色 / 深色', run: () => toggleTheme()},
   {c: '/lang', g: '界面', d: '切换中文 / English', run: () => setLang(I18N.lang === 'en' ? 'zh' : 'en')},
@@ -3377,6 +3472,126 @@ async function setLang(l, save = true){
     while ((n = w.nextNode())) if (I18N.orig.has(n)) { n.nodeValue = I18N.orig.get(n); I18N.orig.delete(n); }
     document.querySelectorAll('*').forEach(el => I18N_ATTRS.forEach(a => { const k = 'o' + a.replace(/-/g, ''); if (el.dataset && el.dataset[k] !== undefined) { el.setAttribute(a, el.dataset[k]); delete el.dataset[k]; } }));
   }
+}
+
+/* ================= 通用 Agent（2026-10-31）：附件 · 改问题/重答 · 复制/导出 · 定时任务 · 对话管理 ================= */
+var ATT = [], HARCH = false, TASKS = null;  // var：脚本前面 sync() 初始化时就会用到
+const FK = {pdf: 'PDF', table: 'XLS', docx: 'DOC', text: 'TXT', image: 'IMG'};
+const kb = n => n < 1024 ? n + ' B' : n < 1048576 ? (n / 1024).toFixed(0) + ' KB' : (n / 1048576).toFixed(1) + ' MB';
+const tq = () => token ? '?token=' + encodeURIComponent(token) : '';
+function copyText(t){
+  if (navigator.clipboard && window.isSecureContext) return navigator.clipboard.writeText(t).catch(() => copyFallback(t));
+  copyFallback(t);
+}
+function copyFallback(t){ const a = document.createElement('textarea'); a.value = t; a.style.cssText = 'position:fixed;opacity:0'; document.body.append(a); a.select(); try { document.execCommand('copy'); } catch (_) {} a.remove(); }
+function flashBtn(b, t){ const o = b.textContent; b.textContent = t; setTimeout(() => b.textContent = o, 1400); }
+function splitFiles(raw){ const ids = []; const text = String(raw || '').replace(/\n?\[\[files:([A-Za-z0-9,]+)\]\]/g, (_, l) => { ids.push(...l.split(',')); return ''; }); return {text: text.trimEnd(), ids}; }
+function fileChips(ids, files){
+  if (!ids.length) return '';
+  return `<span class="ufiles">${ids.map(id => { const f = (files || {})[id] || {name: '附件', kind: ''};
+    const thumb = f.kind === 'image' ? `<img src="/api/uploads/${esc(id)}${tq()}" alt="">` : `<span class="fk">${FK[f.kind] || 'FILE'}</span>`;
+    return `<a class="fchip" href="/api/uploads/${esc(id)}${tq()}" target="_blank" rel="noopener">${thumb}<b>${esc(f.name)}</b></a>`; }).join('')}</span>`;
+}
+function cleanAnswer(raw){ return String(raw || '').replace(/\n?\[\[(cards|debate|files):[^\]]*\]\]/g, '').trim(); }
+function download(name, text, type = 'text/markdown;charset=utf-8'){
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([text], {type})); a.download = name; document.body.append(a); a.click();
+  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500);
+}
+/* 回答下方：复制 · 重新生成 · 导出 Markdown */
+function answerActions(out){
+  if (!out || out.querySelector(':scope>.qa')) return;
+  out.insertAdjacentHTML('beforeend', `<div class="qa"><button type="button" data-q="cp">复制</button><button type="button" data-q="re">重新生成</button><button type="button" data-q="md">导出 Markdown</button></div>`);
+  out.querySelector('[data-q=cp]').onclick = e => copyAnswer(out, e.target);
+  out.querySelector('[data-q=re]').onclick = () => regenerate(out.parentElement);
+  out.querySelector('[data-q=md]').onclick = () => download(`stoa-answer-${new Date().toISOString().slice(0, 10)}.md`, cleanAnswer(out._raw) + '\n');
+}
+function copyAnswer(out, btn){ copyText(cleanAnswer(out._raw)); if (btn) flashBtn(btn, '已复制'); }
+function turnOf(uEl){ return [...log.querySelectorAll(':scope>.m.u')].indexOf(uEl) + 1; }
+/* 改第 n 问 / 重新生成：删掉那一问及之后的气泡，后端同步截断记录再重问 */
+function resend(uEl, text){
+  if (busy) { toast({kind: 'reply', time: '', title: '还在回答，先停止再改。'}); return; }
+  const n = turnOf(uEl); if (n < 1) return;
+  const raw = uEl.querySelector('.body')._raw || '', {ids} = splitFiles(raw), fmeta = {};
+  uEl.querySelectorAll('.ufiles a.fchip').forEach((a, i) => { if (ids[i]) fmeta[ids[i]] = {name: a.querySelector('b').textContent, kind: a.querySelector('img') ? 'image' : ''}; });
+  let x = uEl; while (x) { const nx = x.nextElementSibling; x.remove(); x = nx; }
+  turn = n - 1;
+  send(text, {edit: n, files: ids, fmeta});
+}
+function editTurn(uEl){
+  const b = uEl.querySelector('.body'); if (b.querySelector('.uedit')) return;
+  const {text} = splitFiles(b._raw), keep = b.innerHTML;
+  b.innerHTML = `<div class="uedit"><textarea aria-label="修改问题">${esc(text)}</textarea><div class="qa"><button type="button" class="go">保存并重新提问</button><button type="button" data-x>取消</button></div></div>`;
+  const ta = b.querySelector('textarea'); ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length);
+  const cancel = () => { b.innerHTML = keep; b.querySelector('[data-q=edit]').onclick = () => editTurn(uEl); b.querySelector('[data-q=cp]').onclick = e => { copyText(text); flashBtn(e.target, '已复制'); }; };
+  b.querySelector('[data-x]').onclick = cancel;
+  const go = () => { const v = ta.value.trim(); if (v) resend(uEl, v); };
+  b.querySelector('.go').onclick = go;
+  ta.onkeydown = e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) go(); if (e.key === 'Escape') { e.stopPropagation(); cancel(); } };
+}
+function regenerate(aEl){
+  let u = aEl.previousElementSibling; while (u && !u.matches('.m.u')) u = u.previousElementSibling;
+  if (!u) return;
+  resend(u, splitFiles(u.querySelector('.body')._raw).text);
+}
+/* ---------- 附件：按钮 · 拖入 · 粘贴 ---------- */
+function drawAtts(){
+  $('atts').innerHTML = ATT.map((a, i) => `<span class="fchip ${a.id ? '' : a.err ? 'bad' : 'up'}" title="${esc(a.err || a.summary || a.name)}">${a.kind === 'image' && a.id ? `<img src="/api/uploads/${esc(a.id)}${tq()}" alt="">` : `<span class="fk">${a.err ? '!' : a.id ? (FK[a.kind] || 'FILE') : '…'}</span>`}<b>${esc(a.name)}</b><small>${a.err ? esc(a.err.slice(0, 24)) : kb(a.size)}</small><button type="button" data-i="${i}" aria-label="移除附件">×</button></span>`).join('');
+  $('atts').querySelectorAll('button').forEach(b => b.onclick = () => { ATT.splice(+b.dataset.i, 1); drawAtts(); sync(); });
+  $('att').classList.toggle('on', ATT.length > 0); sync();
+}
+async function uploadFiles(list){
+  const fs = [...(list || [])].slice(0, Math.max(0, 6 - ATT.length));
+  for (const f of fs) {
+    const a = {name: f.name || 'pasted.png', size: f.size}; ATT.push(a); drawAtts();
+    try {
+      const r = await fetch('/api/upload?name=' + encodeURIComponent(a.name), {method: 'POST', headers: {'X-Token': token}, body: f});
+      const j = await r.json(); if (j.error) a.err = j.error; else Object.assign(a, j);
+    } catch (e) { a.err = '上传失败'; }
+    drawAtts();
+  }
+}
+$('att').onclick = e => { e.stopPropagation(); $('attf').click(); };
+$('attf').onchange = () => { uploadFiles($('attf').files); $('attf').value = ''; input.focus(); };
+input.addEventListener('paste', e => { const fs = [...(e.clipboardData?.files || [])]; if (fs.length) { e.preventDefault(); uploadFiles(fs); } });
+let dragN = 0;
+const hasFiles = e => [...(e.dataTransfer?.types || [])].includes('Files');
+document.addEventListener('dragenter', e => { if (!hasFiles(e)) return; dragN++; document.body.classList.add('dropping'); });
+document.addEventListener('dragleave', e => { if (!hasFiles(e)) return; if (--dragN <= 0) { dragN = 0; document.body.classList.remove('dropping'); } });
+document.addEventListener('dragover', e => { if (hasFiles(e)) e.preventDefault(); });
+document.addEventListener('drop', e => { if (!hasFiles(e)) return; e.preventDefault(); dragN = 0; document.body.classList.remove('dropping'); uploadFiles(e.dataTransfer.files); input.focus(); sync(); });
+/* ---------- 对话管理：导出 · 删除可撤销 · 归档页签 · 搜索命中高亮 ---------- */
+function exportSession(id){ window.open('/api/sessions/' + encodeURIComponent(id) + '/export.md' + tq(), '_blank'); }
+async function deleteSession(id, title){
+  const j = await (await fetch('/api/sessions/delete', {method:'POST', headers:H, body:JSON.stringify({id})})).json();
+  if (j.error) { toast({kind:'reply', time:'', title: j.error}); return; }
+  if (id === sid) newChat();
+  loadHist();
+  toast({kind: 'undo', time: '', title: `「${(title || '').slice(0, 24)}」`, life: Math.max(4, (j.undo || 10) - 4) * 1000,
+         undo: async () => { await fetch('/api/sessions/restore', {method:'POST', headers:H, body:JSON.stringify({id})}); loadHist(); },
+         onclose: () => fetch('/api/sessions/purge', {method:'POST', headers:H, body:JSON.stringify({id})}).catch(() => {})});
+}
+function hiMark(t, q){
+  const terms = [q, ...q.split(/\s+/)].filter(x => x && x.length >= 1).sort((a, b) => b.length - a.length).map(x => x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+  return esc(t).replace(new RegExp('(' + terms.map(x => esc(x)).join('|') + ')', 'gi'), '<mark>$1</mark>');
+}
+$('htabs').querySelectorAll('button').forEach(b => b.onclick = () => { HARCH = b.dataset.h === '1'; $('htabs').querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b)); loadHist(); });
+/* ---------- 定时任务（设置 → 定时与提醒） ---------- */
+async function loadTasks(){
+  try { TASKS = (await (await fetch('/api/tasks', {headers:H})).json()).tasks || []; } catch (_) { TASKS = TASKS || []; }
+  if (!$('set').hidden && scur === 'tasks') show('tasks');
+}
+function tasksHTML(){
+  if (!TASKS) return '<p class="muted">读取中…</p>';
+  const li = TASKS.map((t, i) => `<li class="tsk"><i>${roman(i + 1)}</i><span><b>${esc(t.title)}</b><br><span class="muted">${esc(t.schedule)} · ${t.active ? '下次 ' + esc((t.next_run || '—').slice(5)) : '已停用'}${t.last_run ? ` · 上次 ${esc(t.last_run.slice(5))} <span class="st-${esc(t.last_status || '')}">${t.last_status === 'ok' ? '完成' : '出错'}</span>` : ''}</span>${t.last_preview ? `<br><a href="#" data-tss="${esc(t.session)}" class="muted">${esc(t.last_preview.slice(0, 60))} →</a>` : ''}</span>
+    <span style="display:flex;gap:6px"><button class="x" data-trun="${esc(t.id)}">运行</button><button class="x" data-ttog="${esc(t.id)}" data-on="${t.active ? 1 : 0}">${t.active ? '停用' : '启用'}</button><button class="x" data-tdel="${esc(t.id)}">删除</button></span></li>`).join('');
+  return `<ul class="ml">${li || '<li><i>—</i><span class="muted">还没有。直接对 Stoa 说「每天 9 点帮我看一下自选股和隔夜美股」即可创建。</span><span></span></li>'}</ul>`;
+}
+function bindTasks(pane){
+  const req = async (path, body) => { const j = await (await fetch(path, {method:'POST', headers:H, body:JSON.stringify(body)})).json(); setSt(j.msg || j.error || '已更新', j.error ? '' : 'ok'); loadTasks(); };
+  pane.querySelectorAll('[data-tdel]').forEach(b => b.onclick = () => req('/api/tasks/delete', {id: b.dataset.tdel}));
+  pane.querySelectorAll('[data-ttog]').forEach(b => b.onclick = () => req('/api/tasks/toggle', {id: b.dataset.ttog, active: b.dataset.on !== '1'}));
+  pane.querySelectorAll('[data-trun]').forEach(b => b.onclick = () => req('/api/tasks/run', {id: b.dataset.trun}));
+  pane.querySelectorAll('[data-tss]').forEach(a => a.onclick = e => { e.preventDefault(); $('set').hidden = true; openSession(a.dataset.tss); });
 }
 
 if (I18N.lang === 'en') setLang('en', false);

@@ -45,7 +45,7 @@ def est_tokens(text) -> int:
 
 
 def msg_tokens(m: dict) -> int:
-    n = 4 + est_tokens(m.get("content") or "")
+    n = 4 + est_tokens(m.get("content") or "") + 800 * len(m.get("_images") or [])  # 一张图粗算 800 token
     for c in m.get("tool_calls") or []:
         n += 8 + est_tokens(c.get("function", {}).get("arguments") or "") + est_tokens(c.get("function", {}).get("name") or "")
     return n

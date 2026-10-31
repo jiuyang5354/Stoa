@@ -39,6 +39,9 @@ def config_path() -> Path:
     return p
 
 
+UNDO_SECONDS = 60  # 删除对话后可撤销的时间
+
+
 def now() -> str:
     return datetime.now(CN_TZ).strftime("%Y-%m-%d %H:%M")
 
@@ -67,6 +70,10 @@ class Memory:
                      ("mfe_pct", "REAL"), ("mae_pct", "REAL"), ("edge_pct", "REAL"), ("end_date", "TEXT")):
             if c not in cols:
                 self.db.execute(f"ALTER TABLE calls ADD COLUMN {c} {t}")
+        mcols = {r[1] for r in self.db.execute("PRAGMA table_info(session_meta)")}
+        for c, t in (("archived", "INTEGER DEFAULT 0"), ("deleted_at", "REAL"), ("auto_title", "INTEGER DEFAULT 0")):
+            if c not in mcols:  # 归档 / 删除可撤销（软删除，过一会儿才真删）/ 标题是自动起的
+                self.db.execute(f"ALTER TABLE session_meta ADD COLUMN {c} {t}")
         self.db.commit()
         try:
             from . import vectors
@@ -197,11 +204,18 @@ class Memory:
         return [{"time": t, "role": r, "text": s} for t, r, s in rows]
 
     # ---------- 多会话 ----------
-    def sessions(self, prefix: str = "web-", query: str = "", limit: int = 100) -> list[dict]:
-        """对话列表：标题（改过的名字，或第一句提问）、开始/最后时间、条数。query 按全文搜索。"""
-        args, where = [prefix + "%"], "m.session LIKE ?"
+    def sessions(self, prefix: str = "web-", query: str = "", limit: int = 100, archived: bool | None = False) -> list[dict]:
+        """对话列表：标题（改过的名字，或第一句提问）、开始/最后时间、条数。query 按全文搜索。
+        archived=False 只列未归档的，True 只列已归档的，None 全部；删除待撤销的不列。"""
+        self.purge_deleted()
+        args, where = [prefix + "%"], "m.session LIKE ? AND s.deleted_at IS NULL"
+        if archived is not None:
+            where += " AND COALESCE(s.archived,0)=" + ("1" if archived else "0")
+        found = {}
         if query.strip():
-            hit = {r["session"] for r in self.search_sessions(query, prefix)}
+            for r in self.search_sessions(query, prefix):
+                found.setdefault(r["session"], r)
+            hit = set(found)
             if not hit:
                 return []
             where += f" AND m.session IN ({','.join('?' * len(hit))})"
@@ -210,15 +224,38 @@ class Memory:
             f"""SELECT m.session, MIN(m.ts), MAX(m.ts), COUNT(*),
                    (SELECT content FROM messages f WHERE f.session=m.session AND f.role='user' ORDER BY f.id LIMIT 1),
                    (SELECT content FROM messages l WHERE l.session=m.session AND l.role='assistant' ORDER BY l.id DESC LIMIT 1),
-                   s.title, COALESCE(s.pinned,0), MAX(m.id)
+                   s.title, COALESCE(s.pinned,0), MAX(m.id), COALESCE(s.archived,0), COALESCE(s.auto_title,0)
                 FROM messages m LEFT JOIN session_meta s ON s.session=m.session
                 WHERE {where} GROUP BY m.session ORDER BY COALESCE(s.pinned,0) DESC, MAX(m.id) DESC LIMIT ?""", args + [limit]).fetchall()
         out = []
-        for sid, t0, t1, n, first, last, title, pinned, _ in rows:
-            out.append({"id": sid[len(prefix):], "title": title or " ".join((first or "（无标题）").split())[:40],
-                        "started": t0, "updated": t1, "count": n, "pinned": bool(pinned),
+        for sid, t0, t1, n, first, last, title, pinned, _, arch, auto in rows:
+            out.append({"id": sid[len(prefix):], "title": title or " ".join(re.sub(r"\[\[[^\]]*\]\]", "", first or "").split())[:40] or "（无标题）",
+                        "started": t0, "updated": t1, "count": n, "pinned": bool(pinned), "archived": bool(arch), "auto_title": bool(auto),
                         "preview": " ".join((last or "").split())[:80]})
+            if sid in found:  # 搜索：给出命中的那句话（关键词前后各 ~36 字）和消息 id，网页点开后跳到那里
+                f = found[sid]
+                out[-1]["match"] = f.get("via")
+                mid, snip = self._snippet(sid, query)
+                if snip:
+                    out[-1].update(hit=snip, hit_id=mid)
+                elif f.get("text"):
+                    out[-1]["hit"] = " ".join(f["text"].split())[:90]
         return out
+
+    def _snippet(self, session: str, query: str, pad: int = 36) -> tuple[int | None, str]:
+        q = query.strip()
+        terms = [q] + [w for w in q.split() if len(w) >= 2 and w != q]
+        for t in terms:
+            r = self.db.execute("SELECT id, content FROM messages WHERE session=? AND role IN ('user','assistant') AND instr(lower(content), lower(?))>0 "
+                                "ORDER BY id LIMIT 1", (session, t)).fetchone()
+            if r:
+                text = " ".join(re.sub(r"\[\[[^\]]*\]\]", "", r[1]).split())
+                i = text.lower().find(t.lower())
+                if i < 0:
+                    continue
+                a, b = max(0, i - pad), min(len(text), i + len(t) + pad)
+                return r[0], ("…" if a else "") + text[a:b] + ("…" if b < len(text) else "")
+        return None, ""
 
     def search_sessions(self, query: str, prefix: str = "web-") -> list[dict]:
         q = query.strip()
@@ -262,13 +299,60 @@ class Memory:
                         (session, int(upto_id), text, json.dumps(facts, ensure_ascii=False), now(), int(n_msgs)))
         self.db.commit()
 
-    def rename_session(self, session: str, title: str = None, pinned: bool = None):
+    def rename_session(self, session: str, title: str = None, pinned: bool = None, archived: bool = None, auto: bool = False):
         self.db.execute("INSERT OR IGNORE INTO session_meta(session) VALUES(?)", (session,))
         if title is not None:
-            self.db.execute("UPDATE session_meta SET title=? WHERE session=?", (" ".join(title.split())[:60] or None, session))
+            self.db.execute("UPDATE session_meta SET title=?, auto_title=? WHERE session=?", (" ".join(title.split())[:60] or None, 1 if auto else 0, session))
+        if archived is not None:  # 归档时顺手取消置顶
+            self.db.execute("UPDATE session_meta SET archived=?" + (", pinned=0" if archived else "") + " WHERE session=?", (1 if archived else 0, session))
         if pinned is not None:
             self.db.execute("UPDATE session_meta SET pinned=? WHERE session=?", (1 if pinned else 0, session))
         self.db.commit()
+
+    def truncate_turn(self, session: str, turn: int) -> dict | None:
+        """改问题 / 重新生成：删掉第 turn 个提问（从 1 数）及其后的全部消息。纪要盖到被删部分时一并删掉纪要（之后按原文重建）。
+        返回被删提问 {"id", "text"}；turn 越界返回 None。"""
+        ids = [r[0] for r in self.db.execute("SELECT id FROM messages WHERE session=? AND role='user' ORDER BY id", (session,)).fetchall()]
+        if turn < 1 or turn > len(ids):
+            return None
+        cut = ids[turn - 1]
+        old = self.db.execute("SELECT content FROM messages WHERE id=?", (cut,)).fetchone()[0]
+        self.db.execute("DELETE FROM messages WHERE session=? AND id>=?", (session, cut))
+        # FTS 表和 messages 的行号不一一对应：整段重建这一会话的全文索引
+        self.db.execute("DELETE FROM messages_fts WHERE session=?", (session,))
+        self.db.executemany("INSERT INTO messages_fts(content,session,ts,role) VALUES(?,?,?,?)",
+                            self.db.execute("SELECT content, session, ts, role FROM messages WHERE session=? ORDER BY id", (session,)).fetchall())
+        d = self.digest(session)
+        if d and d["upto_id"] >= cut:
+            self.db.execute("DELETE FROM session_digest WHERE session=?", (session,))
+        self.db.commit()
+        return {"id": cut, "text": old}
+
+    def has_title(self, session: str) -> bool:
+        return bool(self.db.execute("SELECT 1 FROM session_meta WHERE session=? AND title IS NOT NULL", (session,)).fetchone())
+
+    def soft_delete(self, session: str) -> bool:
+        """删除先打标记（列表里立刻消失），UNDO_SECONDS 内可撤销，之后列表刷新或后台清理时真删。"""
+        if not self.db.execute("SELECT 1 FROM messages WHERE session=? LIMIT 1", (session,)).fetchone():
+            return False
+        import time
+        self.db.execute("INSERT OR IGNORE INTO session_meta(session) VALUES(?)", (session,))
+        self.db.execute("UPDATE session_meta SET deleted_at=? WHERE session=?", (time.time(), session))
+        self.db.commit()
+        return True
+
+    def restore_session(self, session: str) -> bool:
+        n = self.db.execute("UPDATE session_meta SET deleted_at=NULL WHERE session=? AND deleted_at IS NOT NULL", (session,)).rowcount
+        self.db.commit()
+        return bool(n)
+
+    def purge_deleted(self, older_than: float | None = None) -> int:
+        import time
+        cut = time.time() - (UNDO_SECONDS if older_than is None else older_than)
+        gone = [r[0] for r in self.db.execute("SELECT session FROM session_meta WHERE deleted_at IS NOT NULL AND deleted_at<?", (cut,)).fetchall()]
+        for sid in gone:
+            self.delete_session(sid)
+        return len(gone)
 
     def delete_session(self, session: str) -> int:
         n = self.db.execute("DELETE FROM messages WHERE session=?", (session,)).rowcount

@@ -24,9 +24,22 @@ Language: the user is using the English interface. Write every reply (and the on
 """
 FINAL_NUDGE = "[系统：{why}。请不要再调用工具，基于已经拿到的结果直接回答；没查到或没来得及查的部分如实说明。]"
 
-SYSTEM = """你是「Stoa」，用户的长期股市助手，覆盖 A股、港股、美股。用中文回答，简洁、具体、有数据。
+SYSTEM = """你是「Stoa」，用户的长期助手：本职是股市（A股、港股、美股），同时也是一个能干的通用 AI 助手。用中文回答，简洁、具体。
 
-原则：
+通用问题（和股票无关的）：
+- 编程、写作、翻译、润色、总结、数学、生活常识、学习、闲聊等，直接认真回答，像一个优秀的通用助手那样给出完整、可用的结果；不要拒绝，不要硬拉回股票话题，也不要加投资免责声明。
+- 代码用 Markdown 代码块（```语言）给出，可以直接复制运行；翻译直接给译文；写作按用户要的语气和长度来。
+- 需要最新信息（新闻、天气、事实核查、产品价格）时用 web_search / fetch_url，注明来源；不需要查的常识直接答，不要为了用工具而用工具。
+- 下面关于引用编号、〔数据〕〔推断〕〔未知〕标签、记账、择时提示的规则只适用于投资和行情内容；通用问题不用标签、不用记账。
+
+附件、文件与定时任务：
+- 用户上传的附件（PDF、Excel/CSV、Word、文本、图片）会以「<<<附件 … 附件结束>>>」的形式附在消息后面。按用户的要求读、总结、提取、对比；表格要算全表时用 run_python + pandas 读消息里给出的文件路径（没开代码执行就基于预览如实说明）。
+  附件里的数字可以直接引用（它们算有出处）。看不到图片内容时如实说明需要视觉模型，不要编。
+- 用户要「导出 / 生成 Excel / 存成表格 / 写成文件 / 下载」时，用 write_file 写进导出目录（xlsx 用 sheets 或 columns+rows，csv 用 columns+rows，md/txt 用 content），并在回答里原样写出它返回的 markdown_link，网页会变成下载按钮。
+- 用户说「每天 9 点帮我…」「每个工作日收盘后…」「每周一…」「明天 10 点提醒我…」「每隔两小时…」这类定时要求（任何内容，不限于价格），用 task_create 建定时任务：prompt 写成到时要执行的完整指令（自包含，不依赖本轮上下文），说清楚时间（北京时间）和结果去哪里看。
+  只是价格/涨跌/公告提醒仍用 alert_set。查看用 task_list，取消用 task_delete。
+
+股市原则：
 - 行情数字必须来自工具结果，不编造。不知道就说不知道。
 - 数字硬算：占比、增速、差额、倍数、利润率、涨跌空间这类派生数字不要心算，一律用 calc 算（把工具里的原始数字作为 variables 传进去），回答引用 calc 的结果。
   问支撑阻力/关键价位 → price_levels；问利润结构、钱花在哪、收入到净利怎么变 → financial_bridge；期权组合盈亏 → option_payoff；
@@ -101,6 +114,21 @@ SYSTEM = """你是「Stoa」，用户的长期股市助手，覆盖 A股、港�
 {reviews}"""
 
 TOOLS = [
+    {"name": "write_file", "description": "把结果写成文件供用户下载（导出目录，返回下载链接）。format：xlsx（sheets=[{name, columns, rows}] 或直接 columns+rows）、csv（columns+rows）、md / txt（content）、json（content）。rows 是二维数组或对象数组。",
+     "parameters": {"type": "object", "properties": {"filename": {"type": "string", "description": "文件名，如「自选股估值表」，扩展名可省"},
+                                                     "format": {"type": "string", "enum": ["xlsx", "csv", "md", "txt", "json"]},
+                                                     "content": {"type": "string"}, "columns": {"type": "array", "items": {"type": "string"}},
+                                                     "rows": {"type": "array", "items": {}}, "sheets": {"type": "array", "items": {"type": "object"}}},
+                    "required": ["filename", "format"]}},
+    {"name": "task_create", "description": "建一个定时任务：到点后台自动把 prompt 交给 Stoa 执行一遍（可以是任何事：看盘总结、搜新闻、写日报、提醒事项…），结果写进 History 并弹提醒/推送。时间为北京时间。"
+                                           "kind：daily 每天 time；weekdays 工作日 time；weekly 每周 weekdays(0=周一…6=周日)+time；interval 每 every_minutes 分钟（≥30）；once 在 at（YYYY-MM-DD HH:MM）跑一次。",
+     "parameters": {"type": "object", "properties": {"prompt": {"type": "string", "description": "到时要执行的完整指令，自包含"},
+                                                     "title": {"type": "string", "description": "简短标题，如「开盘前看自选」"},
+                                                     "kind": {"type": "string", "enum": ["daily", "weekdays", "weekly", "interval", "once"]},
+                                                     "time": {"type": "string", "description": "HH:MM"}, "weekdays": {"type": "array", "items": {"type": "integer"}},
+                                                     "every_minutes": {"type": "integer"}, "at": {"type": "string"}}, "required": ["prompt", "kind"]}},
+    {"name": "task_list", "description": "列出所有定时任务（id、时间、下次运行、上次结果）。", "parameters": {"type": "object", "properties": {}}},
+    {"name": "task_delete", "description": "按 id 删除一个定时任务。", "parameters": {"type": "object", "properties": {"id": {"type": "string"}}, "required": ["id"]}},
     {"name": "get_quotes", "description": "查一只或多只股票/指数的最新行情和技术指标（收盘、涨跌幅、5日/20日、RSI、均线、信号）。代码用 Yahoo 格式：600519.SS、000858.SZ、0700.HK、AAPL、^GSPC。",
      "parameters": {"type": "object", "properties": {"symbols": {"type": "array", "items": {"type": "string"}}}, "required": ["symbols"]}},
     {"name": "market_overview", "description": "A股、港股、美股主要指数和自选股的一览。", "parameters": {"type": "object", "properties": {}}},
@@ -217,7 +245,15 @@ from .edgar import TOOL_SPECS as _SEC_SPECS, TOOL_NAMES as SEC_TOOLS  # noqa: E4
 TOOLS += _SEC_SPECS
 
 
-ADVICE_RE = re.compile(r"推荐|稳赚|翻倍|杠杆|融资|借钱|all ?in|满仓|梭哈|期权|该不该|能不能买|能买吗|可以买|值得买|买入|卖出|加仓|减仓|抄底|收益|保本", re.I)
+# 免责只给投资内容：强词本身就是投资语境；弱词（推荐、收益、该不该…）要同时出现投资语境词才算，「推荐一本书」不加免责
+ADVICE_RE = re.compile(r"稳赚|杠杆|融资|满仓|梭哈|期权|加仓|减仓|抄底|保本|all ?in", re.I)
+ADVICE_WEAK = re.compile(r"推荐|翻倍|借钱|该不该|能不能买|能买吗|可以买|值得买|买入|卖出|收益", re.I)
+INVEST_CTX = re.compile(r"股|基金|ETF|债|仓|币|证券|投资|理财|行情|大盘|指数|板块|美股|港股|A股|标的|估值|市值|财报|\b\d{6}\b|\.(SS|SZ|HK)\b|\$[A-Z]{1,5}\b", re.I)
+
+
+def wants_disclaimer(text: str) -> bool:
+    text = text or ""
+    return bool(ADVICE_RE.search(text) or (ADVICE_WEAK.search(text) and INVEST_CTX.search(text)))
 EVENT_TOOLS = {"get_corporate_events", "get_chips", "get_market_mood", "get_insiders", "get_short_volume"}
 DEEP_TOOLS = EVENT_TOOLS | {"get_fund_flow", "get_northbound", "get_dragon_tiger", "get_consensus", "get_intraday", "get_options", "read_filing", "compare_filings"}
 QUANT_TOOLS = {"calc", "price_levels", "financial_bridge", "option_payoff", "trade_replay"}
@@ -226,8 +262,8 @@ BIG_TOOLS = {"get_statements", "earnings_quality", "read_filing", "compare_filin
              "sec_document", "earnings_release", "earnings_transcript", "sec_xbrl", "sec_filings", "price_history"}  # 结果允许更长
 
 
-SIDE_EFFECT_TOOLS = {"start_inquiry", "inquiry_resume", "memory", "record_call", "alert_set", "alert_delete", "watchlist", "skill_save", "skill_delete", "run_python", "deep_analysis", "earnings_report"}
-TOOL_LABELS = {"get_quotes": "查行情", "market_overview": "看大盘", "get_news": "读新闻", "get_announcements": "查公告", "get_financials": "查财报",
+SIDE_EFFECT_TOOLS = {"write_file", "task_create", "task_delete", "start_inquiry", "inquiry_resume", "memory", "record_call", "alert_set", "alert_delete", "watchlist", "skill_save", "skill_delete", "run_python", "deep_analysis", "earnings_report"}
+TOOL_LABELS = {"write_file": "写文件", "task_create": "建定时任务", "task_list": "看定时任务", "task_delete": "删定时任务", "get_quotes": "查行情", "market_overview": "看大盘", "get_news": "读新闻", "get_announcements": "查公告", "get_financials": "查财报",
                "web_search": "联网搜索", "fetch_url": "读网页", "get_fund_flow": "看资金流", "get_northbound": "看北向", "get_dragon_tiger": "查龙虎榜",
                "get_consensus": "查一致预期", "get_intraday": "看分时", "get_options": "看期权", "read_filing": "读年报", "compare_filings": "对比年报",
                "deep_analysis": "Agora 辩论", "memory_links": "翻记忆", "memory": "写记忆", "session_search": "搜旧对话", "search_memory": "搜记忆",
@@ -475,7 +511,9 @@ class Agent:
                     if h["role"] in ("user", "assistant")]
             while past and past[0]["role"] != "user":
                 past.pop(0)
-            self.messages += [{"role": h["role"], "content": cite.strip_sources(h["text"])[:4000], "_id": h["id"]} for h in past]
+            from . import uploads
+            self.messages += [{"role": h["role"], "content": (uploads.for_model(h["text"], vision=False)[0][:12000] if h["role"] == "user" and "[[files:" in h["text"]
+                                                              else cite.strip_sources(h["text"])[:4000]), "_id": h["id"]} for h in past]
             self.turns = sum(h["role"] == "user" for h in past) + ((self.digest or {}).get("n_msgs") or 0) // 2
             try:
                 self.compress(max_raw=RESUME_MSGS)
@@ -643,6 +681,24 @@ class Agent:
             return alerts.remove(args["id"])
         if name == "run_python":
             return sandbox.run_python(args["code"])
+        if name == "write_file":
+            from . import exports
+            try:
+                return exports.write(str(args.get("filename") or "stoa"), args.get("format"), args.get("content"), args.get("columns"),
+                                     args.get("rows"), args.get("sheets"))
+            except Exception as e:
+                return {"error": f"写文件失败：{str(e)[:160]}"}
+        if name in ("task_create", "task_list", "task_delete"):
+            from . import tasks
+            if name == "task_list":
+                return {"tasks": [{k: t.get(k) for k in ("id", "title", "schedule", "next_run", "active", "last_run", "last_status", "last_preview", "prompt")}
+                                  for t in tasks.listing()], "now": now()}
+            if name == "task_delete":
+                return tasks.remove(str(args.get("id", "")))
+            if (getattr(self, "_cur_text", "") or "").startswith(tasks.TASK_PREFIX):
+                return {"error": "定时任务运行时不能再创建定时任务"}
+            return tasks.add(args.get("prompt", ""), args.get("kind", "daily"), args.get("time"), args.get("weekdays"), args.get("every_minutes"),
+                             args.get("at"), args.get("title", ""), session=self.session)
         if name in FUND_TOOLS:
             from . import fundamentals as F
             try:
@@ -699,9 +755,31 @@ class Agent:
     def _chat(self, messages, tools="default"):
         """发给模型前去掉内部字段（_id 等）；tools=None 表示收尾轮不给工具。"""
         clean = [{k: v for k, v in m.items() if not k.startswith("_")} for m in messages]
+        for i, m in enumerate(messages):  # 本轮附带的图片：OpenAI 兼容的多模态 content（Anthropic / Gemini 在 providers 里再转换）
+            if m.get("_images") and getattr(self, "_vision_ok", True):
+                clean[i] = {**clean[i], "content": [{"type": "text", "text": m["content"]}] +
+                            [{"type": "image_url", "image_url": {"url": im["url"]}} for im in m["_images"]]}
         if (getattr(self, "lang", None) or _guess_lang(getattr(self, "_cur_text", ""))) == "en" and clean and clean[0]["role"] == "system":
             clean[0] = {**clean[0], "content": clean[0]["content"] + EN_NOTE}
-        return self.llm.chat(clean, self.tools if tools == "default" else tools)
+        try:
+            return self.llm.chat(clean, self.tools if tools == "default" else tools)
+        except Exception as e:
+            if not any(isinstance(m.get("content"), list) for m in clean):
+                raise
+            # 模型不收图片：去掉图片、改成说明再试一次，并记下本对话不再发图
+            self._vision_ok = False
+            for i, m in enumerate(messages):
+                if m.get("_images"):
+                    names = "、".join(im["name"] for im in m["_images"])
+                    m["content"] += (f"\n[图片 {names} 发送失败（{str(e)[:80]}）：当前模型可能不支持看图。请如实告诉用户需要换一个支持视觉的模型，不要假装看到了图片。]")
+                    m.pop("_images", None)
+            return self._chat(messages, tools)
+
+    def _model_name(self) -> str:
+        try:
+            return self.llm.chain[0].model
+        except Exception:
+            return getattr(self.llm, "model", "") or ""
 
     # ----- 上下文预算与压缩 -----
     def budget(self) -> int:
@@ -766,7 +844,7 @@ class Agent:
 
     def _finish(self, reply: str, verify_meta: dict) -> str:
         # 荐股 / 收益 / 杠杆 / 买卖类提问：哪怕模型只是拒绝或反问，也补上免责（第二轮真实模型评测 risk-02 漏了）
-        if ADVICE_RE.search(getattr(self, "_cur_text", "") or "") and not re.search(r"仅供参考|不构成投资建议", reply):
+        if wants_disclaimer(getattr(self, "_cur_text", "") or "") and not re.search(r"仅供参考|不构成投资建议|not investment advice", reply, re.I):
             reply = reply.rstrip() + "\n\n择时判断不具统计显著性，仅供参考，不构成投资建议。"
         if getattr(self, "last_debate", None) and "[[debate:" not in reply:
             reply = reply.rstrip() + f"\n[[debate:{self.last_debate}]]"
@@ -856,14 +934,18 @@ class Agent:
                         raise
                     self.messages.pop()
                     self.debate_error = str(e)[:200]
-        content = text
+        from . import uploads
+        vision = uploads.vision_capable(self._model_name(), load_cfg().get("llm", {})) and getattr(self, "_vision_ok", True)
+        content, images, corpus = uploads.for_model(text, vision=vision)
+        if corpus:  # 附件里的数字算有出处
+            self.sources.add_context(corpus, "你上传的文件", "user")
         if self.turns % NUDGE_EVERY == 0:
             content += "\n\n[系统提醒：回顾最近几轮，有没有值得写进 USER.md 或 MEMORY.md 的长期信息？有就顺手存，没有就忽略这条提醒。]"
         if getattr(self, "_heavy", False):
             content += "\n\n[系统提醒：上一轮你用了很多步工具。如果那套做法以后还用得上，先用 skill_save 存成技能（或更新已有技能），再回答这条。]"
             self._heavy = False
         n_tools, saved, retried, first_bad = 0, False, False, []
-        self.messages.append({"role": "user", "content": content, "_id": self._cur_id})
+        self.messages.append({"role": "user", "content": content, "_id": self._cur_id, **({"_images": images} if images else {})})
         try:
             self.compress()
         except Exception:
@@ -919,6 +1001,8 @@ class Agent:
                 # 收尾提示只是过程：从上下文里拿掉，免得下一轮的模型以为还不能用工具
                 self.messages = [m for m in self.messages[:-1] if not (m["role"] == "user" and m.get("_id") is None and m["content"].startswith("[系统："))]
                 self.messages.append({"role": "assistant", "content": cite.strip_sources(reply), "_id": aid})
+                for m in self.messages:  # 图片只在提问这一轮发给模型，之后不再占上下文
+                    m.pop("_images", None)
                 self._heavy = n_tools >= 4 and not saved
                 return reply
             rounds += 1

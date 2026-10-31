@@ -296,7 +296,11 @@ class LLM:
 
         for m in messages:
             if m["role"] == "user":
-                push("user", {"type": "text", "text": m["content"]})
+                for b in _parts(m["content"]):
+                    if b[0] == "text":
+                        push("user", {"type": "text", "text": b[1]})
+                    else:
+                        push("user", {"type": "image", "source": {"type": "base64", "media_type": b[1], "data": b[2]}})
             elif m["role"] == "assistant":
                 if m.get("content"):
                     push("assistant", {"type": "text", "text": m["content"]})
@@ -340,7 +344,8 @@ class LLM:
 
         for m in messages:
             if m["role"] == "user":
-                push("user", {"text": m["content"]})
+                for b in _parts(m["content"]):
+                    push("user", {"text": b[1]} if b[0] == "text" else {"inline_data": {"mime_type": b[1], "data": b[2]}})
             elif m["role"] == "assistant":
                 if m.get("content"):
                     push("model", {"text": m["content"]})
@@ -372,6 +377,22 @@ class LLM:
         if think:
             out["_reasoning"] = think
         return out
+
+
+def _parts(content) -> list[tuple]:
+    """OpenAI 式 content（字符串或 [{type:text}/{type:image_url}] 列表）→ [("text", 文字) | ("image", mime, base64)]。"""
+    if not isinstance(content, list):
+        return [("text", content or "")]
+    out = []
+    for p in content:
+        if p.get("type") == "text":
+            out.append(("text", p.get("text") or ""))
+        elif p.get("type") == "image_url":
+            url = (p.get("image_url") or {}).get("url") or ""
+            if url.startswith("data:") and ";base64," in url:
+                head, data = url[5:].split(";base64,", 1)
+                out.append(("image", head or "image/png", data))
+    return out or [("text", "")]
 
 
 def _reasoning_text(v) -> str:
