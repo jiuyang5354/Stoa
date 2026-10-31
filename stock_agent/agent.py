@@ -128,8 +128,12 @@ TOOLS = [
      "parameters": {"type": "object", "properties": {"filename": {"type": "string", "description": "文件名，如「自选股估值表」，扩展名可省"},
                                                      "format": {"type": "string", "enum": ["xlsx", "csv", "md", "txt", "json"]},
                                                      "content": {"type": "string"}, "columns": {"type": "array", "items": {"type": "string"}},
-                                                     "rows": {"type": "array", "items": {}}, "sheets": {"type": "array", "items": {"type": "object"}}},
+                                                     "rows": {"type": "array", "items": {}}, "sheets": {"type": "array", "items": {"type": "object"}},
+                                                     "replace": {"type": "boolean", "description": "true = 写到固定文件名并替换旧版（已存在时要用户确认）；默认 false 每次新建"}},
                     "required": ["filename", "format"]}},
+    {"name": "pending_actions", "description": "列出等用户确认的动作（覆盖已有文件、往新推送渠道发消息等），重启后仍在。", "parameters": {"type": "object", "properties": {}}},
+    {"name": "confirm_action", "description": "按用户的明确答复处理一条待确认动作：approve=true 批准并执行，false 拒绝。只有用户本轮明确说了确认/同意/拒绝时才能调用。",
+     "parameters": {"type": "object", "properties": {"id": {"type": "string"}, "approve": {"type": "boolean"}}, "required": ["id", "approve"]}},
     {"name": "task_create", "description": "建一个定时任务：到点后台自动把 prompt 交给 Stoa 执行一遍（可以是任何事：看盘总结、搜新闻、写日报、提醒事项…），结果写进 History 并弹提醒/推送。时间为北京时间。"
                                            "kind：daily 每天 time；weekdays 工作日 time；weekly 每周 weekdays(0=周一…6=周日)+time；interval 每 every_minutes 分钟（≥30）；once 在 at（YYYY-MM-DD HH:MM）跑一次。",
      "parameters": {"type": "object", "properties": {"prompt": {"type": "string", "description": "到时要执行的完整指令，自包含"},
@@ -291,8 +295,8 @@ BIG_TOOLS = {"get_statements", "earnings_quality", "read_filing", "compare_filin
              "sec_document", "earnings_release", "earnings_transcript", "sec_xbrl", "sec_filings", "price_history", "macro_series", "cn_data"}  # 结果允许更长
 
 
-SIDE_EFFECT_TOOLS = {"write_file", "task_create", "task_delete", "start_inquiry", "inquiry_resume", "memory", "record_call", "alert_set", "alert_delete", "watchlist", "skill_save", "skill_delete", "run_python", "deep_analysis", "earnings_report"}
-TOOL_LABELS = {"write_file": "写文件", "task_create": "建定时任务", "task_list": "看定时任务", "task_delete": "删定时任务", "get_quotes": "查行情", "market_overview": "看大盘", "get_news": "读新闻", "get_announcements": "查公告", "get_financials": "查财报",
+SIDE_EFFECT_TOOLS = {"confirm_action", "write_file", "task_create", "task_delete", "start_inquiry", "inquiry_resume", "memory", "record_call", "alert_set", "alert_delete", "watchlist", "skill_save", "skill_delete", "run_python", "deep_analysis", "earnings_report"}
+TOOL_LABELS = {"pending_actions": "看待确认", "confirm_action": "处理确认", "write_file": "写文件", "task_create": "建定时任务", "task_list": "看定时任务", "task_delete": "删定时任务", "get_quotes": "查行情", "market_overview": "看大盘", "get_news": "读新闻", "get_announcements": "查公告", "get_financials": "查财报",
                "web_search": "联网搜索", "fetch_url": "读网页", "get_fund_flow": "看资金流", "get_northbound": "看北向", "get_dragon_tiger": "查龙虎榜",
                "get_consensus": "查一致预期", "get_intraday": "看分时", "get_options": "看期权", "read_filing": "读年报", "compare_filings": "对比年报",
                "deep_analysis": "Agora 辩论", "memory_links": "翻记忆", "memory": "写记忆", "session_search": "搜旧对话", "search_memory": "搜记忆",
@@ -447,6 +451,17 @@ def review_due(mem: Memory) -> list[str]:
     return notes
 
 
+_STEP = threading.local()
+
+
+def _quiet(fn, *a):
+    """记账失败不影响回答。"""
+    try:
+        return fn(*a)
+    except Exception:
+        return None
+
+
 class Cancelled(Exception):
     """用户在网页上点了停止：在下一个检查点（模型返回后、每个工具开始前）收手。"""
 
@@ -522,6 +537,7 @@ def _digest(result, err=False) -> str:
 class Agent:
     def __init__(self, mem: Memory | None = None, channel: str = "cli", session: str | None = None):
         self.mem = mem or Memory()
+        self.channel = channel
         cfg = load_cfg().get("llm", {})
         self.llm = Router(cfg)
         if os.getenv("STOA_MOCK_LLM") == "1":  # 仅供测试/截图：真实工具 + 确定性的假模型（evals.MockLLM）
@@ -723,9 +739,15 @@ class Agent:
             from . import exports
             try:
                 return exports.write(str(args.get("filename") or "stoa"), args.get("format"), args.get("content"), args.get("columns"),
-                                     args.get("rows"), args.get("sheets"))
+                                     args.get("rows"), args.get("sheets"), replace=bool(args.get("replace")), session=self.session)
             except Exception as e:
                 return {"error": f"写文件失败：{str(e)[:160]}"}
+        if name == "pending_actions":
+            from . import ledger
+            return {"pending": [{"id": a["id"], "kind": a["kind"], "title": a["title"], "created": a["created"]} for a in ledger.approvals("pending")]}
+        if name == "confirm_action":
+            from . import ledger
+            return ledger.approval_decide(str(args.get("id", "")).strip(), bool(args.get("approve")))
         if name in ("task_create", "task_list", "task_delete"):
             from . import tasks
             if name == "task_list":
@@ -860,9 +882,36 @@ class Agent:
         self.compressed = {"upto_id": upto, "n_msgs": n}
         return True
 
-    def _tool(self, name: str, args: dict):
-        """跑工具并登记来源：返回给模型的结果里带 _cite 编号。辩论里多个分析师会并发调用。"""
-        res = self.sources.add(name, args, self.run_tool(name, args))
+    def _tool(self, name: str, args: dict, step: int | None = None):
+        """跑工具并登记来源：返回给模型的结果里带 _cite 编号。辩论里多个分析师会并发调用。
+        step：断点续跑的步号。这一步已落库（上次运行跑完了）就直接用存下的结果，不重跑；否则先过硬约束，再跑、落库。"""
+        from . import guards, ledger
+        step = step if step is not None else getattr(_STEP, "n", None)
+        rid, raw, hit = getattr(self, "_run_id", None), None, False
+        if rid and step is not None:
+            try:
+                st = ledger.step_get(rid, step)
+            except Exception:
+                st = None
+            if st and st["kind"] == "tool" and st["name"] == name:
+                raw, hit = st["payload"].get("result"), True
+                if name == "deep_analysis" and isinstance(raw, dict) and raw.get("debate_id"):
+                    self.last_debate = raw["debate_id"]
+        if not hit:
+            counts = self.__dict__.setdefault("_turn_counts", {})
+            with self.__dict__.setdefault("_count_lock", threading.Lock()):
+                blocked = guards.check(name, args, getattr(self, "_cur_text", "") or "", counts)
+                if not blocked:
+                    counts[name] = counts.get(name, 0) + 1
+            if blocked:
+                return blocked
+            raw = self.run_tool(name, args)
+            if rid and step is not None:
+                try:
+                    ledger.step_put(rid, step, "tool", name, {"args": args, "result": raw})
+                except Exception:
+                    pass
+        res = self.sources.add(name, args, raw)
         if name in cards.CARD_TOOLS:
             try:
                 built = cards.build(name, args, res)
@@ -913,10 +962,16 @@ class Agent:
             raise Cancelled()
 
     def ask(self, text: str, on_tool=None) -> str:
+        from . import ledger
         self._turn_start = len(self.messages)
         try:
-            return self._ask(text, on_tool)
+            reply = self._ask(text, on_tool)
+            if getattr(self, "_run_id", None):
+                _quiet(ledger.run_finish, self._run_id, "done", reply)
+            return reply
         except Cancelled:
+            if getattr(self, "_run_id", None):
+                _quiet(ledger.run_finish, self._run_id, "cancelled")
             # 停在半路：去掉这轮里没配对的工具调用，只留问题 + 一句「已停止」，下一轮上下文仍然合法
             if not getattr(self, "_cur_id", None):
                 self._cur_id = self.mem.log(self.session, "user", text)
@@ -927,6 +982,34 @@ class Agent:
             self.last_meta = {"sources": [], "verify": None, "debate": None, "cards": None, "compressed": None, "archived": 0,
                               "steps": list(getattr(self, "_steps", None) or []), "stopped": True}
             return "已停止。"
+        except Exception as e:  # 异常中断：留在 failed，重开后可从断点续跑
+            if getattr(self, "_run_id", None):
+                _quiet(ledger.run_finish, self._run_id, "failed", None, str(e)[:300])
+            raise
+
+    @classmethod
+    def resume(cls, run_id: str, mem: Memory | None = None, on_event=None, stop=None) -> tuple["Agent", str]:
+        """断点续跑：按会话重建上下文，去掉末尾那条还没回答的提问，再把同一个问题按原步号重放——
+        已落库的模型回复与工具结果直接取用（不再调模型、不重跑工具），之后的步骤正常执行。返回 (agent, 回答)。"""
+        from . import ledger
+        r = ledger.run_get(run_id)
+        if not r:
+            raise LookupError(f"没有这次运行：{run_id}")
+        if r["status"] not in ("running", "failed"):
+            raise ValueError(f"这次运行已经是 {r['status']}，不需要续跑")
+        ag = cls(mem, channel=r.get("channel") or "web", session=r["session"])
+        uid = r.get("user_msg_id")
+        if uid and ag.messages and ag.messages[-1].get("_id") == uid:
+            ag.messages.pop()
+            ag.turns = max(0, ag.turns - 1)
+        ag._resume_run = r
+        ag.on_event, ag._stop = on_event, stop
+        ledger.run_retry(run_id)
+        try:
+            reply = ag.ask(r["text"])
+        finally:
+            ag._resume_run = None
+        return ag, reply
 
     def _ask(self, text: str, on_tool=None) -> str:
         self._cur_id = None
@@ -936,7 +1019,20 @@ class Agent:
         self.turns += 1
         self.last_debate = None
         self.compressed = None
-        self._cur_id = self.mem.log(self.session, "user", text)
+        from . import ledger
+        res_run = getattr(self, "_resume_run", None)
+        if res_run:  # 续跑：问题已经记过，不再记一遍
+            self._cur_id, self._run_id = res_run.get("user_msg_id"), res_run["run_id"]
+        else:
+            self._cur_id = self.mem.log(self.session, "user", text)
+            self._run_id = None
+            if os.getenv("AGENT_CHECKPOINT", "on").lower() not in ("off", "0", "false"):
+                try:
+                    self._run_id = ledger.run_start(self.session, getattr(self, "channel", "cli"), text, self._cur_id)
+                except Exception:
+                    self._run_id = None
+        self._run_step = 0
+        self._turn_counts = {}
         self._cur_text = text
         self._turn_cache = {}
         self._steps, self._thoughts, self._why = [], [], ""
@@ -952,7 +1048,14 @@ class Agent:
                     self.on_event({"t": "tool", "i": 0, "id": "agora", "name": "deep_analysis", "label": TOOL_LABELS["deep_analysis"], "arg": sym})
                 try:
                     t0 = time.time()
-                    rec = debate.run_for_agent(self, sym, text)
+                    st = _quiet(ledger.step_get, self._run_id, 0) if self._run_id else None
+                    if st and st["kind"] == "debate":  # 续跑：辩论已经跑完落库
+                        rec = st["payload"]
+                    else:
+                        rec = debate.run_for_agent(self, sym, text)
+                        if self._run_id:
+                            _quiet(ledger.step_put, self._run_id, 0, "debate", "deep_analysis", rec)
+                    self._run_step = 1
                     self._check()
                     self._steps.append({"n": 0, "label": TOOL_LABELS["deep_analysis"], "name": "deep_analysis", "arg": sym, "ok": True, "cached": False,
                                         "ms": int((time.time() - t0) * 1000)})
@@ -1004,7 +1107,7 @@ class Agent:
                 final = f"工具调用已达上限（{max_rounds} 轮）"
             if final and not (self.messages[-1]["role"] == "user" and self.messages[-1]["content"].startswith("[系统：")):
                 self.messages.append({"role": "user", "content": FINAL_NUDGE.format(why=final)})
-            msg = self._chat(self.messages, None if final else "default")
+            msg = self._model_step(self.messages, None if final else "default")
             self._check()
             if final:
                 msg = {**msg, "tool_calls": None}
@@ -1062,11 +1165,30 @@ class Agent:
                 limit = max(1200, min(cap, left * 2 // max(1, len(calls))))
                 self.messages.append({"role": "tool", "tool_call_id": c["id"], "content": context.clip_tool(result, limit)})
 
+    def _model_step(self, messages, tools):
+        """一次模型调用 = 一步。已落库就直接取（续跑），否则调模型并落库。"""
+        from . import ledger
+        rid, n = getattr(self, "_run_id", None), getattr(self, "_run_step", 0)
+        self._run_step = n + 1
+        if rid:
+            try:
+                st = ledger.step_get(rid, n)
+            except Exception:
+                st = None
+            if st and st["kind"] == "model":
+                return st["payload"]
+        msg = self._chat(messages, tools)
+        if rid:
+            _quiet(ledger.step_put, rid, n, "model", "", {k: v for k, v in msg.items() if not k.startswith("_images")})
+        return msg
+
     def _run_calls(self, calls, on_tool=None) -> list:
         """同一轮的多个工具调用并行跑（只读取数类），写记忆/账本/提醒/技能这类有副作用的按顺序跑；
         同一轮对话里参数完全相同的只读调用直接复用结果。顺序与 calls 一致。"""
         cache = self.__dict__.setdefault("_turn_cache", {})
         emit = getattr(self, "on_event", None)
+        base = getattr(self, "_run_step", 0)  # 本轮工具的步号在派发前就定好：并行跑完的先后不影响编号
+        self._run_step = base + len(calls)
 
         def one(i, c):
             self._check()
@@ -1080,7 +1202,11 @@ class Agent:
                 if name not in SIDE_EFFECT_TOOLS and key in cache:
                     result, hit = cache[key], True
                 else:
-                    result = self._tool(name, args)
+                    _STEP.n = base + i  # 线程本地：并行工具各自的步号（_tool 读取；测试里可能把 _tool 换成两参数的包装）
+                    try:
+                        result = self._tool(name, args)
+                    finally:
+                        _STEP.n = None
                     if name not in SIDE_EFFECT_TOOLS:
                         cache[key] = result
                 ok = not (isinstance(result, dict) and result.get("error") and len(result) <= 3)

@@ -63,14 +63,27 @@ def _cell(v):
     return s
 
 
-def write(filename: str, fmt: str | None = None, content: str | None = None, columns=None, rows=None, sheets=None) -> dict:
-    """写一个文件。fmt 不给就看扩展名。xlsx 用 sheets=[{name, columns, rows}] 或 columns+rows；csv 用 columns+rows；md/txt/json 用 content。"""
+def write(filename: str, fmt: str | None = None, content: str | None = None, columns=None, rows=None, sheets=None,
+          replace: bool = False, session: str | None = None, _approved: bool = False) -> dict:
+    """写一个文件。fmt 不给就看扩展名。xlsx 用 sheets=[{name, columns, rows}] 或 columns+rows；csv 用 columns+rows；md/txt/json 用 content。
+    默认每次写新文件（文件名带日期，重名加序号，从不覆盖）。replace=True 写到固定文件名「名字.扩展名」：
+    文件已存在时不直接覆盖，而是挂一条待确认（重启后仍在），用户批准后才写。"""
     ext = (fmt or (str(filename).rsplit(".", 1)[-1] if "." in str(filename) else "md")).lower().lstrip(".")
     if ext == "markdown":
         ext = "md"
     if ext not in FORMATS:
         return {"error": f"只支持 {', '.join(FORMATS)}"}
-    p = _unique(_clean_stem(filename), ext)
+    if replace:
+        p = root() / f"{_clean_stem(filename)}.{ext}"
+        if p.exists() and not _approved:
+            from . import ledger
+            a = ledger.approval_add("file_overwrite", f"覆盖已有文件 {p.name}",
+                                    {"filename": filename, "fmt": ext, "content": content, "columns": columns, "rows": rows, "sheets": sheets,
+                                     "file": p.name}, session=session, dedupe=f"file_overwrite:{p.name}")
+            return {"pending_approval": a["id"], "file": p.name,
+                    "note": f"{p.name} 已存在，覆盖要用户确认：已挂起（编号 {a['id']}），用户在「待确认」里批准或在对话里明确说确认后才会写入。告诉用户这一点，不要说已经写好。"}
+    else:
+        p = _unique(_clean_stem(filename), ext)
     if ext == "xlsx":
         try:
             from openpyxl import Workbook
@@ -169,3 +182,16 @@ def conversation_md(title: str, messages: list[dict]) -> str:
 
 def clean_answer(text: str) -> str:
     return re.sub(r"\n?\[\[(cards|debate|files):[^\]]*\]\]", "", text or "").strip()
+
+
+def _approved_overwrite(pl: dict) -> dict:
+    return write(pl.get("filename") or pl.get("file") or "stoa", pl.get("fmt"), pl.get("content"), pl.get("columns"), pl.get("rows"),
+                 pl.get("sheets"), replace=True, _approved=True)
+
+
+def _register():
+    from . import ledger
+    ledger.HANDLERS["file_overwrite"] = _approved_overwrite
+
+
+_register()
