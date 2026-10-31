@@ -21,7 +21,7 @@ import re
 
 import yaml
 
-from .memory import Memory, config_path
+from .memory import Memory, config_path, read_config_text
 
 THEMES = {
     "半导体": ["半导体", "芯片", "晶圆", "光刻", "存储", "semiconductor", "chip"],
@@ -60,7 +60,7 @@ def _known(mem: Memory) -> dict[str, str]:
     """symbol -> 名字，来自配置（指数、自选）和账本。"""
     out = {}
     try:
-        cfg = yaml.safe_load(config_path().read_text(encoding="utf-8")) or {}
+        cfg = yaml.safe_load(read_config_text()) or {}
         for group in (cfg.get("indices") or {}).values():
             for x in group or []:
                 out[str(x["symbol"]).upper()] = x.get("name") or x["symbol"]

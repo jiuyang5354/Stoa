@@ -12,7 +12,7 @@ import yaml
 
 from . import alerts, cards, cite, context, data, indicators, research, skills
 from . import sandbox
-from .memory import Memory, config_path, now
+from .memory import Memory, config_path, now, read_config_text
 from .providers import Router, RequestCancelled
 
 RESUME_MSGS = 40  # 恢复旧对话时最多带回的原文条数；更早的（或超出上下文预算的）滚动摘要成会话纪要，不再直接丢掉
@@ -368,7 +368,7 @@ def deep_tool(name: str, args: dict):
 
 def load_cfg() -> dict:
     for _ in range(5):  # 别的线程正在保存配置时可能读到空文件，稍等重读
-        cfg = yaml.safe_load(config_path().read_text(encoding="utf-8"))
+        cfg = yaml.safe_load(read_config_text())
         if isinstance(cfg, dict):
             return cfg
         time.sleep(0.1)
@@ -377,7 +377,7 @@ def load_cfg() -> dict:
 
 def save_watchlist(wl: list[dict]):
     p = config_path()
-    text = p.read_text(encoding="utf-8")
+    text = read_config_text()
     head, _, rest = text.partition("\nwatchlist:")
     # 保留 watchlist 之后的其它配置块
     tail = rest[rest.find("\n# 提醒阈值"):] if "\n# 提醒阈值" in rest else ""

@@ -10,6 +10,7 @@ import re
 import os
 import sqlite3
 import threading
+import time
 from functools import wraps
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -25,19 +26,39 @@ def home() -> Path:
     return Path(os.getenv("STOCK_AGENT_HOME") or ROOT)
 
 
+_CONFIG_LOCK = threading.Lock()
+
+
 def config_path() -> Path:
     """配置放在数据目录里（容器里是 /data/config.yaml），首次运行从仓库默认配置复制。"""
     p = home() / "config.yaml"
     if not p.exists():
-        p.parent.mkdir(parents=True, exist_ok=True)
-        # 先写临时文件再改名：首次启动时几个线程同时读配置，不能读到写了一半的空文件
-        tmp = p.with_name(f"config.yaml.{os.getpid()}.{threading.get_ident()}.tmp")
-        tmp.write_text((ROOT / "config.yaml").read_text(encoding="utf-8"), encoding="utf-8")
-        try:
-            os.replace(tmp, p)
-        except OSError:
-            tmp.unlink(missing_ok=True)
+        with _CONFIG_LOCK:  # 首次启动几个线程同时进来：只建一次，绝不覆盖已存在的文件
+            if not p.exists():
+                p.parent.mkdir(parents=True, exist_ok=True)
+                # 先写临时文件再改名：别的线程不能读到写了一半的空文件
+                tmp = p.with_name(f"config.yaml.{os.getpid()}.{threading.get_ident()}.tmp")
+                tmp.write_text((ROOT / "config.yaml").read_text(encoding="utf-8"), encoding="utf-8")
+                try:
+                    if p.exists():
+                        tmp.unlink(missing_ok=True)
+                    else:
+                        os.replace(tmp, p)
+                except OSError:
+                    tmp.unlink(missing_ok=True)
     return p
+
+
+def read_config_text(tries: int = 20) -> str:
+    """读 config.yaml。Windows 上文件正被改名替换或被杀毒软件占用时会 PermissionError，稍等重读。"""
+    for i in range(tries):
+        try:
+            return config_path().read_text(encoding="utf-8")
+        except PermissionError:
+            if i == tries - 1:
+                raise
+            time.sleep(0.05 * (i + 1))
+    return ""
 
 
 UNDO_SECONDS = 60  # 删除对话后可撤销的时间
