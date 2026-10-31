@@ -1,5 +1,86 @@
 [
  {
+  "version": "0.32.0",
+  "date": "2026-10-31",
+  "title": "Omnia",
+  "items": [
+   {
+    "type": "added",
+    "text": "新增对话附件：PDF、Excel/CSV、Word、文本、图片（按钮 / 拖入 / 粘贴）；视觉模型可直接看图。"
+   },
+   {
+    "type": "added",
+    "text": "新增任意一问可修改后重问，任意回答可重新生成；问答一键复制。"
+   },
+   {
+    "type": "added",
+    "text": "新增导出：回答或整段对话导出 Markdown；Stoa 能直接生成 Excel / CSV / Markdown 文件供下载。"
+   },
+   {
+    "type": "added",
+    "text": "新增通用定时任务：「每天 9 点帮我…」任何内容都能定时执行，结果进 History 并提醒；设置里可运行、停用、删除。"
+   },
+   {
+    "type": "changed",
+    "text": "改通用问答：编程、写作、翻译、常识、闲聊认真回答，免责声明只出现在投资内容里。"
+   },
+   {
+    "type": "added",
+    "text": "新增 History 搜索显示命中句并跳转；归档 / 取消归档、删除可撤销、自动起标题。"
+   },
+   {
+    "type": "added",
+    "text": "新增回答支持代码块（一键复制）、行内代码与链接。"
+   },
+   {
+    "type": "added",
+    "text": "新增 SEC EDGAR：公告列表与附件、正文分节阅读、XBRL 精确科目、全文搜索、财报新闻稿、电话会纪要。"
+   },
+   {
+    "type": "added",
+    "text": "新增历史收盘价查询（非交易日给前后交易日）。"
+   },
+   {
+    "type": "changed",
+    "text": "改回答语言跟随提问语言。"
+   }
+  ]
+ },
+ {
+  "version": "0.31.4",
+  "date": "2026-10-31",
+  "title": "Rationes",
+  "items": [
+   {
+    "type": "fixed",
+    "text": "修复只写数字代码或中文名时查不到行情：600519、000858、00700、sh600519、600519.SH、「贵州茅台」都会自动补成正确代码，基金 LOF/ETF 也一样。"
+   },
+   {
+    "type": "fixed",
+    "text": "修复 .env 里「=# 说明」这种没空格的注释仍会被当成值。"
+   },
+   {
+    "type": "fixed",
+    "text": "修复 Windows 上运行 Python 代码时打印中文或 emoji 崩溃。"
+   }
+  ]
+ },
+ {
+  "version": "0.31.3",
+  "date": "2026-10-31",
+  "title": "Rationes",
+  "items": [
+   {
+    "type": "fixed",
+    "text": "修复 Windows 版查行情、看市场情绪全部报错「could not convert string to float」：读 .env 时没去掉行尾注释，导致行情模块加载失败。"
+   },
+   {
+    "type": "fixed",
+    "text": "修复数字型设置写错时整个行情模块不能用，现在会退回默认值。"
+   }
+  ]
+ },
+ {
   "version": "0.31.2",
   "date": "2026-10-31",
   "title": "Rationes",
