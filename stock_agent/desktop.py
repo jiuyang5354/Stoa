@@ -8,6 +8,7 @@
 - Stoa.exe 用 pythonw 启动、没有控制台；输出写到数据目录的 stoa.log，出错弹框
 """
 import os
+import re
 import subprocess
 import shutil
 import socket
@@ -33,6 +34,7 @@ def load_env(p: Path):
         if not line or line.startswith("#") or "=" not in line:
             continue
         k, v = line.split("=", 1)
+        v = re.sub(r"\s+#.*$", "", v)          # 去掉行尾注释（.env.example 里有 `0.5   # 说明`）
         k, v = k.strip(), v.strip().strip('"').strip("'")
         if v and k not in os.environ:
             os.environ[k] = v
