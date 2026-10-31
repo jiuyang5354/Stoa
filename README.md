@@ -496,11 +496,12 @@ Actions 页面也可以手动点 “Run workflow” 立即生成一份。
 - 背景岩壁与 3D 神庙石材：ambientCG「Travertine 009」（https://ambientcg.com/view?id=Travertine009），CC0。stock_agent/assets/travertine009_color.jpg 为原 1K 颜色图（重新压缩）；travertine009_normal.jpg 为原 NormalGL 叠加由颜色图亮度推导的浅浮雕法线（原法线图几乎是平的，这块是抛光板材）；travertine009_roughness.jpg 为原粗糙度图拉伸到 0.45–0.85 并缩到 512（原图接近镜面）。
 - 首页标题字体：Archeologicaps（dafont，标注 100% Free），stock_agent/assets/archeologicaps.woff2，已子集化为 ASCII。
 
-## 可靠性与安装版修补（v0.34.1 · Constantia）
+## 可靠性与安装版修补（v0.34.1–0.34.2 · Constantia）
 - 停止回答会真的掐掉正在等的模型请求；行情卡标出来源、日期与缓存
 - 新持仓要你确认，记忆改动可撤销；引用按标的核对，不能借别家股票的数字
 - 一键更新校验 SHA-256，新版起不来自动回滚旧版
 - 没有 Docker 也能写代码分析：退回本机受限模式并注明；`CODE_SANDBOX=docker` 只用容器
+- 0.34.2：修好 Windows 首次启动偶尔读不到配置、窗口打不开
 
 ## 早报判断 · 晚报复盘 · 断点续跑（v0.34 · Constantia）
 - 早报每个标的：判断 + 失效时间 + 翻转条件，记进判断账本
