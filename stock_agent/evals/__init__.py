@@ -385,6 +385,12 @@ class MockLLM:
                     if m and s in ul and "赚" in q:
                         pnl = (v["close"] - float(m.group(2))) * int(m.group(1))
                         out.append(f"按现价算浮盈约 {pnl:.0f}。")
+        if re.search(r"能买|能不能买|给个判断|看多还是看空", q):  # 模拟天真模型：按均线给个方向，但不写失效条件（v0.35.1 由 answercheck 事后补）
+            for r in res.get("get_quotes", []):
+                for s, v in r.items():
+                    if isinstance(v, dict) and all(isinstance(v.get(k), (int, float)) for k in ("close", "ma20", "ma60")):
+                        view = "偏多" if v["close"] > v["ma20"] > v["ma60"] else "偏空" if v["close"] < v["ma20"] < v["ma60"] else "中性"
+                        out.append(f"从均线结构看，{s} 短期{view}。")
         for r in res.get("get_quotes", []):
             for s, v in r.items():
                 for w in (v.get("warnings") or []) if isinstance(v, dict) else []:

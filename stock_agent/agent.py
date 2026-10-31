@@ -1179,8 +1179,14 @@ class Agent:
                     self.messages.append({"role": "user", "content": cite.correction_prompt(v["unverified"], v.get("why"))})
                     continue
                 reply, flagged = cite.flag(reply, self.sources)
+                # 快问的事后检查（规则，不再调模型）：方向判断补失效条件；全仓/杠杆/保证涨类提问补风险提示
+                from . import answercheck
+                try:
+                    reply, added = answercheck.review(text, reply, self.sources)
+                except Exception:
+                    added = {}
                 reply = self._finish(reply, {"first_unverified": first_bad, "fixed": bool(first_bad) and not flagged, "flagged": flagged,
-                                             "rounds": rounds, "stopped": final})
+                                             "rounds": rounds, "stopped": final, **({"added": added} if added else {})})
                 aid = self.mem.log(self.session, "assistant", reply)
                 # 收尾提示只是过程：从上下文里拿掉，免得下一轮的模型以为还不能用工具
                 self.messages = [m for m in self.messages[:-1] if not (m["role"] == "user" and m.get("_id") is None and m["content"].startswith("[系统："))]
