@@ -22,6 +22,7 @@ EN_NOTE = """
 
 Language: the user is using the English interface. Write every reply (and the one-line "why" before tool calls) in English, even though these instructions and some tool data are in Chinese. Translate Chinese news titles / names when quoting (keep the stock name in original in parentheses once). Keep [n] citation markers. For the closing key points use the tags [Data] (has a [n] source), [Inference] (your own judgement) and [Unknown] (not found / needs the user to check) at the start of each line. End important conclusions with "For reference only, not investment advice." and for timing calls add once "Timing calls were not statistically significant in backtests."
 """
+AUTO_SKILL_MARK = "[系统：已按问题自动加载内置技能"
 FINAL_NUDGE = "[系统：{why}。请不要再调用工具，基于已经拿到的结果直接回答；没查到或没来得及查的部分如实说明。]"
 
 SYSTEM = """你是「Stoa」，用户的长期助手：本职是股市（A股、港股、美股），同时也是一个能干的通用 AI 助手。用中文回答，简洁、具体。
@@ -1196,6 +1197,13 @@ class Agent:
             content += "\n\n[系统提醒：上一轮你用了很多步工具。如果那套做法以后还用得上，先用 skill_save 存成技能（或更新已有技能），再回答这条。]"
             self._heavy = False
         n_tools, saved, retried, first_bad, pushed = 0, False, False, [], False
+        try:  # 计算/取数口径类问题：本轮自动附上内置技能全文（LBO/DCF/FCCR、FRED vintage 等），回答后从上下文拿掉，不占以后各轮
+            auto = skills.auto_load(text)
+        except Exception:
+            auto = []
+        self.auto_skills = [a["name"] for a in auto]
+        if auto:
+            content += "\n\n" + AUTO_SKILL_MARK + "（本轮有效，照清单核对口径再算）\n" + "\n\n".join(f"### {a['name']}：{a['description']}\n{a['content']}" for a in auto) + "]"
         self.messages.append({"role": "user", "content": content, "_id": self._cur_id, **({"_images": images} if images else {})})
         try:
             self.compress()
@@ -1268,6 +1276,8 @@ class Agent:
                 self.messages.append({"role": "assistant", "content": cite.strip_sources(reply), "_id": aid})
                 for m in self.messages:  # 图片只在提问这一轮发给模型，之后不再占上下文
                     m.pop("_images", None)
+                    if m.get("_id") == self._cur_id and m["role"] == "user" and AUTO_SKILL_MARK in (m.get("content") or ""):
+                        m["content"] = m["content"].split("\n\n" + AUTO_SKILL_MARK, 1)[0]
                 self._heavy = n_tools >= 4 and not saved
                 return reply
             rounds += 1

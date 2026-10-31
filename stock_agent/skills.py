@@ -70,6 +70,28 @@ def index() -> str:
     return "## 技能（同类任务先 skill_view 再动手；标 * 的是内置投研流程）\n" + "\n".join(f"- {s['name']}{'*' if s.get('builtin') else ''}：{s['description']}" for s in sk)
 
 
+def auto_load(text: str, limit: int = 2) -> list[dict]:
+    """内置技能 front matter 的 auto: 正则命中提问时，返回技能全文（本轮附在提问后，不进每轮的系统提示）。
+    用户/Agent 同名覆盖过的，用覆盖版的正文。"""
+    out = []
+    for name, p in _builtin().items():
+        m = _parse(p.read_text(encoding="utf-8"))
+        pat = m.get("auto")
+        if not pat:
+            continue
+        try:
+            hit = re.search(pat, text or "")
+        except re.error:
+            continue
+        if hit:
+            own = _dir() / f"{name}.md"
+            body = _parse(own.read_text(encoding="utf-8"))["body"] if own.exists() else m["body"]
+            out.append({"name": name, "description": m.get("description", ""), "content": body, "hit": hit.group(0)})
+            if len(out) >= limit:
+                break
+    return out
+
+
 def view(name: str, count: bool = True) -> dict:
     p = _path(name)
     if not p.exists():
