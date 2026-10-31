@@ -39,6 +39,8 @@
   body::after{content:"";position:fixed;inset:0;pointer-events:none;z-index:50;opacity:.045;
     background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")}
   .num{font-variant-numeric:tabular-nums lining-nums}
+  /* 数据处一律等宽数字：刷新时不跳动、竖向对齐 */
+  aside,table,.ml,.evl,.pul,.list,.ledger,.clv,.steps,.dc,.agora,.inq,.slp{font-variant-numeric:lining-nums tabular-nums}
   .up{color:var(--up)}.down{color:var(--down)}
   .label{font:500 var(--fsn2)/1.4 var(--sans);letter-spacing:.18em;text-transform:uppercase;color:var(--mute)}
 
@@ -229,6 +231,12 @@
   .sh h3{margin:0;font:500 var(--fs0) var(--display);letter-spacing:.15em;text-transform:uppercase;flex:1}
   .sh h3 span{font:400 var(--fsn1) var(--cn);letter-spacing:.1em;text-transform:none;color:var(--mute);margin-left:8px}
   .sh .label{font-size:var(--fsn3);letter-spacing:.1em}
+  /* 空分区折成一行：只留标题和右边一个 +（Paper 式），不写「还没有」 */
+  .sec.nil>ul,.sec.nil>ol,.sec.nil>.tq{display:none}
+  .sec.nil .sh{margin-bottom:0;border-bottom-color:var(--rule-2)}.sec.nil .sh h3{color:var(--mute)}.sec.nil .sh .rn{background:var(--mute)}
+  .fasti{border:0;background:none;padding:0;margin-top:6px;font:inherit;letter-spacing:inherit;color:var(--mute);cursor:pointer;border-bottom:1px solid transparent;transition:color .2s,border-color .2s}.fasti:hover{color:var(--ink);border-color:var(--gold)}
+  .sh .add{display:none;border:0;background:none;padding:0 2px;font:300 var(--fs3)/1 var(--serif);color:var(--mute);cursor:pointer;transition:color .2s}
+  .sec.nil .sh .add{display:block}.sh .add:hover{color:var(--gold)}
 
   .seg{display:flex;gap:22px;position:relative;margin-bottom:16px}
   .seg button{border:0;background:transparent;font:500 var(--fs0) var(--cn);letter-spacing:.12em;padding:2px 0 8px;color:var(--mute);cursor:pointer;transition:color .25s}
@@ -321,10 +329,12 @@
   .pen-layer path{fill:none;stroke:var(--terracotta);stroke-width:1.3;stroke-linecap:round;stroke-linejoin:round;opacity:.85;stroke-dasharray:var(--l);stroke-dashoffset:var(--l);animation:grow .7s var(--ease) forwards}
   mark.pen{background:none;color:inherit}
   /* ---- Citatio · 引用角标与来源 ---- */
-  :root{--gold:#B09259;--ivory:#F6F3EC}
-  sup.ct{font:600 var(--fsn3)/1 var(--serif);color:var(--bronze);margin:0 1px 0 1px;padding:1px 2px;border-bottom:1px solid rgba(176,146,89,.55);cursor:pointer;vertical-align:super;font-variant-numeric:lining-nums;transition:color .2s,background .2s}
+  :root{--gold:#B09259;--gold-rgb:176,146,89;--ivory:#F6F3EC;
+    /* 一个金色，五档浓淡（Paper Mono 式单色系统）：线 .55 · 光 .25 · 选中 .14 · 悬停 .08 · 底 .05 */
+    --g-line:rgba(var(--gold-rgb),.55);--g-glow:rgba(var(--gold-rgb),.25);--g-on:rgba(var(--gold-rgb),.14);--g-hover:rgba(var(--gold-rgb),.08);--g-wash:rgba(var(--gold-rgb),.05)}
+  sup.ct{font:600 var(--fsn3)/1 var(--serif);color:var(--bronze);margin:0 1px 0 1px;padding:1px 2px;border-bottom:1px solid var(--g-line);cursor:pointer;vertical-align:super;font-variant-numeric:lining-nums;transition:color .2s,background .2s}
   mark.pen + sup.ct{margin-left:6px}
-  sup.ct:hover,sup.ct.on{color:var(--ink);background:rgba(176,146,89,.14)}
+  sup.ct:hover,sup.ct.on{color:var(--ink);background:var(--g-on)}
   .unv{display:inline-block;margin:0 2px;padding:0 6px;font:500 var(--fsn3)/1.6 var(--sans);letter-spacing:.08em;color:var(--terracotta);border:1px solid rgba(179,84,58,.5);vertical-align:1px}
   .srcs{white-space:normal;margin-top:16px;padding-top:10px;border-top:1px solid var(--gold);font:var(--fsn1)/1.55 var(--sans);color:var(--mute)}
   .srcs .label{display:block;margin-bottom:6px;color:var(--bronze)}
@@ -343,7 +353,7 @@
   /* ---------- v0.16 数据卡 · Tabulae：资金流柱、一致预期区间条、分时线、期权、年报段落 ---------- */
   .dcards{position:relative;white-space:normal;margin-top:16px;padding-top:10px;border-top:1px solid var(--gold);display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:12px 18px}
   .dcards > .label{grid-column:1/-1;display:block;font:500 var(--fsn3) var(--sans);letter-spacing:.2em;text-transform:uppercase;color:var(--bronze)}
-  .dc{position:relative;background:var(--ivory);border:1px solid rgba(176,146,89,.45);padding:12px 14px 10px;font:var(--fsn1)/1.5 var(--sans);color:var(--ink-2);animation:rise .4s var(--ease) both}
+  .dc{position:relative;background:var(--ivory);border:1px solid var(--g-line);padding:12px 14px 10px;font:var(--fsn1)/1.5 var(--sans);color:var(--ink-2);animation:rise .4s var(--ease) both}
   .dc.wide{grid-column:1/-1}
   .dc h6{margin:0 0 8px;display:flex;align-items:baseline;gap:8px;font:500 var(--fs0)/1.2 var(--serif);color:var(--ink)}
   .dc h6 i{font:italic var(--fsn1) var(--serif);color:var(--bronze)}
@@ -365,8 +375,8 @@
   .dc th:first-child,.dc td:first-child{text-align:left}
   .dc td{padding:4px 4px;text-align:right;border-bottom:1px solid var(--rule);font-variant-numeric:lining-nums tabular-nums}
   .dc blockquote{margin:6px 0 0;padding:0 0 0 10px;border-left:1px solid var(--gold);font:italic var(--fs0)/1.55 var(--serif);color:var(--ink-2)}
-  .dc blockquote a.pg{font:500 var(--fsn3) var(--sans);font-style:normal;letter-spacing:.12em;color:var(--bronze);text-decoration:none;border:1px solid rgba(176,146,89,.55);padding:0 4px;margin-right:6px;white-space:nowrap}
-  .dc blockquote a.pg:hover{color:var(--ink);background:rgba(176,146,89,.14)}
+  .dc blockquote a.pg{font:500 var(--fsn3) var(--sans);font-style:normal;letter-spacing:.12em;color:var(--bronze);text-decoration:none;border:1px solid var(--g-line);padding:0 4px;margin-right:6px;white-space:nowrap}
+  .dc blockquote a.pg:hover{color:var(--ink);background:var(--g-on)}
   .dc .dlt{display:flex;gap:16px;margin:2px 0 4px;font:500 var(--fs3)/1 var(--serif);font-variant-numeric:lining-nums}
   .dc .dlt small{display:block;margin-top:4px;font:var(--fsn3) var(--sans);letter-spacing:.12em;color:var(--mute)}
   .dc .add{color:var(--terracotta)}.dc .del{color:var(--olive)}
@@ -377,7 +387,7 @@
   .agb em{font:italic var(--fs1) var(--serif);color:var(--mute)}
   .agb .arr{margin-left:auto;font:var(--fs0) var(--serif);color:var(--bronze);transition:transform .35s var(--ease)}
   .agb.open .arr{transform:rotate(90deg)}
-  .agora{position:relative;white-space:normal;background:var(--ivory);border:1px solid rgba(176,146,89,.55);border-top:0;padding:22px 26px 24px;font:var(--fs0)/1.65 var(--sans);color:var(--ink-2);animation:rise .45s var(--ease) both}
+  .agora{position:relative;white-space:normal;background:var(--ivory);border:1px solid var(--g-line);border-top:0;padding:22px 26px 24px;font:var(--fs0)/1.65 var(--sans);color:var(--ink-2);animation:rise .45s var(--ease) both}
   .agora header{display:flex;align-items:baseline;gap:14px;padding-bottom:12px;border-bottom:1px solid var(--gold)}
   .agora header .agt{font:500 var(--fs4)/1 var(--display);letter-spacing:.34em;color:var(--ink)}
   .agora header em{font:italic var(--fs1) var(--serif);color:var(--ink-2)}
@@ -385,7 +395,7 @@
   .agsec{padding:16px 0 4px}
   .agsec h5{margin:0 0 12px;display:flex;align-items:baseline;gap:10px;font:500 var(--fsn3) var(--sans);letter-spacing:.2em;text-transform:uppercase;color:var(--bronze)}
   .agsec h5 i{font:italic var(--fs1) var(--serif);letter-spacing:0;color:var(--ink);text-transform:none}
-  .agsec h5::after{content:"";flex:1;border-top:1px solid rgba(176,146,89,.45);transform:translateY(-3px)}
+  .agsec h5::after{content:"";flex:1;border-top:1px solid var(--g-line);transform:translateY(-3px)}
   .aggrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0;border-top:1px solid var(--rule);border-left:1px solid var(--rule)}
   .agc{padding:12px 14px 12px;border-right:1px solid var(--rule);border-bottom:1px solid var(--rule)}
   .agc .hd{display:flex;align-items:baseline;gap:8px}
@@ -457,7 +467,7 @@
   @media(max-width:560px){.temple{inset:6px}.chips{grid-template-columns:1fr}.chip:nth-child(odd){border-right:0}.chip:nth-child(even){padding-left:2px}h1{font-size:var(--fs4)}}
 
   /* ---------- 研究课题 Inquisitio（参考 21st Agent Plan / Process Timeline：竖线进度 + 状态节点 + 展开笔记） ---------- */
-  .inq{white-space:normal;position:relative;background:var(--ivory);border:1px solid rgba(176,146,89,.55);padding:18px 22px 16px;font:var(--fs0)/1.6 var(--sans);color:var(--ink-2);animation:rise .45s var(--ease) both;max-width:640px}
+  .inq{white-space:normal;position:relative;background:var(--ivory);border:1px solid var(--g-line);padding:18px 22px 16px;font:var(--fs0)/1.6 var(--sans);color:var(--ink-2);animation:rise .45s var(--ease) both;max-width:640px}
   .inq .ih{display:flex;align-items:baseline;gap:12px}
   .inq .ih .agt{font:500 var(--fs1)/1 var(--display);letter-spacing:.34em;color:var(--ink)}
   .inq .ih em{font:italic var(--fs1)/1.35 var(--serif);color:var(--ink);flex:1;min-width:0}
@@ -481,8 +491,8 @@
   .iql li>button small{font:italic var(--fsn1) var(--serif);color:var(--mute);white-space:nowrap;font-variant-numeric:tabular-nums}
   .inq .iql li::before{content:'';color:inherit;position:absolute;left:1px;top:9px;width:9px;height:9px;border-radius:50%;border:1px solid var(--rule-2);background:var(--ivory);transition:background .4s,border-color .4s,transform .4s var(--spring)}
   .iql li.done::before{background:var(--bronze);border-color:var(--bronze)}
-  .iql li.doing::before{border-color:var(--bronze);box-shadow:0 0 0 0 rgba(176,146,89,.5);animation:ring 1.8s ease-out infinite}
-  @keyframes ring{0%{box-shadow:0 0 0 0 rgba(176,146,89,.45)}100%{box-shadow:0 0 0 7px rgba(176,146,89,0)}}
+  .iql li.doing::before{border-color:var(--bronze);box-shadow:0 0 0 0 var(--g-line);animation:ring 1.8s ease-out infinite}
+  @keyframes ring{0%{box-shadow:0 0 0 0 var(--g-line)}100%{box-shadow:0 0 0 7px rgba(var(--gold-rgb),0)}}
   .iql li.doing>button span{color:var(--ink)}
   .iql li.skipped>button span{text-decoration:line-through;color:var(--mute)}
   .iql li.error::before{border-color:var(--terracotta)}.iql li.error>button span{color:var(--terracotta)}
@@ -491,7 +501,7 @@
   .iql .ans{display:grid;grid-template-rows:0fr;transition:grid-template-rows .45s var(--ease)}
   .iql li.open .ans{grid-template-rows:1fr}
   .iql .ans>div{overflow:hidden;min-height:0}
-  .iql .ans>div>div{margin:6px 0 10px;padding:10px 12px;border-left:1px solid var(--gold);background:rgba(176,146,89,.06);font:var(--fs0)/1.7 var(--sans);white-space:pre-wrap;max-height:420px;overflow:auto;opacity:0;transform:translateY(-4px);transition:opacity .35s .08s,transform .45s var(--ease)}
+  .iql .ans>div>div{margin:6px 0 10px;padding:10px 12px;border-left:1px solid var(--gold);background:var(--g-wash);font:var(--fs0)/1.7 var(--sans);white-space:pre-wrap;max-height:420px;overflow:auto;opacity:0;transform:translateY(-4px);transition:opacity .35s .08s,transform .45s var(--ease)}
   .iql li.open .ans>div>div{opacity:1;transform:none}
   .inq .acts{display:flex;gap:6px;margin-top:14px;flex-wrap:wrap}
   .inq .acts .x.pri{background:var(--ink);color:var(--chalk);border-color:var(--ink)}
@@ -501,7 +511,7 @@
   .inqd .fu b{font:500 var(--fsn3) var(--sans);letter-spacing:.16em;color:var(--bronze)}
   .inqd .iqtk{display:grid;grid-template-columns:max-content 1fr;gap:6px 18px;font-size:var(--fs0)}
   .inqd .iqtk b{font-weight:500;color:var(--ink)}.inqd .iqtk span{color:var(--mute)}
-  .evl li.iq{cursor:pointer}.evl li.iq:hover{background:rgba(176,146,89,.08)}
+  .evl li.iq{cursor:pointer}.evl li.iq:hover{background:var(--g-hover)}
   .evl li.iq .bar{display:block;height:1px;background:var(--rule);margin-top:6px}.evl li.iq .bar i{display:block;height:1px;background:var(--gold);transition:width .8s var(--ease)}
   /* ---------- 交互细节：退场动画、按压反馈、键盘焦点、回到最新 ---------- */
   .ldg.out,.hist.out,.evx.out,.set.out{animation:fadeout .22s ease both;pointer-events:none}
@@ -521,7 +531,7 @@
   .landed>*{animation:rise .55s var(--ease) both;animation-delay:calc(var(--k,0) * 45ms)}
   .pane.swap>*{animation:rise .4s var(--ease) both;animation-delay:calc(var(--k,0) * 30ms)}
   .hi{animation:rise .4s var(--ease) both;animation-delay:calc(var(--k,0) * 25ms);transition:background .2s,padding .3s var(--ease)}
-  .hi:hover{background:rgba(176,146,89,.07);padding-left:10px}
+  .hi:hover{background:var(--g-hover);padding-left:10px}
   .thinking.leave{animation:fadeout .18s ease both}
 
   /* 思路可见：每轮工具前一句「为什么查」，每步下面一行「查到什么」，模型自带的推理摘要折叠成一段 */
@@ -537,7 +547,7 @@
   .steps li.think summary::before{content:'';width:5px;height:5px;border-right:1px solid currentColor;border-bottom:1px solid currentColor;transform:rotate(-45deg);transition:transform .25s var(--ease)}
   .steps li.think details[open] summary::before{transform:rotate(45deg)}
   .steps li.think summary small{font:italic var(--fsn1) var(--serif);letter-spacing:0;color:var(--mute)}
-  .steps li.think .tx{margin:6px 0 4px;padding:8px 12px;border-left:1px solid var(--gold);background:rgba(176,146,89,.06);font:italic var(--fs0)/1.75 var(--serif),var(--cn);color:var(--ink-2);white-space:pre-wrap;max-height:240px;overflow:auto;animation:rise .35s var(--ease) both}
+  .steps li.think .tx{margin:6px 0 4px;padding:8px 12px;border-left:1px solid var(--gold);background:var(--g-wash);font:italic var(--fs0)/1.75 var(--serif),var(--cn);color:var(--ink-2);white-space:pre-wrap;max-height:240px;overflow:auto;animation:rise .35s var(--ease) both}
   .thinking .steps,.stepsum .steps{max-width:520px}
   @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
   /* ---- 设置（分栏参考 ChatGPT / Claude 桌面版、Cherry Studio、Hermes Dashboard：左侧分栏 + 右侧表单，Ctrl+, 打开） ---- */
@@ -583,6 +593,7 @@
   .slp button b{font:500 var(--fs0) ui-monospace,SFMono-Regular,Menlo,monospace}
   .slp button span{font:400 var(--fs0) var(--cn);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .slp button small{font:italic var(--fsn1) var(--serif);color:var(--mute);white-space:nowrap}
+  .slp button kbd{font:500 var(--fsn3) var(--sans);letter-spacing:.08em;color:var(--mute);white-space:nowrap}.slp button.k kbd{color:rgba(var(--chalk-rgb),.6)}
   .slp button.k{background:var(--ink);color:var(--chalk)}.slp button.k small{color:rgba(var(--chalk-rgb),.6)}
   .slp .ft{border-top:1px solid var(--rule);margin-top:6px;padding:8px 16px 4px;font:500 var(--fsn3) var(--sans);letter-spacing:.16em;color:var(--mute)}
   .ucmd{display:inline-block;font:500 var(--fsn1) ui-monospace,SFMono-Regular,Menlo,monospace;border:1px solid currentColor;padding:0 6px;margin-right:8px;letter-spacing:.02em;vertical-align:1px}
@@ -800,19 +811,20 @@
   .tg{display:inline-block;font:500 var(--fsn3) var(--sans);letter-spacing:.14em;text-transform:uppercase;padding:1px 6px;margin-right:6px;vertical-align:2px;border:1px solid var(--rule-2);color:var(--ink-2)}
   .tg-d{border-color:var(--ink);color:var(--ink)}.tg-u{border-style:dashed;color:var(--mute)}
   html.en .tg{letter-spacing:.06em}
-  .seg2{display:inline-flex;border:1px solid var(--ink)}
-  .seg2 button{border:0;background:transparent;font:500 var(--fs0) var(--cn);padding:6px 12px;cursor:pointer;color:var(--ink)}
-  .seg2 button.on{background:var(--ink);color:var(--chalk)}
+  .seg2{display:inline-flex;gap:2px;padding:2px;background:rgba(var(--ink-rgb),.06)}
+  .seg2 button{border:0;background:transparent;font:500 var(--fs0) var(--cn);padding:5px 12px;cursor:pointer;color:var(--mute);transition:color .2s,background .25s var(--ease),box-shadow .25s}
+  .seg2 button:hover{color:var(--ink)}
+  .seg2 button.on{background:var(--ivory);color:var(--ink);box-shadow:0 0 0 1px var(--g-line)}
   .ml{list-style:none;margin:0;padding:0}
   /* v0.17 · 会话纪要分隔 / 财报事件 / 语义回想 —— 象牙白、古典衬线、金细线 */
   .arch-div{display:flex;align-items:center;gap:14px;margin:6px 0 26px;padding:0;border:0;background:none;width:100%;cursor:pointer;color:var(--mute);font:italic var(--fs0) var(--serif)}
-  .arch-div::before,.arch-div::after{content:"";flex:1;border-top:1px solid rgba(176,146,89,.55)}
+  .arch-div::before,.arch-div::after{content:"";flex:1;border-top:1px solid var(--g-line)}
   .arch-div small{font:500 var(--fsn4) var(--sans);font-style:normal;letter-spacing:.24em;text-transform:uppercase;color:var(--bronze)}
   .arch-div:hover{color:var(--ink)}
   .arch-sum{margin:-14px 0 26px;padding:14px 20px;background:var(--ivory);border-top:1px solid var(--gold);border-bottom:1px solid var(--gold);font:var(--fs0)/1.75 var(--cn);white-space:pre-wrap;color:var(--ink-2);animation:rise .35s var(--ease) both}
   .evl{list-style:none;margin:0;padding:0}
   .evl li{display:grid;grid-template-columns:44px 1fr auto;gap:10px;align-items:baseline;padding:8px 0;border-bottom:1px solid var(--rule);font:var(--fs0)/1.4 var(--cn);color:var(--ink-2)}
-  .evl li.rep{cursor:pointer}.evl li.rep:hover{background:rgba(176,146,89,.08)}
+  .evl li.rep{cursor:pointer}.evl li.rep:hover{background:var(--g-hover)}
   .evl li i{font:italic var(--fs1) var(--serif);color:var(--bronze);font-variant-numeric:lining-nums}
   .evl li small{font:italic var(--fs0) var(--serif);color:var(--mute);white-space:nowrap}
   .evl li b{font-weight:500;color:var(--ink)}
@@ -926,10 +938,10 @@
   /* ---- Nox · 深色：同一套比例、留白和单一金色，只把石灰华换成玄武岩，烛光金代替日光 ---- */
   html.dark{color-scheme:dark;
     --marble:#151412;--marble-2:#1B1A17;--travertine:#24221E;--ink:#E7E1D4;--ink-2:#B9B2A4;--mute:#8C8578;
-    --bronze:#C49D70;--terracotta:#D46D50;--olive:#93A786;--gold:#C2A466;--ivory:#1C1B18;--slate:#0D0D0C;
+    --bronze:#C49D70;--terracotta:#D46D50;--olive:#93A786;--gold:#C2A466;--gold-rgb:194,164,102;--ivory:#1C1B18;--slate:#0D0D0C;
     --paper:#1B1A17;--paper-hi:#22211D;--chalk:#151412;
     --ink-rgb:231,225,212;--paper-rgb:27,26,23;--chalk-rgb:21,20,18;--shade-rgb:0,0,0;--hi-rgb:0,0,0}
-  html.dark body,html.dark body.stone{background:radial-gradient(ellipse 80% 60% at 50% -10%,rgba(194,164,102,.07),transparent 70%),repeating-linear-gradient(0deg,rgba(231,225,212,.012) 0 1px,transparent 1px 3px),#151412}
+  html.dark body,html.dark body.stone{background:radial-gradient(ellipse 80% 60% at 50% -10%,var(--g-hover),transparent 70%),repeating-linear-gradient(0deg,rgba(231,225,212,.012) 0 1px,transparent 1px 3px),#151412}
   html.dark body::before{background:radial-gradient(ellipse at 50% 45%,transparent 50%,rgba(0,0,0,.35) 100%);mix-blend-mode:normal}
   html.dark body::after{opacity:.06;mix-blend-mode:screen}
   html.dark .arch{border-color:rgba(231,225,212,.5)}
@@ -937,12 +949,12 @@
   html.dark .li.on .up{color:#7A2E1C}html.dark .li.on .down{color:#3E4F38}
   html.dark .ph{color:#6E685E}
   html.dark .gcv{background:radial-gradient(ellipse 70% 55% at 50% 0%,#2A2722 0%,rgba(42,39,34,.6) 45%,transparent 75%),linear-gradient(180deg,#1E1D19,#141311)}
-  html.dark .gcv::before{background:radial-gradient(ellipse 34% 62% at 50% 0%,rgba(194,164,102,.16),rgba(194,164,102,0) 72%)}
+  html.dark .gcv::before{background:radial-gradient(ellipse 34% 62% at 50% 0%,var(--g-on),rgba(var(--gold-rgb),0) 72%)}
   html.dark .gcv .gtip{background:#2A2823}
   html.dark .gw{background:var(--ivory)}
   .burst{color:var(--ink)}
   html.dark .meander{background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='18' height='9' viewBox='0 0 18 9'%3E%3Cpath d='M0 8.5h4.5v-7h9v5h-4.5v-2.5h2v1' fill='none' stroke='%23E7E1D4' stroke-width='.8'/%3E%3C/svg%3E") repeat-x 0 0}
-  html.dark #intro .iglow{background:radial-gradient(ellipse 60% 55% at 50% 22%,rgba(194,164,102,.25),transparent 70%)}
+  html.dark #intro .iglow{background:radial-gradient(ellipse 60% 55% at 50% 22%,var(--g-glow),transparent 70%)}
   html.dark svg.temple,html.dark .temple svg{filter:brightness(.78) contrast(1.05)}
   html.dark img,html.dark canvas.bust{filter:brightness(.9)}
   html.theming *,html.theming *::before,html.theming *::after{transition:background-color .35s ease,color .35s ease,border-color .35s ease,fill .35s ease!important}
@@ -1033,10 +1045,10 @@
     <div class="hh"><span class="label">Commentarii · 账本与记忆</span><button class="sclose" id="ldx" aria-label="关闭">×</button></div>
     <div class="lb">
   <div class="sec"><div class="sh"><span class="rn">I</span><h3>Ledger<span>判断账本</span></h3></div><div class="tq"><input id="tq" placeholder="搜索账本 · 如 腾讯、看多" aria-label="搜索判断账本"><span id="tqn"></span></div><div class="terrain" id="terrain"></div><div id="calls" class="muted">—</div><button class="x pbx" id="pbo" type="button">Probatio · 回测</button></div>
-  <div class="sec" id="evsec"><div class="sh"><span class="rn">II</span><h3>Eventus<span>财报事件</span></h3><span class="label" id="evu"></span></div><ul class="evl" id="evl"><li><i>—</i><span class="muted">读取中…</span><span></span></li></ul></div>
-  <div class="sec" id="iqsec"><div class="sh"><span class="rn">III</span><h3>Inquisitio<span>研究课题</span></h3><span class="label" id="iqu"></span></div><ul class="evl" id="iql"><li><i>—</i><span class="muted">读取中…</span><span></span></li></ul></div>
-  <div class="sec"><div class="sh"><span class="rn">IV</span><h3>Persona<span>关于你</span></h3><span class="label" id="uu"></span></div><ul id="user"></ul></div>
-  <div class="sec"><div class="sh"><span class="rn">V</span><h3>Codex<span>我的笔记</span></h3><span class="label" id="mu"></span></div><ul id="mem"></ul></div>
+  <div class="sec" id="evsec"><div class="sh"><span class="rn">II</span><h3>Eventus<span>财报事件</span></h3><span class="label" id="evu"></span><button class="add" type="button" data-cmd="/remember 自选股 " aria-label="加自选股" title="加自选股">+</button></div><ul class="evl" id="evl"><li><i>—</i><span class="muted">读取中…</span><span></span></li></ul></div>
+  <div class="sec" id="iqsec"><div class="sh"><span class="rn">III</span><h3>Inquisitio<span>研究课题</span></h3><span class="label" id="iqu"></span><button class="add" type="button" data-cmd="/research " aria-label="开一个研究课题" title="开一个研究课题">+</button></div><ul class="evl" id="iql"><li><i>—</i><span class="muted">读取中…</span><span></span></li></ul></div>
+  <div class="sec"><div class="sh"><span class="rn">IV</span><h3>Persona<span>关于你</span></h3><span class="label" id="uu"></span><button class="add" type="button" data-cmd="/remember " aria-label="告诉 Stoa 你的持仓或偏好" title="告诉 Stoa 你的持仓或偏好">+</button></div><ul id="user"></ul></div>
+  <div class="sec"><div class="sh"><span class="rn">V</span><h3>Codex<span>我的笔记</span></h3><span class="label" id="mu"></span><button class="add" type="button" data-cmd="/remember " aria-label="记一条笔记" title="记一条笔记">+</button></div><ul id="mem"></ul></div>
     </div>
   </div>
 </div>
@@ -1095,7 +1107,7 @@
   <div class="list" id="list"></div>
   <div class="sec"><div class="sh"><span class="rn">II</span><h3>Pulsus<span>市场脉搏</span></h3><span class="label">5日 · 20日 · 距年高 · 波动</span></div><div class="pul" id="pul"><span class="muted">读取中…</span></div></div>
   <div class="sec"><div class="sh"><span class="rn">III</span><h3>Nuntii<span>要闻</span></h3><span class="label" id="nwu"></span></div><div class="nwt" id="nwt"></div><ol class="nwl" id="nwl"><li class="muted">读取中…</li></ol></div>
-  <div class="label note">赤陶为涨 · 橄榄为跌<br>行情约十分钟一更 · 仅供参考，不构成投资建议</div>
+  <div class="label note">赤陶为涨 · 橄榄为跌<br>行情约十分钟一更 · 仅供参考，不构成投资建议<br><button type="button" class="fasti" id="asfv">Fasti · 更新日志</button></div>
 </aside>
 </div>
 </div>
@@ -1645,6 +1657,7 @@ async function loadEvents(){
   if (up.length) h += `<li class="evh">Futura · 将至</li>` + up.map(t => `<li><i>${esc(t.next.date.slice(5).replace('-', '·'))}</i><span><b>${esc(t.name)}</b> ${esc(t.next.period || '')}</span><small>${t.days ? t.days + ' 天' : '今日'}</small></li>`).join('');
   if (reps.length) h += `<li class="evh">Relationes · 研报</li>` + reps.map(r => `<li class="rep" data-ev="${esc(r.id)}"><i>${esc((r.date || '').slice(5).replace('-', '·'))}</i><span><b>${esc(r.name)}</b>${r.verdict ? `<span class="vd v-${esc(r.verdict)}">${esc(r.verdict)}</span>` : ''}<br><span class="muted" style="font-size:var(--fsn1)">${esc((r.beat || '') + (r.beat ? ' · ' : '') + (r.period || ''))}</span></span><small>读 →</small></li>`).join('');
   $('evl').innerHTML = h || `<li><i>—</i><span class="muted">记下持仓或加自选后，这里会列出财报日；财报一出，Stoa 自动写事件研报。</span><span></span></li>`;
+  nil($('evl'), !h);
   $('evl').querySelectorAll('[data-ev]').forEach(li => li.onclick = () => openEvent(li.dataset.ev));
 }
 async function openEvent(id){
@@ -2116,7 +2129,7 @@ function toast(e){
 async function loadMemory(){
   try {
     const r = await (await fetch('/api/memory', {headers:H})).json();
-    const fill = (id, a) => $(id).innerHTML = (a.length ? a : ['（还没有）']).map(x => `<li>${esc(x)}</li>`).join('');
+    const fill = (id, a) => { $(id).innerHTML = a.map(x => `<li>${esc(x)}</li>`).join(''); nil($(id), !a.length); };
     fill('user', r.user); fill('mem', r.memory);
     $('uu').textContent = r.usage.user; $('mu').textContent = r.usage.memory;
     LEDGER = r.ledger || []; terrain();
@@ -3045,6 +3058,7 @@ async function loadInquiries(){
     const fu = x.last_followup;
     return `<li class="iq" data-iq="${esc(x.id)}"><i>${esc((x.created || '').slice(5, 10).replace('-', '·'))}</i><span><b>${esc(x.goal)}</b>${fu ? `<span class="vd v-${esc(fu.verdict)}">${esc(fu.verdict)}</span>` : ''}<br><span class="muted" style="font-size:var(--fsn1)">${esc(x.one_line || (IQS[x.status] || x.status) + ` · ${x.done}/${x.total || '—'}`)}</span>${IQRUN.has(x.status) ? `<span class="bar"><i style="width:${Math.max(3, pct)}%"></i></span>` : ''}</span><small>${IQS[x.status] || ''}</small></li>`; }).join('')
     : `<li><i>—</i><span class="muted">输入 /research 加研究目标开一个课题，如「/research 茅台三年后的增长从哪来 2小时」。</span><span></span></li>`;
+  nil($('iql'), !it.length);
   $('iql').querySelectorAll('[data-iq]').forEach(li => li.onclick = () => openInquiry(li.dataset.iq));
 }
 async function openInquiry(id, keep){
@@ -3066,6 +3080,12 @@ async function openInquiry(id, keep){
 loadInquiries(); setInterval(loadInquiries, 30000);
 /* ---------- 斜杠命令：执行模式 + 界面操作 ---------- */
 
+$('asfv').onclick = () => openChangelog();
+/* ---------- 空分区折成一行（标题 + 右侧 +） ---------- */
+function nil(el, empty){ const sec = el && el.closest('.sec'); if (sec) sec.classList.toggle('nil', !!empty); }
+document.addEventListener('click', e => { const b = e.target.closest('.sh .add'); if (!b) return;
+  const d = b.closest('.ldg'); if (d && !d.hidden) animHide(d);
+  input.value = b.dataset.cmd; sync(); input.focus(); slashPaint(); });
 /* ---------- Fasti · 更新日志 ---------- */
 const CLT = {added: '新增', fixed: '修复', changed: '改动'};
 let CL = null, CLF = 'all';
@@ -3117,15 +3137,15 @@ const CMDS = [
   {c: '/remember', a: '内容', g: '执行模式', d: '记住一件事（持仓、成本、偏好）', t: x => `记住：${x}`},
   {c: '/alert', a: '标的 条件', g: '执行模式', d: '设提醒，如 /alert 腾讯 跌破 400', t: x => `设一个提醒：${x}`},
   {c: '/new', g: '界面', d: '新对话（先整理这次的记忆）', run: () => newChat()},
-  {c: '/history', g: '界面', d: '对话历史 · Ctrl+J', run: () => openHist()},
-  {c: '/ledger', g: '界面', d: '账本与记忆 · Ctrl+L', run: () => openLdg()},
-  {c: '/graph', g: '界面', d: '记忆图谱 · Ctrl+G', run: () => openGraph()},
+  {c: '/history', g: '界面', d: '对话历史', k: 'Ctrl+J', run: () => openHist()},
+  {c: '/ledger', g: '界面', d: '账本与记忆', k: 'Ctrl+L', run: () => openLdg()},
+  {c: '/graph', g: '界面', d: '记忆图谱', k: 'Ctrl+G', run: () => openGraph()},
   {c: '/backtest', g: '界面', d: '回测与评测', run: () => openSettings('probatio')},
   {c: '/model', g: '界面', d: '切换本对话的模型', run: () => { const b = $('mdl'); if (b && !b.hidden) b.click(); else openSettings('model'); }},
   {c: '/changelog', g: '界面', d: '更新日志 · 每个版本改了什么', run: () => openChangelog()},
   {c: '/theme', g: '界面', d: '切换浅色 / 深色', run: () => toggleTheme()},
   {c: '/lang', g: '界面', d: '切换中文 / English', run: () => setLang(I18N.lang === 'en' ? 'zh' : 'en')},
-  {c: '/settings', g: '界面', d: '设置 · Ctrl+,', run: () => openSettings()},
+  {c: '/settings', g: '界面', d: '设置', k: 'Ctrl+,', run: () => openSettings()},
   {c: '/memory', g: '界面', d: '查看 Stoa 记住了什么', t: () => '/memory'},
 ];
 const SL = {i: 0, list: []};
@@ -3142,7 +3162,7 @@ function slashPaint(){
   SL.i = Math.min(SL.i, SL.list.length - 1);
   let g = '', html = '';
   SL.list.forEach((x, i) => { if (x.g !== g) { g = x.g; html += `<div class="g">${g === '执行模式' ? 'Modus · 执行模式' : 'Interfacies · 界面'}</div>`; }
-    html += `<button type="button" role="option" data-i="${i}" class="${i === SL.i ? 'k' : ''}"><b>${x.c}</b><span>${esc(x.d)}</span><small>${esc(x.a || '')}</small></button>`; });
+    html += `<button type="button" role="option" data-i="${i}" class="${i === SL.i ? 'k' : ''}"><b>${x.c}</b><span>${esc(x.d)}</span>${x.k ? `<kbd>${x.k}</kbd>` : `<small>${esc(x.a || '')}</small>`}</button>`; });
   box.innerHTML = html + '<div class="ft">↑↓ 选择 · Tab 补全 · Enter 执行 · Esc 关闭</div>';
   box.classList.add('on');
   box.querySelectorAll('button').forEach(b => b.onmousedown = e => { e.preventDefault(); SL.i = +b.dataset.i; slashPick(); });
