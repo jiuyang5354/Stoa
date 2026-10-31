@@ -63,6 +63,13 @@ GROUPS: dict[str, tuple[tuple[str, ...], str, str]] = {
     "code": (("run_python",),
              r"代码|python|pandas|回归|相关系数|统计检验|蒙特卡洛|模拟|批量计算|整表|附件|csv|xlsx|excel|<<<附件",
              "表格/序列计算 → run_python（结果开头注明本机受限模式时如实告诉用户）。"),
+    "deck": (("sweep_filings", "financial_bridge"),
+             r"(?<![A-Za-z])pptx?(?![A-Za-z])|幻灯|演示文稿|投研(?:报告|简报|材料)|路演|(?<![A-Za-z])(?:slides?|deck)(?![A-Za-z])|keynote|做成.{0,4}(?:报告|简报)",
+             "投研 PPT → write_file(format=\"pptx\", deck={symbol,name,date,title, conclusion:{view,confidence,horizon_days,reasons[3]}, "
+             "price:{metrics:[[名称,值,注]],history:[[日期,收盘]],source}, financials:{columns,rows,source}（三年关键项+增速）, "
+             "waterfall:{items:[[科目,金额]]（首项营收、中间成本/费用为负、末项净利，用 financial_bridge 的数）,period}, debate:{bull[],bear[],verdict}（deep_analysis 的产物）, "
+             "risks:[{level,text}], peers:{columns,rows,coverage}（sweep_filings 矩阵原样放）, invalidation:{conditions[],review_date}, sources[]})。"
+             "数字只填本轮工具取到或 calc 算出的；结论/辩论/风险/失效条件/复盘日期没给时会从本机该标的最近的 Agora 纪要与账本补，仍缺的页写「未提供」，不要编。"),
     "batch": (("sweep_filings",),
               r"(?:多家|几家|\d+ ?家|各家|这些公司|同行|横向|批量).{0,30}(?:年报|季报|定期报告|MD&A|管理层讨论|风险因素|10-?K)|(?:年报|MD&A|10-?K).{0,20}(?:多家|几家|横向|矩阵|对比表)|sweep",
               "多家公司 × 多年 × 同一章节的横向对比 → sweep_filings（一轮出矩阵，可直接 write_file 成 xlsx），不要逐份 read_filing。"),

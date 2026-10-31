@@ -73,9 +73,10 @@ SYSTEM = """你是「Stoa」，用户的长期助手：本职是股市（A股、
 {reviews}"""
 
 TOOLS = [
-    {"name": "write_file", "description": "写成文件供下载（返回下载链接）。xlsx：sheets=[{name,columns,rows}] 或 columns+rows；csv：columns+rows；md/txt/json：content。",
+    {"name": "write_file", "description": "写成文件供下载（返回下载链接）。xlsx：sheets=[{name,columns,rows}] 或 columns+rows；csv：columns+rows；md/txt/json：content；pptx：deck（8 页投研模板）。",
      "parameters": {"type": "object", "properties": {"filename": {"type": "string"},
-                                                     "format": {"type": "string", "enum": ["xlsx", "csv", "md", "txt", "json"]},
+                                                     "format": {"type": "string", "enum": ["xlsx", "csv", "md", "txt", "json", "pptx"]},
+                                                     "deck": {"type": "object"},
                                                      "content": {"type": "string"}, "columns": {"type": "array", "items": {"type": "string"}},
                                                      "rows": {"type": "array", "items": {}}, "sheets": {"type": "array", "items": {"type": "object"}},
                                                      "replace": {"type": "boolean", "description": "替换同名旧文件（需确认）"}},
@@ -749,7 +750,7 @@ class Agent:
             from . import exports
             try:
                 return exports.write(str(args.get("filename") or "stoa"), args.get("format"), args.get("content"), args.get("columns"),
-                                     args.get("rows"), args.get("sheets"), replace=bool(args.get("replace")), session=self.session)
+                                     args.get("rows"), args.get("sheets"), replace=bool(args.get("replace")), session=self.session, deck=args.get("deck"))
             except Exception as e:
                 return {"error": f"写文件失败：{str(e)[:160]}"}
         if name == "pending_actions":

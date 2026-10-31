@@ -31,6 +31,14 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
         with: {name: Stoa-Windows}
+      - name: 绿色版 zip 自带 python-pptx（解压后用嵌入式 python 生成 8 页 PPT 并读回）
+        shell: pwsh
+        run: |
+          Expand-Archive -Path .\Stoa-Windows.zip -DestinationPath C:\stoa-zip -Force
+          $env:STOCK_AGENT_HOME = "C:\stoa-zip-data"
+          $env:PYTHONUTF8 = "1"
+          & C:\stoa-zip\Stoa\python\python.exe -c "import pptx,sys; from pathlib import Path; from stock_agent import deck as dk; p=Path(r'C:\stoa-zip-data\z.pptx'); b=dk.build({'name':'zip','conclusion':{'view':'up','confidence':60,'reasons':['a']}}, p); c=dk.verify(p, b['deck']); print(pptx.__version__, c); sys.exit(0 if c['ok'] and c['slides']==8 else 1)"
+          if ($LASTEXITCODE -ne 0) { throw "zip 里的 python-pptx 不可用" }
       - name: 静默安装 Stoa-Setup.exe
         shell: pwsh
         run: |

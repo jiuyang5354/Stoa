@@ -6,3 +6,4 @@ requests>=2.31
 akshare>=1.17      # 新浪财经日线，国内第三个行情源
 pypdf>=4.0          # 年报 PDF 抽文本（纯 Python，约 1MB）
 openpyxl>=3.1        # 附件读 Excel、导出 xlsx
+python-pptx>=1.0     # 投研 PPT 导出（write_file format=pptx；依赖 lxml、Pillow、XlsxWriter）

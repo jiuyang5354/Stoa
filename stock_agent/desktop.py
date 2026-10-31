@@ -399,6 +399,17 @@ def smoke(port: int, home: Path):
         res["/api/indices"] = len(json.loads(body)) > 0  # 行情要联网，只记录不判失败
     except Exception as e:
         res["/api/indices"] = f"失败：{e}"
+    # 投研 PPT：嵌入式 python 里要有 python-pptx（v0.37），生成 8 页并读回校验
+    try:
+        from . import deck as dk
+        p = home / "smoke-deck.pptx"
+        b = dk.build({"name": "自检", "conclusion": {"view": "震荡", "confidence": 55, "reasons": ["自检"]},
+                      "waterfall": {"items": [["营业总收入", 100.0], ["成本", -60.0], ["净利润", 40.0]]}}, p)
+        chk = dk.verify(p, b["deck"])
+        res["pptx"] = chk["ok"] and chk["slides"] == 8
+    except Exception as e:
+        res["pptx"] = f"失败：{e}"
+    ok = ok and res["pptx"] is True
     # 独立窗口：pywebview + WebView2 打开界面，页面加载完就关
     win = {"done": False}
     try:

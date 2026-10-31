@@ -11,7 +11,8 @@ from .memory import home
 
 CN = timezone(timedelta(hours=8))
 FORMATS = {"xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "csv": "text/csv; charset=utf-8",
-           "md": "text/markdown; charset=utf-8", "txt": "text/plain; charset=utf-8", "json": "application/json; charset=utf-8"}
+           "md": "text/markdown; charset=utf-8", "txt": "text/plain; charset=utf-8", "json": "application/json; charset=utf-8",
+           "pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation"}
 MAX_ROWS = 100000
 MAX_CHARS = 2_000_000
 NAME_RE = re.compile(r"^[^/\\\x00-\x1f]{1,160}$")
@@ -25,7 +26,7 @@ def root() -> Path:
 
 def _clean_stem(name: str) -> str:
     stem = Path(str(name or "").replace("\\", "/")).name
-    stem = re.sub(r"\.(xlsx|csv|md|txt|json)$", "", stem, flags=re.I)
+    stem = re.sub(r"\.(xlsx|csv|md|txt|json|pptx)$", "", stem, flags=re.I)
     stem = re.sub(r"[\x00-\x1f<>:\"/\\|?*]+", "_", stem).strip(" ._")
     return stem[:80] or "stoa"
 
@@ -64,7 +65,7 @@ def _cell(v):
 
 
 def write(filename: str, fmt: str | None = None, content: str | None = None, columns=None, rows=None, sheets=None,
-          replace: bool = False, session: str | None = None, _approved: bool = False) -> dict:
+          replace: bool = False, session: str | None = None, _approved: bool = False, deck: dict | None = None) -> dict:
     """写一个文件。fmt 不给就看扩展名。xlsx 用 sheets=[{name, columns, rows}] 或 columns+rows；csv 用 columns+rows；md/txt/json 用 content。
     默认每次写新文件（文件名带日期，重名加序号，从不覆盖）。replace=True 写到固定文件名「名字.扩展名」：
     文件已存在时不直接覆盖，而是挂一条待确认（重启后仍在），用户批准后才写。"""
@@ -79,12 +80,27 @@ def write(filename: str, fmt: str | None = None, content: str | None = None, col
             from . import ledger
             a = ledger.approval_add("file_overwrite", f"覆盖已有文件 {p.name}",
                                     {"filename": filename, "fmt": ext, "content": content, "columns": columns, "rows": rows, "sheets": sheets,
-                                     "file": p.name}, session=session, dedupe=f"file_overwrite:{p.name}")
+                                     "deck": deck, "file": p.name}, session=session, dedupe=f"file_overwrite:{p.name}")
             return {"pending_approval": a["id"], "file": p.name,
                     "note": f"{p.name} 已存在，覆盖要用户确认：已挂起（编号 {a['id']}），用户在「待确认」里批准或在对话里明确说确认后才会写入。告诉用户这一点，不要说已经写好。"}
     else:
         p = _unique(_clean_stem(filename), ext)
-    if ext == "xlsx":
+    if ext == "pptx":
+        from . import deck as dk
+        if not dk.available():
+            return {"error": "写 PPT 需要 python-pptx（pip install python-pptx）；可以改成 md 或 xlsx"}
+        spec = deck if isinstance(deck, dict) else (json.loads(content) if isinstance(content, str) and content.strip().startswith("{") else None)
+        if not spec:
+            return {"error": "pptx 要传 deck（结论/价格估值/财务/瀑布/辩论/风险/同行/失效条件，见工具说明）"}
+        built = dk.build(spec, p)
+        chk = dk.verify(p, built["deck"])
+        if not chk["ok"]:
+            p.unlink(missing_ok=True)
+            return {"error": f"PPT 读回校验没通过：{chk['slides']} 页，缺 {chk['missing'][:5]}", "check": chk}
+        info = f"{chk['slides']} 页" + (f"，空页 {'、'.join(built['empty'])}" if built["empty"] else "") + (f"，由本机记录补入 {'、'.join(built['filled'])}" if built["filled"] else "")
+        if built.get("warnings"):
+            info += "；注意：" + "；".join(built["warnings"])
+    elif ext == "xlsx":
         try:
             from openpyxl import Workbook
             from openpyxl.styles import Font
@@ -186,7 +202,7 @@ def clean_answer(text: str) -> str:
 
 def _approved_overwrite(pl: dict) -> dict:
     return write(pl.get("filename") or pl.get("file") or "stoa", pl.get("fmt"), pl.get("content"), pl.get("columns"), pl.get("rows"),
-                 pl.get("sheets"), replace=True, _approved=True)
+                 pl.get("sheets"), replace=True, _approved=True, deck=pl.get("deck"))
 
 
 def _register():
