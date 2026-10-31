@@ -213,7 +213,7 @@ TOOLS = [
                                                      "horizon_days": {"type": "integer"}, "reason": {"type": "string"},
                                                      "confidence": {"type": "integer", "description": "50-95，按证据强弱给；到期会按置信度分组看准不准"}},
                     "required": ["symbol", "view", "horizon_days", "reason"]}},
-    {"name": "run_python", "description": "在独立 Docker 沙箱里运行 Python 做离线分析（pandas、numpy）。用 print 输出结果；只挂载 workspace 工作目录，不联网、不读取应用配置。超时 60 秒。没有隔离环境时返回不可用。",
+    {"name": "run_python", "description": "运行 Python 做离线分析（pandas、numpy）。用 print 输出结果；文件读写只用 /workspace 工作目录。优先在独立 Docker 沙箱里跑（不联网、不读取应用配置）；没有 Docker 时在本机受限模式运行，结果开头会注明，回答里要如实告诉用户。超时 60 秒。",
      "parameters": {"type": "object", "properties": {"code": {"type": "string"}}, "required": ["code"]}},
     {"name": "calc", "description": "确定性计算器：expressions 是一个表达式或 {名字: 表达式}（可引用前面算出的名字），variables 传原始数字。支持 + - * / ** %、括号、abs round min max sum sqrt log exp，以及 pct(a,b)=a相对b变化%、share(a,b)=a占b的%、cagr(末值,初值,年数)。",
      "parameters": {"type": "object", "properties": {"expressions": {"description": "表达式字符串，或 {名字: 表达式}"}, "variables": {"type": "object"}}, "required": ["expressions"]}},

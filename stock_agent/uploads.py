@@ -231,7 +231,7 @@ def for_model(text: str, vision: bool | None = True) -> tuple[str, list[dict], s
                 ext = m["name"].rsplit(".", 1)[-1].lower()
                 sep = ", sep=" + repr("\t") if ext == "tsv" else ""
                 read = f"pd.read_csv({path!r}{sep})" if ext in ("csv", "tsv") else f"pd.read_excel({path!r}, sheet_name=None)"
-                extra = f"\n（完整表格已复制到隔离工作目录 {path}；需要计算全表时可用 run_python 里的 pandas 读取：{read}。run_python 需要开启 Docker 隔离环境。）"
+                extra = f"\n（完整表格已复制到隔离工作目录 {path}；需要计算全表时可用 run_python 里的 pandas 读取：{read}。run_python 需要开启「允许写代码分析」。）"
             else:
                 extra = "\n（完整表格无法放入隔离工作目录，当前只可使用上面的预览与统计；不要声称已计算全表。）"
         blocks.append(f"<<<附件「{m['name']}」· {m.get('summary', '')}\n{t}{'…（内容过长，已截断）' if cut else ''}{extra}\n附件结束>>>")

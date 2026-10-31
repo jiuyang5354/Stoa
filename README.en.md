@@ -51,7 +51,7 @@ If no model is configured, the first message opens Settings → Model. Quotes an
 
 Full documentation is in the [Chinese README](README.md).
 
-Code execution is off by default. When explicitly enabled, it requires Docker and a locally built `stoa-sandbox:local` image (`docker build -t stoa-sandbox:local packaging/sandbox`). Each run has no network, a read-only root filesystem and only the workspace mounted. An unavailable runner returns an error; there is no host-Python fallback. The standard Compose service has no Docker access, so its code tool is unavailable. Do not mount the host Docker socket into the app container to enable it.
+Code execution is off by default. When explicitly enabled, it requires Docker and a locally built `stoa-sandbox:local` image (`docker build -t stoa-sandbox:local packaging/sandbox`). Each run has no network, a read-only root filesystem and only the workspace mounted. When Docker or the image is unavailable, Stoa falls back to a restricted local mode (separate subprocess, 60 s timeout, secret-looking env vars removed, working directory pinned to the workspace, 1 GB memory cap on Linux/macOS, truncated output) and labels the result "本机受限模式". It is not a real sandbox; set `CODE_SANDBOX=docker` to require Docker and refuse otherwise. The standard Compose service has no Docker access, so its code tool runs in that local mode inside the app container. Do not mount the host Docker socket into the app container to enable it.
 
 Quote checks bind recognized stock symbols or known names to quote fields and dates. They do not fully validate arbitrary financial prose, pronouns or cross-paragraph references. A source footnote alone is not proof that a claim is correct.
 
