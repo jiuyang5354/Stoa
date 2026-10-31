@@ -159,7 +159,8 @@ TOOLS = [
     {"name": "record_call", "description": "记录一次方向性判断，到期自动复盘。view 写 看涨/看跌/震荡。",
      "parameters": {"type": "object", "properties": {"symbol": {"type": "string"}, "name": {"type": "string"},
                                                      "view": {"type": "string", "enum": ["看涨", "看跌", "震荡"]},
-                                                     "horizon_days": {"type": "integer"}, "reason": {"type": "string"}},
+                                                     "horizon_days": {"type": "integer"}, "reason": {"type": "string"},
+                                                     "confidence": {"type": "integer", "description": "50-95，按证据强弱给；到期会按置信度分组看准不准"}},
                     "required": ["symbol", "view", "horizon_days", "reason"]}},
     {"name": "run_python", "description": "在隔离沙箱里运行一段 Python 做自定义分析（已装 pandas、yfinance、numpy）。用 print 输出结果；可以在当前目录读写文件，文件会保留。超时 60 秒。",
      "parameters": {"type": "object", "properties": {"code": {"type": "string"}}, "required": ["code"]}},
@@ -335,9 +336,18 @@ def quotes(symbols: list[str], check: bool = False) -> dict:
 
 
 def review_due(mem: Memory) -> list[str]:
-    """学习闭环：到期的判断自动对照现价打分，结果交给模型反思。"""
-    notes = []
-    for c in mem.due_calls():
+    """学习闭环：到期的判断按到期日收盘结算（对照同市场基准算超额），结果交给模型反思。取不到日线时退回现价。"""
+    from . import scorecard
+    try:
+        notes = scorecard.settle_due(mem)
+    except Exception:
+        notes = []
+    from datetime import datetime, timedelta
+    from .memory import CN_TZ
+    stale = (datetime.now(CN_TZ) - timedelta(days=7)).strftime("%Y-%m-%d")
+    for c in mem.due_calls():  # 日线一直取不到（过期一周还没结算）才退回现价
+        if str(c["due"]) > stale:
+            continue
         q = quotes([c["symbol"]]).get(c["symbol"])
         if not isinstance(q, dict) or not q:
             continue
@@ -495,7 +505,16 @@ class Agent:
                     "record_call": rec.get("record_call"), "degraded": rec.get("degraded"),
                     "answer": rec["answer"], "note": "把 answer 原样给用户即可（可略作精简），保留末尾的 [[debate:…]] 标记，网页靠它展开辩论纪要。"}
         if name == "get_quotes":
-            return quotes(args["symbols"], check=True)
+            res = quotes(args["symbols"], check=True)
+            try:
+                from . import scorecard
+                for sym, q in res.items():
+                    note = scorecard.track_note(scorecard.track(m, sym, q if isinstance(q, dict) else None))
+                    if note and isinstance(q, dict):
+                        q["past_calls"] = note
+            except Exception:
+                pass
+            return res
         if name == "market_overview":
             from .__main__ import build_snapshot
             return build_snapshot(load_cfg(), with_news=False)
@@ -570,8 +589,13 @@ class Agent:
             q = quotes([args["symbol"]]).get(args["symbol"])
             if not isinstance(q, dict) or not q:
                 return "取不到现价，未记录。"
-            cid = m.record_call(args["symbol"], args.get("name", ""), args["view"], q["close"], args["horizon_days"], args["reason"])
-            return f"已记账 #{cid}：{args['view']}，基准价 {q['close']}，{args['horizon_days']} 天后复盘。"
+            from . import scorecard
+            past = scorecard.track_note(scorecard.track(m, args["symbol"], q))
+            cid = m.record_call(args["symbol"], args.get("name", ""), args["view"], q["close"], args["horizon_days"], args["reason"],
+                                args.get("confidence"))
+            b = scorecard.bench_of(args["symbol"])
+            vs = f"，到期对照{scorecard.BENCH_NAME.get(b, b)}算超额" if b else ""
+            return f"已记账 #{cid}：{args['view']}，基准价 {q['close']}，{args['horizon_days']} 天后按到期日收盘复盘{vs}。" + (" " + past if past else "")
         if name == "call_stats":
             return m.call_stats()
         if name in ("start_inquiry", "inquiry_status", "inquiry_resume"):

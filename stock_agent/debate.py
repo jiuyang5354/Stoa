@@ -828,7 +828,7 @@ class Debate:
             try:
                 cv = {"看多": "看涨", "看空": "看跌", "中性": "震荡"}[verdict["view"]]
                 call = self.tool("record_call", {"symbol": self.symbol, "name": self.name if self.name != self.symbol else "", "view": cv,
-                                                 "horizon_days": verdict["horizon_days"], "reason": f"Agora 辩论 {self.id}：{verdict['summary'][:60]}"})
+                                                 "horizon_days": verdict["horizon_days"], "confidence": verdict.get("confidence"), "reason": f"Agora 辩论 {self.id}：{verdict['summary'][:60]}"})
             except Exception as e:
                 call = f"记账失败：{e}"
         sid = self._vsid = self.sources.new("Agora 辩论纪要 · 本次结论", "", cite.today(), kind="debate", tool="deep_analysis")

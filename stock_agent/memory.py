@@ -62,6 +62,12 @@ class Memory:
             CREATE TABLE IF NOT EXISTS session_digest(session TEXT PRIMARY KEY, upto_id INTEGER, text TEXT, facts TEXT, ts TEXT, n_msgs INTEGER DEFAULT 0);
             """
         )
+        cols = {r[1] for r in self.db.execute("PRAGMA table_info(calls)")}
+        for c, t in (("confidence", "INTEGER"), ("bench", "TEXT"), ("bench_pct", "REAL"), ("alpha_pct", "REAL"),
+                     ("mfe_pct", "REAL"), ("mae_pct", "REAL"), ("edge_pct", "REAL"), ("end_date", "TEXT")):
+            if c not in cols:
+                self.db.execute(f"ALTER TABLE calls ADD COLUMN {c} {t}")
+        self.db.commit()
         try:
             from . import vectors
             vectors.ensure(self.db)
@@ -273,11 +279,15 @@ class Memory:
         return n
 
     # ---------- 判断记账与复盘 ----------
-    def record_call(self, symbol, name, view, price, horizon_days, reason) -> int:
+    def record_call(self, symbol, name, view, price, horizon_days, reason, confidence=None) -> int:
         due = (datetime.now(CN_TZ) + timedelta(days=int(horizon_days))).strftime("%Y-%m-%d")
+        try:
+            confidence = max(0, min(100, int(confidence))) if confidence not in (None, "") else None
+        except (TypeError, ValueError):
+            confidence = None
         cur = self.db.execute(
-            "INSERT INTO calls(ts,symbol,name,view,price,horizon_days,reason,due) VALUES(?,?,?,?,?,?,?,?)",
-            (now(), symbol, name, view, price, horizon_days, reason, due),
+            "INSERT INTO calls(ts,symbol,name,view,price,horizon_days,reason,due,confidence) VALUES(?,?,?,?,?,?,?,?,?)",
+            (now(), symbol, name, view, price, horizon_days, reason, due, confidence),
         )
         self.db.commit()
         return cur.lastrowid
@@ -290,15 +300,19 @@ class Memory:
         ).fetchall()
         return [dict(zip(cols, r)) for r in rows]
 
-    def close_call(self, cid: int, result_price: float, result_pct: float, verdict: str):
+    def close_call(self, cid: int, result_price: float, result_pct: float, verdict: str, score: dict | None = None):
+        sc = score or {}
         self.db.execute(
-            "UPDATE calls SET status='closed', result_price=?, result_pct=?, verdict=? WHERE id=?",
-            (result_price, result_pct, verdict, cid),
+            "UPDATE calls SET status='closed', result_price=?, result_pct=?, verdict=?, bench=?, bench_pct=?, alpha_pct=?,"
+            " mfe_pct=?, mae_pct=?, edge_pct=?, end_date=? WHERE id=?",
+            (result_price, result_pct, verdict, sc.get("bench"), sc.get("bench_pct"), sc.get("alpha"), sc.get("mfe"),
+             sc.get("mae"), sc.get("edge"), sc.get("end_date"), cid),
         )
         self.db.commit()
 
     def recent_calls(self, limit: int = 120) -> list[dict]:
-        cols = ["id", "ts", "symbol", "name", "view", "price", "horizon_days", "reason", "due", "status", "result_pct", "verdict"]
+        cols = ["id", "ts", "symbol", "name", "view", "price", "horizon_days", "reason", "due", "status", "result_pct", "verdict",
+                "confidence", "bench", "bench_pct", "alpha_pct", "mfe_pct", "mae_pct", "edge_pct", "end_date"]
         rows = self.db.execute(f"SELECT {','.join(cols)} FROM calls ORDER BY ts DESC LIMIT ?", (limit,)).fetchall()
         return [dict(zip(cols, r)) for r in rows][::-1]
 
@@ -336,6 +350,11 @@ class Memory:
         out = {"open": open_n, "closed": len(rows), **agg(rows),
                "按方向": group(lambda r: r[2]), "按市场": group(lambda r: mk(r[1])), "按周期": group(lambda r: hz(r[3] or 0)),
                "最近10次": "".join("✓" if r[5] == "对" else "✗" for r in last), "当前连续": f"{streak}次{sv}"}
+        from . import scorecard
+        full = self.db.execute("SELECT view, alpha_pct, edge_pct, confidence FROM calls WHERE status='closed'").fetchall()
+        sc = scorecard.stats([{"view": v, "alpha": a, "edge": e, "confidence": c} for v, a, e, c in full])
+        if sc:
+            out["超额口径"] = sc
         weak = [f"{k}={v['准确率%']}%" for grp in ("按方向", "按市场", "按周期") for k, v in out[grp].items() if v["n"] >= 5 and v["准确率%"] < 45]
         if weak:
             out["短板"] = "、".join(weak)

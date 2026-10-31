@@ -1506,7 +1506,7 @@ function terrain(){
   $('tqn').textContent = q ? `${hit} / ${n}` : `${n} 条`;
   el.querySelectorAll('rect').forEach(b => { b.onpointerenter = e => {
     const c = LEDGER[+b.dataset.i]; el.querySelector('.tcard')?.remove();
-    const res = c.status === 'closed' ? `<span class="${c.verdict==='对'?'up':'down'}">${c.verdict} · ${sign(c.result_pct)}${fmt(c.result_pct)}%</span>` : `待复盘 · 到期 ${esc(c.due||'')}`;
+    const res = c.status === 'closed' ? `<span class="${c.verdict==='对'?'up':'down'}">${c.verdict} · ${sign(c.result_pct)}${fmt(c.result_pct)}%${c.alpha_pct != null ? ` · 超额 ${sign(c.alpha_pct)}${fmt(c.alpha_pct)}%` : ''}</span>` : `待复盘 · 到期 ${esc(c.due||'')}`;
     el.insertAdjacentHTML('beforeend', `<div class="tcard" style="left:${Math.min(b.getBoundingClientRect().left - el.getBoundingClientRect().left, el.clientWidth - 214)}px;bottom:104px"><small>${esc((c.ts||'').slice(0,10))} · ${esc(c.symbol)}</small><b>${esc(c.name||c.symbol)} · ${esc(c.view)}</b><br>${esc(c.reason||'')}<br>${res}</div>`); };
     b.onpointerleave = () => el.querySelector('.tcard')?.remove(); });
 }
@@ -2172,11 +2172,17 @@ function toggleTheme(){ PREF.theme = isDark() ? 'light' : 'dark'; savePref(); }
 matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { if (PREF.theme === 'auto') applyTheme(); });
 savePref();
 function ledgerStats(st){
-  if (!st.closed) return `<div class="fr"><span><b>还没有到期复盘的判断</b><small>Stoa 每次给出看涨 / 看跌 / 震荡都会记账，到期自动对照现价打分</small></span><span class="k"><small>未到期 ${st.open || 0}</small></span></div>`;
+  if (!st.closed) return `<div class="fr"><span><b>还没有到期复盘的判断</b><small>Stoa 每次给出看涨 / 看跌 / 震荡都会记账，到期按当天收盘打分并对照大盘算超额</small></span><span class="k"><small>未到期 ${st.open || 0}</small></span></div>`;
   const row = (k, v) => `<div class="lsr"><span>${esc(k)}</span><span class="lsb"><i style="width:${v['准确率%']}%" class="${v['准确率%'] < 45 && v.n >= 5 ? 'weak' : ''}"></i><em></em></span><b>${v['准确率%']}%</b><small>${v['对']} / ${v.n}</small></div>`;
   const tb = (title, g) => `<div class="lsg"><h5>${title}</h5>${Object.entries(g).sort((a, b) => b[1].n - a[1].n).map(([k, v]) => row(k, v)).join('')}</div>`;
   return `<div class="lsh"><b>${st['准确率%']}<span>%</span></b><div><small>总体准确率 · 已复盘 ${st.closed} 次，对 ${st['对']} 错 ${st['错']}，未到期 ${st.open}</small><div class="lsk">${esc(st['最近10次'])}<span>最近十次 · 当前 ${esc(st['当前连续'])}</span></div></div></div>` +
     `<div class="lsw">${tb('按方向', st['按方向'])}${tb('按市场', st['按市场'])}${tb('按周期', st['按周期'])}</div>` +
+    (st['超额口径'] ? (() => { const a = st['超额口径'], c = a['按置信度'] || {}; return `<div class="lsw"><div class="lsg"><h5>对照大盘</h5>` +
+      row('胜率', {'准确率%': a['方向分胜率%'], 对: Math.round(a['方向分胜率%'] * a['超额样本'] / 100), n: a['超额样本']}) +
+      `<div class="lsr"><span>均分</span><span></span><b class="${a['平均方向分%'] >= 0 ? 'up' : 'down'}">${sign(a['平均方向分%'])}${fmt(a['平均方向分%'])}%</b><small></small></div>` +
+      (a['看涨平均超额%'] != null ? `<div class="lsr"><span>看涨超额</span><span></span><b class="${a['看涨平均超额%'] >= 0 ? 'up' : 'down'}">${sign(a['看涨平均超额%'])}${fmt(a['看涨平均超额%'])}%</b><small></small></div>` : '') +
+      `</div>${Object.keys(c).length ? `<div class="lsg"><h5 title="高 ≥75 · 中 60–74 · 低 &lt;60">按置信度</h5>${['高','中','低'].filter(k => c[k]).map(k => [k, c[k]]).map(([k, v]) => row(k, {'准确率%': v['胜率%'], 对: Math.round(v['胜率%'] * v.n / 100), n: v.n})).join('')}</div>` : ''}</div>` +
+      (a['校准'] ? `<p class="lsn">${esc(a['校准'])}。</p>` : ''); })() : '') +
     (st['短板'] ? `<p class="lsn">短板：${esc(st['短板'])}。Stoa 在这类判断上会更谨慎，并在回答里说明。</p>` : '');
 }
 function pbCharts(r){
