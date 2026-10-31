@@ -111,7 +111,7 @@ def dates_in(obj) -> set[str]:
 DATA_LABELS = {"get_fund_flow": "资金流", "get_northbound": "北向资金", "get_dragon_tiger": "龙虎榜", "get_consensus": "分析师一致预期",
                "get_intraday": "分钟线", "get_options": "期权",
                "sec_filings": "SEC 申报清单", "sec_document": "SEC 原文", "sec_xbrl": "SEC XBRL", "sec_search": "SEC 全文检索",
-               "earnings_release": "业绩新闻稿", "price_history": "历史收盘价", "earnings_transcript": "电话会文字稿"}
+               "earnings_release": "业绩新闻稿", "price_history": "历史行情", "macro_series": "宏观数据 FRED", "earnings_transcript": "电话会文字稿"}
 
 
 class Sources:

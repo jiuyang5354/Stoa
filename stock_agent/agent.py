@@ -67,6 +67,12 @@ SYSTEM = """你是「Stoa」，用户的长期助手：本职是股市（A股、
 - 某个历史日期的收盘价、两个日期之间的涨跌、公告后 N 天的股价变化 → price_history（非交易日按题意取前一或后一交易日并说明）；不要因为 get_quotes 只有近期数据就说查不到。
 - 计算题：题目给了口径或公式（如 EBITDAR = EBITDA + 租金、按实际天数算 DIO、用指引区间中点）就严格照题目口径，逐项列出输入数字和出处，再用 calc 算；不要换成别的口径。
   题目要的每一项都要给出数值；某个输入第一次没找到时，先换工具（sec_xbrl ↔ sec_document ↔ earnings_release ↔ read_filing）再试，确实找不到才标未知。
+- 查数题（问某个历史数值、统计数、排名、某日价格）一定要落到一个具体答案，不要只给公式或让用户提供数据：
+  1) 先想清楚这数字最权威的出处（国家统计局/外汇局/人民银行/交易所年度统计/公司年报/美联储 H.8、H.15/FRED/Ifo/IMF 等），用 macro_series 或 price_history 能直接取就直接取；
+  2) web_search 至少换 3 种问法（中英文各试、加出处名、加「年报」「统计公报」「年鉴」「市场统计」等词），对最像的结果 fetch_url 打开原页核对数字，不要只看摘要；
+  3) 仍查不到精确值时，给出有出处支持的最佳答案并写明口径与不确定处（如「据 X，约 2,110 亿元」），比「无法核实」有用；只有完全没有线索才说查不到。
+  4) 题目给了口径（如「保留两位小数」「按年报合并口径」「以某网站为准」）就照做；合并报表与母公司报表都列时，默认用合并报表数。
+  5) 多条件筛选题（如「ROE 超过 X 的白酒公司」）要给出确定名单，逐个核对后去掉不满足的，不要把候选名单当答案。
 - 回答语言跟随提问：用户用英文提问（或要求英文）时全文用英文回答。
 - 数据源冲突：工具结果的 warnings 里写了两源差异过大时，回答里必须说明「两个数据源不一致」及各自数值，不要只报其中一个当作确定值。
 - 深度分析：用户要「深度分析」「该不该买/卖」某只股票时，调用 deep_analysis（多位分析师 + 多空辩论 + 风控 + 基金经理裁决，会自动记账），
@@ -243,6 +249,8 @@ TOOLS = [
 ]
 from .edgar import TOOL_SPECS as _SEC_SPECS, TOOL_NAMES as SEC_TOOLS  # noqa: E402  SEC EDGAR 全文 / XBRL / 8-K 新闻稿 / 历史收盘价 / 电话会
 TOOLS += _SEC_SPECS
+from .macro import TOOL_SPECS as _MACRO_SPECS, TOOL_NAMES as MACRO_TOOLS  # noqa: E402  FRED 宏观时间序列
+TOOLS += _MACRO_SPECS
 
 
 # 免责只给投资内容：强词本身就是投资语境；弱词（推荐、收益、该不该…）要同时出现投资语境词才算，「推荐一本书」不加免责
@@ -259,7 +267,7 @@ DEEP_TOOLS = EVENT_TOOLS | {"get_fund_flow", "get_northbound", "get_dragon_tiger
 QUANT_TOOLS = {"calc", "price_levels", "financial_bridge", "option_payoff", "trade_replay"}
 FUND_TOOLS = {"get_statements", "earnings_quality", "reverse_dcf", "dcf_scenarios", "regulatory_letters"}
 BIG_TOOLS = {"get_statements", "earnings_quality", "read_filing", "compare_filings", "get_consensus", "get_dragon_tiger",
-             "sec_document", "earnings_release", "earnings_transcript", "sec_xbrl", "sec_filings", "price_history"}  # 结果允许更长
+             "sec_document", "earnings_release", "earnings_transcript", "sec_xbrl", "sec_filings", "price_history", "macro_series"}  # 结果允许更长
 
 
 SIDE_EFFECT_TOOLS = {"write_file", "task_create", "task_delete", "start_inquiry", "inquiry_resume", "memory", "record_call", "alert_set", "alert_delete", "watchlist", "skill_save", "skill_delete", "run_python", "deep_analysis", "earnings_report"}
@@ -274,7 +282,7 @@ TOOL_LABELS = {"write_file": "写文件", "task_create": "建定时任务", "tas
                "option_payoff": "算期权收益", "trade_replay": "行情重放",
                "get_statements": "读原始报表", "earnings_quality": "查盈利质量", "reverse_dcf": "反向 DCF", "dcf_scenarios": "情景估值", "regulatory_letters": "查问询函", "get_insiders": "查内部人交易", "get_short_volume": "看做空",
                "sec_filings": "查 SEC 申报", "sec_document": "读 SEC 原文", "sec_xbrl": "取 XBRL 科目", "sec_search": "SEC 全文检索",
-               "earnings_release": "读业绩新闻稿", "price_history": "查历史收盘", "earnings_transcript": "读电话会"}
+               "earnings_release": "读业绩新闻稿", "price_history": "查历史行情", "macro_series": "查宏观数据", "earnings_transcript": "读电话会"}
 
 
 def _guess_lang(text: str) -> str:
@@ -579,6 +587,12 @@ class Agent:
         if name == "market_overview":
             from .__main__ import build_snapshot
             return build_snapshot(load_cfg(), with_news=False)
+        if name in MACRO_TOOLS:
+            from . import macro
+            try:
+                return macro.run_tool(name, args)
+            except Exception as e:
+                return {"error": f"{name} 暂时取不到数据：{str(e)[:160]}"}
         if name in SEC_TOOLS:
             from . import edgar
             try:

@@ -213,10 +213,33 @@ def test_agent_registers_tools_and_cites(web, tmp_path, monkeypatch):
     res = E.run_tool("price_history", {"symbol": "SUI", "dates": ["2025-07-21"]})
     src = cite.Sources()
     out = src.add("price_history", {"symbol": "SUI"}, res)
-    assert out["_cite"] and "历史收盘价" in src.items[0]["name"]
+    assert out["_cite"] and "历史行情" in src.items[0]["name"]
 
 
 def test_guess_lang():
     assert ag._guess_lang("For NASDAQ: CRWD, what does management say about AI tailwinds?") == "en"
     assert ag._guess_lang("茅台今天怎么样") == "zh"
     assert ag._guess_lang("AAPL") == "zh"
+
+
+def test_price_history_ohlc_stats_and_symbols(monkeypatch):
+    assert E._yahoo_symbol("DXY") == "DX-Y.NYB" and E._yahoo_symbol("DX-Y.NYB") == "DX-Y.NYB"
+    assert E._yahoo_symbol("BRK.B") == "BRK-B" and E._yahoo_symbol("600519") == "600519.SS" and E._yahoo_symbol("700.HK") == "0700.HK"
+    import datetime as dt
+    days = [dt.date(2020, 1, 6) + dt.timedelta(days=i) for i in range(14)]
+    days = [d for d in days if d.weekday() < 5]
+    closes = [100, 101, 102, 103, 104, 90, 91, 92, 93, 94]
+    rows = [{"date": d.isoformat(), "open": c, "high": c + 1, "low": c - 1, "close": c, "adj_close": c, "volume": 1} for d, c in zip(days, closes)]
+    monkeypatch.setattr(E, "_yahoo_daily", lambda s, a, b: ([dict(r) for r in rows], {"symbol": "X", "splits": [{"date": "2020-01-13", "ratio": 2.0}]}))
+    monkeypatch.setattr(E, "_fetch", lambda *a, **k: (_ for _ in ()).throw(RuntimeError("offline")))
+    r = E.price_history("X", start="2020-01-06", end="2020-01-17")
+    assert r["range"]["max_weekly_drop"]["change_pct"] == round((94 / 104 - 1) * 100, 4)
+    assert r["range"]["highest_high"]["raw_high"] == 210.0  # 拆股前实际价
+    d = E.price_history("X", dates=["2020-01-14"])["dates"][0]
+    assert d["open"] == 91 and d["change_pct"] == round((91 / 90 - 1) * 100, 4)
+
+
+def test_macro_tool_registered():
+    from stock_agent import macro
+    assert "macro_series" in {t["name"] for t in ag.TOOLS}
+    assert "error" in macro.run_tool("macro_series", {})
