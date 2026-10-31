@@ -965,6 +965,7 @@
     --paper:#1B1A17;--paper-hi:#22211D;--chalk:#151412;
     --ink-rgb:231,225,212;--paper-rgb:27,26,23;--chalk-rgb:21,20,18;--shade-rgb:0,0,0;--hi-rgb:0,0,0}
   html.dark body,html.dark body.stone{background:radial-gradient(ellipse 80% 60% at 50% -10%,var(--g-hover),transparent 70%),repeating-linear-gradient(0deg,rgba(231,225,212,.012) 0 1px,transparent 1px 3px),#151412}
+  html.dark body.stone{background:radial-gradient(ellipse 80% 60% at 50% -10%,var(--g-hover),transparent 70%),repeating-linear-gradient(0deg,rgba(231,225,212,.014) 0 1px,transparent 1px 3px),repeating-linear-gradient(90deg,rgba(231,225,212,.014) 0 1px,transparent 1px 3px),var(--wall-dark,#151412);background-size:auto,auto,auto,1024px 1024px}
   html.dark body::before{background:radial-gradient(ellipse at 50% 45%,transparent 50%,rgba(0,0,0,.35) 100%);mix-blend-mode:normal}
   html.dark body::after{opacity:.06;mix-blend-mode:screen}
   html.dark .arch{border-color:rgba(231,225,212,.5)}
@@ -1279,19 +1280,24 @@ const TRAV = '/assets/travertine009_';
     let mean = 0; for (let i = 0; i < c.length; i += 4) mean += .299*c[i] + .587*c[i+1] + .114*c[i+2]; mean /= c.length/4;
     // 光从左上方斜射（与旧版 feDistantLight azimuth 225 同向），法线为 OpenGL 约定（+y 向上）
     let lx = -.5, ly = .55, lz = .67; const ll = Math.hypot(lx, ly, lz); lx /= ll; ly /= ll; lz /= ll;
-    const base = [243, 241, 236], A = .22, DESAT = .78, RELIEF = .05; // A：石纹保留比例；RELIEF：浮雕强度
-    for (let i = 0; i < c.length; i += 4) {
-      const y = .299*c[i] + .587*c[i+1] + .114*c[i+2];
-      const nx = n[i]/127.5 - 1, ny = n[i+1]/127.5 - 1, nz = n[i+2]/127.5 - 1;
-      const sh = 1 + RELIEF*((nx*lx + ny*ly + nz*lz)/lz - 1);
-      for (let k = 0; k < 3; k++) {
-        const v = (c[i+k] + (y - c[i+k])*DESAT) / mean; // 去掉大半黄调，按平均亮度归一
-        c[i+k] = Math.max(0, Math.min(255, base[k]*((1 - A) + A*v)*sh));
+    // 同一块石灰华烤两张：浅色＝象牙石面；深色＝玄武岩（压暗、纹理和浮雕略加强，不然在暗底上看不出）
+    // add=true：暗底按加法叠纹理和浮雕（乘法在亮度 25 左右只剩 ±2 级，肉眼看不出）
+    const bake = async (base, A, DESAT, RELIEF, add) => {
+      const o = new ImageData(new Uint8ClampedArray(c), S, S), d = o.data;
+      for (let i = 0; i < d.length; i += 4) {
+        const y = .299*d[i] + .587*d[i+1] + .114*d[i+2];
+        const nx = n[i]/127.5 - 1, ny = n[i+1]/127.5 - 1, nz = n[i+2]/127.5 - 1;
+        const sd = (nx*lx + ny*ly + nz*lz)/lz - 1, sh = 1 + RELIEF*sd;
+        for (let k = 0; k < 3; k++) {
+          const v = (d[i+k] + (y - d[i+k])*DESAT) / mean; // 去掉大半黄调，按平均亮度归一
+          d[i+k] = Math.max(0, Math.min(255, add ? base[k] + A*(v - 1) + RELIEF*sd : base[k]*((1 - A) + A*v)*sh));
+        }
       }
-    }
-    g.putImageData(C, 0, 0);
-    const url = URL.createObjectURL(await new Promise(r => cv.toBlob(r, 'image/jpeg', .9)));
-    document.body.style.setProperty('--wall', `url(${url})`);
+      g.putImageData(o, 0, 0);
+      return `url(${URL.createObjectURL(await new Promise(r => cv.toBlob(r, 'image/jpeg', .9)))})`;
+    };
+    document.body.style.setProperty('--wall', await bake([243, 241, 236], .22, .78, .05)); // A：石纹保留比例；RELIEF：浮雕强度
+    document.body.style.setProperty('--wall-dark', await bake([25, 24, 21], 50, .85, 22, true));
     if (JSON.parse(localStorage.stoaPrefs || '{}').stone !== 'off') document.body.classList.add('stone');
   } catch (e) { /* 贴图拿不到就保留程序生成的岩壁 */ }
 })();
