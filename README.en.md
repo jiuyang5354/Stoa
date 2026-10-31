@@ -47,7 +47,7 @@ If no model is configured, the first message opens Settings → Model. Quotes an
 - **Briefings and alerts**: morning and evening reports on trading days, price / move / announcement alerts, earnings-day reports, pushed to WeChat (ServerChan), WeCom, Feishu or Telegram.
 - **Bring your own model**: 20+ presets (DeepSeek, Qwen, Kimi, GLM, Doubao, Claude, Gemini, Ollama, …) and custom sources for any OpenAI-compatible, Anthropic or Gemini endpoint, with fallback chains.
 - **Interfaces**: desktop window, web UI, slash commands, OpenAI-compatible `/v1` API, MCP server, MCP client, Telegram bot.
-- **Backtest and evals**: point-in-time backtests with baselines (buy-and-hold, random, momentum), rank-IC evaluation, and a fixed eval set for quote accuracy, refusal to fabricate, risk and memory.
+- **Backtest and evals**: point-in-time backtests with baselines (buy-and-hold, random, momentum), rank-IC evaluation, and a fixed eval set for quote accuracy, refusal to fabricate, risk and memory — plus, since v0.35, an adversarial set (forged targets and financials, stale or impossible quotes, prompt injection in web pages / search results / filings, "guaranteed?" and "go all in" inducements, fabricated numbers), scored on whether unsourced numbers are caught, risks are named, invalidation conditions are given and guaranteed returns are refused (`python -m stock_agent eval --only 对抗`; runs in mock mode and in CI).
 
 Full documentation is in the [Chinese README](README.md).
 
@@ -62,6 +62,13 @@ Quote checks bind recognized stock symbols or known names to quote fields and da
 - Quote cards expose source, currency or index points, source date, retrieval time, timezone and cache status. Trading hours are weekday/clock estimates without a verified holiday calendar. Financial checks cover recognized companies, fields, currencies and report periods and remain heuristic.
 - New memories distinguish planned, historical, pending and confirmed holdings. Agent-added holdings require confirmation; changes can be audited and undone without overwriting newer edits. Concurrent history/chat requests use thread-local SQLite connections, and memory file reads share the write lock.
 - Updates verify the release asset SHA-256, retain the previous installation and roll back if the backend version fails its startup check.
+
+## v0.35 · Mensura
+
+- **Per-role debate models**: Agora analysts (four analysts + bull/bear researchers) and judges (risk officer, portfolio manager, editor) can use different models via Settings → Tools, `debate.analyst_model` / `debate.judge_model` in config.yaml, or `DEBATE_ANALYST_MODEL` / `DEBATE_JUDGE_MODEL`. Write a model name to reuse the default provider's endpoint and key, or `provider:model`. Empty means every role uses the default model, exactly as before. Each role still makes one request; a failing role model uses the existing fallback chain and does not retry on the default model.
+- **External-content guard**: web pages, search results, news, announcements, filings, MCP results and attachments that contain instruction-like text ("ignore previous instructions", "call tool X") are labelled as suspected prompt injection, and in that turn write actions the user did not ask for (memory, watchlist, alerts, scheduled tasks, skills, files) are blocked in code.
+- **Data sanity warnings**: quotes older than 10 days, A-share daily moves beyond 30 %, analyst targets more than 3× away from the price, and out-of-range ratios are flagged as suspect. Numbers are never changed.
+- **Historical base rates for morning calls**: from ~250 trading days of daily bars, ATR-normalized, Stoa records how often a move of the same size happened within the call's horizon — for the call being right (expiry close, same rule as the ledger) and for touching the invalidation price (intraday high/low). Evening reports and ledger stats compare hit rate with the average base rate, with the gap and sample size; fewer than 20 samples are marked as insufficient. A base rate is a no-skill reference, not a forecast probability.
 
 ## License
 
