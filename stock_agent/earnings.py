@@ -112,7 +112,8 @@ def tracked(mem: Memory) -> dict[str, dict]:
     try:
         L = _linker(mem)
         for e in mem.entries("user"):
-            if HOLD_RE.search(e):
+            from .memory import position_state
+            if HOLD_RE.search(e) and position_state(e) == "current":
                 for s in L.symbols(e):
                     if not s.startswith("^") and s not in idx:
                         it = out.setdefault(s, {"name": L.known.get(s, s), "why": []})

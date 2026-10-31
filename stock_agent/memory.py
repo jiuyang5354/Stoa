@@ -10,6 +10,7 @@ import re
 import os
 import sqlite3
 import threading
+from functools import wraps
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -46,9 +47,28 @@ def now() -> str:
     return datetime.now(CN_TZ).strftime("%Y-%m-%d %H:%M")
 
 
+def position_state(text: str) -> str:
+    if "【待确认】" in text:
+        return "pending"
+    if re.search(r"【计划】|假如|假设|如果|计划|打算|准备买|想买|考虑买", text):
+        return "planned"
+    if re.search(r"【历史持仓】|曾经|以前持有|已经清仓|已清仓|已卖出|不再持有|未持有|没有持有", text):
+        return "historical"
+    return "current" if re.search(r"持有|持仓|仓位|成本|买了|买入", text) else "none"
+
+
+def memory_edit(method):
+    @wraps(method)
+    def locked(self, *args, **kwargs):
+        with self._memory_lock:
+            return method(self, *args, **kwargs)
+    return locked
+
+
 class Memory:
     def __init__(self, home_dir: str | Path | None = None):
         self.home = Path(home_dir) if home_dir else home()
+        self._memory_lock = threading.RLock()
         self.mem_dir = self.home / "memory"
         self.mem_dir.mkdir(parents=True, exist_ok=True)
         (self.home / "data").mkdir(exist_ok=True)
@@ -63,6 +83,7 @@ class Memory:
                 price REAL, horizon_days INTEGER, reason TEXT, due TEXT, status TEXT DEFAULT 'open',
                 result_price REAL, result_pct REAL, verdict TEXT);
             CREATE TABLE IF NOT EXISTS session_digest(session TEXT PRIMARY KEY, upto_id INTEGER, text TEXT, facts TEXT, ts TEXT, n_msgs INTEGER DEFAULT 0);
+            CREATE TABLE IF NOT EXISTS memory_changes(id INTEGER PRIMARY KEY, target TEXT, ts TEXT, before_text TEXT, after_text TEXT, source TEXT);
             """
         )
         cols = {r[1] for r in self.db.execute("PRAGMA table_info(calls)")}
@@ -91,13 +112,59 @@ class Memory:
             return []
         return [e.strip() for e in p.read_text(encoding="utf-8").split(SEP) if e.strip()]
 
-    def _write(self, target: str, entries: list[str]) -> str | None:
+    def _write(self, target: str, entries: list[str], source: str = "user") -> str | None:
         text = SEP.join(entries)
         if len(text) > LIMITS[target]:
             return (f"{FILES[target]} 超出上限 {LIMITS[target]} 字（现在 {len(text)} 字）。"
                     "先用 replace 合并或 remove 删掉过时条目，再写入。")
-        self._path(target).write_text(text + ("\n" if text else ""), encoding="utf-8")
+        with self._memory_lock:
+            path = self._path(target)
+            before = path.read_text(encoding="utf-8") if path.exists() else ""
+            after = text + ("\n" if text else "")
+            if before == after:
+                return None
+            temp = path.with_name(path.name + ".tmp")
+            temp.write_text(after, encoding="utf-8")
+            try:
+                with self.db:
+                    self.db.execute("INSERT INTO memory_changes(target,ts,before_text,after_text,source) VALUES(?,?,?,?,?)",
+                                    (target, now(), before, after, source))
+                    os.replace(temp, path)
+            finally:
+                temp.unlink(missing_ok=True)
         return None
+
+    def changes(self, limit: int = 20) -> list[dict]:
+        rows = self.db.execute("SELECT id,target,ts,source,before_text,after_text FROM memory_changes ORDER BY id DESC LIMIT ?", (limit,)).fetchall()
+        return [{"id": r[0], "target": r[1], "time": r[2], "source": r[3],
+                 "summary": next((x for x in r[5].split(SEP) if x not in r[4].split(SEP)), "删除条目").strip()[:120]} for r in rows]
+
+    def undo_change(self, change_id: int) -> str:
+        with self._memory_lock:
+            row = self.db.execute("SELECT target,before_text,after_text FROM memory_changes WHERE id=?", (change_id,)).fetchone()
+            if not row:
+                return "变更不存在。"
+            path = self._path(row[0])
+            current = path.read_text(encoding="utf-8") if path.exists() else ""
+            if current != row[2]:
+                return "记忆已有后续修改，请先撤销该分类最近一次变更。"
+            entries = [e.strip() for e in row[1].split(SEP) if e.strip()]
+            error = self._write(row[0], entries, source="undo")
+            return error or "已撤销这次记忆变更。"
+
+    def _label_position(self, target: str, content: str, source: str) -> str:
+        if target != "user":
+            return content
+        state = position_state(content)
+        if state == "none":
+            return content
+        label = {"planned": "计划", "historical": "历史持仓", "pending": "待确认", "current": "已确认持仓"}[state]
+        if source == "agent" and state == "current":
+            label = "待确认"
+        content = re.sub(r"【(?:计划|历史持仓|待确认|已确认持仓)】", "", content).strip()
+        date = re.match(r"^(\[20\d\d-\d\d-\d\d\]\s*)", content)
+        prefix = date.group() if date else ""
+        return f"{prefix}【{label}】{content[len(prefix):]}"
 
     @staticmethod
     def dated(content: str) -> str:
@@ -107,25 +174,29 @@ class Memory:
             return content
         return f"[{now()[:10]}] {content}"
 
-    def add(self, target: str, content: str) -> str:
+    @memory_edit
+    def add(self, target: str, content: str, source: str = "user") -> str:
+        content = self._label_position(target, content, source)
         content = self.dated(content)
         if any(e.split("] ", 1)[-1] == content.split("] ", 1)[-1] for e in self.entries(target)):
             return "已存在，未重复写入。"
         es = self.entries(target)
         if content in es:
             return "已存在，未重复写入。"
-        err = self._write(target, es + [content])
+        err = self._write(target, es + [content], source=source)
         return err or f"已写入 {FILES[target]}（{self.usage(target)}）。"
 
-    def replace(self, target: str, old_text: str, content: str) -> str:
+    @memory_edit
+    def replace(self, target: str, old_text: str, content: str, source: str = "user") -> str:
         es = self.entries(target)
         hits = [i for i, e in enumerate(es) if old_text in e]
         if len(hits) != 1:
             return f"old_text 匹配到 {len(hits)} 条，需要恰好 1 条。"
-        es[hits[0]] = self.dated(content)
-        err = self._write(target, es)
+        es[hits[0]] = self.dated(self._label_position(target, content, source))
+        err = self._write(target, es, source=source)
         return err or f"已更新（{self.usage(target)}）。"
 
+    @memory_edit
     def remove(self, target: str, old_text: str) -> str:
         es = self.entries(target)
         hits = [i for i, e in enumerate(es) if old_text in e]
@@ -142,6 +213,7 @@ class Memory:
     def fill(self, target: str) -> float:
         return len(SEP.join(self.entries(target))) / LIMITS[target]
 
+    @memory_edit
     def overwrite(self, target: str, entries: list[str]) -> str | None:
         """整理记忆时整体改写（先备份到 memory/backup/）。"""
         p = self._path(target)
@@ -149,7 +221,8 @@ class Memory:
             b = self.mem_dir / "backup"
             b.mkdir(exist_ok=True)
             (b / f"{FILES[target]}.{now()[:10]}.bak").write_text(p.read_text(encoding="utf-8"), encoding="utf-8")
-        return self._write(target, [self.dated(e) for e in entries if e.strip()])
+        old = self.entries(target)
+        return self._write(target, [self.dated(e if e in old else self._label_position(target, e, "agent")) for e in entries if e.strip()], source="agent")
 
     def snapshot(self) -> str:
         parts = []

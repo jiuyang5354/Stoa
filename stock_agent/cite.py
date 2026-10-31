@@ -114,6 +114,27 @@ DATA_LABELS = {"get_fund_flow": "资金流", "get_northbound": "北向资金", "
                "earnings_release": "业绩新闻稿", "price_history": "历史收盘价", "earnings_transcript": "电话会文字稿"}
 
 
+def report_period(text: str, basis: str = "") -> tuple | None:
+    year = re.search(r"20\d\d", text)
+    if not year:
+        return None
+    if re.search(r"全年|年报|年度|12-31", text):
+        part = "FY"
+    elif re.search(r"前三季度|三季报", text):
+        part = "YTD3"
+    elif re.search(r"上半年|半年报|中报", text):
+        part = "H1"
+    elif re.search(r"第三季度|三季度|Q3|09-30", text, re.I):
+        part = "Q3" if basis != "cumulative" else "YTD3"
+    elif re.search(r"第二季度|二季度|Q2|06-30", text, re.I):
+        part = "Q2" if basis != "cumulative" else "H1"
+    elif re.search(r"第一季度|一季度|一季报|Q1|03-31", text, re.I):
+        part = "Q1"
+    else:
+        return None
+    return year.group(), part
+
+
 class Sources:
     """一轮对话里所有数据的来源登记处（线程安全：辩论里分析师并行调工具）。"""
 
@@ -122,6 +143,8 @@ class Sources:
         self.nums: list[tuple[float, int]] = []
         self.snums: list[tuple[float, int]] = []  # 只含数值字段（带符号），核对涨跌方向用
         self.dates: set[str] = set()
+        self.quotes: list[dict] = []  # 保留标的、字段和日期，避免把另一只股票的数字当出处
+        self.financials: list[dict] = []
         self.lock = threading.Lock()
 
     def new(self, name: str, url: str = "", as_of: str = "", kind: str = "tool", tool: str = "") -> int:
@@ -175,6 +198,11 @@ class Sources:
                     src = v.get("source") or "行情源"
                     sid = self.new(f"行情 · {sym} · {src}", quote_url(sym), str(v.get("date") or today()), tool=tool)
                     self.bind(v, sid)
+                    aliases = {sym, str(v.get("name") or "")}
+                    if "." in sym:
+                        aliases.add(sym.split(".")[0])
+                    with self.lock:
+                        self.quotes.append({"sid": sid, "symbol": sym, "aliases": aliases - {""}, "data": dict(v)})
                     out[sym] = {**v, "_cite": sid}
                 else:
                     out[sym] = v
@@ -199,6 +227,14 @@ class Sources:
             sid = self.new(f"财报与估值 · {sym} · {result.get('source') or '财务数据'}", result.get("url") or quote_url(sym),
                            str(result.get("as_of") or today()), tool=tool)
             self.bind(result, sid)
+            aliases = {sym, str(result.get("name") or "")} - {""}
+            currency = (result.get("valuation") or {}).get("货币") or result.get("currency")
+            rows = [(result.get("valuation") or result, None)]
+            rows += [(row, report_period(str(row.get("报告期") or ""), "cumulative")) for row in result.get("main_indicators") or []]
+            rows += [(row, report_period(str(row.get("period") or ""), "quarter")) for row in result.get("quarterly") or []]
+            with self.lock:
+                self.financials += [{"sid": sid, "symbol": sym, "aliases": aliases, "data": dict(row),
+                                     "period": period, "currency": currency, "kind": "financial"} for row, period in rows]
             return {**result, "_cite": sid}
         if tool in DATA_LABELS and isinstance(result, dict) and not result.get("error"):
             sym = str(result.get("symbol") or args.get("symbol") or "")
@@ -271,12 +307,113 @@ class Sources:
         return result
 
     # -------------------------------------------------- 比对
-    def direction_conflict(self, value: float, dec: int, scale: float, want: int) -> bool:
+    def quote_scope(self, body: str, pos: int) -> list[dict]:
+        """只绑定同一句中最近明确出现的代码/名称；不猜代词、简称或跨段落主语。"""
+        prefix = re.split(r"[。；;\n]|(?<!\d)\.(?=\s|$)", body[:pos])[-1]
+        with self.lock:
+            quotes = list(self.quotes) + list(self.financials)
+        hits = []
+        for q in quotes:
+            for alias in q["aliases"]:
+                pattern = r"(?<![A-Za-z0-9_])" + re.escape(alias) + r"(?![A-Za-z0-9_])"
+                hits.extend((m.end(), q["symbol"]) for m in re.finditer(pattern, prefix, re.I))
+        if not hits:
+            return []
+        symbol = max(hits)[1]
+        return [q for q in quotes if q["symbol"] == symbol]
+
+    def financial_match(self, body: str, n: dict, scope: list[dict]) -> tuple[bool, list[int] | None]:
+        prefix = re.split(r"[。；;\n]", body[:n["start"]])[-1]
+        fields = {
+            "市盈率TTM": (r"市盈率(?:TTM)?|\bPE\b", ("市盈率TTM", "pe")),
+            "预期市盈率": (r"预期市盈率|预测市盈率", ("预期市盈率",)),
+            "ROE%": (r"\bROE\b|净资产收益率", ("ROE%", "roe")),
+            "营收": (r"营业总收入|营业收入|营收|\brevenue\b", ("营业总收入", "Total Revenue")),
+            "净利润": (r"归母净利润|净利润|\bnet income\b", ("归母净利润", "Net Income")),
+            "市净率": (r"市净率|\bPB\b", ("市净率",)),
+            "市值": (r"市值|market cap", ("市值", "market_cap")),
+            "每股收益": (r"每股收益|\bEPS\b", ("每股收益", "Diluted EPS")),
+            "股息率%": (r"股息率|分红收益率", ("股息率%",)),
+            "净利率%": (r"净利率", ("净利率%",)),
+            "毛利率%": (r"毛利率", ("毛利率%",)),
+            "营收同比%": (r"营收同比|营业收入同比", ("营收同比%",)),
+            "净利同比%": (r"净利同比|净利润同比", ("净利同比%", "盈利同比%")),
+            "资产负债率%": (r"资产负债率", ("资产负债率%",)),
+            "自由现金流": (r"自由现金流", ("自由现金流",)),
+            "现金": (r"现金余额|现金总额", ("现金",)),
+            "总负债": (r"总负债|债务总额", ("总负债",)),
+        }
+        hits = [(m.end(), m.end() - m.start(), key) for key, (pattern, _) in fields.items()
+                for m in re.finditer(pattern, prefix, re.I)]
+        if not hits or re.search(r"相比|相差|假设|如果|若", prefix):
+            return False, None
+        key = max(hits)[2]
+        period = report_period(prefix)
+        currency_text = body[n["end_num"]:n["end_num"] + 5]
+        currency = next((v for word, v in (("美元", "USD"), ("港元", "HKD"), ("人民币", "CNY")) if word in currency_text), None)
+        out = []
+        for row in scope:
+            if row.get("kind") != "financial" or (period and row["period"] != period):
+                continue
+            if currency and row.get("currency") != currency:
+                continue
+            for field in fields[key][1]:
+                raw = row["data"].get(field)
+                if raw is None:
+                    continue
+                if isinstance(raw, str):
+                    match = re.fullmatch(r"\s*([-+]?\d+(?:\.\d+)?)\s*(万亿|亿|万|千)?\s*", raw)
+                    if not match:
+                        continue
+                    value = _scale(match[1], match[2])
+                elif isinstance(raw, (int, float)) and not isinstance(raw, bool):
+                    value = float(raw) * (100 if field == "roe" and abs(raw) < 1 else 1)
+                else:
+                    continue
+                tol = .5 * 10 ** -n["dec"] * n["scale"] + 1e-9
+                if abs(n["value"] - value) <= max(abs(value) * .005, tol):
+                    out.append(row["sid"])
+        return True, list(dict.fromkeys(out)) or None
+
+    def quote_match(self, body: str, n: dict, scope: list[dict]) -> tuple[bool, list[int] | None]:
+        """明确的行情指标按字段核对；推导、建议和无法识别的表述仍走通用数字核对。"""
+        prefix = re.split(r"[，。；,;\n|]", body[:n["start"]])[-1]
+        if re.search(r"较|相比|高于|低于|还差|相差|浮盈|收益|目标|建议|假设|如果|若|\b(?:above|below|target|if)\b", prefix, re.I):
+            return False, None
+        fields = {
+            "close": r"收盘(?:价)?|现价|\bclose\b",
+            "chg_pct": r"单日涨跌幅|涨幅|跌幅|上涨|下跌|\b(?:daily change|change)\b",
+            "chg_5d": r"5\s*(?:日|天)涨跌幅",
+            "chg_20d": r"20\s*(?:日|天)涨跌幅",
+            "ma20": r"20\s*日(?:均线|线)|\bMA20\b",
+            "ma60": r"60\s*日(?:均线|线)|\bMA60\b",
+            "rsi": r"\bRSI\b",
+            "high_52w": r"52\s*周(?:高点|最高(?:价)?)",
+            "low_52w": r"52\s*周(?:低点|最低(?:价)?)",
+        }
+        hits = [(m.end(), m.end() - m.start(), field) for field, pattern in fields.items()
+                for m in re.finditer(pattern, prefix, re.I)]
+        if not hits:
+            return False, None
+        field = max(hits)[2]
+        want = _want_sign(body, n)
+        target = abs(n["value"]) * want if want else n["value"]
+        tol = .5 * 10 ** -n["dec"] * n["scale"] + 1e-9
+        sids = []
+        for q in scope:
+            value = q["data"].get(field)
+            if isinstance(value, (int, float)) and not isinstance(value, bool):
+                if abs(target - value) <= max(abs(value) * .005, tol):
+                    sids.append(q["sid"])
+        return True, list(dict.fromkeys(sids)) or None
+
+    def direction_conflict(self, value: float, dec: int, scale: float, want: int, sids: set[int] | None = None) -> bool:
         """回答说「涨 2.35%」而数据里同一个数是 -2.35（或反过来）：只有反号的直接匹配、没有同号的，算方向写反。"""
         tol = .5 * 10 ** -dec * scale + 1e-9
         av = abs(value)
         with self.lock:
-            nums, snums = list(self.nums), list(self.snums)
+            nums = [(v, s) for v, s in self.nums if sids is None or s in sids]
+            snums = [(v, s) for v, s in self.snums if sids is None or s in sids]
 
         def hits(pairs):
             out = []
@@ -289,10 +426,10 @@ class Sources:
             return False
         return any(c != 0 and (c > 0) != (want > 0) for c in hits(snums))
 
-    def match(self, value: float, dec: int, scale: float = 1.0, pct: bool | None = None) -> list[int] | None:
+    def match(self, value: float, dec: int, scale: float = 1.0, pct: bool | None = None, sids: set[int] | None = None) -> list[int] | None:
         """value 能否由本轮数字得出。返回来源编号（可能两个），找不到返回 None。"""
         with self.lock:
-            pairs = list(dict.fromkeys(self.nums))
+            pairs = list(dict.fromkeys((v, s) for v, s in self.nums if sids is None or s in sids))
         if not pairs:
             return None
         tol_abs = .5 * 10 ** -dec * scale + 1e-9
@@ -458,14 +595,16 @@ def date_mismatches(body: str, src: Sources) -> list[dict]:
         ds = set(src.dates)
     if not ds:
         return []
-    known = [datetime.strptime(x, "%Y-%m-%d") for x in ds]
     today_s = today()
     bad = []
     for a in answer_dates(body):
+        scope = src.quote_scope(body, a["start"])
+        scoped_dates = set().union(*(dates_in(q["data"].get("date", "")) for q in scope)) if scope else set()
+        dates = scoped_dates or ds
         k = a["date"].strftime("%Y-%m-%d")
-        if k in ds or k == today_s:
+        if k in dates or (not scope and k == today_s):
             continue
-        near = min(abs((a["date"] - x).days) for x in known)
+        near = min(abs((a["date"] - datetime.strptime(x, "%Y-%m-%d")).days) for x in dates)
         if 0 < near <= 10:
             bad.append(a)
     return bad
@@ -479,13 +618,19 @@ def verify(text: str, src: Sources) -> dict:
     for n in key_numbers(body):
         flagged = body[n["end_num"]:n["end_num"] + len(UNVERIFIED) + 4].lstrip(" [0123456789]").startswith(UNVERIFIED)
         p = n["text"].rstrip().endswith(("%", "％"))
-        sids = src.match(n["value"], n["dec"], n["scale"], p) or (src.match(n["raw"], n["dec"], 1, p) if n["scale"] != 1 else None)
+        scope = src.quote_scope(body, n["start"])
+        allowed = {q["sid"] for q in scope} if scope else None
+        scoped, sids = src.financial_match(body, n, scope) if scope else (False, None)
+        if scope and not scoped:
+            scoped, sids = src.quote_match(body, n, scope)
+        if not scoped:
+            sids = src.match(n["value"], n["dec"], n["scale"], p, allowed) or (src.match(n["raw"], n["dec"], 1, p, allowed) if n["scale"] != 1 else None)
         want = _want_sign(body, n)
-        if sids and want and src.direction_conflict(n["value"], n["dec"], n["scale"], want):
+        if sids and want and src.direction_conflict(n["value"], n["dec"], n["scale"], want, allowed):
             why[n["text"]] = "涨跌方向和数据相反"
             sids = None
         elif not sids and not flagged:
-            why[n["text"]] = "找不到出处"
+            why[n["text"]] = "数字与该标的的指标、报告期或计价不符" if scoped else "找不到出处"
         nums.append({**n, "sids": sids, "flagged": flagged})
     for d in date_mismatches(body, src):
         flagged = body[d["end_num"]:d["end_num"] + len(UNVERIFIED) + 4].lstrip(" [0123456789]").startswith(UNVERIFIED)
@@ -572,6 +717,10 @@ def finalize(text: str, src: Sources) -> tuple[str, list[dict]]:
         if not sids:
             continue
         at = n["end_num"]
+        if src.quote_scope(body, n["start"]):
+            marker = re.match(r"(\s*(?:港元|美元|人民币|元|倍)?\s*)\[(\d+)\]", body[at:])
+            if marker and int(marker.group(2)) not in sids:
+                body = body[:at] + marker.group(1) + body[at + marker.end():]
         if _round(n["text"]):
             continue
         cu = UNIT_AFTER.match(body[at:at + 3]) if n["scale"] != 1 else None  # 「4.66 亿元」「235.4 万千升」角标放在单位后

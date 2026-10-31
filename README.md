@@ -101,7 +101,7 @@ docker compose up -d
 - **网页聊天**：带记忆面板；放到服务器上设置 `WEB_TOKEN`，用 `http://host:8080/?token=口令` 访问
 - **Telegram 网关**（可选）：填 `TELEGRAM_BOT_TOKEN` 和 `TELEGRAM_CHAT_ID`，只回复白名单里的人
 - **定时早晚报**：工作日 08:30 / 21:00（北京时间，`REPORT_TIMES` 可改），推送到已配置的渠道
-- **沙箱代码执行**：`ALLOW_CODE=1` 时 Agent 可以自己写 Python 做回测、算相关性等分析
+- **沙箱代码执行**：默认关闭。`ALLOW_CODE=1` 且已配置下方的独立 Docker 执行环境时，可用 Python 做离线分析；环境不可用时拒绝执行，不回退到本机 Python
 
 所有渠道共享同一套记忆。闲置 30 分钟自动结束会话并整理记忆；聊天里发 `/new` 立刻整理并开新对话，`/memory` 查看记忆。
 
@@ -113,10 +113,16 @@ docker compose up -d
 | 只读根文件系统 | 只有 `/data` 和 `/tmp`（256 MB 内存盘）可写 |
 | 去掉全部 Linux capabilities | `cap_drop: ALL` + `no-new-privileges` |
 | 资源上限 | 1.5 CPU、1.5 GB 内存、256 个进程 |
-| 代码执行再隔离 | 独立子进程、60 秒超时、1 GB 内存上限、看不到任何密钥环境变量 |
+| 代码执行再隔离 | 独立容器、60 秒超时、1 GB 内存上限；禁网、只读根目录，仅挂载 workspace，不传入应用密钥 |
 | 端口只绑本机 | 默认 `127.0.0.1:8080`，对外暴露需自己配 |
 
 数据都在 Docker 卷 `agent-data`（容器内 `/data`）：`memory/`（记忆）、`data/sessions.db`（对话与判断账本）、`config.yaml`（自选股）、`reports/`、`workspace/`（沙箱文件）。备份：`docker cp stoa:/data ./backup`。
+
+**独立代码执行环境**：在安装了 Docker 的宿主机上，从源码构建 `docker build -t stoa-sandbox:local packaging/sandbox`，然后为直接运行的 Python / Windows 应用设置 `ALLOW_CODE=1`。执行镜像只包含 Python、pandas 和 numpy；每次运行只挂载数据目录下的 `workspace`，不能联网。Linux 上使用当前非 root 用户的 uid/gid；以 root 启动时降为 uid/gid 65534，需要预先授予该用户 workspace 写权限。没有 Docker、服务未启动或镜像未构建时，会返回不可用。
+
+上面的 `docker compose` 服务没有 Docker 客户端或守护进程访问权，代码工具因此不可用；不要为此把宿主机 Docker socket 挂入应用容器。查行情、读财报、记忆、早晚报不依赖代码工具。
+
+**引用校验边界**：明确写出代码或已知名称的行情陈述，会按该标的的收盘价、涨跌幅、均线等字段和日期核对，不能借另一只股票的数字通过。简称、代词、跨段落主语及任意财务陈述仍不能完整识别；普通数字匹配和角标不等于全文事实已经得到证明。
 
 ## 外接 API（全部兼容）
 

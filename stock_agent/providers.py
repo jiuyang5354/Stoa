@@ -10,10 +10,14 @@
 """
 import json
 import os
+import queue
 import random
+import subprocess
+import sys
 import threading
 import time
 import uuid
+from pathlib import Path
 
 import requests
 
@@ -21,6 +25,115 @@ import requests
 USAGE = {"calls": 0, "prompt_tokens": 0, "completion_tokens": 0, "calls_no_usage": 0, "errors": 0, "retries": 0}
 RETRY_STATUS = {429, 500, 502, 503, 504}  # 中转/网关常见的限流与临时故障：退避重试（LLM_RETRIES，默认 3 次）
 _USAGE_LOCK = threading.Lock()
+
+
+class RequestCancelled(InterruptedError):
+    """The caller stopped an in-flight model request."""
+
+
+def start_request_worker(args, env, flags, stop, deadline):
+    # Windows 的进程创建本身也可能受磁盘/杀毒扫描拖慢，等待期间仍响应停止和总时限。
+    ready, abandoned, lock, box = threading.Event(), threading.Event(), threading.Lock(), {}
+    def start():
+        try:
+            proc = subprocess.Popen(args, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+                                    text=True, encoding="utf-8", env=env, **flags)
+            with lock:
+                if abandoned.is_set():
+                    proc.terminate(); proc.wait(timeout=2); proc.stdin.close(); proc.stdout.close()
+                else:
+                    box["proc"] = proc
+        except Exception as exc:
+            box["error"] = exc
+        finally:
+            ready.set()
+    threading.Thread(target=start, daemon=True).start()
+    try:
+        while not ready.wait(.02):
+            if stop.is_set():
+                raise RequestCancelled()
+            if time.monotonic() >= deadline:
+                raise TimeoutError("模型请求启动超时")
+        if "error" in box:
+            raise box["error"]
+        return box["proc"]
+    except BaseException:
+        with lock:
+            abandoned.set()
+            if "proc" in box:
+                proc = box["proc"]
+                proc.terminate(); proc.wait(timeout=2); proc.stdin.close(); proc.stdout.close()
+        raise
+
+
+def controlled_chat(llm, messages, tools, temperature, timeout, stop, on_event=None):
+    """A disposable worker owns the socket, so cancellation also closes the request."""
+    deadline = time.monotonic() + timeout
+    if stop.is_set():
+        raise RequestCancelled()
+    if timeout <= 0:
+        raise TimeoutError("模型请求已超时")
+    payload = {"llm": {k: getattr(llm, k) for k in ("name", "proto", "base", "model", "key", "api_version")},
+               "messages": messages, "tools": tools, "temperature": temperature, "timeout": timeout,
+               "retries": os.getenv("LLM_RETRIES", "3"), "retry_base": os.getenv("LLM_RETRY_BASE", "2")}
+    env = {k: v for k, v in os.environ.items() if k.upper() in {
+        "PATH", "SYSTEMROOT", "WINDIR", "TEMP", "TMP", "SSL_CERT_FILE", "REQUESTS_CA_BUNDLE",
+        "CURL_CA_BUNDLE", "HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY", "ALL_PROXY",
+    }}
+    env.update(PYTHONUTF8="1", PYTHONIOENCODING="utf-8")
+    flags = {"creationflags": subprocess.CREATE_NO_WINDOW} if os.name == "nt" else {}
+    events = queue.Queue()
+    proc = start_request_worker([sys.executable, "-B", "-X", "utf8", "-u", str(Path(__file__).with_name("llm_worker.py"))],
+                                env, flags, stop, deadline)
+    def read():
+        try:
+            for line in proc.stdout:
+                try:
+                    events.put(json.loads(line))
+                except ValueError:
+                    continue
+        finally:
+            events.put(None)
+    reader = threading.Thread(target=read, daemon=True)
+    reader.start()
+    try:
+        proc.stdin.write(json.dumps(payload, ensure_ascii=False)); proc.stdin.close()
+        if on_event:
+            on_event({"t": "model", "status": "request", "provider": llm.name})
+        while True:
+            if stop.is_set():
+                raise RequestCancelled()
+            if time.monotonic() >= deadline:
+                raise TimeoutError("模型请求超时（含重试与备用模型等待）")
+            try:
+                item = events.get(timeout=min(.05, max(.001, deadline - time.monotonic())))
+            except queue.Empty:
+                continue
+            if item is None:
+                raise RuntimeError("模型请求进程意外退出")
+            if item.get("kind") == "event":
+                if on_event:
+                    on_event(item["event"])
+                continue
+            with _USAGE_LOCK:
+                for key in USAGE:
+                    USAGE[key] += item.get("usage", {}).get(key, 0)
+            if item.get("kind") == "result":
+                return item["message"]
+            status = item.get("status")
+            if status:
+                response = requests.Response(); response.status_code = status
+                raise requests.HTTPError(f"模型服务返回 HTTP {status}", response=response)
+            raise RuntimeError(item.get("error") or "模型请求失败")
+    finally:
+        if proc.poll() is None:
+            proc.terminate()
+            try:
+                proc.wait(timeout=.7)
+            except subprocess.TimeoutExpired:
+                proc.kill(); proc.wait(timeout=.7)
+        reader.join(timeout=.2)
+        proc.stdout.close()
 
 
 def record_usage(u: dict | None = None, error: bool = False):
@@ -257,7 +370,11 @@ class LLM:
                     raise
                 with _USAGE_LOCK:
                     USAGE["retries"] += 1
-                time.sleep(_backoff(e.response, attempt))
+                delay = _backoff(e.response, attempt)
+                callback = getattr(self, "on_retry", None)
+                if callback:
+                    callback({"t": "model", "status": "retry", "seconds": round(delay, 1), "attempt": attempt + 1})
+                time.sleep(delay)
             except Exception:
                 record_usage(error=True)
                 raise
@@ -430,11 +547,19 @@ class Router:
     def __repr__(self):
         return " → ".join(map(repr, self.chain))
 
-    def chat(self, messages, tools=None, temperature=0.3, timeout=120) -> dict:
+    def chat(self, messages, tools=None, temperature=0.3, timeout=120, stop=None, on_event=None) -> dict:
+        stop = stop if stop is not None else getattr(self, "stop", None)
+        on_event = on_event or getattr(self, "on_event", None)
+        deadline = min(time.monotonic() + timeout, getattr(self, "deadline", float("inf")))
         err = None
         for llm in self.chain:
             try:
-                return llm.chat(messages, tools, temperature, timeout)
+                remaining = deadline - time.monotonic()
+                if stop is not None:
+                    return controlled_chat(llm, messages, tools, temperature, remaining, stop, on_event)
+                return llm.chat(messages, tools, temperature, remaining)
+            except (RequestCancelled, TimeoutError):
+                raise
             except Exception as e:
                 err = e
         raise err

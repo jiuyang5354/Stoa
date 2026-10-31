@@ -48,6 +48,6 @@ def test_fetch_models_filters_and_probe(monkeypatch, tmp_path):
     j = settings.probe_models({"provider": "openai", "base": "https://bad/v1"})
     assert not j["ok"] and "401" in j["msg"] and seen["headers"]["Authorization"] == "Bearer sk-test"  # 密钥留空用已保存的
     P.save_source({"name": "relay", "base": "https://relay2/v1", "key": "sk-r"})
-    s = settings.get(type("M", (), {"entries": lambda *a: [], "usage": lambda *a: "", "call_stats": lambda *a: {}})())
+    s = settings.get(type("M", (), {"entries": lambda *a: [], "usage": lambda *a: "", "call_stats": lambda *a: {}, "changes": lambda *a: []})())
     assert any(x.get("custom") and x["id"] == "relay" and x["key"].endswith("sk-r"[-4:]) or x.get("custom") for x in s["providers"])
     assert "sk-r" not in json.dumps([x for x in s["providers"] if x.get("custom")])

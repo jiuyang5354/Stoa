@@ -418,6 +418,8 @@ RULES = {"fundamental": rule_fundamental, "technical": rule_technical, "news": r
 
 def holdings_check(user_entries: list[str], symbol: str, names: set[str], quote: dict | None) -> dict:
     """风控规则：持仓集中度、风险偏好、超买、止损参考。返回 {decision, findings, max_position_pct, stop_loss}。"""
+    from .memory import position_state
+    user_entries = [e for e in user_entries if position_state(e) not in ("planned", "historical", "pending")]
     find, decision, cap = [], "通过", 20
     mine = [e for e in user_entries if symbol.upper() in e.upper() or any(n and n in e for n in names)]
     share = None
@@ -482,6 +484,9 @@ def _today() -> str:
 def has_position_info(user_entries: list[str], symbol: str = "", names: set[str] | None = None) -> bool:
     """用户是否给过持仓/仓位/风险偏好信息——只有给过，LLM 风控官才有东西可判。"""
     for e in user_entries or []:
+        from .memory import position_state
+        if position_state(e) in ("planned", "historical", "pending"):
+            continue
         if re.search(r"持有|持仓|仓位|占.{0,6}\d{1,3}(\.\d+)?\s?%|买入了|成本价|保守|稳健|激进|风险偏好|杠杆|融资", e):
             return True
     return False
