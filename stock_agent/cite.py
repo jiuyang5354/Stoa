@@ -766,6 +766,9 @@ def finalize(text: str, src: Sources) -> tuple[str, list[dict]]:
         cu = UNIT_AFTER.match(body[at:at + 3]) if n["scale"] != 1 else None  # 「4.66 亿元」「235.4 万千升」角标放在单位后
         if cu:
             at += cu.end()
+        bei = re.match(r"\s?倍(?!杠杆)", body[at:]) if n["scale"] == 1 and not n["text"].rstrip().endswith(("%", "％")) else None
+        if bei:  # 「16.79 倍」角标放在「倍」后
+            at += bei.end()
         rest = body[at:]
         if re.match(r"\s?\[\d+\]", rest) or re.match(r"\s?\[\d+\]", body[n["end_num"]:]):
             continue
