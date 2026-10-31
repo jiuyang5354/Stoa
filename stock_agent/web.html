@@ -258,6 +258,10 @@
   .sym{font:500 var(--fsn3) var(--sans);letter-spacing:.16em;color:var(--mute);margin-top:4px}
   .chart{position:relative;padding:0 10px}
   .chart svg{width:100%;display:block;touch-action:none}
+  /* 石刻感：图本身保持平面，只让图框像在石面上凹下去一道——上沿内侧暗一线、下沿内侧亮一线 */
+  .chart::before{content:"";position:absolute;inset:2px 10px 0;pointer-events:none;border:1px solid var(--rule);
+    box-shadow:inset 0 1px 0 rgba(24,23,21,.07),inset 0 -1px 0 rgba(255,255,255,.7),inset 0 0 0 3px var(--g-wash)}
+  html.dark .chart::before{box-shadow:inset 0 1px 0 rgba(0,0,0,.45),inset 0 -1px 0 rgba(255,255,255,.05),inset 0 0 0 3px var(--g-wash)}
   .chart path.ln{fill:none;stroke-width:1.3;stroke-linecap:round;stroke-linejoin:round}
   .chart path.ar{opacity:.9}
   .tip{position:absolute;top:0;transform:translateX(-50%);background:var(--ink);color:var(--marble);padding:1px 8px;font:500 var(--fsn3) var(--sans);letter-spacing:.1em;pointer-events:none;white-space:nowrap}
@@ -2604,7 +2608,13 @@ const GLAT = {'ΗΦΑΙΣΤΟΣ':'HEPHAESTUS','ΠΡΟΜΗΘΕΥΣ':'PROMETHEUS',
 const GSTAR = '<span class="gstar"></span>';
 const GORDER = ['symbol','theme','market','user','note','skill','call','chat'];
 let GINTRO = 0, GCOL = null, GFONT = null, GSKY = null, G = null, GV = {x:0, y:0, k:1}, GSEL = null, GHOV = null, GOFF = new Set(), GQ = '', GRAF = 0, GALPHA = 0;
-const gcol = () => document.documentElement.classList.contains('dark') ? ({ink:'#E7E1D4', mute:'rgba(231,225,212,.5)', bronze:'#C49D70', up:'#D46D50', dn:'#93A786', paper:'#1E1D19', glow:'rgba(194,164,102,.25)'}) : ({ink:'#181715', mute:'rgba(24,23,21,.5)', bronze:'#9E7B56', up:'#B3543A', dn:'#56684F', paper:'#F8F6F0', glow:'rgba(201,169,110,.22)'});
+new MutationObserver(() => { GCOL = null; }).observe(document.documentElement, {attributes: true, attributeFilter: ['class']});  // 切主题后画布重取颜色
+const gcol = () => {  // 画布颜色只从 CSS 变量取：单一金色 + 五档透明度，随主题切换
+  const cs = getComputedStyle(document.documentElement), v = k => cs.getPropertyValue(k).trim(), g = v('--gold-rgb') || '176,146,89';
+  const dark = document.documentElement.classList.contains('dark'), ink = dark ? '231,225,212' : '24,23,21';
+  return {ink: `rgb(${ink})`, mute: `rgba(${ink},.5)`, bronze: v('--gold') || '#B09259', up: v('--terracotta') || '#B3543A', dn: v('--olive') || '#56684F',
+          paper: dark ? '#1E1D19' : '#F8F6F0', glow: `rgba(${g},.25)`, glow0: `rgba(${g},0)`};
+};
 function gsize(n){ return n.type === 'market' ? 12 : n.type === 'symbol' ? 5 + Math.min(9, Math.sqrt(n.deg) * 1.6) : n.type === 'theme' ? 4.5 + Math.min(7, Math.sqrt(n.deg) * 1.3) : 3.4; }
 function gstar(ctx, x, y, r){ const q = r * .22; ctx.moveTo(x, y - r); ctx.quadraticCurveTo(x + q, y - q, x + r, y); ctx.quadraticCurveTo(x + q, y + q, x, y + r); ctx.quadraticCurveTo(x - q, y + q, x - r, y); ctx.quadraticCurveTo(x - q, y - q, x, y - r); ctx.closePath(); }
 function gglyph(ctx, n, x, y, r, C, dim, A = 1){
@@ -2612,7 +2622,7 @@ function gglyph(ctx, n, x, y, r, C, dim, A = 1){
   const vc = n.verdict === '对' ? C.up : n.verdict === '错' ? C.dn : null;
   ctx.beginPath();
   switch (n.type) {
-    case 'symbol': { if (!dim) { const g = ctx.createRadialGradient(x, y, 0, x, y, r * 2.6); g.addColorStop(0, C.glow); g.addColorStop(1, 'rgba(230,198,106,0)'); ctx.fillStyle = g; ctx.fillRect(x - r * 2.6, y - r * 2.6, r * 5.2, r * 5.2); ctx.fillStyle = C.ink; }
+    case 'symbol': { if (!dim) { const g = ctx.createRadialGradient(x, y, 0, x, y, r * 2.6); g.addColorStop(0, C.glow); g.addColorStop(1, C.glow0); ctx.fillStyle = g; ctx.fillRect(x - r * 2.6, y - r * 2.6, r * 5.2, r * 5.2); ctx.fillStyle = C.ink; }
       ctx.beginPath(); gstar(ctx, x, y, r * 1.55); ctx.fill(); ctx.beginPath(); gstar(ctx, x, y, r * .8); ctx.save(); ctx.translate(x, y); ctx.rotate(Math.PI / 4); ctx.translate(-x, -y); ctx.beginPath(); gstar(ctx, x, y, r * .85); ctx.fill(); ctx.restore(); break; }
     case 'theme': ctx.arc(x, y, r, 0, 7); ctx.fillStyle = C.paper; ctx.fill(); ctx.stroke(); ctx.beginPath(); ctx.arc(x, y, 1.4, 0, 7); ctx.fillStyle = C.ink; ctx.fill(); break;
     case 'market': { ctx.arc(x, y, r, 0, 7); ctx.fillStyle = C.paper; ctx.fill(); ctx.strokeStyle = C.bronze; ctx.stroke(); ctx.beginPath(); ctx.arc(x, y, r - 3.5, 0, 7); ctx.stroke();
