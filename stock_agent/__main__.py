@@ -113,6 +113,7 @@ def main():
     p.add_argument("--stdout", action="store_true", help="只打印，不写文件")
     p.add_argument("--json", action="store_true", help="输出 JSON 快照")
     p.add_argument("--push", action="store_true", help="推送到已配置的渠道")
+    p.add_argument("--poster", action="store_true", help="另出一张战报长图（装了 Playwright 出 PNG，否则只写 HTML）")
     a = p.parse_args()
 
     cfg = yaml.safe_load(Path(a.config or default_config()).read_text(encoding="utf-8"))
@@ -131,6 +132,16 @@ def main():
         out.parent.mkdir(exist_ok=True)
         out.write_text(md, encoding="utf-8")
         (home() / "reports" / "latest.md").write_text(md, encoding="utf-8")
+        # 战报长图用：存一份结构化快照，网页 /poster 直接读，不再重抓行情
+        (home() / "reports" / "latest.json").write_text(json.dumps(
+            {"session": a.session, "time": datetime.now(report.CN_TZ).isoformat(), "snap": snap, "ai": ai},
+            ensure_ascii=False, default=str), encoding="utf-8")
+        if a.poster:
+            from . import poster
+            d = poster.data(snap, a.session, ai, mem.call_stats())
+            img = out.with_suffix(".png")
+            page = poster.html(d, save=False)
+            print(f"\n战报长图：{img if poster.png(page, img) else img.with_suffix('.html')}")
     if a.push:
         sent = notify.push(report.TITLES.get(a.session, "股市快照"), md)
         print(f"\n已推送：{'、'.join(sent) or '未配置任何推送渠道'}")

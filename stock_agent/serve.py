@@ -237,6 +237,9 @@ class Web(BaseHTTPRequestHandler):
         auth = self.headers.get("Authorization", "")
         if not got and auth.lower().startswith("bearer "):
             got = auth[7:].strip()
+        if not got and self.command == "GET" and self.path.startswith("/poster"):  # 新窗口打开长图带不了请求头
+            from urllib.parse import parse_qs, urlparse
+            got = (parse_qs(urlparse(self.path).query).get("token") or [""])[0]
         return not token or hmac.compare_digest(token, got)
 
     def _send(self, code, body, ctype="application/json"):
@@ -411,10 +414,37 @@ class Web(BaseHTTPRequestHandler):
             return self.wfile.write(data)
         if self.path == "/v1/models":
             return self._send(200, {"object": "list", "data": [{"id": "stoa", "object": "model", "owned_by": "stoa"}]})
+        if self.path.split("?")[0] == "/poster":
+            return self._poster()
         if self.path == "/api/report":
             p = home() / "reports" / "latest.md"
             return self._send(200, {"markdown": p.read_text(encoding="utf-8") if p.exists() else "还没有报告。"})
         self._send(404, {"error": "not found"})
+
+    def _poster(self):
+        """战报长图：读最近一次早晚报的快照；没有就现抓一份行情（不调模型、不抓新闻）。"""
+        import json as _json
+        from datetime import datetime as _dt
+        from urllib.parse import parse_qs, urlparse
+        from . import poster
+        from .memory import Memory
+        q = parse_qs(urlparse(self.path).query)
+        p = home() / "reports" / "latest.json"
+        rec = _json.loads(p.read_text(encoding="utf-8")) if p.exists() else None
+        if not rec or q.get("fresh"):
+            from .__main__ import build_snapshot
+            cfg = load_cfg()
+            h = _dt.now(poster.CN_TZ).hour
+            rec = {"session": "morning" if h < 12 else "evening", "time": None, "snap": build_snapshot(cfg, with_news=False), "ai": None}
+        sess = (q.get("session") or [rec["session"]])[0]
+        when = _dt.fromisoformat(rec["time"]) if rec.get("time") else None
+        page = poster.html(poster.data(rec["snap"], sess, rec.get("ai"), MEM.call_stats(), when))
+        data = page.encode("utf-8")
+        self.send_response(200)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Length", str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
 
     def do_POST(self):
         if not self._auth():

@@ -3142,6 +3142,7 @@ const CMDS = [
   {c: '/graph', g: '界面', d: '记忆图谱', k: 'Ctrl+G', run: () => openGraph()},
   {c: '/backtest', g: '界面', d: '回测与评测', run: () => openSettings('probatio')},
   {c: '/model', g: '界面', d: '切换本对话的模型', run: () => { const b = $('mdl'); if (b && !b.hidden) b.click(); else openSettings('model'); }},
+  {c: '/poster', g: '界面', d: '战报长图：最近一次早晚报排成竖版图，可存 PNG', run: () => window.open('/poster' + (token ? `?token=${encodeURIComponent(token)}` : ''), '_blank')},
   {c: '/changelog', g: '界面', d: '更新日志 · 每个版本改了什么', run: () => openChangelog()},
   {c: '/theme', g: '界面', d: '切换浅色 / 深色', run: () => toggleTheme()},
   {c: '/lang', g: '界面', d: '切换中文 / English', run: () => setLang(I18N.lang === 'en' ? 'zh' : 'en')},
