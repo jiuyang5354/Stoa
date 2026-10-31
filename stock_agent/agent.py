@@ -510,6 +510,7 @@ class Agent:
     # ----- 工具 -----
     def run_tool(self, name: str, args: dict):
         m = self.mem
+        args = _norm_args(args)
         if name == "memory_links":
             from . import graph
             return graph.recall(str(args.get("query", "")), m)
@@ -1049,3 +1050,51 @@ def _about_stoa() -> str:
                 "并说输入 /changelog 可以看完整的 Fasti 更新日志。不要反问是不是上市公司公告。")
     except Exception:
         return ""
+
+
+def norm_symbol(x: str) -> str:
+    """把用户/模型常写的代码补成 Yahoo 格式：600519→600519.SS、000858→000858.SZ、00700/700→0700.HK、
+    600519.SH→600519.SS、sh600519→600519.SS，中文名按内置别名表认。认不出原样返回。"""
+    import re
+    s0 = str(x or "").strip()
+    s = s0.upper().replace("．", ".")
+    if not s or s.startswith("^") or "=" in s:
+        return s0
+    m = re.fullmatch(r"(SH|SZ|BJ)(\d{6})", s)
+    if m:
+        s = f"{m.group(2)}.{m.group(1)}"
+    m = re.fullmatch(r"(\d{6})(?:\.(SS|SH|SZ|BJ))?", s)
+    if m:
+        code, ex = m.group(1), m.group(2)
+        if not ex:
+            ex = "SS" if code[0] in "569" else "BJ" if code[0] in "48" else "SZ"
+        return f"{code}.{'SS' if ex == 'SH' else ex}"
+    m = re.fullmatch(r"(\d{1,5})(?:\.HK)?", s)
+    if m and (s.endswith(".HK") or len(m.group(1)) in (4, 5) or len(m.group(1)) <= 3):
+        return f"{int(m.group(1)):04d}.HK"
+    if re.search(r"[\u4e00-\u9fff]", s0):
+        try:
+            from .debate import resolve_symbol
+            known = {w.get("symbol"): w.get("name") for w in (load_cfg().get("watchlist") or []) if isinstance(w, dict)}
+        except Exception:
+            known = {}
+        try:
+            r = resolve_symbol(s0, known)
+            if r:
+                return r
+        except Exception:
+            pass
+    return s0
+
+
+def _norm_args(args):
+    if not isinstance(args, dict):
+        return args
+    out = dict(args)
+    if isinstance(out.get("symbol"), str):
+        out["symbol"] = norm_symbol(out["symbol"])
+    if isinstance(out.get("symbols"), list):
+        out["symbols"] = [norm_symbol(x) if isinstance(x, str) else x for x in out["symbols"]]
+    elif isinstance(out.get("symbols"), str):
+        out["symbols"] = [norm_symbol(x) for x in out["symbols"].replace("，", ",").split(",") if x.strip()]
+    return out
