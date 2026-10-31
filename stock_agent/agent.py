@@ -1281,6 +1281,8 @@ class Agent:
                 # 工具结果按剩余预算收缩（结构化：保留 _cite / url / 来源 / 时间，不从 JSON 中间硬切）
                 left = self.budget() - context.total(self.messages)
                 cap = 9000 if name in BIG_TOOLS else 6000
+                if isinstance(result, dict) and result.pop("_full_series", None):  # 完整逐日序列：允许更长（仍受剩余预算约束）
+                    cap = 24000
                 limit = max(1200, min(cap, left * 2 // max(1, len(calls))))
                 self.messages.append({"role": "tool", "tool_call_id": c["id"], "content": context.clip_tool(result, limit)})
 

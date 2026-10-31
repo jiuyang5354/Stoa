@@ -101,7 +101,7 @@ def csindex(code: str, start: str, end: str) -> dict:
     return out
 
 
-def kline_raw(code: str, start: str, end: str, adjust: str = "") -> dict:
+def kline_raw(code: str, start: str, end: str, adjust: str = "", full: bool = False) -> dict:
     """A股/港股日线（腾讯证券）。adjust 空=不复权（当时实际价），qfq 前复权，hfq 后复权。"""
     s = code.strip().lower()
     m = re.fullmatch(r"(?:(sh|sz|bj|hk))?(\d{4,6})(?:\.(ss|sh|sz|hk|bj))?", s)
@@ -116,13 +116,16 @@ def kline_raw(code: str, start: str, end: str, adjust: str = "") -> dict:
     raw = d.get(adjust + "day") or d.get("day") or []
     rows = [{"date": r[0], "open": float(r[1]), "close": float(r[2]), "high": float(r[3]), "low": float(r[4]), "volume": float(r[5])} for r in raw if len(r) >= 6]
     out = {"symbol": sym, "adjust": adjust or "none(不复权)", "source": "腾讯证券日线", "count": len(rows)}
-    out["rows"] = rows if len(rows) <= 200 else None
+    out["rows"] = rows if len(rows) <= 200 and not full else None
+    if full and rows:
+        from .cnhist import series_payload
+        out.update(series_payload(rows, f"kline_{sym}_{start}_{end}_{adjust}", True))
     if rows:
         hi = max(rows, key=lambda r: r["high"]); lo = min(rows, key=lambda r: r["low"])
         out["range"] = {"first": rows[0], "last": rows[-1], "change_pct": round((rows[-1]["close"] / rows[0]["close"] - 1) * 100, 4),
                         "highest_high": hi, "lowest_low": lo, "highest_close": max(rows, key=lambda r: r["close"])}
-        if len(rows) > 200:
-            out["note"] = f"共 {len(rows)} 天，未逐日列出；具体某天缩小 start/end"
+        if len(rows) > 200 and not full:
+            out["note"] = f"共 {len(rows)} 天，未逐日列出；要完整逐日序列给 full=true，具体某天缩小 start/end"
     return {k: v for k, v in out.items() if v is not None}
 
 
@@ -142,12 +145,15 @@ def fund_nav(code: str, start: str, end: str) -> dict:
 
 def run_tool(name: str, a: dict):
     k = (a.get("kind") or "").lower()
+    from . import cnhist
+    if k in cnhist.KINDS:
+        return cnhist.run(k, a)
     if k in ("indicators", "financials"):
         return indicators(a.get("code") or "", a.get("industry") or "", a.get("report_date") or "", a.get("sort") or "")
     if k == "csindex":
         return csindex(a.get("code") or "000300", a.get("start") or "", a.get("end") or "")
     if k == "kline":
-        return kline_raw(a.get("code") or "", a.get("start") or "", a.get("end") or "", a.get("adjust") or "")
+        return kline_raw(a.get("code") or "", a.get("start") or "", a.get("end") or "", a.get("adjust") or "", bool(a.get("full")))
     if k == "fund_nav":
         return fund_nav(a.get("code") or "", a.get("start") or "", a.get("end") or "")
     return macro(k or a.get("indicator") or "", a.get("start") or "", a.get("end") or "")
@@ -159,6 +165,12 @@ TOOL_SPECS = [
     {"name": "cn_data", "description": "中国市场结构化数据（比网页搜索可靠，查数题先用它）。kind："
      "ppi/cpi/gdp/reserves(外汇与黄金储备)/pmi/m2/retail(社零)/industrial(工业增加值)/fai(固投)/lpr —— 国家统计局/人民银行/外汇局月度数据，start/end 为 YYYY-MM-DD；"
      "indicators —— A股定期报告主要指标（营收、归母净利、加权ROE、EPS、毛利率、同比），给 code 查单家，或 industry=申万二级行业名（如 白酒Ⅱ）+ report_date=2024-12-31 一次拿全行业做筛选排名；"
-     "csindex —— 中证指数官方日线（000300 等）；kline —— A股/港股日线，adjust 空=不复权实际成交价（问历史最高价、某日开盘价用它），qfq/hfq 复权；fund_nav —— 基金历史净值。",
-     "parameters": {"type": "object", "properties": {"kind": S, "code": S, "industry": S, "report_date": S, "start": S, "end": S, "adjust": S, "sort": S}, "required": ["kind"]}},
+     "csindex —— 中证指数官方日线（000300 等）；kline —— A股/港股日线，adjust 空=不复权实际成交价（问历史最高价、某日开盘价用它），qfq/hfq 复权；fund_nav —— 基金历史净值；"
+     "sw_index —— 申万行业指数日线（code=801xxx 或行业名，含 2014 版旧一级）；sw_rank —— 申万行业横截面涨跌排名（start/end，单日 start=end；version 2021/2014，level 一级/二级）；"
+     "exchange_stats —— 沪深交易所某日市场概况（exchange=sh/sz，date：上市数、成交额、总市值）；etf_option —— ETF 期权合约日线（code 合约编码，或 underlying+month(YYMM)+cp(C/P)+strike）；"
+     "nbs —— 国家统计局（query 搜指标，或 zb+db(annual/monthly/quarterly)+period）；gold —— 上海金基准价（sub=sge_benchmark）或 SGE 现货日线（sub=spot, instid=Au99.99）。"
+     "full=true 返回完整逐日序列并写 /workspace/data/*.csv 供 run_python 计算。失败会给 error+hint，照 hint 换路径，不要编数。",
+     "parameters": {"type": "object", "properties": {"kind": S, "code": S, "industry": S, "report_date": S, "start": S, "end": S, "adjust": S, "sort": S,
+                                                     "date": S, "exchange": S, "version": S, "level": S, "underlying": S, "month": S, "cp": S, "strike": {"type": "number"},
+                                                     "zb": S, "db": S, "period": S, "query": S, "sub": S, "instid": S, "full": {"type": "boolean"}}, "required": ["kind"]}},
 ]

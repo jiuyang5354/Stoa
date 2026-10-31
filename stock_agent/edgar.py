@@ -525,7 +525,7 @@ def _agg(rows: list[dict], period: str) -> list[dict]:
     return out
 
 
-def price_history(symbol: str, dates=None, start: str | None = None, end: str | None = None, period: str = "") -> dict:
+def price_history(symbol: str, dates=None, start: str | None = None, end: str | None = None, period: str = "", full: bool = False) -> dict:
     """日线 OHLC。dates 查具体日子；start/end 给区间统计（最高/最低价及日期、最大单日/单周涨跌、最大回撤）；period=week/month/year 聚合。"""
     if isinstance(dates, str):
         dates = [x.strip() for x in re.split(r"[,\s]+", dates) if x.strip()]
@@ -595,10 +595,15 @@ def price_history(symbol: str, dates=None, start: str | None = None, end: str | 
                 if pre and agg:
                     agg[0]["prev_close"] = pre["close"]; agg[0]["change_pct"] = round((agg[0]["close"] / pre["close"] - 1) * 100, 4)
                 out["series_" + period] = agg[-400:]
+            elif full:  # 完整逐日序列（列式省 token）+ CSV 给 run_python，不再只回摘要
+                from .cnhist import series_payload
+                out.update(series_payload([{k: r.get(k) for k in ("date", "open", "high", "low", "close", "volume", "raw_close") if k in r} for r in span],
+                                          f"px_{meta.get('symbol') or symbol}_{start}_{end}", True))
             else:
                 out["series"] = span if len(span) <= 120 else None
                 if len(span) > 120:
-                    out["series_note"] = f"区间 {len(span)} 个交易日，日线不全部列出；区间统计已在 range 里算好，需要逐周/逐月用 period=week/month，具体某天用 dates"
+                    out["series_note"] = (f"区间 {len(span)} 个交易日，日线不全部列出；区间统计已在 range 里算好，需要逐周/逐月用 period=week/month，具体某天用 dates，"
+                                          "要完整逐日序列（如数连涨天数）给 full=true")
     out["as_of"] = rows[-1]["date"] if rows else None
     return {k: v for k, v in out.items() if v is not None}
 
@@ -670,7 +675,7 @@ def run_tool(name: str, a: dict):
     if name == "earnings_release":
         return earnings_release(sym, a.get("date"), a.get("start"), a.get("end"), a.get("query") or "", int(a.get("max_chars") or 7000), int(a.get("start_offset") or 0))
     if name == "price_history":
-        return price_history(sym, a.get("dates"), a.get("start"), a.get("end"), a.get("period") or "")
+        return price_history(sym, a.get("dates"), a.get("start"), a.get("end"), a.get("period") or "", bool(a.get("full")))
     if name == "earnings_transcript":
         return transcripts(sym, a.get("quarter") or "", a.get("query") or "")
     return {"error": f"未知工具 {name}"}
@@ -698,9 +703,9 @@ TOOL_SPECS = [
     {"name": "price_history", "description": "历史日线（开高低收、成交量，含不复权 raw_* 价）：dates 给一组日期返回当天 OHLC 和当日涨跌，非交易日给出前后最近交易日；"
      "start/end 返回区间统计（区间涨跌、最高价/最低价及日期、最大单日/单周涨跌及所在周、最大回撤），period=week/month/year 返回逐周/月/年收盘与涨跌。"
      "用于某日开盘/收盘/最高价、区间涨跌、历史最高价、最大单周跌幅、公告后 N 天股价变化。股票、指数、外汇、商品、加密都行：美股 AAPL、A股 600519、港股 0700.HK、"
-     "指数 ^GSPC ^HSI ^N225 000300.SS、美元指数 DX-Y.NYB、汇率 USDCNY=X、期货 GC=F CL=F、比特币 BTC-USD。",
+     "指数 ^GSPC ^HSI ^N225 000300.SS、美元指数 DX-Y.NYB、汇率 USDCNY=X、期货 GC=F CL=F、比特币 BTC-USD。full=true 返回区间完整逐日序列（并写 /workspace/data/*.csv 给 run_python）。",
      "parameters": {"type": "object", "properties": {"symbol": S, "dates": {"type": "array", "items": S}, "start": S, "end": S,
-                                                     "period": {"type": "string", "enum": ["", "week", "month", "year"]}}, "required": ["symbol"]}},
+                                                     "period": {"type": "string", "enum": ["", "week", "month", "year"]}, "full": {"type": "boolean"}}, "required": ["symbol"]}},
     {"name": "earnings_transcript", "description": "美股电话会文字稿（The Motley Fool 公开页面）：不给 quarter 列出可用季度；quarter 如「Q3 2025」（公司财年季度）读全文，query 检索段落（如 guidance、capex、new stores）。没有文字稿时改用 earnings_release。",
      "parameters": {"type": "object", "properties": {"symbol": S, "quarter": S, "query": S}, "required": ["symbol"]}},
 ]

@@ -98,23 +98,12 @@ def _get(url, **params):
 
 
 def p_tushare(symbol, days):
-    token = os.getenv("TUSHARE_TOKEN")
-    if not token:
+    """Tushare Pro（可选，用户自填 TUSHARE_TOKEN 才启用）：实现在 sources/tushare.py。"""
+    from .sources import tushare
+    if not tushare.enabled():
         return None
-    mkt, code = _split(symbol)
-    if mkt in ("sh", "sz"):
-        api, ts = ("index_daily" if symbol.upper() in A_INDEX else "daily"), f"{code}.{mkt.upper()}"
-    elif mkt == "hk":
-        api, ts = "hk_daily", f"{code.zfill(5)}.HK"
-    elif mkt == "us":
-        api, ts = "us_daily", code
-    else:
-        return None
-    r = requests.post(os.getenv("TUSHARE_URL", "http://api.tushare.pro"), timeout=20, json={
-        "api_name": api, "token": token, "fields": "trade_date,close",
-        "params": {"ts_code": ts, "start_date": _start(days).strftime("%Y%m%d")}}).json()
-    d = r.get("data") or {}
-    return _series([(row[0], row[1]) for row in d.get("items") or []], symbol)
+    rows = tushare.daily(symbol, _start(days).strftime("%Y%m%d"))
+    return _series(rows, symbol) if rows else None
 
 
 def p_finnhub(symbol, days):

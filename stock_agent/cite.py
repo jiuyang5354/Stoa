@@ -258,6 +258,7 @@ class Sources:
             rows = [(result.get("valuation") or result, None)]
             rows += [(row, report_period(str(row.get("报告期") or ""), "cumulative")) for row in result.get("main_indicators") or []]
             rows += [(row, report_period(str(row.get("period") or ""), "quarter")) for row in result.get("quarterly") or []]
+            rows += [(row, report_period(str(row.get("period") or ""), "cumulative")) for row in result.get("unified") or []]
             with self.lock:
                 self.financials += [{"sid": sid, "symbol": sym, "aliases": aliases, "data": dict(row),
                                      "period": period, "currency": currency, "kind": "financial"} for row, period in rows]
@@ -354,17 +355,17 @@ class Sources:
             "市盈率TTM": (r"市盈率(?:TTM)?|\bPE\b", ("市盈率TTM", "pe")),
             "预期市盈率": (r"预期市盈率|预测市盈率", ("预期市盈率",)),
             "ROE%": (r"\bROE\b|净资产收益率", ("ROE%", "roe")),
-            "营收": (r"营业总收入|营业收入|营收|\brevenue\b", ("营业总收入", "Total Revenue")),
-            "净利润": (r"归母净利润|净利润|\bnet income\b", ("归母净利润", "Net Income")),
+            "营收": (r"营业总收入|营业收入|营收|\brevenue\b", ("营业总收入", "Total Revenue", "revenue")),
+            "净利润": (r"归母净利润|净利润|\bnet income\b", ("归母净利润", "Net Income", "net_profit")),
             "市净率": (r"市净率|\bPB\b", ("市净率",)),
             "市值": (r"市值|market cap", ("市值", "market_cap")),
-            "每股收益": (r"每股收益|\bEPS\b", ("每股收益", "Diluted EPS")),
+            "每股收益": (r"每股收益|\bEPS\b", ("每股收益", "Diluted EPS", "eps")),
             "股息率%": (r"股息率|分红收益率", ("股息率%",)),
-            "净利率%": (r"净利率", ("净利率%",)),
-            "毛利率%": (r"毛利率", ("毛利率%",)),
-            "营收同比%": (r"营收同比|营业收入同比", ("营收同比%",)),
-            "净利同比%": (r"净利同比|净利润同比", ("净利同比%", "盈利同比%")),
-            "资产负债率%": (r"资产负债率", ("资产负债率%",)),
+            "净利率%": (r"净利率", ("净利率%", "net_margin")),
+            "毛利率%": (r"毛利率", ("毛利率%", "gross_margin")),
+            "营收同比%": (r"营收同比|营业收入同比", ("营收同比%", "revenue_yoy")),
+            "净利同比%": (r"净利同比|净利润同比", ("净利同比%", "盈利同比%", "net_profit_yoy")),
+            "资产负债率%": (r"资产负债率", ("资产负债率%", "debt_ratio")),
             "自由现金流": (r"自由现金流", ("自由现金流",)),
             "现金": (r"现金余额|现金总额", ("现金",)),
             "总负债": (r"总负债|债务总额", ("总负债",)),

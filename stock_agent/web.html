@@ -1524,6 +1524,11 @@ function cardQuote(c){
   return `<div class="dc"><h6>报价校验<i>Examen</i><small>${esc(c.symbol)}${csup(c.cite)}</small></h6><table><tr><th>来源</th><th>价格</th></tr>${v.map(([k, x]) => `<tr><td>${esc(k)}</td><td>${N(x)}</td></tr>`).join('')}</table>
     <div class="kv"><span>最大偏差 <b>${N(c.spread, 2)}%</b></span><span>阈值 ${N(c.threshold)}%</span></div>${dcFoot(c)}</div>`;
 }
+function cardFinCheck(c){
+  const it = c.items || [], srcs = [...new Set(it.flatMap(x => Object.keys(x.values || {})))];
+  return `<div class="dc"><h6>财务校验<i>Examen</i><small>${esc(c.name || c.symbol || '')}${csup(c.cite)}</small></h6><table><tr><th>报告期 · 科目</th>${srcs.map(s => `<th>${esc(s)}</th>`).join('')}<th>差异</th></tr>${it.map(x => `<tr><td>${esc(x.period)} ${esc(x.label)}</td>${srcs.map(s => `<td>${x.values[s] == null ? '—' : (Math.abs(x.values[s]) >= 1e4 ? bigN(x.values[s]) : N(x.values[s], 2))}</td>`).join('')}<td>${N(x.spread_pct, 1)}%</td></tr>`).join('')}</table>
+    <div class="kv"><span>阈值 ${N(c.threshold)}%</span><span>以公司定期报告原文为准</span></div>${dcFoot(c)}</div>`;
+}
 /* ---------- v0.26 确定性计算卡：支撑阻力 / 利润瀑布 / 期权收益 / 行情重放 ---------- */
 const FT = 'font-family="Alte Haas Grotesk"';
 function bigN(v){ const a = Math.abs(v); return a >= 1e12 ? (v / 1e12).toFixed(2) + '万亿' : a >= 1e8 ? (v / 1e8).toFixed(2) + '亿' : a >= 1e4 ? (v / 1e4).toFixed(1) + '万' : (+v).toFixed(2); }
@@ -1612,7 +1617,7 @@ function cardScen(c){
     ${row('加权', c.weighted_per_share, 'var(--ink)', c.upside_pct == null ? '' : `相对现价 ${sgn(c.upside_pct)}%`)}${row('现价', c.price, 'var(--gold)', '')}
     ${c.defaulted_scenarios ? '<p class="muted" style="margin:4px 0 0;font-size:var(--fsn1)">情景为按历史增速生成的默认值</p>' : ''}${dcFoot(c)}</div>`;
 }
-const CARD = {flow: cardFlow, consensus: cardConsensus, intraday: cardIntraday, options: cardOptions, north: cardNorth, lhb: cardLhb, filing: cardFiling, compare: cardCompare, quotecheck: cardQuote, levels: cardLevels, bridge: cardBridge, payoff: cardPayoff, replay: cardReplay, quality: cardQuality, rdcf: cardRdcf, scen: cardScen};
+const CARD = {flow: cardFlow, consensus: cardConsensus, intraday: cardIntraday, options: cardOptions, north: cardNorth, lhb: cardLhb, filing: cardFiling, compare: cardCompare, quotecheck: cardQuote, fincheck: cardFinCheck, levels: cardLevels, bridge: cardBridge, payoff: cardPayoff, replay: cardReplay, quality: cardQuality, rdcf: cardRdcf, scen: cardScen};
 async function loadCards(box, src){
   let d; try { d = await (await fetch('/api/cards/' + encodeURIComponent(box.dataset.id), {headers: H})).json(); } catch (e) { box.remove(); return; }
   const html = (d.cards || []).map(c => { try { return (CARD[c.type] || (() => ''))(c); } catch (e) { return ''; } }).join('');

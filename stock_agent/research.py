@@ -190,6 +190,8 @@ def _num(x):
 def financials(symbol: str) -> dict:
     info = resolve(symbol)
     out = {"symbol": symbol, "name": info["name"]}
+    unified: dict[str, list] = {}  # 来源 → 统一口径行（finunify.FIELDS）
+    from . import finunify
     try:
         import yfinance as yf
         t = yf.Ticker(symbol)
@@ -206,11 +208,18 @@ def financials(symbol: str) -> dict:
         if q is not None and not q.empty:
             rows = [r for r in ("Total Revenue", "Gross Profit", "Operating Income", "Net Income", "Diluted EPS") if r in q.index]
             out["quarterly"] = [{"period": str(c.date()), **{r: _num(q.at[r, c]) for r in rows}} for c in list(q.columns)[:4]]
+        if info["market"] == "A":  # 年报口径的第二个源，用来和东方财富交叉校验
+            try:
+                ya = finunify.from_yahoo_annual(t.income_stmt, i.get("financialCurrency") or i.get("currency"))
+                if ya:
+                    unified["Yahoo Finance"] = ya
+            except Exception:
+                pass
     except Exception as e:
         out["yahoo_error"] = str(e)[:80]
     if info["market"] == "A":
         try:
-            cols = ("REPORT_DATE_NAME,TOTALOPERATEREVE,TOTALOPERATEREVETZ,PARENTNETPROFIT,PARENTNETPROFITTZ,"
+            cols = ("REPORT_DATE,REPORT_DATE_NAME,TOTALOPERATEREVE,TOTALOPERATEREVETZ,PARENTNETPROFIT,PARENTNETPROFITTZ,"
                     "KCFJCXSYJLR,EPSJB,BPS,ROEJQ,XSMLL,XSJLL,ZCFZL,MGJYXJJE")
             r = _get("https://datacenter.eastmoney.com/securities/api/data/v1/get",
                      params={"reportName": "RPT_F10_FINANCE_MAINFINADATA", "columns": cols, "filter": f'(SECUCODE="{secucode(info["code"])}")',
@@ -219,13 +228,34 @@ def financials(symbol: str) -> dict:
                      "PARENTNETPROFIT": "归母净利润", "PARENTNETPROFITTZ": "净利同比%", "KCFJCXSYJLR": "扣非净利润",
                      "EPSJB": "每股收益", "BPS": "每股净资产", "ROEJQ": "ROE%", "XSMLL": "毛利率%", "XSJLL": "净利率%",
                      "ZCFZL": "资产负债率%", "MGJYXJJE": "每股经营现金流"}
+            raw = r.json()["result"]["data"]
             out["main_indicators"] = [{names[k]: (v if k == "REPORT_DATE_NAME" else _num(v)) for k, v in row.items() if k in names}
-                                      for row in r.json()["result"]["data"]]
+                                      for row in raw]
+            unified["东方财富"] = finunify.from_eastmoney(raw)
             out["source"] = "东方财富 F10 + Yahoo Finance"
         except Exception as e:
             out["eastmoney_error"] = str(e)[:80]
+        from .sources import tushare
+        if tushare.enabled():  # 只有用户自己填了 token 才查
+            ts = tushare.financials(symbol)
+            if ts.get("rows"):
+                unified["Tushare"] = [{**row, "basis": "cumulative", "currency": "CNY"} for row in ts["rows"]]
+                out["source"] = (out.get("source") or "Yahoo Finance") + " + Tushare"
+            elif ts.get("error"):
+                out["tushare_error"] = ts["error"]
     else:
         out["source"] = "Yahoo Finance"
+    if unified:
+        out["unified"] = [{"source": s, **row} for s, rows in unified.items() for row in rows[:4]]
+        if len(unified) >= 2:
+            cc = finunify.cross(unified)
+            out["fin_crosscheck"] = cc
+            if cc["warnings"]:
+                out["warnings"] = (out.get("warnings") or []) + cc["warnings"]
+            elif cc["compared"]:
+                out["fin_crosscheck_note"] = f"{'/'.join(unified)} 共比较 {cc['compared']} 项，差异都在 {cc['threshold_pct']:g}% 以内"
+        else:
+            out["fin_crosscheck_note"] = f"财务数据只有 {next(iter(unified))} 一个源，未能交叉校验"
     return out
 
 

@@ -40,14 +40,16 @@ def search(query: str, limit: int = 12) -> list[dict]:
     return out
 
 
-def series(series_id: str, start: str = "", end: str = "", dates=None) -> dict:
+def series(series_id: str, start: str = "", end: str = "", dates=None, vintage: str = "") -> dict:
     sid = series_id.strip().upper()
     params = {"id": sid}
+    if vintage:  # ALFRED：取某个发布日（vintage）当时公布的数据版本，题目写「data from 2025-07-18」时用
+        params["vintage_date"] = str(vintage)[:10]
     if start:
         params["cosd"] = start
     if end:
         params["coed"] = end
-    txt = _get("https://fred.stlouisfed.org/graph/fredgraph.csv", params)
+    txt = _get("https://alfred.stlouisfed.org/graph/alfredgraph.csv" if vintage else "https://fred.stlouisfed.org/graph/fredgraph.csv", params)
     lines = [l for l in txt.strip().splitlines() if l]
     if not lines or "," not in lines[0]:
         return {"series_id": sid, "error": "FRED 没有这个序列；先用 query 搜索"}
@@ -71,7 +73,8 @@ def series(series_id: str, start: str = "", end: str = "", dates=None) -> dict:
             info["frequency"] = " ".join(htmlmod.unescape(re.sub(r"<[^>]+>", " ", f.group(1))).split())
     except Exception:
         pass
-    out = {"series_id": sid, **info, "source": "FRED, Federal Reserve Bank of St. Louis", "url": f"https://fred.stlouisfed.org/series/{sid}",
+    out = {"series_id": sid, **info, "source": "ALFRED (vintage " + str(vintage)[:10] + "), Federal Reserve Bank of St. Louis" if vintage else "FRED, Federal Reserve Bank of St. Louis",
+           "url": f"https://alfred.stlouisfed.org/series?seid={sid}" if vintage else f"https://fred.stlouisfed.org/series/{sid}", **({"vintage": str(vintage)[:10]} if vintage else {}),
            "count": len(rows), "as_of": rows[-1]["date"] if rows else None,
            "note": "date 是观测期起始日（月度 2024-03-01 即 2024 年 3 月；周度为周末前某日，看标题）。单位见 units，亿/万换算自己做。"}
     if dates:
@@ -94,7 +97,7 @@ def series(series_id: str, start: str = "", end: str = "", dates=None) -> dict:
 
 def run_tool(name: str, a: dict):
     if a.get("series_id"):
-        return series(a["series_id"], a.get("start") or "", a.get("end") or "", a.get("dates"))
+        return series(a["series_id"], a.get("start") or "", a.get("end") or "", a.get("dates"), a.get("vintage") or "")
     if a.get("query"):
         return {"query": a["query"], "results": search(a["query"]),
                 "hint": "挑合适的 series_id 再调一次取数据；注意季调(SA)/非季调(NSA)、单位和频率"}
@@ -106,6 +109,6 @@ S = {"type": "string"}
 TOOL_SPECS = [
     {"name": "macro_series", "description": "宏观经济/金融统计时间序列（FRED，收录美联储 H.8 银行信贷、利率、美国 CPI/GDP/就业，以及 OECD/IMF 收录的各国 CPI、PPI、GDP、汇率、外储、商业信心指数等数十万条）。"
      "先用 query（英文，如 'total bank credit', 'China producer price index', 'Germany business climate'）搜 series_id，再给 series_id + start/end（YYYY-MM-DD）或 dates 取值。"
-     "问历史宏观数字时优先用它，不要只靠网页搜索摘要。",
-     "parameters": {"type": "object", "properties": {"query": S, "series_id": S, "start": S, "end": S, "dates": {"type": "array", "items": S}}}},
+     "问历史宏观数字时优先用它，不要只靠网页搜索摘要。题目指定数据版本（data from 某日）时给 vintage=YYYY-MM-DD（ALFRED）。",
+     "parameters": {"type": "object", "properties": {"query": S, "series_id": S, "start": S, "end": S, "dates": {"type": "array", "items": S}, "vintage": S}}},
 ]

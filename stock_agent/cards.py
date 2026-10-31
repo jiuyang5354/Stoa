@@ -13,7 +13,7 @@ from pathlib import Path
 
 CN_TZ = timezone(timedelta(hours=8))
 CARD_TOOLS = {"get_fund_flow", "get_northbound", "get_dragon_tiger", "get_consensus", "get_intraday", "get_options", "read_filing", "compare_filings", "get_quotes",
-              "price_levels", "financial_bridge", "option_payoff", "trade_replay", "earnings_quality", "reverse_dcf", "dcf_scenarios"}
+              "price_levels", "financial_bridge", "option_payoff", "trade_replay", "earnings_quality", "reverse_dcf", "dcf_scenarios", "get_financials"}
 
 
 def cards_dir() -> Path:
@@ -111,6 +111,14 @@ def build(tool: str, args: dict, r) -> list[dict]:
         c = _base(r, "scen")
         c.update({k: r.get(k) for k in ("name", "scenarios", "weighted_per_share", "price", "upside_pct", "defaulted_scenarios")})
         return [c] if r.get("scenarios") else []
+    if tool == "get_financials":  # 财务字段双源差异超阈值才出卡：列出各源数值与差异，不让模型自己猜哪个对
+        cc = r.get("fin_crosscheck") or {}
+        flagged = [it for it in cc.get("items") or [] if it.get("flag")]
+        if not flagged:
+            return []
+        c = _base(r, "fincheck")
+        c.update(name=r.get("name"), threshold=cc.get("threshold_pct"), items=flagged[:6])
+        return [c]
     if tool == "get_quotes":  # 只在交叉校验报警时出卡
         out = []
         for sym, v in r.items():
