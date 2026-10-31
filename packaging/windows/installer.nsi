@@ -28,9 +28,16 @@ ShowInstDetails nevershow
 !insertmacro MUI_UNPAGE_INSTFILES
 !insertmacro MUI_LANGUAGE "SimpChinese"
 
+!macro KillStoa
+  ; 连同子进程一起关掉，再清掉从安装目录启动的残留进程（内置 python 等），避免文件被占用删不掉
+  nsExec::Exec 'taskkill /F /T /IM Stoa.exe'
+  nsExec::Exec `powershell -NoProfile -ExecutionPolicy Bypass -Command "Get-Process | Where-Object { $$_.Path -like '$INSTDIR\*' } | Stop-Process -Force -ErrorAction SilentlyContinue"`
+  Sleep 1500
+!macroend
+
 Section "Stoa"
   ; 先关掉正在运行的旧版本，再覆盖
-  nsExec::Exec 'taskkill /F /IM Stoa.exe'
+  !insertmacro KillStoa
   SetOutPath "$INSTDIR"
   File /r "${SRC}\*.*"
   WriteUninstaller "$INSTDIR\Uninstall.exe"
@@ -49,10 +56,15 @@ Section "Stoa"
 SectionEnd
 
 Section "Uninstall"
-  nsExec::Exec 'taskkill /F /IM Stoa.exe'
+  !insertmacro KillStoa
   Delete "$DESKTOP\Stoa.lnk"
   RMDir /r "$SMPROGRAMS\Stoa"
   RMDir /r "$INSTDIR"
+  IfFileExists "$INSTDIR\*.*" 0 removed
+    Sleep 2000
+    !insertmacro KillStoa
+    RMDir /r /REBOOTOK "$INSTDIR"
+  removed:
   DeleteRegKey HKCU "${UNINST_KEY}"
   ; 数据（%LOCALAPPDATA%\Stoa：记忆、对话、设置）保留
 SectionEnd
