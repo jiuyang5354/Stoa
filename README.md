@@ -282,7 +282,7 @@ python -m stock_agent review   # 手动复盘到期的判断
 - 超预算时把较早的消息滚动摘要成「会话纪要」，保留最近几轮原文 + 纪要 + **关键数字与用户决定**（规则抽取，原话保留，助手说过的数字附上当时的来源名和截至时间）；纪要由模型写，没模型或失败时用规则摘要。恢复旧对话时读纪要 + 纪要之后的原文，原文超过 40 条或超预算就继续滚动摘要。
 - 纪要也登记为引用来源：压缩后复述早先的数字照样有角标，不会被核对器误判为编造。
 - 工具结果过长时按结构收缩（列表取前几条、长文本截断），`_cite`、链接、来源、时间、warnings 原样保留，不再从 JSON 中间硬切。
-- 工具循环轮数按预算动态：上限 `config.yaml` 的 `agent.max_tool_rounds`（默认 12，`AGENT_MAX_ROUNDS` 覆盖），上下文预算先用完也会收尾——最后一轮不给工具，让模型基于已拿到的结果作答并说明没查到什么。
+- 工具循环轮数按预算动态：上限 `config.yaml` 的 `agent.max_tool_rounds`（默认 12，`AGENT_MAX_ROUNDS` 覆盖），单轮总时长上限 `agent.turn_timeout`（默认 900 秒），上下文预算先用完也会收尾——最后一轮不给工具，让模型基于已拿到的结果作答并说明没查到什么。
 
 **财报事件**（`stock_agent/earnings.py`）：跟踪 USER.md 里的持仓 + 自选股的财报日（A股 东方财富「业绩预约披露」，美股/港股 Yahoo earnings dates），存 `data/events.json`，复用提醒的常驻线程，日历 12 小时刷新一次。
 
@@ -495,6 +495,14 @@ Actions 页面也可以手动点 “Run workflow” 立即生成一份。
 - 首页胸像：芝诺（Zeno of Citium），SMK 丹麦国家美术馆皇家石膏像馆 KAS745 的 3D 扫描，公有领域（Public Domain Mark；stock_agent/assets/zeno.glb，已减面到 6.4 万面）。
 - 背景岩壁与 3D 神庙石材：ambientCG「Travertine 009」（https://ambientcg.com/view?id=Travertine009），CC0。stock_agent/assets/travertine009_color.jpg 为原 1K 颜色图（重新压缩）；travertine009_normal.jpg 为原 NormalGL 叠加由颜色图亮度推导的浅浮雕法线（原法线图几乎是平的，这块是抛光板材）；travertine009_roughness.jpg 为原粗糙度图拉伸到 0.45–0.85 并缩到 512（原图接近镜面）。
 - 首页标题字体：Archeologicaps（dafont，标注 100% Free），stock_agent/assets/archeologicaps.woff2，已子集化为 ASCII。
+
+## 点踩与修正（v0.36 · Emendatio）
+- 每条回答下面有「点踩」，可选写一句原因；Telegram / 命令行发 `/bad 原因` 标记上一条回答，网页也能用 `/bad`
+- 归层：数据/工具缺失 · 检查规则漏网（answercheck 词表、引用核对简称、guards）· 辩论分工 · 记忆 · 仅表达/口径。先用确定性规则判断，判不出且写了原因时才调一次模型（同一进程至少间隔 60 秒，`LEARN_MODEL_GAP`）
+- 每次点踩给两样候选：一道回放回归题（按当时的问题、工具结果和模型原话重跑事后检查，必须在当前版本上失败一次才算有效）+ 一条数据规则（词表新增说法、简称绑定或「缺数据工具」待办）。都进「设置 → 定时与提醒 → 待确认」，批准才生效、回归题才进正式评测集（`python -m stock_agent eval --only 回归·点踩`）；拒绝后同类不再提；已生效的可在「回测与评测 → Emendatio」撤销。规则只是数据，不改代码、交易逻辑、风控或资金动作
+- 点踩账本（数据目录/data/learn.db）：每层失败次数、已修、修后复发、拒绝、待确认
+- 长程研究重试前把失败写成 EXPECTED / SAW / DEAD ENDS 进课题状态并带给下一次尝试；同一个 SAW 连续两次即停止并推送，而不是继续重试
+- 单轮时长上限可配置：`config.yaml` 的 `agent.turn_timeout`（默认 900 秒，`AGENT_TURN_TIMEOUT` 覆盖）；接近上限时不再给工具，用已拿到的结果作答并注明未完成部分，硬上限到了也会列出已查到的结果，不再只回「模型等待超时」
 
 ## 核对与快问补全（v0.35.1 · Mensura）
 - 只写简称（「茅台今天大涨 8.4%」）也按对应股票的当日涨跌核对；没写股票名的「今天涨 x%」按本轮每只股票的当日涨跌核对，不认无关数字凑出的比例

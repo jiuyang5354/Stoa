@@ -63,6 +63,15 @@ Quote checks bind recognized stock symbols or known names to quote fields and da
 - New memories distinguish planned, historical, pending and confirmed holdings. Agent-added holdings require confirmation; changes can be audited and undone without overwriting newer edits. Concurrent history/chat requests use thread-local SQLite connections, and memory file reads share the write lock.
 - Updates verify the release asset SHA-256, retain the previous installation and roll back if the backend version fails its startup check.
 
+## v0.36 · Emendatio
+
+- **Flag an answer**: every answer has a Flag button with an optional one-line reason; in Telegram or the CLI send `/bad reason` to flag the previous answer (`/bad` also works on the web).
+- **Filed by layer**: missing data or tool, a check that let it through (answercheck vocabulary, short-name binding in citations, guards), debate roles, memory, or wording only. Deterministic rules first; one model request only when the rules cannot tell and you gave a reason.
+- **Fix it once**: each flag proposes a replay regression test (the recorded question, tool results and raw model answer re-run through the post-checks; it only counts if it fails on the current version) and a data-only rule (a new phrase for the vocabulary, a short-name binding, or a "missing data tool" to-do). Both go to Settings → Scheduled → Pending; nothing applies until you approve, rejected kinds are not proposed again, and anything applied can be undone under Backtest & evals → Emendatio. Rules never change code, trading logic, risk rules or anything involving money.
+- **Flag ledger**: failures per layer, fixed, back after fix, rejected, pending.
+- **Long research stops on a repeated failure**: before retrying, the failure is written into the inquiry state as EXPECTED / SAW / DEAD ENDS and passed to the next attempt; the same SAW twice in a row stops and notifies you instead of retrying.
+- **Fix**: the per-question time limit is now configurable (`agent.turn_timeout`, default 900 s, `AGENT_TURN_TIMEOUT`). Near the limit Stoa stops calling tools and answers from what it has, naming what is unfinished; if even that runs out, it lists the results gathered instead of a bare timeout message.
+
 ## v0.35 · Mensura
 
 - **Per-role debate models**: Agora analysts (four analysts + bull/bear researchers) and judges (risk officer, portfolio manager, editor) can use different models via Settings → Tools, `debate.analyst_model` / `debate.judge_model` in config.yaml, or `DEBATE_ANALYST_MODEL` / `DEBATE_JUDGE_MODEL`. Write a model name to reuse the default provider's endpoint and key, or `provider:model`. Empty means every role uses the default model, exactly as before. Each role still makes one request; a failing role model uses the existing fallback chain and does not retry on the default model.

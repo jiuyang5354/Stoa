@@ -476,7 +476,7 @@ def rule_title(rule: dict) -> str:
         return f"词表：「{rule['phrase']}」算{TARGETS[rule['target']]}（answercheck）"
     if rule["type"] == "alias":
         return f"简称：「{rule['name']}」= {rule['symbol']}（引用核对）"
-    return "待办：" + rule["text"][:60]
+    return "待办：" + (rule["text"] if len(rule["text"]) <= 64 else rule["text"][:63] + "…")
 
 
 # ====================================================================== 5. 点踩入口
