@@ -382,7 +382,7 @@ class Sources:
             return False, None
         fields = {
             "close": r"收盘(?:价)?|现价|\bclose\b",
-            "chg_pct": r"单日涨跌幅|涨幅|跌幅|上涨|下跌|\b(?:daily change|change)\b",
+            "chg_pct": r"单日涨跌幅|涨幅|跌幅|上涨|下跌|(?:今天|今日|当日|单日)\s*(?:大|暴|小|微)?(?:涨|跌)(?:了)?|\b(?:daily change|change)\b",
             "chg_5d": r"5\s*(?:日|天)涨跌幅",
             "chg_20d": r"20\s*(?:日|天)涨跌幅",
             "ma20": r"20\s*日(?:均线|线)|\bMA20\b",
