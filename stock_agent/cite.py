@@ -135,6 +135,27 @@ def report_period(text: str, basis: str = "") -> tuple | None:
     return year.group(), part
 
 
+SAME_DAY_MOVE = re.compile(r"(?:今天|今日|当日|单日|盘中|收盘)\s*(?:大|暴|小|微|收|上|下)?(?:涨|跌)(?:了|幅)?|(?:单日|当日|今日|今天)涨跌幅?|收(?:涨|跌)")
+
+
+def name_aliases(sym: str, name: str = "") -> set[str]:
+    """一只标的在回答里可能被叫的名字：数据里的名称及其简称（贵州茅台 → 茅台、腾讯控股 → 腾讯），
+    加上内置常用名里指向同一代码的（茅台/贵州茅台 → 600519.SS）。只取一一对应的名字，不猜代词。"""
+    out = set()
+    try:
+        from .graph import aliases
+        if name and name != sym:
+            out |= aliases(name)
+    except Exception:
+        pass
+    try:
+        from .debate import ALIAS
+        out |= {k for k, v in ALIAS.items() if v.upper() == sym.upper()}
+    except Exception:
+        pass
+    return {a for a in out if len(a) >= 2}
+
+
 class Sources:
     """一轮对话里所有数据的来源登记处（线程安全：辩论里分析师并行调工具）。"""
 
@@ -198,7 +219,7 @@ class Sources:
                     src = v.get("source") or "行情源"
                     sid = self.new(f"行情 · {sym} · {src}", quote_url(sym), str(v.get("date") or today()), tool=tool)
                     self.bind(v, sid)
-                    aliases = {sym, str(v.get("name") or "")}
+                    aliases = {sym, str(v.get("name") or "")} | name_aliases(sym, str(v.get("name") or ""))
                     if "." in sym:
                         aliases.add(sym.split(".")[0])
                     with self.lock:
@@ -227,7 +248,7 @@ class Sources:
             sid = self.new(f"财报与估值 · {sym} · {result.get('source') or '财务数据'}", result.get("url") or quote_url(sym),
                            str(result.get("as_of") or today()), tool=tool)
             self.bind(result, sid)
-            aliases = {sym, str(result.get("name") or "")} - {""}
+            aliases = ({sym, str(result.get("name") or "")} | name_aliases(sym, str(result.get("name") or ""))) - {""}
             currency = (result.get("valuation") or {}).get("货币") or result.get("currency")
             rows = [(result.get("valuation") or result, None)]
             rows += [(row, report_period(str(row.get("报告期") or ""), "cumulative")) for row in result.get("main_indicators") or []]
@@ -343,9 +364,10 @@ class Sources:
             "现金": (r"现金余额|现金总额", ("现金",)),
             "总负债": (r"总负债|债务总额", ("总负债",)),
         }
+        clause = re.split(r"[，,|]", prefix)[-1]  # 指标名要在同一小句里：「市盈率 18.6 倍，……还差 17.6」的 17.6 不是市盈率
         hits = [(m.end(), m.end() - m.start(), key) for key, (pattern, _) in fields.items()
-                for m in re.finditer(pattern, prefix, re.I)]
-        if not hits or re.search(r"相比|相差|假设|如果|若", prefix):
+                for m in re.finditer(pattern, clause, re.I)]
+        if not hits or re.search(r"相比|相差|还差|假设|如果|若", clause):
             return False, None
         key = max(hits)[2]
         period = report_period(prefix)
@@ -362,7 +384,7 @@ class Sources:
                 if raw is None:
                     continue
                 if isinstance(raw, str):
-                    match = re.fullmatch(r"\s*([-+]?\d+(?:\.\d+)?)\s*(万亿|亿|万|千)?\s*", raw)
+                    match = re.fullmatch(r"\s*([-+]?\d+(?:\.\d+)?)\s*(万亿|亿|万|千)?\s*(?:人民币|港元|美元|元)?\s*", raw)
                     if not match:
                         continue
                     value = _scale(match[1], match[2])
@@ -407,6 +429,13 @@ class Sources:
                     sids.append(q["sid"])
         return True, list(dict.fromkeys(sids)) or None
 
+    def same_day_move(self, body: str, n: dict) -> bool:
+        """数字前同一小句里写着「今天/当日 涨/跌」：说的是某只标的的当日涨跌幅，不是推算出来的比例。"""
+        prefix = re.split(r"[，。；,;\n|]", body[:n["start"]])[-1]
+        if re.search(r"较|相比|高于|低于|距|离|还差|相差|浮盈|收益|目标|空间|假设|如果|若|\b(?:above|below|target|if)\b", prefix, re.I):
+            return False
+        return bool(SAME_DAY_MOVE.search(prefix[-12:]))
+
     def direction_conflict(self, value: float, dec: int, scale: float, want: int, sids: set[int] | None = None) -> bool:
         """回答说「涨 2.35%」而数据里同一个数是 -2.35（或反过来）：只有反号的直接匹配、没有同号的，算方向写反。"""
         tol = .5 * 10 ** -dec * scale + 1e-9
@@ -426,8 +455,9 @@ class Sources:
             return False
         return any(c != 0 and (c > 0) != (want > 0) for c in hits(snums))
 
-    def match(self, value: float, dec: int, scale: float = 1.0, pct: bool | None = None, sids: set[int] | None = None) -> list[int] | None:
-        """value 能否由本轮数字得出。返回来源编号（可能两个），找不到返回 None。"""
+    def match(self, value: float, dec: int, scale: float = 1.0, pct: bool | None = None, sids: set[int] | None = None,
+              derived: bool = True) -> list[int] | None:
+        """value 能否由本轮数字得出。返回来源编号（可能两个），找不到返回 None。derived=False 只认直接出现的数。"""
         with self.lock:
             pairs = list(dict.fromkeys((v, s) for v, s in self.nums if sids is None or s in sids))
         if not pairs:
@@ -447,6 +477,8 @@ class Sources:
                     direct.append((abs(av - abs(cand)) > 1e-9, rank.get(it.get("kind"), 4), it.get("tool") in LOW_PRIORITY, sid))
         if direct:
             return [min(direct)[-1]]
+        if not derived:
+            return None
         uniq = {}
         for s, sid in pairs:
             uniq.setdefault(s, sid)
@@ -623,7 +655,15 @@ def verify(text: str, src: Sources) -> dict:
         scoped, sids = src.financial_match(body, n, scope) if scope else (False, None)
         if scope and not scoped:
             scoped, sids = src.quote_match(body, n, scope)
-        if not scoped:
+        move = p and not scope and bool(src.quotes) and src.same_day_move(body, n)
+        if move:  # 「今天大涨 8.4%」却没写是哪只：按本轮每只标的的当日涨跌幅核对，或者是某个数据里原样出现的数（指数涨跌），不认两数凑出的比例
+            with src.lock:
+                allq = list(src.quotes)
+            scoped, sids = src.quote_match(body, n, allq)
+            if not sids:
+                scoped = True
+                sids = src.match(n["value"], n["dec"], n["scale"], p, None, derived=False)
+        if not scoped and not move:
             sids = src.match(n["value"], n["dec"], n["scale"], p, allowed) or (src.match(n["raw"], n["dec"], 1, p, allowed) if n["scale"] != 1 else None)
         want = _want_sign(body, n)
         if sids and want and src.direction_conflict(n["value"], n["dec"], n["scale"], want, allowed):
