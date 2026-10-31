@@ -593,7 +593,9 @@ class Agent:
         st = self.mem.call_stats()
         ledger = "## 判断账本\n" + (f"已复盘 {st['closed']} 次，准确率 {st['准确率%']}%，最近：{st['最近10次']}，未到期 {st['open']} 次。"
                                    + (f" 短板：{st['短板']}。" if st.get("短板") else "") if st.get("closed") else f"还没有复盘过的判断，未到期 {st['open']} 次。")
-        return SYSTEM.format(now=now(), memory=self.mem.snapshot(), skills=skills.index(), ledger=ledger, reviews=rv) + _about_stoa()
+        system = SYSTEM.format(now=now(), memory=self.mem.snapshot(), skills=skills.index(), ledger=ledger, reviews=rv)
+        self._memory_source_context = system.split("当前时间：", 1)[-1]
+        return system + _about_stoa()
 
     # ----- 工具 -----
     def run_tool(self, name: str, args: dict):
@@ -930,7 +932,7 @@ class Agent:
         self.sources = cite.Sources()
         self.turn_cards = []
         self.sources.add_context(text, "你的提问", "user")
-        self.sources.add_context(self._sys_base.split("当前时间：", 1)[-1], "Stoa 记忆与判断账本", "memory")
+        self.sources.add_context(self._memory_source_context, "Stoa 记忆与判断账本", "memory")
         if self.digest and self.digest.get("text"):  # 纪要里的关键数字是早先对话的原话（带当时来源），复述时算有出处
             self.sources.add_context(self.digest["text"], "Stoa 会话纪要", "memory")
 
