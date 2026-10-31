@@ -926,6 +926,14 @@
   #intro .ishade{background:rgba(24,23,21,.22);-webkit-mask:linear-gradient(100deg,transparent 42%,#000 58%) 100% 0/320% 100% no-repeat;mask:linear-gradient(100deg,transparent 42%,#000 58%) 100% 0/320% 100% no-repeat;animation:isweep 1.9s .15s cubic-bezier(.55,.05,.25,1) forwards}
   #intro .ilight{background:linear-gradient(100deg,transparent 38%,rgba(255,252,244,.55) 50%,transparent 62%) 100% 0/320% 100% no-repeat;mix-blend-mode:soft-light;animation:isweepbg 1.9s .15s cubic-bezier(.55,.05,.25,1) forwards}
   #intro .ist{position:relative;display:grid;justify-items:center;gap:22px}
+  #intro.wait,#intro.wait *{animation-play-state:paused!important}
+  #intro>canvas{position:absolute;inset:0;width:100%;height:100%;opacity:0;transition:opacity .25s}
+  #intro.gl>canvas{opacity:1}
+  #intro.gl .ishade,#intro.gl .ilight{display:none}
+  #intro.gl .iword{visibility:hidden;animation:none;letter-spacing:.22em;margin-left:.22em}
+  #intro.gl .isub{color:rgba(var(--ink-rgb),.62)}
+  html.dark #intro.gl .isub{color:rgba(231,225,212,.6)}
+
   #intro .iword{font:400 clamp(46px,6.4vw,78px)/1 "Archeologicaps",var(--poster);letter-spacing:.3em;margin-left:.3em;color:rgba(var(--ink-rgb),.66);
     text-shadow:0 1px 0 rgba(255,255,255,.95),0 -1px 0 rgba(0,0,0,.22);
     -webkit-mask:linear-gradient(100deg,#000 42%,transparent 58%) 100% 0/320% 100% no-repeat;mask:linear-gradient(100deg,#000 42%,transparent 58%) 100% 0/320% 100% no-repeat;
@@ -979,11 +987,81 @@
   const el = document.getElementById('intro'), q = new URLSearchParams(location.search).get('intro');
   let seen = false; try { seen = sessionStorage.getItem('stoa-intro') === '1'; } catch (e) {}
   if (q !== '1' && q !== 'hold' && (seen || q === '0' || matchMedia('(prefers-reduced-motion: reduce)').matches)) { el.remove(); return; }
-  el.hidden = false; try { sessionStorage.setItem('stoa-intro', '1'); } catch (e) {}
-  let done = false; const bye = () => { if (done) return; done = true; el.classList.add('bye'); document.body.classList.add('wake');
-    setTimeout(() => { el.remove(); document.body.classList.remove('wake'); }, 1000); };
-  const t = q === 'hold' ? 0 : setTimeout(bye, 2700); el.addEventListener('click', () => { clearTimeout(t); bye(); });
-  addEventListener('keydown', () => { clearTimeout(t); bye(); }, {once: true});
+  el.hidden = false; el.classList.add('wait'); try { sessionStorage.setItem('stoa-intro', '1'); } catch (e) {}
+  let done = false, t = 0, stop = null; const bye = () => { if (done) return; done = true; clearTimeout(t); el.classList.add('bye'); document.body.classList.add('wake');
+    setTimeout(() => { if (stop) stop(); el.remove(); document.body.classList.remove('wake'); }, 1000); };
+  const go = gl => { if (!el.classList.contains('wait')) return; el.classList.remove('wait'); if (gl) el.classList.add('gl');
+    if (q !== 'hold') t = setTimeout(bye, 2700); };
+  el.addEventListener('click', bye); addEventListener('keydown', bye, {once: true});
+  setTimeout(() => go(false), q === 'hold' ? 60000 : 600);   // three.js 没在 0.6 秒内就绪就用 CSS 版
+  // three.js 版：一块真实的石灰华石板，STOA 凿进石面（高度图→法线贴图），一盏低角度的光从左扫到右，字槽两壁一亮一暗
+  (async () => {
+    try {
+      const T = await import('/assets/three.module.min.js');
+      await document.fonts.load('80px Archeologicaps');
+      if (done || !el.classList.contains('wait')) return;
+      const W = innerWidth, H = innerHeight, k = Math.min(devicePixelRatio || 1, 1.5);
+      const R = new T.WebGLRenderer({antialias: false, powerPreference: 'low-power', preserveDrawingBuffer: q === 'hold'}); R.setPixelRatio(k); R.setSize(W, H);
+      R.outputColorSpace = T.SRGBColorSpace;
+      const dark = document.documentElement.classList.contains('dark');
+      const img = u => new Promise((ok, no) => { const i = new Image(); i.onload = () => ok(i); i.onerror = no; i.src = u; });
+      const [tc, tn] = await Promise.all([img('/assets/travertine009_color.jpg'), img('/assets/travertine009_normal.jpg')]);
+      // 石纹：去饱和、提亮、压对比，贴近界面的象牙石色（一次性在小画布上做，GPU 平铺）
+      const cc = document.createElement('canvas'); cc.width = tc.width; cc.height = tc.height; const cx = cc.getContext('2d');
+      cx.filter = dark ? 'grayscale(.75) brightness(.9) contrast(.8)' : 'grayscale(.82) brightness(1.3) contrast(.5)'; cx.drawImage(tc, 0, 0);
+      const tile = Math.max(W, H) / 1.6;   // 一块石纹贴图覆盖的屏幕像素
+      const map = new T.CanvasTexture(cc), nmap = new T.Texture(tn); nmap.needsUpdate = true;
+      for (const x of [map, nmap]) { x.wrapS = x.wrapT = T.RepeatWrapping; x.repeat.set(W / tile, H / tile); }
+      map.colorSpace = T.SRGBColorSpace;
+      // 字：只在字所在的小块上算高度图→法线（CPU 只处理几十万像素），与底下的石纹法线叠加，接缝对齐
+      const wd = el.querySelector('.iword'); wd.style.animation = 'none'; wd.style.letterSpacing = '.22em'; wd.style.marginLeft = '.22em';
+      const r = wd.getBoundingClientRect(), fs = parseFloat(getComputedStyle(wd).fontSize);
+      const pad = fs * .5, bx = r.left - pad, by = r.top - pad, bw = r.width + pad * 2, bh = r.height + pad * 2;
+      const w = Math.round(bw * k), h = Math.round(bh * k);
+      const hc = document.createElement('canvas'); hc.width = w; hc.height = h; const g = hc.getContext('2d', {willReadFrequently: true});
+      g.fillStyle = '#fff'; g.fillRect(0, 0, w, h); g.fillStyle = '#000'; g.textBaseline = 'middle';
+      g.font = `400 ${fs * k}px Archeologicaps`; if ('letterSpacing' in g) g.letterSpacing = (fs * .22 * k) + 'px';
+      g.filter = `blur(${Math.max(1, fs * k * .022)}px)`;
+      g.fillText('STOA', (r.left - bx + fs * .22) * k, (r.top - by + r.height / 2) * k); g.filter = 'none';
+      const hd = g.getImageData(0, 0, w, h).data;
+      // 同一位置的石纹（法线与颜色）按屏幕坐标平铺取样
+      const crop = im => { const c = document.createElement('canvas'); c.width = w; c.height = h; const x = c.getContext('2d', {willReadFrequently: true});
+        const s2 = tile * k; let top = ((H - by) % tile) * k - s2; while (top > -s2) top -= s2;
+        for (let yy = top; yy < h; yy += s2) for (let xx = -(bx % tile) * k; xx < w; xx += s2) x.drawImage(im, xx, yy, s2, s2);
+        return x.getImageData(0, 0, w, h); };
+      const nd = crop(tn), cd = crop(cc), depth = 7 * k;
+      for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+        const i = (y * w + x) * 4, hx = (hd[x < w - 1 ? i + 4 : i] - hd[x > 0 ? i - 4 : i]) / 255, hy = (hd[y < h - 1 ? i + w * 4 : i] - hd[y > 0 ? i - w * 4 : i]) / 255;
+        let nx = (nd.data[i] / 127.5 - 1) * .32 + hx * depth * .5, ny = (nd.data[i + 1] / 127.5 - 1) * .32 - hy * depth * .5, nz = nd.data[i + 2] / 127.5 - 1;
+        const l = Math.hypot(nx, ny, nz) || 1; nd.data[i] = (nx / l + 1) * 127.5; nd.data[i + 1] = (ny / l + 1) * 127.5; nd.data[i + 2] = (nz / l + 1) * 127.5;
+        const ao = .6 + .4 * hd[i] / 255; cd.data[i] *= ao; cd.data[i + 1] *= ao; cd.data[i + 2] *= ao;
+        const e = Math.min(x, y, w - 1 - x, h - 1 - y) / (pad * k * .8); cd.data[i + 3] = 255 * (e >= 1 ? 1 : e * e * (3 - 2 * e));  // 四周羽化，看不出方块
+      }
+      const tx = d => { const t2 = new T.DataTexture(d.data, w, h, T.RGBAFormat); t2.flipY = true; t2.needsUpdate = true; return t2; };
+      const dmap = tx(cd); dmap.colorSpace = T.SRGBColorSpace; const dnor = tx(nd);
+      const S = new T.Scene(), cam = new T.OrthographicCamera(-W / 2, W / 2, H / 2, -H / 2, 1, 2000); cam.position.z = 1000;
+      const col = dark ? 0x9a958c : 0xfffaf2, ns = new T.Vector2(.32, .32);
+      const M = new T.MeshStandardMaterial({map, normalMap: nmap, normalScale: ns, roughness: .9, metalness: 0, color: col});
+      S.add(new T.Mesh(new T.PlaneGeometry(W, H), M));
+      const D = new T.Mesh(new T.PlaneGeometry(bw, bh), new T.MeshStandardMaterial({map: dmap, normalMap: dnor, normalScale: new T.Vector2(1, 1), roughness: .9, metalness: 0, color: col, transparent: true}));
+      D.position.set(bx + bw / 2 - W / 2, H / 2 - by - bh / 2, .5); S.add(D);
+      const amb = new T.HemisphereLight(dark ? 0x9a948a : 0xfffaf0, dark ? 0x141310 : 0x8a8478, 0); S.add(amb);
+      const sweep = new T.PointLight(dark ? 0xe8d6b4 : 0xfff3dc, 0, Math.max(W, H) * .62, 0); S.add(sweep);   // 扫过的光
+      const rake = new T.DirectionalLight(dark ? 0xe2d2b4 : 0xfff6e6, 0); rake.position.set(-1, .55, .32); S.add(rake);  // 最后停住的掠射光
+      el.prepend(R.domElement);
+      const ease = x => x < 0 ? 0 : x > 1 ? 1 : 1 - Math.pow(1 - x, 3), sm = x => x < 0 ? 0 : x > 1 ? 1 : x * x * (3 - 2 * x);
+      const draw = ms => { const s1 = ms / 1000;
+        const p = ease((s1 - .1) / 1.9); sweep.position.set(-W * .75 + p * W * 1.5, H * .08, Math.max(W, H) * .16);
+        sweep.intensity = (dark ? 3 : 4.2) * sm((s1 - .05) / .35) * (1 - sm((s1 - 1.7) / .6));
+        rake.intensity = (dark ? 2 : 2.3) * sm((s1 - .85) / .8); amb.intensity = (dark ? .04 : .08) + (dark ? .7 : 1.9) * sm((s1 - .9) / 1.2);
+        R.render(S, cam); };
+      const hold = q === 'hold' ? +(new URLSearchParams(location.search).get('t') || 2600) : null;
+      let raf = 0, t0 = 0; const loop = now => { if (!t0) t0 = now; draw(now - t0); if (now - t0 < 3200) raf = requestAnimationFrame(loop); };
+      stop = () => { cancelAnimationFrame(raf); R.dispose(); };
+      if (hold != null) { draw(hold); window.__introDraw = draw; } else raf = requestAnimationFrame(loop);
+      window.__introMs = Math.round(performance.now()); go(true);
+    } catch (e) { window.__introErr = String(e && e.stack || e); const wd = el.querySelector('.iword'); wd.style.cssText = ''; go(false); }
+  })();
 })();</script>
 <script>if (new URLSearchParams(location.search).get('frame') === 'custom') document.documentElement.classList.add('framed');</script>
 <div id="wbar"><div class="wt" id="wdrag"><b>STOA</b><i></i><span>股市 · Agora</span></div>
