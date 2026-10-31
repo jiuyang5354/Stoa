@@ -121,11 +121,12 @@ def local_code(code: str, ws: Path) -> str:
 
 def _local(code: str, ws: Path, timeout: int) -> str:
     env = {k: v for k, v in os.environ.items() if not any(h in k.upper() for h in SECRET_HINTS)}
-    env.update(MPLBACKEND="Agg", PYTHONIOENCODING="utf-8", PYTHONUTF8="1", HOME=str(ws))  # Windows 默认 GBK，打印中文会崩
+    # -I 会忽略 PYTHON* 环境变量，所以 UTF-8 用 -X utf8 打开（Windows 默认 GBK/cp1252，打印中文会崩）
+    env.update(MPLBACKEND="Agg", HOME=str(ws))
     env.pop("PYTHONPATH", None)
     flags = {"creationflags": subprocess.CREATE_NO_WINDOW} if os.name == "nt" else {"preexec_fn": _limits}
     try:
-        r = subprocess.run([sys.executable, "-I", "-c", local_code(code, ws)], cwd=ws, env=env, capture_output=True,
+        r = subprocess.run([sys.executable, "-I", "-X", "utf8", "-c", local_code(code, ws)], cwd=ws, env=env, capture_output=True,
                            text=True, encoding="utf-8", errors="replace", timeout=timeout, **flags)
     except subprocess.TimeoutExpired:
         return _clip(f"{LOCAL_NOTE}\n超时（>{timeout}s），已终止。")
