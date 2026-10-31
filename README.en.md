@@ -70,6 +70,12 @@ Quote checks bind recognized stock symbols or known names to quote fields and da
 - **Data sanity warnings**: quotes older than 10 days, A-share daily moves beyond 30 %, analyst targets more than 3× away from the price, and out-of-range ratios are flagged as suspect. Numbers are never changed.
 - **Historical base rates for morning calls**: from ~250 trading days of daily bars, ATR-normalized, Stoa records how often a move of the same size happened within the call's horizon — for the call being right (expiry close, same rule as the ledger) and for touching the invalidation price (intraday high/low). Evening reports and ledger stats compare hit rate with the average base rate, with the gap and sample size; fewer than 20 samples are marked as insufficient. A base rate is a no-skill reference, not a forecast probability.
 
+### 0.35.1
+
+- Short names are now bound to their stock when checking numbers: "Moutai jumped 8.4% today" is checked against that stock's actual daily change; a same-day move with no stock named is checked against each quote in the turn, never against a ratio of two unrelated numbers.
+- Quick answers (not deep analysis) that give a bullish / bearish / buy / target-price view without an invalidation condition get one appended from the turn's quote data (e.g. "no longer holds if it closes below the 20-day average 498.21"), or an event condition when there is no quote. Rule-based, no extra model request.
+- Questions about going all in, borrowing or leverage, or guaranteed gains get a risk line (concentration, margin calls / forced liquidation, drawdown) when the answer does not already name it. Normal questions are untouched; trading and risk rules are unchanged.
+
 ## License
 
 MIT. Third-party assets are listed in the Chinese README under 素材.
