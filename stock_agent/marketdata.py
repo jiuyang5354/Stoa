@@ -40,9 +40,15 @@ _cache: dict = {}
 _lock = threading.Lock()
 
 # 两个源的报价偏差超过多少（%）写 warning；资金流口径不同，阈值单独放宽
-QUOTE_DIFF_PCT = float(os.getenv("QUOTE_DIFF_PCT") or 0.5)
-FLOW_DIFF_PCT = float(os.getenv("FLOW_DIFF_PCT") or 35)
-EPS_DIFF_PCT = float(os.getenv("EPS_DIFF_PCT") or 10)
+def _envf(k: str, d: float) -> float:
+    """读数字型环境变量；值里带行尾注释或写错时退回默认，不让整个行情模块导入失败。"""
+    m = re.match(r"\s*(-?\d+(?:\.\d+)?)", os.getenv(k) or "")
+    return float(m.group(1)) if m else d
+
+
+QUOTE_DIFF_PCT = _envf("QUOTE_DIFF_PCT", 0.5)
+FLOW_DIFF_PCT = _envf("FLOW_DIFF_PCT", 35)
+EPS_DIFF_PCT = _envf("EPS_DIFF_PCT", 10)
 
 
 def now_cn() -> datetime:
