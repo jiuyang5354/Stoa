@@ -1,5 +1,20 @@
 [
  {
+  "version": "0.31.2",
+  "date": "2026-10-31",
+  "title": "Rationes",
+  "items": [
+   {
+    "type": "fixed",
+    "text": "修复在对话里输入「更新公告」时 Agent 反问是不是上市公司公告：现在直接打开 Fasti 更新日志。"
+   },
+   {
+    "type": "fixed",
+    "text": "修复 Agent 不知道 Stoa 自己的版本：问「更新了什么」会概述最近一版的改动。"
+   }
+  ]
+ },
+ {
   "version": "0.31.1",
   "date": "2026-10-31",
   "title": "Rationes",

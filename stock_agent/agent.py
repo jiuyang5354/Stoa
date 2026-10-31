@@ -483,7 +483,7 @@ class Agent:
         st = self.mem.call_stats()
         ledger = "## 判断账本\n" + (f"已复盘 {st['closed']} 次，准确率 {st['准确率%']}%，最近：{st['最近10次']}，未到期 {st['open']} 次。"
                                    + (f" 短板：{st['短板']}。" if st.get("短板") else "") if st.get("closed") else f"还没有复盘过的判断，未到期 {st['open']} 次。")
-        return SYSTEM.format(now=now(), memory=self.mem.snapshot(), skills=skills.index(), ledger=ledger, reviews=rv)
+        return SYSTEM.format(now=now(), memory=self.mem.snapshot(), skills=skills.index(), ledger=ledger, reviews=rv) + _about_stoa()
 
     # ----- 工具 -----
     def run_tool(self, name: str, args: dict):
@@ -1008,3 +1008,16 @@ def repl():
     except Exception as e:
         print(f"（整理记忆失败：{e}）")
     print("已保存。下次见。")
+
+
+def _about_stoa() -> str:
+    """Stoa 自身的版本和最近一版改动：用户问「更新公告/新功能」时能答，不必去查上市公司公告。"""
+    try:
+        from . import changelog
+        c = changelog.load(); r = (c.get("releases") or [{}])[0]
+        items = "；".join(i["text"] for i in r.get("items", [])[:8])
+        return (f"\n\n## 关于 Stoa 自己\n当前版本 v{c['current']}。最近一版 v{r.get('version','')} {r.get('title','')}：{items}\n"
+                "用户说「更新公告/更新日志/新功能/改了什么」且没提公司或股票时，指的是 Stoa 自己的更新：直接概述上面的改动，"
+                "并说输入 /changelog 可以看完整的 Fasti 更新日志。不要反问是不是上市公司公告。")
+    except Exception:
+        return ""

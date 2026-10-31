@@ -1645,6 +1645,7 @@ async function send(text){
   text = (text ?? input.value).trim(); if (!text || busy) return;
   let shown = esc(text);
   if (text === '/reset') text = '/new';
+  if (/^(看看)?(更新公告|更新日志|版本更新|更新了什么|新功能|changelog|what'?s new|release notes)[？?。!！]*$/i.test(text)) { input.value = ''; sync(); CL = null; openChangelog(); return; }
   if (text.startsWith('/') && text !== '/memory') {
     slashClose(); const r = slashRun(text);
     if (!r) { if (input.value === text) { input.value = ''; sync(); } return; }
