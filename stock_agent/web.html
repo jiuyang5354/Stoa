@@ -121,6 +121,9 @@
   header .label{display:block;padding:0 236px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}  /* 左右各让出两枚按钮的宽度，英文长串不再压到按钮上 */
   h1{font:500 var(--fs7)/1.1 var(--display);letter-spacing:.15em;margin:10px 0 8px;text-transform:uppercase;padding-left:.15em}
   header em{font:italic 400 var(--fs2) var(--serif);color:var(--mute)}
+  /* 开始对话后页眉只留 STOA：副标题和「· 股市」收起 */
+  .inner:has(#log>:not(.empty)) header>em,.inner:has(#log>:not(.empty)) h1 .h1s{display:none}
+  .inner:has(#log>:not(.empty)) header{padding-bottom:12px}
   #log{flex:1;overflow:auto;padding:26px 0 20px;}
   /* Index · 问章刻度：代替对话区的滚动条（参考 21st Message Scroller + Scroll Bars）。
      每一问是一道刻痕，位置按它在全文中的比例；金色细线是当前视口；悬停时附近刻痕按距离伸长，左侧浮出那一问；点刻痕跳过去，按住拖动即滚动 */
@@ -916,28 +919,33 @@
   .sclose{position:absolute;right:12px;top:10px;border:0;background:transparent;font:300 var(--fs6)/1 var(--serif);cursor:pointer;color:var(--ink)}
   body.intl{--up:var(--olive);--down:var(--terracotta)}
   @media(max-width:720px){.sw{grid-template-columns:1fr}.rail{flex-direction:row;overflow-x:auto;padding:10px 0;border-right:0;border-bottom:1px solid var(--rule-2)}.rail h2,.rail .ver{display:none}.rail button{white-space:nowrap}.sfoot{left:0}.fr{grid-template-columns:1fr}}
-  /* 开屏：一束顶光落下 → 金线描出拱门 → STOA 逐字显形 → 拱内亮起 → 整幕淡出，主界面浮现。每次会话只放一次，点击/按键跳过 */
-  #intro{position:fixed;inset:0;z-index:9999;background:var(--ivory);display:grid;place-items:center;cursor:pointer;overflow:hidden}
-  #intro .ist{position:relative;width:min(300px,60vw);aspect-ratio:200/270;display:grid;place-items:center}
-  #intro svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible;-webkit-mask:linear-gradient(#000 72%,transparent);mask:linear-gradient(#000 72%,transparent)}
-  #intro svg path{fill:none;stroke:#B0915F;stroke-width:.8;stroke-dasharray:900;stroke-dashoffset:900;animation:idraw 1.5s .45s cubic-bezier(.65,0,.25,1) forwards}
-  #intro svg path+path{stroke-width:.5;opacity:.6;animation-delay:.7s}
-  #intro .ibeam{position:absolute;left:50%;top:-50vh;width:1px;height:calc(50vh + 12%);background:linear-gradient(#B0915F00,#B0915F);transform-origin:top;transform:scaleY(0);animation:ibeam .7s .05s cubic-bezier(.5,0,.2,1) forwards}
-  #intro .iglow{position:absolute;inset:10% 12% 0;border-radius:50% 50% 0 0/38% 38% 0 0;background:radial-gradient(ellipse 60% 55% at 50% 22%,#fff,#ffffff00 70%);opacity:0;animation:iglow 1.2s 1.15s ease forwards}
-  #intro .iword{position:relative;font:400 clamp(34px,4.6vw,50px)/1 "Archeologicaps",var(--poster);color:var(--ink);letter-spacing:.14em;margin-left:.14em;margin-top:22%}
-  #intro .iword span{display:inline-block;opacity:0;animation:iglyph 1s var(--ease) forwards;animation-delay:calc(var(--i) * 110ms + 1s)}
-  #intro .isub{position:absolute;bottom:15%;left:-40%;right:-40%;white-space:nowrap;text-align:center;font:500 var(--fsn3) var(--sans);letter-spacing:.42em;text-transform:uppercase;color:var(--bronze);opacity:0;animation:iup .8s 1.6s var(--ease) forwards}
-  #intro .isub b{display:block;font:400 var(--fsn1) var(--cn);letter-spacing:.5em;color:var(--mute);margin-top:10px}
-  #intro.bye{animation:ibye .75s cubic-bezier(.6,0,.3,1) forwards;pointer-events:none}
-  #intro.bye .ist{animation:ibyeIn .75s cubic-bezier(.6,0,.3,1) forwards}
+  /* 开屏：石面原在阴影里，一道斜光从左往右扫过，凿进石头的 STOA 随光显出 → 金色细线落下 → 整幕淡出。每次会话一次，点击/按键跳过 */
+  #intro{position:fixed;inset:0;z-index:9999;display:grid;place-items:center;cursor:pointer;overflow:hidden;
+    background:radial-gradient(ellipse 70% 55% at 50% 45%,rgba(255,255,255,.35),transparent 70%),repeating-linear-gradient(90deg,rgba(var(--ink-rgb),.012) 0 1px,transparent 1px 4px),var(--ivory)}
+  #intro .ishade,#intro .ilight{position:absolute;inset:-10%;pointer-events:none}
+  #intro .ishade{background:rgba(24,23,21,.22);-webkit-mask:linear-gradient(100deg,transparent 42%,#000 58%) 100% 0/320% 100% no-repeat;mask:linear-gradient(100deg,transparent 42%,#000 58%) 100% 0/320% 100% no-repeat;animation:isweep 1.9s .15s cubic-bezier(.55,.05,.25,1) forwards}
+  #intro .ilight{background:linear-gradient(100deg,transparent 38%,rgba(255,252,244,.55) 50%,transparent 62%) 100% 0/320% 100% no-repeat;mix-blend-mode:soft-light;animation:isweepbg 1.9s .15s cubic-bezier(.55,.05,.25,1) forwards}
+  #intro .ist{position:relative;display:grid;justify-items:center;gap:22px}
+  #intro .iword{font:400 clamp(46px,6.4vw,78px)/1 "Archeologicaps",var(--poster);letter-spacing:.3em;margin-left:.3em;color:rgba(var(--ink-rgb),.66);
+    text-shadow:0 1px 0 rgba(255,255,255,.95),0 -1px 0 rgba(0,0,0,.22);
+    -webkit-mask:linear-gradient(100deg,#000 42%,transparent 58%) 100% 0/320% 100% no-repeat;mask:linear-gradient(100deg,#000 42%,transparent 58%) 100% 0/320% 100% no-repeat;
+    animation:isweep 1.9s .15s cubic-bezier(.55,.05,.25,1) forwards,itrack 2.4s .15s cubic-bezier(.3,0,.2,1) forwards}
+  #intro .irule{width:0;height:1px;background:var(--gold);animation:irule .7s 1.45s cubic-bezier(.6,0,.2,1) forwards}
+  #intro .isub{font:500 var(--fsn3) var(--sans);letter-spacing:.42em;text-transform:uppercase;color:var(--mute);opacity:0;animation:iup .8s 1.65s var(--ease) forwards;white-space:nowrap}
+  #intro.bye{animation:ibye .7s cubic-bezier(.6,0,.3,1) forwards;pointer-events:none}
+  #intro.bye .ist{animation:ibyeIn .7s cubic-bezier(.6,0,.3,1) forwards}
+  html.dark #intro{background:radial-gradient(ellipse 70% 55% at 50% 45%,rgba(var(--gold-rgb),.06),transparent 70%),repeating-linear-gradient(90deg,rgba(231,225,212,.01) 0 1px,transparent 1px 4px),#151412}
+  html.dark #intro .ishade{background:rgba(0,0,0,.55)}
+  html.dark #intro .ilight{background-image:linear-gradient(100deg,transparent 38%,rgba(var(--gold-rgb),.12) 50%,transparent 62%);mix-blend-mode:screen}
+  html.dark #intro .iword{color:rgba(231,225,212,.5);text-shadow:0 1px 0 rgba(255,255,255,.07),0 -1px 0 rgba(0,0,0,.75)}
   body.wake .temple{animation:iwake 1s var(--ease) both}
-  @keyframes idraw{to{stroke-dashoffset:0}}
-  @keyframes ibeam{60%{transform:scaleY(1);opacity:1}100%{transform:scaleY(1);opacity:.0}}
-  @keyframes iglow{to{opacity:1}}
-  @keyframes iglyph{from{opacity:0;transform:translateY(.18em);filter:blur(6px)}to{opacity:1;transform:none;filter:none}}
+  @keyframes isweep{to{-webkit-mask-position:0 0;mask-position:0 0}}
+  @keyframes isweepbg{to{background-position:0 0}}
+  @keyframes itrack{to{letter-spacing:.22em;margin-left:.22em}}
+  @keyframes irule{to{width:72px}}
   @keyframes iup{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
   @keyframes ibye{to{opacity:0}}
-  @keyframes ibyeIn{to{transform:scale(1.06);filter:blur(2px)}}
+  @keyframes ibyeIn{to{transform:scale(1.03);filter:blur(1.5px)}}
   @keyframes iwake{from{opacity:0;transform:translateY(10px)}}
 
   /* ---- Nox · 深色：同一套比例、留白和单一金色，只把石灰华换成玄武岩，烛光金代替日光 ---- */
@@ -959,17 +967,14 @@
   html.dark .gw{background:var(--ivory)}
   .burst{color:var(--ink)}
   html.dark .meander{background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='18' height='9' viewBox='0 0 18 9'%3E%3Cpath d='M0 8.5h4.5v-7h9v5h-4.5v-2.5h2v1' fill='none' stroke='%23E7E1D4' stroke-width='.8'/%3E%3C/svg%3E") repeat-x 0 0}
-  html.dark #intro .iglow{background:radial-gradient(ellipse 60% 55% at 50% 22%,var(--g-glow),transparent 70%)}
   html.dark svg.temple,html.dark .temple svg{filter:brightness(.78) contrast(1.05)}
   html.dark img,html.dark canvas.bust{filter:brightness(.9)}
   html.theming *,html.theming *::before,html.theming *::after{transition:background-color .35s ease,color .35s ease,border-color .35s ease,fill .35s ease!important}
 </style>
 </head>
 <body>
-<div id="intro" aria-hidden="true" hidden><div class="ist"><div class="ibeam"></div><div class="iglow"></div>
-  <svg viewBox="0 0 200 270"><path d="M14 270V100a86 86 0 0 1 172 0v170"/><path d="M30 270V104a70 70 0 0 1 140 0v166"/></svg>
-  <div class="iword"><span style="--i:0">S</span><span style="--i:1">T</span><span style="--i:2">O</span><span style="--i:3">A</span></div>
-  <div class="isub">ΣΤΟΑ · MMXXVI<b>记忆之廊</b></div></div></div>
+<div id="intro" aria-hidden="true" hidden><div class="ishade"></div><div class="ilight"></div>
+  <div class="ist"><div class="iword">STOA</div><div class="irule"></div><div class="isub">ΣΤΟΑ · MMXXVI · 记忆之廊</div></div></div>
 <script>(() => {
   const el = document.getElementById('intro'), q = new URLSearchParams(location.search).get('intro');
   let seen = false; try { seen = sessionStorage.getItem('stoa-intro') === '1'; } catch (e) {}
@@ -977,7 +982,7 @@
   el.hidden = false; try { sessionStorage.setItem('stoa-intro', '1'); } catch (e) {}
   let done = false; const bye = () => { if (done) return; done = true; el.classList.add('bye'); document.body.classList.add('wake');
     setTimeout(() => { el.remove(); document.body.classList.remove('wake'); }, 1000); };
-  const t = q === 'hold' ? 0 : setTimeout(bye, 2900); el.addEventListener('click', () => { clearTimeout(t); bye(); });
+  const t = q === 'hold' ? 0 : setTimeout(bye, 2700); el.addEventListener('click', () => { clearTimeout(t); bye(); });
   addEventListener('keydown', () => { clearTimeout(t); bye(); }, {once: true});
 })();</script>
 <script>if (new URLSearchParams(location.search).get('frame') === 'custom') document.documentElement.classList.add('framed');</script>
@@ -1019,7 +1024,7 @@
 <main><div class="inner">
   <header>
     <span class="label">Agora · 上海 · 香港 · 纽约 · Est. MMXXVI</span>
-    <h1>Stoa · 股市</h1>
+    <h1>Stoa<span class="h1s"> · 股市</span></h1>
     <em>A stoic market agent that remembers.</em>
     <button class="gear hl" id="histb" type="button" aria-label="对话历史（Ctrl+J）"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 5h16M4 10h16M4 15h10M4 20h7"/></svg>History</button>
     <button class="gear hl hlg" id="graphb" type="button" aria-label="记忆图谱（Ctrl+G）"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="5" cy="6" r="2.2"/><circle cx="19" cy="7" r="2.2"/><circle cx="12" cy="18" r="2.6"/><path d="M7 7l10 0M6.5 8l4.5 8M17.6 9l-4.4 7"/></svg>Graph</button>
