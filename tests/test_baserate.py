@@ -154,3 +154,17 @@ def test_no_base_no_compare(mem):
     mem.close_call(cid, 101, 1.5, "对")
     assert judgments.base_stats(mem) is None and "底数对比" not in mem.call_stats()
     assert judgments.render_review([], None) == ["## 判断复盘", "", "今天没有在跟踪的早报判断。", ""]
+
+
+def test_session_sections_fetches_once_and_shows_base(mem, monkeypatch):
+    from stock_agent import __main__ as M, volprofile
+    bars = walk(start=UP["close"])
+    seen, prof = [], []
+    monkeypatch.setattr(volprofile, "fetch_bars", lambda sym, src, days, *a, **k: seen.append((sym, src, days)) or (bars, {}))
+    monkeypatch.setattr(volprofile, "profile", lambda b: prof.append(len(b)) or {"error": "x"})
+    monkeypatch.setattr(M.data, "fetch_closes", lambda syms, *a, **k: {})
+    snap = {"indices": {}, "watchlist": [{"symbol": "NVDA", "name": "英伟达", "data": UP}]}
+    out = "\n".join(M.session_sections("morning", snap, {}, mem, {}))
+    assert seen == [("NVDA", "daily", 300)] and prof == [60]  # 一次取数；成交分布仍用最后 60 根
+    assert "历史底数" in out
+    assert mem.calls_where("symbol='NVDA'")[0]["base_rate"] is not None
