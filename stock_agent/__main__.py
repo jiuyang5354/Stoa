@@ -44,21 +44,28 @@ def session_sections(session: str, snap: dict, closes: dict, mem, cfg: dict) -> 
     if session == "evening":
         rs = judgments.review(mem, snap, today)
         snap["review"] = [{k: r.get(k) for k in ("name", "view", "since", "price", "close", "chg", "result", "note")} for r in rs]
-        return judgments.render_review(rs)
+        return judgments.render_review(rs, judgments.base_stats(mem))
     vps = {}
     rows = list(snap.get("watchlist") or []) or [r[0] for r in snap["indices"].values() if r]
     from concurrent.futures import ThreadPoolExecutor
     from . import volprofile
 
+    hist = {}
+
     def one(sym):
+        # 一次取约 300 根日线：最后 60 根做成交分布（与以前相同），整段给历史底数用——不多发请求
         try:
-            bars, _ = volprofile.fetch_bars(sym, "daily", 60)
-            return sym, volprofile.profile(bars)
+            bars, _ = volprofile.fetch_bars(sym, "daily", 300)
+        except Exception:
+            return sym, None
+        hist[sym] = bars
+        try:
+            return sym, volprofile.profile(bars[-60:])
         except Exception:
             return sym, None
     with ThreadPoolExecutor(6) as ex:
         vps = dict(ex.map(one, [r["symbol"] for r in rows]))
-    js = judgments.morning(mem, snap, vps, today)
+    js = judgments.morning(mem, snap, vps, today, bars=hist)
     snap["judgments"] = [{k: j.get(k) for k in ("name", "view", "confidence", "expires", "flip", "carried")} for j in js]
     out = judgments.render_morning(js)
     try:

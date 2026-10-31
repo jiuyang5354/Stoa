@@ -112,7 +112,9 @@ class Memory:
                      ("mfe_pct", "REAL"), ("mae_pct", "REAL"), ("edge_pct", "REAL"), ("end_date", "TEXT"),
                      # v0.34 早报判断：来源、翻转条件（文字 + 上下两个价位）、失效时间、早报日期、晚报复盘结果
                      ("source", "TEXT"), ("flip", "TEXT"), ("flip_up", "REAL"), ("flip_down", "REAL"), ("expires", "TEXT"),
-                     ("report_date", "TEXT"), ("review", "TEXT"), ("review_note", "TEXT"), ("review_at", "TEXT"), ("review_price", "REAL"), ("price_date", "TEXT")):
+                     ("report_date", "TEXT"), ("review", "TEXT"), ("review_note", "TEXT"), ("review_at", "TEXT"), ("review_price", "REAL"), ("price_date", "TEXT"),
+                     # v0.35 历史触达率底数（判断成立 / 失效价被触及的历史比例，%）与样本数
+                     ("base_rate", "REAL"), ("flip_rate", "REAL"), ("base_n", "INTEGER")):
             if c not in cols:
                 self.db.execute(f"ALTER TABLE calls ADD COLUMN {c} {t}")
         mcols = {r[1] for r in self.db.execute("PRAGMA table_info(session_meta)")}
@@ -483,7 +485,7 @@ class Memory:
             confidence = max(0, min(100, int(confidence))) if confidence not in (None, "") else None
         except (TypeError, ValueError):
             confidence = None
-        ok = ("source", "flip", "flip_up", "flip_down", "expires", "report_date", "price_date")
+        ok = ("source", "flip", "flip_up", "flip_down", "expires", "report_date", "price_date", "base_rate", "flip_rate", "base_n")
         ex = {k: v for k, v in extra.items() if k in ok and v is not None}
         cols = ["ts", "symbol", "name", "view", "price", "horizon_days", "reason", "due", "confidence", *ex]
         cur = self.db.execute(
@@ -568,6 +570,13 @@ class Memory:
         sc = scorecard.stats([{"view": v, "alpha": a, "edge": e, "confidence": c} for v, a, e, c in full])
         if sc:
             out["超额口径"] = sc
+        try:
+            from . import baserate
+            br = baserate.compare(self.calls_where("status='closed' AND source='morning' AND base_rate IS NOT NULL"))
+            if br:
+                out["底数对比"] = {**br, "说明": baserate.render_compare(br)}
+        except Exception:
+            pass
         weak = [f"{k}={v['准确率%']}%" for grp in ("按方向", "按市场", "按周期") for k, v in out[grp].items() if v["n"] >= 5 and v["准确率%"] < 45]
         if weak:
             out["短板"] = "、".join(weak)

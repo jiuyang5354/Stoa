@@ -6,6 +6,8 @@
   - 失效时间：N 个交易日后的收盘（默认 5，REPORT_CALL_DAYS 可调），到期由账本照常结算；
   - 同一标的还有没过期、没失效的早报判断且方向没变，就沿用不重记；方向变了，旧的标「翻转」、记新的。
 晚报：对照当天仍在跟踪的早报判断逐条复盘——站住 / 承压（方向不利但没破翻转价）/ 失效（收盘触发翻转条件）/ 待定（今天没有新收盘）。
+v0.35：每条判断附「历史触达率底数」（baserate.py：同等幅度过去约 250 个交易日在 N 天内出现的比例），写进账本；
+晚报给出已结算判断的命中率 vs 平均底数。底数不是预测概率；取不到日线就不写，不影响判断本身。
 """
 from __future__ import annotations
 
@@ -97,6 +99,18 @@ def judge(symbol: str, name: str, d: dict, vp: dict | None = None, today: date |
             "expires": f"{exp_day.isoformat()} {CLOSE_TIME[mk]}收盘", "due": exp_day.isoformat(), "days": days, "reason": "；".join(why)}
 
 
+def attach_base(js: list[dict], bars: dict | None) -> list[dict]:
+    """bars = {代码: 约 300 根日线}。算出底数就写进判断（base_rate / flip_rate / base_n），算不出就跳过。"""
+    if not bars:
+        return js
+    from . import baserate
+    for j in js:
+        r = baserate.for_judgment(j, bars.get(j["symbol"]))
+        if r:
+            j.update({k: r.get(k) for k in ("base_rate", "flip_rate")}, base_n=r["n"])
+    return js
+
+
 def record(mem, js: list[dict], today: date | None = None) -> list[dict]:
     """写进账本：同一标的有仍有效的同方向早报判断就沿用；方向变了旧的标「翻转」再记新的。返回带 id / carried 的列表。"""
     today = today or datetime.now(CN_TZ).date()
@@ -110,19 +124,22 @@ def record(mem, js: list[dict], today: date | None = None) -> list[dict]:
             a = same[-1]
             out.append({**j, "id": a["id"], "carried": a["report_date"] != td, "since": a["report_date"],
                         "price": a["price"], "flip": a["flip"] or j["flip"], "flip_up": a["flip_up"], "flip_down": a["flip_down"],
-                        "expires": a["expires"] or j["expires"], "confidence": a["confidence"] or j["confidence"]})
+                        "expires": a["expires"] or j["expires"], "confidence": a["confidence"] or j["confidence"],
+                        # 沿用的判断沿用当初记下的底数（它和当初的价位、翻转价对应）
+                        "base_rate": a.get("base_rate"), "flip_rate": a.get("flip_rate"), "base_n": a.get("base_n")})
             continue
         for a in act:  # 方向变了：旧判断由新判断取代
             mem.set_review(a["id"], "翻转", f"{td} 早报改为{j['view']}", j["price"])
         cid = mem.record_call(j["symbol"], j["name"], j["view"], j["price"], j["days"], f"早报｜{j['reason']}｜翻转：{j['flip']}",
                               j["confidence"], due=j["due"], source="morning", flip=j["flip"], flip_up=j["flip_up"],
-                              flip_down=j["flip_down"], expires=j["expires"], report_date=td, price_date=j.get("as_of"))
+                              flip_down=j["flip_down"], expires=j["expires"], report_date=td, price_date=j.get("as_of"),
+                              base_rate=j.get("base_rate"), flip_rate=j.get("flip_rate"), base_n=j.get("base_n"))
         out.append({**j, "id": cid, "carried": False, "since": td})
     return out
 
 
-def morning(mem, snapshot: dict, vps: dict | None = None, today: date | None = None, write: bool = True) -> list[dict]:
-    """从早报快照生成判断：自选股；没有自选就用每个市场第一个指数。"""
+def morning(mem, snapshot: dict, vps: dict | None = None, today: date | None = None, write: bool = True, bars: dict | None = None) -> list[dict]:
+    """从早报快照生成判断：自选股；没有自选就用每个市场第一个指数。bars：各标的日线（算历史底数用，可无）。"""
     rows = list(snapshot.get("watchlist") or [])
     if not rows:
         rows = [r[0] for r in (snapshot.get("indices") or {}).values() if r]
@@ -131,6 +148,7 @@ def morning(mem, snapshot: dict, vps: dict | None = None, today: date | None = N
         j = judge(r["symbol"], r.get("name"), r.get("data") or {}, (vps or {}).get(r["symbol"]), today)
         if j:
             js.append(j)
+    attach_base(js, bars)
     return record(mem, js, today) if write else js
 
 
@@ -175,17 +193,38 @@ def review(mem, snapshot: dict, today: date | None = None) -> list[dict]:
 def render_morning(js: list[dict]) -> list[str]:
     if not js:
         return []
-    lines = ["## 今日判断", "", "| 标的 | 判断 | 置信度 | 失效时间 | 翻转条件 | 依据 |", "|---|---|---:|---|---|---|"]
+    from .baserate import fmt
+    has_base = any(j.get("base_rate") is not None or j.get("flip_rate") is not None for j in js)
+    if has_base:
+        lines = ["## 今日判断", "", "| 标的 | 判断 | 置信度 | 历史底数 | 失效时间 | 翻转条件 | 依据 |", "|---|---|---:|---|---|---|---|"]
+    else:
+        lines = ["## 今日判断", "", "| 标的 | 判断 | 置信度 | 失效时间 | 翻转条件 | 依据 |", "|---|---|---:|---|---|---|"]
     for j in js:
         tag = f"（沿用 {j['since']}）" if j.get("carried") else ""
-        lines.append(f"| {j['name']} | {j['view']}{tag} | {j['confidence']}% | {j['expires']} | {j['flip']} | {j['reason']} |")
-    lines += ["", "判断已记进账本，晚报逐条复盘、到期自动结算。择时判断经回测不具统计显著性，翻转条件比方向更重要。", ""]
+        base = f" {fmt(j)} |" if has_base else ""
+        lines.append(f"| {j['name']} | {j['view']}{tag} | {j['confidence']}% |{base} {j['expires']} | {j['flip']} | {j['reason']} |")
+    lines += ["", "判断已记进账本，晚报逐条复盘、到期自动结算。择时判断经回测不具统计显著性，翻转条件比方向更重要。"]
+    if has_base:
+        lines.append("历史底数：过去约 250 个交易日里，按 ATR 归一的同等幅度在判断期限内出现的比例（判断成立按到期收盘、失效价按盘中触及）——"
+                     "是没有判断力时的参照，不是预测概率。")
+    lines.append("")
     return lines
 
 
-def render_review(rs: list[dict]) -> list[str]:
+def base_stats(mem) -> dict | None:
+    """已结算的早报判断：命中率 vs 平均历史底数（只算记了底数的）。"""
+    try:
+        from . import baserate
+        return baserate.compare(mem.calls_where("status='closed' AND source='morning' AND base_rate IS NOT NULL"))
+    except Exception:
+        return None
+
+
+def render_review(rs: list[dict], stats: dict | None = None) -> list[str]:
+    from .baserate import render_compare
+    tail = [render_compare(stats), ""] if stats else []
     if not rs:
-        return ["## 判断复盘", "", "今天没有在跟踪的早报判断。", ""]
+        return ["## 判断复盘", "", "今天没有在跟踪的早报判断。", ""] + tail
     cnt = {k: sum(r["result"] == k for r in rs) for k in ("站住", "承压", "失效", "翻转", "待定")}
     head = " / ".join(f"{k} {v}" for k, v in cnt.items() if v)
     lines = ["## 判断复盘", "", f"对照早报：{head}。", "", "| 标的 | 早报判断 | 判断价 | 收盘 | 变动 | 结果 | 说明 |", "|---|---|---:|---:|---:|---|---|"]
@@ -196,4 +235,4 @@ def render_review(rs: list[dict]) -> list[str]:
     if bad:
         lines += ["", "失效的判断不再跟踪：" + "、".join(f"{r['name']}（{r['flip']}）" for r in bad) + "。明早重新给判断。"]
     lines.append("")
-    return lines
+    return lines + tail
