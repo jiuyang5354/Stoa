@@ -1,5 +1,57 @@
 [
  {
+  "version": "0.31.0",
+  "date": "2026-10-31",
+  "title": "Rationes",
+  "items": [
+   {
+    "type": "added",
+    "text": "新增判断事后打分：到期日按收盘结算，对照沪深300 / 恒指 / 标普500 算超额，记录期间最大浮盈浮亏、方向分和置信度校准；设置 → 记忆 → Ratio 查看。",
+    "group": "判断有了成绩单"
+   },
+   {
+    "type": "added",
+    "text": "新增同一只股票的旧判断会跟着行情一起带给模型，避免前后打架。",
+    "group": "判断有了成绩单"
+   },
+   {
+    "type": "added",
+    "text": "新增 Probatio 诚实度：重叠样本校正 p 值、Holm 多重检验和缩水夏普（backtest --trials），账本准确率带 95% 区间。",
+    "group": "判断有了成绩单"
+   },
+   {
+    "type": "added",
+    "text": "新增战报长图：/poster 把报告排成 1080×1920 长图，风险放最前，可存 PNG。",
+    "group": "战报长图与视觉"
+   },
+   {
+    "type": "changed",
+    "text": "改界面金色统一成一种金五档深浅，数据用等宽数字，空分区折成一行，斜杠命令列出快捷键。",
+    "group": "战报长图与视觉"
+   },
+   {
+    "type": "changed",
+    "text": "改走势图框刻进石面，开始对话后页眉只留 STOA。",
+    "group": "战报长图与视觉"
+   },
+   {
+    "type": "changed",
+    "text": "改开场：浅色石灰华石板上凿出 STOA，一道柔光擦过，金线描出拱形，约 1.9 秒；没有 WebGL 时用 CSS 版。",
+    "group": "战报长图与视觉"
+   },
+   {
+    "type": "fixed",
+    "text": "修复右栏要闻偶尔空白：搜索接口失败会重试，再退到东方财富 7×24 快讯和新浪财经，空栏一分钟后自动再取。",
+    "group": "数据"
+   },
+   {
+    "type": "added",
+    "text": "新增公开评测：Vals Finance Agent 与 FinSearchComp，对比裸模型和 Stoa。",
+    "group": "数据"
+   }
+  ]
+ },
+ {
   "version": "0.29.0",
   "date": "2026-10-31",
   "title": "Probatio",
