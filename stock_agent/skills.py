@@ -67,7 +67,16 @@ def index() -> str:
     sk = list_skills()
     if not sk:
         return "## 你的技能\n（还没有。做完一件多步骤、以后还会再做的分析后，用 skill_save 把做法存下来。）"
-    return "## 技能（同类任务先 skill_view 再动手；标 * 的是内置投研流程）\n" + "\n".join(f"- {s['name']}{'*' if s.get('builtin') else ''}：{s['description']}" for s in sk)
+    # 内置流程只给名字和半句说明（全文 skill_view 再读）；用户/Agent 自己存的技能给完整一句话
+    def brief(d):
+        d = re.split(r"[：:，,（(]", d or "", 1)[0]
+        return d[:18]
+    own = [s for s in sk if not s.get("builtin")]
+    bi = [s for s in sk if s.get("builtin")]
+    out = "## 技能（同类任务先 skill_view 再动手；标 * 的是内置投研流程）\n"
+    if bi:
+        out += "内置：" + "；".join(f"{s['name']}*（{brief(s['description'])}）" for s in bi) + "\n"
+    return out + "\n".join(f"- {s['name']}：{s['description']}" for s in own)
 
 
 def auto_load(text: str, limit: int = 2) -> list[dict]:

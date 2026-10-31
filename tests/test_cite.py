@@ -119,7 +119,11 @@ def test_software_metadata_is_not_a_financial_source(monkeypatch):
     a = agent.Agent(Memory())
     a._begin_sources("腾讯现在多少钱？")
     a.sources.add("get_quotes", {"symbols": ["0700.HK"]}, {"0700.HK": {"close": 512.4}})
-    assert "688.8" in a._sys_base
+    assert "688.8" not in a._sys_base  # v0.37：版本说明只在问到 Stoa 自己的更新时附进本轮系统提示，不进 _sys_base
+    assert cite.verify("腾讯目标价 688.8 港元。", a.sources)["unverified"] == ["688.8"]
+    a._begin_sources("Stoa 更新了什么？")  # 即使本轮附了版本说明，它也不是财务数字的出处
+    a.sources.add("get_quotes", {"symbols": ["0700.HK"]}, {"0700.HK": {"close": 512.4}})
+    assert agent.ABOUT_RE.search("Stoa 更新了什么？")
     assert cite.verify("腾讯目标价 688.8 港元。", a.sources)["unverified"] == ["688.8"]
 
 
