@@ -278,6 +278,21 @@ class Sources:
                 self.bind(ps.get("text") or "", sid)
                 new.append({**ps, "_cite": sid})
             return {**result, "passages": new}
+        if tool == "sweep_filings" and isinstance(result, dict) and isinstance(result.get("docs"), list):
+            # 每份报告一个出处（带页码链接）；矩阵里的数字/摘句绑定到各自出处，行尾加「出处」列；文档元数据不进模型上下文
+            out = {k: v for k, v in result.items() if k != "docs"}
+            cols = list(result.get("columns") or [])
+            rows = [list(r) for r in result.get("rows") or []]
+            if rows and len(rows) == len(result["docs"]):
+                out["columns"] = cols + ["出处"]
+                for r, d in zip(rows, result["docs"]):
+                    pg = min((d.get("pages") or {}).values() or [0]) or ""
+                    sid = self.new(f"{d.get('title') or (str(d.get('year')) + ' 年报')} · {d.get('symbol')}{f' · 第 {pg} 页' if pg else ''} · {d.get('source') or ''}".rstrip(" ·"),
+                                   d.get("page_url") or d.get("url") or "", str(d.get("as_of") or ""), tool=tool)
+                    self.bind(d.get("values") or {}, sid)
+                    r.append(f"[{sid}]")
+                out["rows"] = rows
+            return out
         if tool == "compare_filings" and isinstance(result, dict) and not result.get("error"):
             ya, yb = result.get("year_a"), result.get("year_b")
             out = dict(result)

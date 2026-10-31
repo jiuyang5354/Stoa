@@ -10,7 +10,7 @@ import json
 import re
 
 # 来自外部、内容不受 Stoa 控制的工具
-EXTERNAL = {"fetch_url", "web_search", "get_news", "get_announcements", "read_filing", "compare_filings",
+EXTERNAL = {"fetch_url", "web_search", "get_news", "get_announcements", "read_filing", "compare_filings", "sweep_filings",
             "sec_document", "sec_search", "earnings_release", "earnings_transcript", "regulatory_letters"}
 
 PATTERNS = [

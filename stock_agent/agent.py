@@ -212,6 +212,8 @@ from .cndata import TOOL_SPECS as _CN_SPECS, TOOL_NAMES as CN_TOOLS  # noqa: E40
 TOOLS += _CN_SPECS
 from .volprofile import TOOL_SPECS as _VP_SPECS, TOOL_NAMES as VP_TOOLS  # noqa: E402  成交分布 POC/价值区/平衡与失衡
 TOOLS += _VP_SPECS
+from .sweep import TOOL_SPECS as _SWEEP_SPECS  # noqa: E402  批量年报矩阵
+TOOLS += _SWEEP_SPECS
 
 
 # 免责只给投资内容：强词本身就是投资语境；弱词（推荐、收益、该不该…）要同时出现投资语境词才算，「推荐一本书」不加免责
@@ -266,7 +268,7 @@ DEEP_TOOLS = EVENT_TOOLS | {"get_fund_flow", "get_northbound", "get_dragon_tiger
 QUANT_TOOLS = {"calc", "price_levels", "financial_bridge", "option_payoff", "trade_replay"}
 FUND_TOOLS = {"get_statements", "earnings_quality", "reverse_dcf", "dcf_scenarios", "regulatory_letters"}
 BIG_TOOLS = {"get_statements", "earnings_quality", "read_filing", "compare_filings", "get_consensus", "get_dragon_tiger",
-             "sec_document", "earnings_release", "earnings_transcript", "sec_xbrl", "sec_filings", "price_history", "macro_series", "cn_data"}  # 结果允许更长
+             "sec_document", "earnings_release", "earnings_transcript", "sec_xbrl", "sec_filings", "price_history", "macro_series", "cn_data", "sweep_filings"}  # 结果允许更长
 
 
 SIDE_EFFECT_TOOLS = {"confirm_action", "write_file", "task_create", "task_delete", "start_inquiry", "inquiry_resume", "memory", "record_call", "alert_set", "alert_delete", "watchlist", "skill_save", "skill_delete", "run_python", "deep_analysis", "earnings_report"}
@@ -579,11 +581,29 @@ class Agent:
                 "note": "这些工具本轮已可直接调用" if hits else "没找到对口的工具；换个关键词，或用 web_search",
                 "already_available": sorted(have)[:40] if not hits else None}
 
+    def _sweep_llm(self):
+        """sweep_filings 文本字段的小抽取模型：SWEEP_LLM=off 只用规则；默认用 Agora 分析师模型（配了的话，一般更便宜），否则主模型。"""
+        if (os.getenv("SWEEP_LLM") or "auto").lower() in ("off", "0", "false", "rule") or os.getenv("STOA_MOCK_LLM") == "1":
+            return None
+        try:
+            from . import debate
+            return debate.role_llms(self.llm)[0]
+        except Exception:
+            return self.llm
+
     def run_tool(self, name: str, args: dict):
         m = self.mem
         args = _norm_args(args)
         if name == "tool_search":
             return self._tool_search(args)
+        if name == "sweep_filings":
+            from . import sweep
+            try:
+                return sweep.sweep_filings(args.get("symbols"), args.get("years"), args.get("section") or "mdna", args.get("extract"),
+                                           int(args.get("max_docs") or 12), args.get("kind") or "annual", llm=self._sweep_llm(),
+                                           export=bool(args.get("export")), session=self.session)
+            except Exception as e:
+                return {"error": f"sweep_filings 出错：{str(e)[:160]}"}
         if name == "memory_links":
             from . import graph
             return graph.recall(str(args.get("query", "")), m)
