@@ -68,11 +68,14 @@ SYSTEM = """你是「Stoa」，用户的长期助手：本职是股市（A股、
 - 计算题：题目给了口径或公式（如 EBITDAR = EBITDA + 租金、按实际天数算 DIO、用指引区间中点）就严格照题目口径，逐项列出输入数字和出处，再用 calc 算；不要换成别的口径。
   题目要的每一项都要给出数值；某个输入第一次没找到时，先换工具（sec_xbrl ↔ sec_document ↔ earnings_release ↔ read_filing）再试，确实找不到才标未知。
 - 查数题（问某个历史数值、统计数、排名、某日价格）一定要落到一个具体答案，不要只给公式或让用户提供数据：
-  1) 先想清楚这数字最权威的出处（国家统计局/外汇局/人民银行/交易所年度统计/公司年报/美联储 H.8、H.15/FRED/Ifo/IMF 等），用 macro_series 或 price_history 能直接取就直接取；
+  1) 先想清楚这数字最权威的出处（国家统计局/外汇局/人民银行/交易所年度统计/公司年报/美联储 H.8、H.15/FRED/Ifo/IMF 等），结构化工具能直接取就直接取：
+     中国宏观、A股财务指标与行业筛选、中证指数、不复权日线、基金净值 → cn_data；海外宏观 → macro_series；股票/指数/汇率/商品日线 → price_history；
   2) web_search 至少换 3 种问法（中英文各试、加出处名、加「年报」「统计公报」「年鉴」「市场统计」等词），对最像的结果 fetch_url 打开原页核对数字，不要只看摘要；
   3) 仍查不到精确值时，给出有出处支持的最佳答案并写明口径与不确定处（如「据 X，约 2,110 亿元」），比「无法核实」有用；只有完全没有线索才说查不到。
   4) 题目给了口径（如「保留两位小数」「按年报合并口径」「以某网站为准」）就照做；合并报表与母公司报表都列时，默认用合并报表数。
   5) 多条件筛选题（如「ROE 超过 X 的白酒公司」）要给出确定名单，逐个核对后去掉不满足的，不要把候选名单当答案。
+  6) 最终只给一个答案，不要并列两个候选值让读者挑（口径差异放在说明里）；中间计算不提前四舍五入，结果按题目要求的小数位；
+     「当时的股价」「历史最高价」「某日开盘价」用不复权实际成交价，涨跌幅用收盘价；先把每个输入的期间（财年/日历年、截止日）、单位、币种对齐再算。
 - 回答语言跟随提问：用户用英文提问（或要求英文）时全文用英文回答。
 - 数据源冲突：工具结果的 warnings 里写了两源差异过大时，回答里必须说明「两个数据源不一致」及各自数值，不要只报其中一个当作确定值。
 - 深度分析：用户要「深度分析」「该不该买/卖」某只股票时，调用 deep_analysis（多位分析师 + 多空辩论 + 风控 + 基金经理裁决，会自动记账），
@@ -251,12 +254,27 @@ from .edgar import TOOL_SPECS as _SEC_SPECS, TOOL_NAMES as SEC_TOOLS  # noqa: E4
 TOOLS += _SEC_SPECS
 from .macro import TOOL_SPECS as _MACRO_SPECS, TOOL_NAMES as MACRO_TOOLS  # noqa: E402  FRED 宏观时间序列
 TOOLS += _MACRO_SPECS
+from .cndata import TOOL_SPECS as _CN_SPECS, TOOL_NAMES as CN_TOOLS  # noqa: E402  中国宏观/财务指标/中证指数/不复权日线/基金净值
+TOOLS += _CN_SPECS
 
 
 # 免责只给投资内容：强词本身就是投资语境；弱词（推荐、收益、该不该…）要同时出现投资语境词才算，「推荐一本书」不加免责
 ADVICE_RE = re.compile(r"稳赚|杠杆|融资|满仓|梭哈|期权|加仓|减仓|抄底|保本|all ?in", re.I)
 ADVICE_WEAK = re.compile(r"推荐|翻倍|借钱|该不该|能不能买|能买吗|可以买|值得买|买入|卖出|收益", re.I)
 INVEST_CTX = re.compile(r"股|基金|ETF|债|仓|币|证券|投资|理财|行情|大盘|指数|板块|美股|港股|A股|标的|估值|市值|财报|\b\d{6}\b|\.(SS|SZ|HK)\b|\$[A-Z]{1,5}\b", re.I)
+
+
+GIVE_UP_RE = re.compile(r"无法(?:可靠地?)?(?:核实|确认|确定|给出|查到|取得|获取)|未能(?:查到|取得|核实|找到|获取|确认)|没有?查到(?:可靠|可核)|不能(?:可靠地?|负责任地)?给出|"
+                        r"请(?:你)?提供|如果你(?:有|能提供)|若你(?:有|能提供)|"
+                        r"(?:couldn[’']t|could not|unable to|can[’']t|cannot) (?:verify|find|confirm|give a reliable|provide a reliable|determine)|"
+                        r"if you (?:can )?provide|do you have a source", re.I)
+GIVE_UP_NUDGE = ("[系统：你的回答在没给出具体数值的情况下放弃了。不要让用户提供数据。还有工具轮数，请换路径继续查：先用结构化工具（cn_data / macro_series / price_history / "
+                 "sec_xbrl / get_statements 等），再用不同问法 web_search（中英文、加出处名、加「统计公报」「年报」「年鉴」等词）并 fetch_url 打开原页核对。"
+                 "最后必须给出一个具体答案：精确值有出处就给精确值；只有近似线索就给有出处的最佳估计并注明口径。只有确实毫无线索才说查不到。]")
+
+
+def gave_up(reply: str) -> bool:
+    return bool(GIVE_UP_RE.search(reply or ""))
 
 
 def wants_disclaimer(text: str) -> bool:
@@ -267,7 +285,7 @@ DEEP_TOOLS = EVENT_TOOLS | {"get_fund_flow", "get_northbound", "get_dragon_tiger
 QUANT_TOOLS = {"calc", "price_levels", "financial_bridge", "option_payoff", "trade_replay"}
 FUND_TOOLS = {"get_statements", "earnings_quality", "reverse_dcf", "dcf_scenarios", "regulatory_letters"}
 BIG_TOOLS = {"get_statements", "earnings_quality", "read_filing", "compare_filings", "get_consensus", "get_dragon_tiger",
-             "sec_document", "earnings_release", "earnings_transcript", "sec_xbrl", "sec_filings", "price_history", "macro_series"}  # 结果允许更长
+             "sec_document", "earnings_release", "earnings_transcript", "sec_xbrl", "sec_filings", "price_history", "macro_series", "cn_data"}  # 结果允许更长
 
 
 SIDE_EFFECT_TOOLS = {"write_file", "task_create", "task_delete", "start_inquiry", "inquiry_resume", "memory", "record_call", "alert_set", "alert_delete", "watchlist", "skill_save", "skill_delete", "run_python", "deep_analysis", "earnings_report"}
@@ -282,7 +300,7 @@ TOOL_LABELS = {"write_file": "写文件", "task_create": "建定时任务", "tas
                "option_payoff": "算期权收益", "trade_replay": "行情重放",
                "get_statements": "读原始报表", "earnings_quality": "查盈利质量", "reverse_dcf": "反向 DCF", "dcf_scenarios": "情景估值", "regulatory_letters": "查问询函", "get_insiders": "查内部人交易", "get_short_volume": "看做空",
                "sec_filings": "查 SEC 申报", "sec_document": "读 SEC 原文", "sec_xbrl": "取 XBRL 科目", "sec_search": "SEC 全文检索",
-               "earnings_release": "读业绩新闻稿", "price_history": "查历史行情", "macro_series": "查宏观数据", "earnings_transcript": "读电话会"}
+               "earnings_release": "读业绩新闻稿", "price_history": "查历史行情", "macro_series": "查宏观数据", "cn_data": "查国内数据", "earnings_transcript": "读电话会"}
 
 
 def _guess_lang(text: str) -> str:
@@ -587,10 +605,10 @@ class Agent:
         if name == "market_overview":
             from .__main__ import build_snapshot
             return build_snapshot(load_cfg(), with_news=False)
-        if name in MACRO_TOOLS:
-            from . import macro
+        if name in MACRO_TOOLS or name in CN_TOOLS:
+            from . import macro, cndata
             try:
-                return macro.run_tool(name, args)
+                return (macro if name in MACRO_TOOLS else cndata).run_tool(name, args)
             except Exception as e:
                 return {"error": f"{name} 暂时取不到数据：{str(e)[:160]}"}
         if name in SEC_TOOLS:
@@ -958,7 +976,7 @@ class Agent:
         if getattr(self, "_heavy", False):
             content += "\n\n[系统提醒：上一轮你用了很多步工具。如果那套做法以后还用得上，先用 skill_save 存成技能（或更新已有技能），再回答这条。]"
             self._heavy = False
-        n_tools, saved, retried, first_bad = 0, False, False, []
+        n_tools, saved, retried, first_bad, pushed = 0, False, False, [], False
         self.messages.append({"role": "user", "content": content, "_id": self._cur_id, **({"_images": images} if images else {})})
         try:
             self.compress()
@@ -1003,6 +1021,11 @@ class Agent:
                     reply, _, tail = reply.rpartition("<<<META")  # 取最后一个：正文里可能引用到旧记录中的模板
                     self.last_tail = "<<<META" + tail
                     reply = reply.rstrip()
+                # 查数题过早放弃（「无法核实」「请提供数据」）且还有工具轮数：打回一次，要求换数据源再查、给出有出处的最佳答案
+                if not final and not pushed and n_tools and rounds < max_rounds - 3 and gave_up(reply):
+                    pushed = True
+                    self.messages.append({"role": "user", "content": GIVE_UP_NUDGE})
+                    continue
                 v = cite.verify(reply, self.sources)
                 if not v["ok"] and not retried:  # 有无出处的数字：打回让模型修正一次
                     retried, first_bad = True, v["unverified"]

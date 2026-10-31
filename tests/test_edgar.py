@@ -243,3 +243,10 @@ def test_macro_tool_registered():
     from stock_agent import macro
     assert "macro_series" in {t["name"] for t in ag.TOOLS}
     assert "error" in macro.run_tool("macro_series", {})
+
+
+def test_give_up_detector():
+    assert ag.gave_up("目前无法可靠确认2021年深市退市总数")
+    assert ag.gave_up("I couldn’t verify a reliable figure for 2006.")
+    assert ag.gave_up("如果你有这道题的来源，请发给我")
+    assert not ag.gave_up("2024年末外汇储备为 32,024 亿美元[1]。")
