@@ -19,7 +19,7 @@ def test_cases_well_formed():
     ids = [c["id"] for c in d["cases"]]
     assert len(ids) == len(set(ids)) >= 30
     cats = {c["category"] for c in d["cases"]}
-    assert cats == {"报价准确性", "拒绝编造", "风控", "记忆", "工具选择", "引用", "深度分析", "资金流", "一致预期", "年报问答", "年报对比", "数据源冲突", "语义记忆", "长对话", "事件研报"}
+    assert cats == {"报价准确性", "拒绝编造", "风控", "记忆", "工具选择", "引用", "深度分析", "资金流", "一致预期", "年报问答", "年报对比", "数据源冲突", "语义记忆", "长对话", "事件研报", "对抗"}
     for c in d["cases"]:
         assert c["turns"] and c["checks"]
         for k in ("quote", "quote_field"):
