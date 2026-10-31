@@ -3210,13 +3210,17 @@ function drawChangelog(){
 }
 $('clx').onclick = e => { if (e.target === $('clx')) animHide($('clx')); };
 addEventListener('keydown', e => { if (e.key === 'Escape' && !$('clx').hidden) animHide($('clx')); });
-/* 升级后第一次打开：提示看看改了什么 */
+/* 升级后第一次打开：开场结束后直接弹出更新公告（Fasti），每个版本只弹一次 */
 setTimeout(async () => {
   const seen = localStorage.getItem('stoa.verSeen'); let cur = '';
   try { cur = (await (await fetch('/api/changelog', {headers:H})).json()).current; } catch (_) { return; }
-  if (!seen) { localStorage.setItem('stoa.verSeen', cur); return; }
-  if (seen !== cur) toast({time: '', kind: 'update', title: `已更新到 v${cur}。`, changelog: 1});
-}, 2500);
+  if (!cur) return;
+  localStorage.setItem('stoa.verSeen', cur);
+  if (!seen || seen === cur) return;   // 全新安装不弹
+  const show = () => { CL = null; CLF = 'all'; openChangelog(); };
+  const wait = () => document.getElementById('intro') ? setTimeout(wait, 300) : show();
+  wait();
+}, 1500);
 const CMDS = [
   {c: '/deep', a: '标的', g: '执行模式', d: 'Agora 深度分析：四位分析师 + 多空辩论 + 风控裁决', t: x => `深度分析 ${x}`},
   {c: '/quick', a: '问题', g: '执行模式', d: '快问：一两句话直接答，不展开', t: x => `【快问模式：用两三句话直接回答，不展开、不列长表】${x}`},

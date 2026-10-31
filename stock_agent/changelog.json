@@ -1,5 +1,24 @@
 [
  {
+  "version": "0.31.1",
+  "date": "2026-10-31",
+  "title": "Rationes",
+  "items": [
+   {
+    "type": "changed",
+    "text": "改更新后第一次打开：开场结束后直接弹出更新公告（Fasti），每个版本只弹一次，全新安装不弹。"
+   },
+   {
+    "type": "fixed",
+    "text": "修复更新日志里漏掉的 v0.30.0 Porticus。"
+   },
+   {
+    "type": "fixed",
+    "text": "修复升级提示每次打开都出现。"
+   }
+  ]
+ },
+ {
   "version": "0.31.0",
   "date": "2026-10-31",
   "title": "Rationes",
@@ -48,6 +67,37 @@
     "type": "added",
     "text": "新增公开评测：Vals Finance Agent 与 FinSearchComp，对比裸模型和 Stoa。",
     "group": "数据"
+   }
+  ]
+ },
+ {
+  "version": "0.30.0",
+  "date": "2026-10-31",
+  "title": "Porticus",
+  "items": [
+   {
+    "type": "added",
+    "text": "开场换成芝诺胸像（SMK 丹麦国家美术馆 KAS745，公有领域），放进 three.js 彩绘柱廊：多立克柱列、额枋刻 ΣΤΟΑ · ΠΟΙΚΙΛΗ、回纹石板地；浅色午后日光，深色两侧火盆。"
+   },
+   {
+    "type": "added",
+    "text": "深色主题 Nox：玄武岩、象牙字、烛光金，比例和留白不变；设置 → 通用 → 外观，或 /theme，可跟随系统。"
+   },
+   {
+    "type": "added",
+    "text": "内置更新日志 Fasti：设置 → 数据与关于 → 更新日志，或 /changelog，按新增 / 修复 / 改动筛选。"
+   },
+   {
+    "type": "added",
+    "text": "长程研究用满预算：问题问完继续深挖，出错重试或暂停，对话里可用 inquiry_resume 续跑。"
+   },
+   {
+    "type": "fixed",
+    "text": "切换对话不再打断正在写的回答；切回重新接上，别处写完会提示，刷新后也能续上。"
+   },
+   {
+    "type": "fixed",
+    "text": "记忆图谱随窗口等比放大；英文页眉不再压住按钮。"
    }
   ]
  },
