@@ -1,5 +1,20 @@
 [
  {
+  "version": "0.31.3",
+  "date": "2026-10-31",
+  "title": "Rationes",
+  "items": [
+   {
+    "type": "fixed",
+    "text": "修复 Windows 版查行情、看市场情绪全部报错「could not convert string to float」：读 .env 时没去掉行尾注释，导致行情模块加载失败。"
+   },
+   {
+    "type": "fixed",
+    "text": "修复数字型设置写错时整个行情模块不能用，现在会退回默认值。"
+   }
+  ]
+ },
+ {
   "version": "0.31.2",
   "date": "2026-10-31",
   "title": "Rationes",
