@@ -356,6 +356,12 @@ class Web(BaseHTTPRequestHandler):
             return self._send(200, {"ok": True})
         if not self._auth():
             return self._send(401, {"error": "token"})
+        if self.path.split("?")[0] == "/api/approvals":
+            from . import ledger
+            return self._send(200, {"pending": ledger.approvals("pending"), "recent": [a for a in ledger.approvals(None) if a["status"] != "pending"][:20]})
+        if self.path.split("?")[0] == "/api/runs":
+            from . import ledger
+            return self._send(200, {"runs": ledger.runs_list(), "interrupted": ledger.interrupted(), "jobs": ledger.jobs_list()})
         if self.path == "/api/graph":
             from . import graph
             return self._send(200, graph.build(MEM))
@@ -596,6 +602,19 @@ class Web(BaseHTTPRequestHandler):
             name = unquote((parse_qs(urlparse(self.path).query).get("name") or [""])[0]) or self.headers.get("X-Filename", "file")
             res = uploads.save(name, self.rfile.read(n))
             return self._send(400 if res.get("error") else 200, res)
+        if path.startswith("/api/approvals/"):  # 批准 / 拒绝一条待确认动作（覆盖文件、新推送渠道…）
+            if not self._local_ok():
+                return self._send(403, {"error": "forbidden"})
+            from . import ledger
+            aid = re.sub(r"[^a-f0-9]", "", path.rsplit("/", 1)[-1])[:20]
+            body = self._body()
+            return self._send(200, ledger.approval_decide(aid, str(body.get("decision", "")).lower() in ("approve", "yes", "true", "1")))
+        if path.startswith("/api/runs/") and path.endswith("/resume"):
+            if not self._local_ok():
+                return self._send(403, {"error": "forbidden"})
+            rid = re.sub(r"[^A-Za-z0-9-]", "", path.split("/")[3])[:40]
+            threading.Thread(target=lambda: _safe(resume_run, rid), daemon=True).start()
+            return self._send(200, {"ok": True, "run_id": rid})
         if path in ("/api/tasks/delete", "/api/tasks/toggle", "/api/tasks/run"):
             if not self._local_ok():
                 return self._send(403, {"error": "forbidden"})
@@ -609,7 +628,8 @@ class Web(BaseHTTPRequestHandler):
             t = next((x for x in tasks.load() if x["id"] == tid), None)
             if not t:
                 return self._send(404, {"error": "not found"})
-            threading.Thread(target=lambda: tasks.run_one(dict(t, next_run=None), task_runner, log=log), daemon=True).start()
+            manual = "手动 " + datetime.now(CN_TZ).strftime("%Y-%m-%d %H:%M:%S")
+            threading.Thread(target=lambda: tasks.run_one(dict(t, next_run=None), task_runner, log=log, planned=manual), daemon=True).start()
             return self._send(200, {"ok": True, "msg": "已开始运行，完成后弹提醒", "session": "task-" + tid})
         if path == "/api/chat":
             body = self._body()
@@ -869,34 +889,88 @@ def telegram():
 
 # ---------------- 通用定时任务 ----------------
 def task_runner(sid: str, text: str) -> str:
-    """定时任务的结果写进它自己的对话 web-task-<id>，在 History 里显示成「定时 · 标题」。"""
-    from . import tasks
+    """定时任务的结果写进它自己的对话 web-task-<id>，在 History 里显示成「定时 · 标题」。
+    上次这个任务跑到一半进程没了（有中断的运行记录）：从断点续跑，已经跑完的工具不再重跑。"""
+    from . import ledger, tasks
     sess = f"web-{sid}"
     t = next((x for x in tasks.load() if "task-" + x["id"] == sid), None)
     if t and not MEM.db.execute("SELECT title FROM session_meta WHERE session=? AND title IS NOT NULL", (sess,)).fetchone():
         MEM.rename_session(sess, title=f"定时 · {t['title']}")
+    pend = [r for r in ledger.interrupted() if r["session"] == sess]
+    if pend:
+        for r in pend[:-1]:
+            ledger.run_finish(r["run_id"], "superseded")
+        try:
+            return resume_run(pend[-1]["run_id"])
+        except Exception as e:
+            log("任务续跑失败，改为重跑", e)
+            ledger.run_finish(pend[-1]["run_id"], "superseded")
     return chat("web:" + sid, text)
+
+
+def resume_run(rid: str) -> str:
+    """断点续跑一次中断的网页对话 / 定时任务运行：拿到该会话的锁，用 Agent.resume 重放已落库的步骤后继续。"""
+    from . import ledger
+    r = ledger.run_get(rid)
+    if not r or not str(r.get("session") or "").startswith("web-"):
+        raise LookupError("只能续跑网页对话和定时任务的运行")
+    ch = "web:" + r["session"][4:]
+    with LOCK:
+        s = SESSIONS.setdefault(ch, {})
+        s["last"] = time.time()
+        lock = s.setdefault("lock", threading.Lock())
+        stop = s["stop"] = threading.Event()
+    with lock:
+        ag, reply = Agent.resume(rid, MEM, stop=stop)
+        s["agent"] = ag
+        s["last"] = time.time()
+    log("已续跑中断的运行", rid, r["session"])
+    return reply
+
+
+def auto_resume():
+    """启动后：最近 RUN_RESUME_HOURS（默认 6）小时内被打断的网页对话自动从断点续跑（定时任务的由任务补跑接管）。RUN_RESUME=off 关闭。"""
+    from . import ledger
+    time.sleep(5)
+    _safe(ledger.prune)
+    if os.getenv("RUN_RESUME", "auto").lower() in ("off", "0", "false"):
+        return
+    try:
+        hours = float(os.getenv("RUN_RESUME_HOURS", "6"))
+    except ValueError:
+        hours = 6
+    for r in ledger.interrupted(hours, stale_seconds=20):
+        if not str(r["session"]).startswith("web-") or r["session"].startswith("web-task-"):
+            continue
+        if (r.get("attempts") or 1) >= 3:  # 续跑了三次还失败：不再自动重试，留给用户手动
+            continue
+        log("发现中断的对话，从断点续跑：", r["run_id"], (r.get("text") or "")[:40])
+        _safe(resume_run, r["run_id"])
 
 
 # ---------------- 定时早晚报 ----------------
 def report_times() -> dict:
     """REPORT_TIMES=morning=08:30,evening=21:00；设成 off 就关掉。每轮重读，设置页改了立即生效。"""
-    return {s.split("=")[0].strip(): s.split("=")[1].strip()
-            for s in os.getenv("REPORT_TIMES", "morning=08:30,evening=21:00").split(",") if "=" in s}
+    from . import schedule
+    return schedule.report_times()
+
+
+def run_report(session: str, planned: str, late: str | None, key: str) -> int:
+    args = [sys.executable, "-m", "stock_agent", "--session", session, "--push", "--push-key", key]
+    if late:
+        args += ["--late", late]
+    return subprocess.run(args, check=False).returncode
 
 
 def scheduler():
-    done = set()
-    log("定时报告：", report_times(), "（北京时间，工作日）")
+    """准点出报告；错过的按补跑策略补发（标「补发」）或跳过；每次执行与推送都按键去重，重启不会重复。见 schedule.py。"""
+    from . import schedule
+    log("定时报告：", report_times(), "（北京时间，工作日）· 补发", "开" if schedule.catchup_on() else "关", schedule.max_late())
     while True:
-        now, times = datetime.now(CN_TZ), report_times()
-        if now.weekday() < 5:
-            for session, hhmm in times.items():
-                key = (now.date(), session)
-                if now.strftime("%H:%M") == hhmm and key not in done:
-                    done.add(key)
-                    log("生成报告", session)
-                    subprocess.run([sys.executable, "-m", "stock_agent", "--session", session, "--push"], check=False)
+        try:
+            schedule.tick_reports(run_report, log=log)
+        except Exception as e:
+            log("定时报告出错", e)
         time.sleep(20)
 
 
@@ -910,7 +984,7 @@ def main():
         uploads.cleanup()
     except Exception:
         pass
-    for fn in (reaper, telegram, scheduler, lambda: tasks.loop(task_runner, log), lambda: inquiry.loop(log, MEM), lambda: alerts.loop(log), lambda: vectors.indexer_loop(MEM, log), lambda: newsdaily.loop(log)):
+    for fn in (reaper, telegram, scheduler, auto_resume, lambda: tasks.loop(task_runner, log), lambda: inquiry.loop(log, MEM), lambda: alerts.loop(log), lambda: vectors.indexer_loop(MEM, log), lambda: newsdaily.loop(log)):
         threading.Thread(target=fn, daemon=True).start()
     log(f"Stoa 已启动：http://{host}:{port}  数据目录 {home()}")
     from .data import provider_order

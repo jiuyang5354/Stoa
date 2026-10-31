@@ -2,7 +2,7 @@
 
 存 数据目录/data/tasks.json。每个任务的结果写进自己的对话 web-task-<id>（History 里能看到），
 同时进提醒事件流（网页弹 toast、桌面通知）并推送到已开的渠道。
-时间一律北京时间。服务停着时错过的不补跑（错过 6 小时以内的补一次）。
+时间一律北京时间。服务停着时错过的：TASK_CATCHUP_HOURS（默认 6）小时以内补一次并标「补发」，更久的跳过。
 """
 import json
 import re
@@ -183,24 +183,36 @@ def due(at: datetime | None = None) -> list[dict]:
     return out
 
 
-def run_one(t: dict, runner, push=None, log=print, at: datetime | None = None) -> dict:
-    """跑一个任务：runner(session_id, text) -> 回答文字。先把 next_run 往后挪，防止重复触发。"""
+def run_one(t: dict, runner, push=None, log=print, at: datetime | None = None, planned: str | None = None, recovering: bool = False) -> dict:
+    """跑一个任务：runner(session_id, text) -> 回答文字。
+    v0.34：每次计划执行一个键 task:<id>:<计划时间>，记在 ledger.jobs——同一个键不会跑两次、推两次（推送也用这个键去重）；
+    晚于计划 2 分钟以上算补跑，结果与推送标「补发」；错过超过 TASK_CATCHUP_HOURS（默认 6 小时）就跳过。"""
+    from . import ledger, schedule
     at = at or now()
-    nr = _parse(t.get("next_run"))
-    stale = nr is not None and at - nr > CATCH_UP
-    with LOCK:
-        ts = load()
-        cur = next((x for x in ts if x["id"] == t["id"]), None)
-        if not cur:
-            return {"skipped": True}
-        nxt = next_run(cur, at)
-        cur["next_run"] = _fmt(nxt)
-        if cur["kind"] == "once" or nxt is None:
-            cur["active"] = False
-        save(ts)
+    planned = planned or t.get("next_run")
+    nr = _parse(planned)
+    lateness = (at - nr) if nr else timedelta(0)
+    stale = nr is not None and lateness > schedule.task_catchup()
+    if not recovering:
+        with LOCK:
+            ts = load()
+            cur = next((x for x in ts if x["id"] == t["id"]), None)
+            if not cur:
+                return {"skipped": True}
+            nxt = next_run(cur, at)
+            cur["next_run"] = _fmt(nxt)
+            if cur["kind"] == "once" or nxt is None:
+                cur["active"] = False
+            save(ts)
+    key = f"task:{t['id']}:{planned}"
     if stale:  # 服务停了很久：错过的不补，直接排下一次
+        ledger.job_skip(key, "task", planned or "", f"错过 {lateness}，超过补跑时限")
         log("定时任务错过太久，跳过", t["id"], t.get("title"))
         return {"skipped": True, "stale": True}
+    if not ledger.job_claim(key, "task", planned or "", late=lateness > timedelta(minutes=2), force=recovering):
+        return {"skipped": True, "duplicate": True}
+    late = lateness > timedelta(minutes=2)
+    note = f"原定 {planned}，补发于 {_fmt(at)}" if late else ""
     text = (f"{TASK_PREFIX}「{t['title']}」· {describe(t)} · 自动执行，用户不在线；直接完成任务给出结果，不要反问，不要再创建定时任务]\n"
             f"{t['prompt']}")
     sid = "task-" + t["id"]
@@ -209,6 +221,8 @@ def run_one(t: dict, runner, push=None, log=print, at: datetime | None = None) -
         ok = not reply.startswith("出错了")
     except Exception as e:
         reply, ok = f"出错了：{e}", False
+    if late:
+        reply = f"【补发】{note}\n\n" + reply
     preview = " ".join(re.sub(r"\[\[[^\]]*\]\]|\[\d+\]|[#*>`]", "", reply).split())[:120]
     with LOCK:
         ts = load()
@@ -221,17 +235,39 @@ def run_one(t: dict, runner, push=None, log=print, at: datetime | None = None) -
         save(ts)
     try:
         from . import alerts
-        alerts.add_events([{"time": _fmt(at), "kind": "task", "title": f"{t['title']}：{preview[:60] or '已完成'}", "session": sid, "task": t["id"]}])
+        alerts.add_events([{"time": _fmt(at), "kind": "task", "title": f"{t['title']}{'（补发）' if late else ''}：{preview[:60] or '已完成'}", "session": sid, "task": t["id"]}])
     except Exception:
         pass
     if push is None:
         from . import notify
         push = notify.push
+    title = f"Stoa 定时任务 · {t['title']}{'（补发）' if late else ''}"
     try:
-        push(f"Stoa 定时任务 · {t['title']}", reply[:3500])
+        try:
+            push(title, reply[:3500], key=key)
+        except TypeError:  # 旧式 push(title, markdown)
+            push(title, reply[:3500])
     except Exception:
         pass
-    return {"ok": ok, "reply": reply}
+    ledger.job_done(key, "done" if ok else "error", note or None)
+    return {"ok": ok, "reply": reply, "late": late}
+
+
+def recover(runner, push=None, log=print, at: datetime | None = None) -> int:
+    """启动时调用：上个进程跑到一半的任务（job 停在 running）在补跑时限内重跑一次（推送键相同，不会重复推）。"""
+    from . import ledger
+    n = 0
+    tasks_by_id = {x["id"]: x for x in load()}
+    for j in ledger.jobs_stuck("task"):
+        tid = j["key"].split(":")[1]
+        t = tasks_by_id.get(tid)
+        if not t:
+            ledger.job_done(j["key"], "skipped", "任务已删除")
+            continue
+        log("补跑中断的定时任务", tid, t.get("title"))
+        r = run_one(t, runner, push=push, log=log, at=at, planned=j["planned"], recovering=True)
+        n += 0 if r.get("skipped") else 1
+    return n
 
 
 def tick(runner, push=None, log=print, at: datetime | None = None) -> int:
@@ -246,6 +282,10 @@ def tick(runner, push=None, log=print, at: datetime | None = None) -> int:
 def loop(runner, log=print):
     import time
     time.sleep(10)
+    try:
+        recover(runner, log=log)
+    except Exception as e:
+        log("补跑中断任务出错", e)
     while True:
         try:
             tick(runner, log=log)

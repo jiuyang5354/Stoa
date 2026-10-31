@@ -12,7 +12,7 @@ from __future__ import annotations
 import re
 
 UNATTENDED_PREFIXES = ("[定时任务",)
-CONSENT_YES = re.compile(r"确认|同意|批准|准了|可以(?:执行|覆盖|发|写)?|执行吧|就这么办|没问题|好的|是的|覆盖吧|\bapprove\b|\bconfirm\b|\byes\b|\bok(?:ay)?\b|go ahead", re.I)
+CONSENT_YES = re.compile(r"(?<![待要需])确认(?![吗么一下什的])|同意|批准|准了|可以(?:执行|覆盖|发|写)?|执行吧|就这么办|没问题|好的|是的|覆盖吧|\bapprove\b|\bconfirm\b|\byes\b|\bok(?:ay)?\b|go ahead", re.I)
 CONSENT_NO = re.compile(r"拒绝|不要|别(?:覆盖|发|写|执行)|取消|算了|不同意|不行|\breject\b|\bdeny\b|\bno\b|\bcancel\b", re.I)
 UNATTENDED_BLOCK = {"task_create", "task_delete", "alert_delete", "skill_delete", "confirm_action", "watchlist"}
 VIEWS = {"看涨", "看跌", "震荡"}
