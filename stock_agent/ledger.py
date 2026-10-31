@@ -230,10 +230,16 @@ def approval_decide(aid: str, approve: bool) -> dict:
         return {"error": f"没有 id 为 {aid} 的待确认动作"}
     if a["status"] != "pending":
         return {"error": f"这条已经{ {'approved': '批准', 'rejected': '拒绝', 'failed': '执行失败'}.get(a['status'], a['status']) }过了", "approval": a}
+    from . import notify, exports, learn  # noqa: F401  确保各模块的执行函数已注册
     if not approve:
         _x("UPDATE approvals SET status='rejected', decided=? WHERE id=?", (now(), aid))
+        rj = REJECT_HANDLERS.get(a["kind"])
+        if rj:
+            try:
+                rj(a["payload"])
+            except Exception:
+                pass
         return {"ok": True, "status": "rejected", "id": aid}
-    from . import notify, exports  # noqa: F401  确保各模块的执行函数已注册
     fn = HANDLERS.get(a["kind"])
     try:
         res = fn(a["payload"]) if fn else {"note": "无需执行"}
@@ -245,6 +251,7 @@ def approval_decide(aid: str, approve: bool) -> dict:
 
 
 HANDLERS: dict = {}
+REJECT_HANDLERS: dict = {}  # 拒绝时也要记账的（如点踩候选：拒绝后同类不再提）
 
 
 def handler(kind: str):

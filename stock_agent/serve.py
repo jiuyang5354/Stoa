@@ -96,6 +96,9 @@ def truncate_for_edit(channel: str, turn: int) -> dict | None:
 
 def chat(channel: str, text: str, model: str | None = None, on_event=None, lang: str | None = None) -> str:
     """全局锁只管会话表；每个会话自己一把锁，一个对话在查数据时，别的对话和 Telegram 不用排队。"""
+    if re.match(r"^/bad(?:\s|$)", text.strip()):  # 点踩上一条回答：/bad 原因（可省略）；不占会话锁
+        s0 = SESSIONS.get(channel)
+        return feedback(channel, text.strip()[4:].strip(), session=s0["agent"].session if s0 else None)
     with LOCK:
         s = SESSIONS.get(channel)
         if text.strip() in ("/new", "/reset") and s:
@@ -123,6 +126,7 @@ def chat(channel: str, text: str, model: str | None = None, on_event=None, lang:
             except Exception:
                 pass
         ag.on_event = on_event
+        ag._chan = channel
         if lang in ("zh", "en"):  # 界面语言：英文界面时 Agent 用英文回答
             ag.lang = lang
         try:
@@ -137,6 +141,30 @@ def chat(channel: str, text: str, model: str | None = None, on_event=None, lang:
         finally:
             ag.on_event = None
             s["last"] = time.time()
+
+
+def feedback(channel: str, reason: str = "", session: str | None = None, turn: int | None = None) -> str:
+    """点踩：归层、生成候选（进待确认）。网页按第 n 问定位；Telegram/CLI 标记该渠道上一条回答。"""
+    from . import learn
+    res = learn_feedback(channel, reason, session, turn)
+    return learn.reply_text(res)
+
+
+def learn_feedback(channel: str, reason: str = "", session: str | None = None, turn: int | None = None) -> dict:
+    from . import learn
+    llm = None
+    try:
+        from .providers import Router
+        r = Router(load_cfg().get("llm", {}))
+        llm = r if r.ready else None
+    except Exception:
+        llm = None
+    if turn:
+        return learn.feedback(MEM, session, reason, turn=turn, llm=llm)
+    tr = learn.last_trace(chan=channel) or (learn.last_trace(session=session) if session else None)
+    if not tr:
+        return {"error": "还没有可以标记的回答"}
+    return learn.feedback(MEM, tr["session"], reason, llm=llm, trace=tr)
 
 
 def kind_of(channel: str) -> str:
@@ -393,6 +421,9 @@ class Web(BaseHTTPRequestHandler):
         if self.path.split("?")[0] == "/api/approvals":
             from . import ledger
             return self._send(200, {"pending": ledger.approvals("pending"), "recent": [a for a in ledger.approvals(None) if a["status"] != "pending"][:20]})
+        if self.path.split("?")[0] == "/api/learn":
+            from . import learn
+            return self._send(200, learn.listing())
         if self.path.split("?")[0] == "/api/runs":
             from . import ledger
             return self._send(200, {"runs": ledger.runs_list(), "interrupted": ledger.interrupted(), "jobs": ledger.jobs_list()})
@@ -643,6 +674,23 @@ class Web(BaseHTTPRequestHandler):
             aid = re.sub(r"[^a-f0-9]", "", path.rsplit("/", 1)[-1])[:20]
             body = self._body()
             return self._send(200, ledger.approval_decide(aid, str(body.get("decision", "")).lower() in ("approve", "yes", "true", "1")))
+        if path == "/api/feedback":  # 点踩一条回答：{session, turn, reason}
+            body = self._body()
+            sid = re.sub(r"[^A-Za-z0-9_-]", "", str(body.get("session", "")))[:40]
+            try:
+                turn = int(body.get("turn") or 0)
+            except (TypeError, ValueError):
+                turn = 0
+            if not sid:
+                return self._send(400, {"error": "缺少 session"})
+            reason = str(body.get("reason") or "")[:300]
+            res = learn_feedback("web:" + sid, reason, f"web-{sid}", turn or None)
+            return self._send(400 if res.get("error") else 200, res)
+        if path == "/api/learn/revoke":
+            if not self._local_ok():
+                return self._send(403, {"error": "forbidden"})
+            from . import learn
+            return self._send(200, learn.revoke(re.sub(r"[^a-f0-9]", "", str(self._body().get("id", "")))[:20]))
         if path.startswith("/api/runs/") and path.endswith("/resume"):
             if not self._local_ok():
                 return self._send(403, {"error": "forbidden"})

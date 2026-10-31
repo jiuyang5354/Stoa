@@ -26,6 +26,23 @@ INVALID = re.compile(r"失效|作废|证伪|止损|判断(?:不再|就不)成立
 INVALID_WEAK = re.compile(r"(?:若|如果|一旦|假如).{0,24}(?:跌破|站上|突破|失守|收于|低于|高于).{0,30}(?:则|就|应|需|要|重新)")
 
 
+def _learned() -> dict:
+    """点踩后经用户批准入库的词表（learn.py，只是数据）。没有就空。"""
+    try:
+        from .learn import terms
+        return terms()
+    except Exception:
+        return {}
+
+
+def _extra(kind: str):
+    from .learn import phrase_re
+    try:
+        return phrase_re(_learned().get(kind) or [])
+    except Exception:
+        return None
+
+
 def _sentences(text: str) -> list[str]:
     return [x for x in re.split(r"(?<=[。！？!?\n；;])", text) if x.strip()]
 
@@ -33,15 +50,19 @@ def _sentences(text: str) -> list[str]:
 def direction(text: str) -> int | None:
     """回答自己给出的方向：1 看多、-1 看空、0 中性/震荡；没有方向判断返回 None。转述分析师评级、目标价不算。"""
     bull = bear = side = 0
+    xb, xr, xs = _extra("bull"), _extra("bear"), _extra("side")
     for s in _sentences(text):
         if s.lstrip().startswith(("注", "择时判断", "仅供参考")):
             continue
         mine = not NOT_MINE.search(s)
         b, r = len(BULL.findall(s)), len(BEAR.findall(s))
+        if mine:  # 入库的口语说法（如「可以上车」）只算自己的判断
+            b += len(xb.findall(s)) if xb else 0
+            r += len(xr.findall(s)) if xr else 0
         if mine or OWN_TARGET.search(s):
             bull += b + (1 if OWN_TARGET.search(s) and not r else 0)
             bear += r
-            side += len(SIDE.findall(s)) if mine else 0
+            side += (len(SIDE.findall(s)) + (len(xs.findall(s)) if xs else 0)) if mine else 0
     if not (bull or bear or side):
         return None
     if bull > bear:
@@ -125,7 +146,12 @@ def lures(question: str) -> list[str]:
     q = question or ""
     if NEG_LURE.search(q):
         q = NEG_LURE.sub("", q)
-    return [k for k, rx in LURES.items() if rx.search(q)]
+    out = [k for k, rx in LURES.items() if rx.search(q)]
+    for k in LURES:  # 入库的诱导说法
+        x = _extra(k)
+        if k not in out and x and x.search(q):
+            out.append(k)
+    return out
 
 
 DRAWDOWN_LINE = ("风险提示：任何个股都可能出现较大回撤、亏损本金，仓位要和能承受的亏损相匹配。",

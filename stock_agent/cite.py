@@ -153,6 +153,11 @@ def name_aliases(sym: str, name: str = "") -> set[str]:
         out |= {k for k, v in ALIAS.items() if v.upper() == sym.upper()}
     except Exception:
         pass
+    try:  # 点踩后经用户批准入库的简称（learn.py）
+        from .learn import terms
+        out |= {k for k, v in (terms().get("alias") or {}).items() if v.upper() == sym.upper()}
+    except Exception:
+        pass
     return {a for a in out if len(a) >= 2}
 
 

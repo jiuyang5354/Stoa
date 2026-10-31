@@ -285,6 +285,18 @@ def gave_up(reply: str) -> bool:
     return bool(GIVE_UP_RE.search(reply or ""))
 
 
+def post_check(question: str, reply: str, sources) -> tuple[str, list, dict]:
+    """快问回答的事后检查（规则，不调模型）：引用核对标「未核实」→ answercheck 补失效条件 / 诱导风险。
+    Agent 与点踩回放题（learn.replay）共用同一段，回放结果才和真实回答一致。"""
+    reply, flagged = cite.flag(reply, sources)
+    from . import answercheck
+    try:
+        reply, added = answercheck.review(question, reply, sources)
+    except Exception:
+        added = {}
+    return reply, flagged, added
+
+
 def wants_disclaimer(text: str) -> bool:
     text = text or ""
     return bool(ADVICE_RE.search(text) or (ADVICE_WEAK.search(text) and INVEST_CTX.search(text)))
@@ -919,6 +931,9 @@ class Agent:
                 except Exception:
                     pass
         raw = self._screen(name, raw)
+        tl = getattr(self, "_trace_log", None)
+        if tl is not None:
+            tl.append({"tool": name, "args": args, "result": raw})
         res = self.sources.add(name, args, raw)
         if name in cards.CARD_TOOLS:
             try:
@@ -947,10 +962,20 @@ class Agent:
     def _begin_sources(self, text: str):
         self.sources = cite.Sources()
         self.turn_cards = []
-        self.sources.add_context(text, "你的提问", "user")
-        self.sources.add_context(self._memory_source_context, "Stoa 记忆与判断账本", "memory")
+        self._trace_log = []  # 本轮工具调用与结果（点踩时归层、生成回放题用）
+        self._trace_ctx = [(text, "你的提问", "user"), (self._memory_source_context, "Stoa 记忆与判断账本", "memory")]
         if self.digest and self.digest.get("text"):  # 纪要里的关键数字是早先对话的原话（带当时来源），复述时算有出处
-            self.sources.add_context(self.digest["text"], "Stoa 会话纪要", "memory")
+            self._trace_ctx.append((self.digest["text"], "Stoa 会话纪要", "memory"))
+        for t, n, k in self._trace_ctx:
+            self.sources.add_context(t, n, k)
+
+    def _trace(self, question: str, raw_reply: str, reply: str, aid):
+        """这一问的现场落库（learn.db）：问题、模型原始回答、工具调用与结果、核对与补写。点踩时用。"""
+        from . import learn
+        lm = getattr(self, "last_meta", None) or {}
+        _quiet(learn.record_trace, self.session, getattr(self, "_chan", "") or "", getattr(self, "_cur_id", None), aid, question, raw_reply, reply,
+               list(getattr(self, "_trace_log", None) or []), list(getattr(self, "_trace_ctx", None) or []),
+               {"verify": lm.get("verify"), "debate": lm.get("debate"), "steps": [{k: x.get(k) for k in ("name", "arg", "ok", "got")} for x in lm.get("steps") or []]})
 
     def _finish(self, reply: str, verify_meta: dict) -> str:
         # 荐股 / 收益 / 杠杆 / 买卖类提问：哪怕模型只是拒绝或反问，也补上免责（第二轮真实模型评测 risk-02 漏了）
@@ -1101,7 +1126,9 @@ class Agent:
                     reply = self._finish(reply, vm)
                     if on_tool:
                         on_tool("deep_analysis", {"symbol": sym})
-                    self.messages.append({"role": "assistant", "content": cite.strip_sources(reply), "_id": self.mem.log(self.session, "assistant", reply)})
+                    aid = self.mem.log(self.session, "assistant", reply)
+                    self.messages.append({"role": "assistant", "content": cite.strip_sources(reply), "_id": aid})
+                    self._trace(text, rec["answer"], reply, aid)
                     return reply
                 except Exception as e:  # 辩论整体出错：退回单 agent
                     if isinstance(e, Cancelled):
@@ -1178,16 +1205,13 @@ class Agent:
                     retried, first_bad = True, v["unverified"]
                     self.messages.append({"role": "user", "content": cite.correction_prompt(v["unverified"], v.get("why"))})
                     continue
-                reply, flagged = cite.flag(reply, self.sources)
-                # 快问的事后检查（规则，不再调模型）：方向判断补失效条件；全仓/杠杆/保证涨类提问补风险提示
-                from . import answercheck
-                try:
-                    reply, added = answercheck.review(text, reply, self.sources)
-                except Exception:
-                    added = {}
+                raw_reply = reply
+                # 快问的事后检查（规则，不再调模型）：未核实数字打标；方向判断补失效条件；全仓/杠杆/保证涨类提问补风险提示
+                reply, flagged, added = post_check(text, reply, self.sources)
                 reply = self._finish(reply, {"first_unverified": first_bad, "fixed": bool(first_bad) and not flagged, "flagged": flagged,
                                              "rounds": rounds, "stopped": final, **({"added": added} if added else {})})
                 aid = self.mem.log(self.session, "assistant", reply)
+                self._trace(text, raw_reply, reply, aid)
                 # 收尾提示只是过程：从上下文里拿掉，免得下一轮的模型以为还不能用工具
                 self.messages = [m for m in self.messages[:-1] if not (m["role"] == "user" and m.get("_id") is None and m["content"].startswith("[系统："))]
                 self.messages.append({"role": "assistant", "content": cite.strip_sources(reply), "_id": aid})
@@ -1320,6 +1344,12 @@ def repl():
                 break
             if text == "/memory":
                 print(agent.mem.snapshot(), "\n")
+                continue
+            if text == "/bad" or text.startswith("/bad "):  # 点踩上一条回答
+                from . import learn
+                tr = learn.last_trace(session=agent.session)
+                res = learn.feedback(agent.mem, agent.session, text[4:].strip(), llm=agent.llm, trace=tr) if tr else {"error": "还没有可以标记的回答"}
+                print(learn.reply_text(res), "\n")
                 continue
             try:
                 reply = agent.ask(text, on_tool=lambda n, a: print(f"  · {n}"))

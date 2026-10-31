@@ -209,6 +209,45 @@ def _transient(e: Exception) -> bool:
     return any(k in t for k in ("429", "rate", "timeout", "timed out", "connection", "temporarily", "502", "503", "504", "overload"))
 
 
+class SawRepeated(Exception):
+    """同一个 SAW（看到的失败现象）连续出现两次：再试也是同样的结果，停下上报。"""
+
+    def __init__(self, fb: dict):
+        super().__init__(fb.get("saw"))
+        self.fb = fb
+
+
+def _saw(e: Exception) -> str:
+    """失败现象归一：去掉数字、十六进制 id、多余空白，同一类错误得到同一个 SAW。"""
+    t = f"{type(e).__name__}: {e}"
+    t = re.sub(r"\b[0-9a-f]{8,}\b", "<id>", t, flags=re.I)
+    t = re.sub(r"\d+(?:\.\d+)?", "#", t)
+    return re.sub(r"\s+", " ", t).strip()[:160]
+
+
+def _feedback(st: dict, q: dict, attempt: int, e: Exception) -> tuple[dict, bool]:
+    """重试前把失败写成结构化反馈 EXPECTED / SAW / DEAD ENDS 进状态；返回 (反馈, 是否与上一次失败同一个 SAW)。"""
+    saw = _saw(e)
+    hist = st.setdefault("feedback", [])
+    dead = list(hist[-1]["dead_ends"]) if hist and hist[-1]["q"] == q["id"] else []
+    dead.append(f"{q['id']} 第 {attempt + 1} 次：{'按原问题直接查' if attempt == 0 else '等待后按原问题重试'} → {saw[:60]}")
+    fb = {"q": q["id"], "attempt": attempt + 1, "at": _now(),
+          "expected": f"{q['id']} 产出一份带出处的研究笔记（{q['text'][:80]}）", "saw": saw, "dead_ends": dead[-6:]}
+    repeated = st.get("last_saw") == saw
+    st["last_saw"] = saw
+    hist.append(fb)
+    st["feedback"] = hist[-30:]
+    q["feedback"] = fb
+    return fb, repeated
+
+
+def _feedback_text(fb: dict | None) -> str:
+    if not fb:
+        return ""
+    return ("\n\n上次尝试失败的反馈（换一个做法，别重复死路）：\nEXPECTED：" + fb["expected"] + "\nSAW：" + fb["saw"] +
+            "\nDEAD ENDS：" + "；".join(fb["dead_ends"]))
+
+
 def _add_q(st: dict, q: dict, depth: int, parent: str | None = None) -> bool:
     text = str(q.get("text") or "").strip()[:300]
     if not text:
@@ -260,7 +299,7 @@ def research_step(st: dict, q: dict, mem: Memory, stop: threading.Event | None, 
     prompt = (f"[长程研究课题 {st['id']}]\n总目标：{st['goal']}\n成功标准：{st['criteria']}\n"
               + (f"相关标的：{'、'.join(st['symbols'])}\n" if st["symbols"] else "")
               + f"\n已有研究笔记（前面子问题的结论，数字以其原始出处为准）：\n{_notes(st, 5000) or '（还没有）'}\n\n"
-              f"本步子问题（{q['id']}）：{q['text']}\n为什么问：{q['why'] or '—'}" + (f"\n建议工具/技能：{q['tools']}" if q.get("tools") else "") +
+              f"本步子问题（{q['id']}）：{q['text']}\n为什么问：{q['why'] or '—'}" + (f"\n建议工具/技能：{q['tools']}" if q.get("tools") else "") + _feedback_text(q.get("feedback")) +
               "\n\n要求：只围绕本子问题查证，能用工具就用工具，有对口技能先 skill_view。写 300–900 字的研究笔记：先一句结论，再证据，"
               "最后写清楚还不确定的地方。数字带出处角标。本步不要调用 record_call、alert_set、skill_save（课题收尾时统一处理）。\n"
               "最后单独一行输出（系统会拿走，不给用户看）：\n"
@@ -391,6 +430,7 @@ def run(iid: str, mem: Memory | None = None, stop: threading.Event | None = None
         llm.stop, llm.on_event = stop, on_event
     st["_t0"] = time.time()
     st["error"] = None
+    st["last_saw"] = None
     try:
         if not st["questions"]:
             st["status"] = "planning"
@@ -430,14 +470,33 @@ def run(iid: str, mem: Memory | None = None, stop: threading.Event | None = None
                     except InterruptedError:
                         raise
                     except Exception as e:
+                        fb, repeated = _feedback(st, q, attempt, e)
+                        save(st)
+                        if repeated:  # 同一个 SAW 连续两次：再试也一样，停下上报
+                            raise SawRepeated(fb)
                         if attempt == 2 or not _transient(e) or stop.is_set():
                             raise
                         _log(st, f"{q['id']} 暂时出错（{str(e)[:60]}），{30 * (attempt + 1)} 秒后重试")
                         stop.wait(30 * (attempt + 1))
                 log(f"课题 {iid} {q['id']} 完成（{q['secs']}s）")
                 errs = 0
+                st["last_saw"] = None
+                q.pop("feedback", None)
             except InterruptedError:
                 q["status"] = "todo"
+                break
+            except SawRepeated as sr:
+                fb = sr.fb
+                q.update(status="todo", answer=None)
+                for x in st["questions"]:
+                    if x["status"] == "error":
+                        x["status"] = "todo"
+                st["stalled"] = fb
+                st["error"] = ("同一个失败连续出现两次，已停止重试并上报。EXPECTED：" + fb["expected"] + "；SAW：" + fb["saw"] +
+                               "；DEAD ENDS：" + "；".join(fb["dead_ends"]))
+                _log(st, f"{q['id']} 同一失败连续两次（{fb['saw'][:60]}），停止重试")
+                _announce(st, "研究暂停", f"同一个失败连续出现两次（{fb['saw'][:80]}），已停止重试，等你处理后可继续。")
+                paused_err = True
                 break
             except Exception as e:
                 q.update(status="error", answer=f"出错：{str(e)[:200]}", finished=_now())

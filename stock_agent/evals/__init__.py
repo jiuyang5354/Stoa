@@ -717,6 +717,9 @@ def merge_fixtures(fx: dict, extra: dict | None) -> dict:
 
 def run_case(case, fx, llm_kind, real_home: Path):
     from ..memory import Memory
+    if case.get("replay"):  # 点踩回归题：按记录的现场回放事后检查，不调模型（learn.py）
+        from .. import learn
+        return learn.run_replay_case(case)
     fx = merge_fixtures(fx, case.get("fixtures"))
     tmp = Path(tempfile.mkdtemp(prefix="stoa-eval-"))
     old = os.environ.get("STOCK_AGENT_HOME")
@@ -831,7 +834,12 @@ def run(llm_kind="auto", only=None, use_judge=False, save=True) -> dict:
     from ..memory import home
     real_home = home()
     data = load_cases()
-    fx, cases = data["fixtures"], data["cases"]
+    fx, cases = data["fixtures"], list(data["cases"])
+    try:  # 点踩后经用户批准入库的回归题（数据目录/data/learn.db）
+        from .. import learn
+        cases += learn.approved_cases()
+    except Exception:
+        pass
     if only:
         cases = [c for c in cases if c["category"] == only or c["id"].startswith(only)]
     llm_name = repr(pick_llm(llm_kind))
