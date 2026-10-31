@@ -41,7 +41,7 @@ A stock-market agent with memory for China A-shares, Hong Kong and US stocks —
 
 | 方式 | 适合 | 怎么做 |
 |---|---|---|
-| Windows 绿色版 | 只想用 | 下载 [Stoa-Windows.zip](https://github.com/jiuyang5354/Stoa/releases/latest)，解压双击 `Stoa.exe` |
+| Windows 安装包 | 只想用 | 下载 [Stoa-Setup.exe](https://github.com/jiuyang5354/Stoa/releases/latest)，双击安装，桌面出现 Stoa 快捷方式（也有绿色版 Stoa-Windows.zip） |
 | Docker 常驻 | 24 小时在线、推送早晚报 | `cp .env.example .env` 填模型密钥，`docker compose up -d`，打开 http://localhost:8080 |
 | Python | 开发、命令行 | `pip install -r requirements.txt`，`python -m stock_agent serve` |
 
@@ -80,7 +80,7 @@ A stock-market agent with memory for China A-shares, Hong Kong and US stocks —
 
 ## Windows 绿色版（不用 Docker、不用装 Python）
 
-到 [Releases](https://github.com/jiuyang5354/Stoa/releases) 下载 `Stoa-Windows.zip`，解压后双击 `Stoa.exe`：自带嵌入式 Python 3.12 和全部依赖，双击直接打开独立的 Stoa 窗口（Windows 自带 WebView2 内核，不开浏览器、无控制台）。第一次运行不弹任何窗口；发第一句话时如果还没配模型，会自动打开「设置 → 模型」，选服务商、填密钥，保存立即生效、不用重启（看行情和早晚报不需要模型）。窗口用和界面同风格的自绘标题栏（Windows 11 圆角阴影，拖动、贴靠、双击最大化照常；设环境变量 `STOA_FRAME=native` 可换回系统标题栏）。关窗口即退出，日志在 `%LOCALAPPDATA%\Stoa\stoa.log`。数据在 `%LOCALAPPDATA%\Stoa`，换新版不丢。右上角 Settings（或 Ctrl+,）里能改模型和密钥、管理记忆和自选股、开推送渠道、调早晚报时间、导出备份，保存立即生效。卸载就双击包里的 `卸载 Stoa.exe`，可选是否连数据一起删。
+到 [Releases](https://github.com/jiuyang5354/Stoa/releases) 下载 `Stoa-Setup.exe` 双击安装（装到 `%LOCALAPPDATA%\Programs\Stoa`，不需要管理员，自动建桌面和开始菜单快捷方式，装完直接打开；卸载在「设置 → 应用」里，数据保留）。也可以下绿色版 `Stoa-Windows.zip` 解压后双击 `Stoa.exe`：自带嵌入式 Python 3.12 和全部依赖，双击直接打开独立的 Stoa 窗口（Windows 自带 WebView2 内核，不开浏览器、无控制台）。第一次运行不弹任何窗口；发第一句话时如果还没配模型，会自动打开「设置 → 模型」，选服务商、填密钥，保存立即生效、不用重启（看行情和早晚报不需要模型）。窗口用和界面同风格的自绘标题栏（Windows 11 圆角阴影，拖动、贴靠、双击最大化照常；设环境变量 `STOA_FRAME=native` 可换回系统标题栏）。关窗口即退出，日志在 `%LOCALAPPDATA%\Stoa\stoa.log`。数据在 `%LOCALAPPDATA%\Stoa`，换新版不丢。右上角 Settings（或 Ctrl+,）里能改模型和密钥、管理记忆和自选股、开推送渠道、调早晚报时间、导出备份，保存立即生效。卸载就双击包里的 `卸载 Stoa.exe`，可选是否连数据一起删。
 
 自己打包：在 Linux 上运行 `packaging/windows/build.sh`（需要 mingw-w64），产物在 `dist/`。其它系统也能用 `python -m stock_agent desktop` 得到同样的桌面模式。
 

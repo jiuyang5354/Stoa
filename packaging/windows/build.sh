@@ -22,3 +22,9 @@ x86_64-w64-mingw32-gcc -municode -mwindows -O2 -s uninstall.c "$OUT/u.o" -o "$B/
 cp "$HERE/使用说明.txt" "$HERE/启动.bat" "$B/" && cp "$HERE/icon.ico" "$B/Stoa.ico"
 (cd "$OUT" && rm -f Stoa-Windows.zip && zip -qr9 Stoa-Windows.zip Stoa)
 echo "$OUT/Stoa-Windows.zip"
+# 单文件安装包（NSIS）：一个 Stoa-Setup.exe，装完建桌面快捷方式
+if command -v makensis >/dev/null; then
+  V=$(python3 -c "import re;print(re.search(r'\"(.+?)\"',open('$REPO/stock_agent/__init__.py').read()).group(1))")
+  (cd "$HERE" && makensis -V2 -DVERSION="$V" -DSRC="$B" installer.nsi)
+  echo "$OUT/Stoa-Setup.exe"
+fi
