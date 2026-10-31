@@ -681,11 +681,31 @@ class Debate:
             return self._rec(key, status="no_data", note="数据源没有返回可用数据", tools=tools_used, seconds=round(time.time() - t0, 2), **out)
         sys = COMMON.format(title=f"{zh}分析师", key=key) + "\n" + PROMPTS[key] + "\n" + ANALYST_OUT
         user = f"标的：{'某股票（回测盲测）' if self.mode == 'backtest' else f'{self.name}（{self.symbol}）'}\n用户问题：{self.question or '深度分析'}\n数据：{_short(data)}"
+        from . import qgate
+        qg, retried = None, False
         try:
             j = parse_json(self.ask(key, sys, user))
             out = {"stance": norm_view(j.get("stance")), "confidence": clamp_conf(j.get("confidence")),
                    "summary": str(j.get("summary", ""))[:200], "evidence": [str(x)[:160] for x in (j.get("evidence") or [])][:5]}
             status, err = "ok", None
+            # 质量门：空/过短/含「无法获取」的报告不进辩论；预算够才重做一次（留出辩论+风控+裁决的调用），仍不合格就降级为规则摘要
+            g, why = qgate.grade(out)
+            if g in ("F", "D") and qgate.retry_allowed(self.budget, 2 * self.rounds + 2 + len(ANALYSTS)):
+                retried = True
+                try:
+                    j2 = parse_json(self.ask(key, sys, user + qgate.retry_note(why)))
+                    out2 = {"stance": norm_view(j2.get("stance")), "confidence": clamp_conf(j2.get("confidence")),
+                            "summary": str(j2.get("summary", ""))[:200], "evidence": [str(x)[:160] for x in (j2.get("evidence") or [])][:5]}
+                    g2, why2 = qgate.grade(out2)
+                    if g2 not in ("F", "D"):
+                        out, g, why = out2, g2, why2
+                    else:
+                        why = why2
+                except Exception:
+                    pass
+            qg = {"grade": g, "why": why, "retried": retried}
+            if g in ("F", "D"):
+                out, status, err = RULES[key](data), "gated", "质量门：" + "；".join(why)
         except Exception as e:  # 降级：用规则摘要代替
             out, status, err = RULES[key](data), "degraded", f"{type(e).__name__}: {str(e)[:100]}"
         bad = []
@@ -697,7 +717,8 @@ class Debate:
                 ev.append(fx)
                 bad += b2
             out["evidence"], bad = ev, bad + b1
-        return self._rec(key, status=status, error=err, tools=tools_used, unverified=bad, seconds=round(time.time() - t0, 2), **out)
+        return self._rec(key, status=status, error=err, tools=tools_used, unverified=bad, seconds=round(time.time() - t0, 2),
+                         **({"quality": qg} if qg else {}), **out)
 
     # -------------------------------------------------- 多空
     def reports_text(self) -> str:
@@ -706,7 +727,8 @@ class Debate:
             r = self.roles.get(k) or {}
             if r.get("status") in ("disabled",):
                 continue
-            rows.append({"分析师": zh, "状态": r.get("status"), "判断": r.get("stance"), "置信度": r.get("confidence"),
+            st = r.get("status")
+            rows.append({"分析师": zh, "状态": "规则降级（报告未过质量门，不代表分析师观点）" if st == "gated" else st, "判断": r.get("stance"), "置信度": r.get("confidence"),
                          "摘要": r.get("summary"), "证据": r.get("evidence")})
         return _short(rows, 6000)
 
@@ -863,7 +885,7 @@ class Debate:
                "debate": rounds, "risk": {k: v for k, v in (self.roles.get("risk") or {}).items()}, "verdict": verdict,
                "checklist": self._brief["checklist"], "risks": self._brief["risks"],
                "record_call": call if isinstance(call, str) else None, "budget": self.budget.usage(), "seconds": round(time.time() - t0, 1),
-               "answer": answer, "degraded": [TITLES[k][0] for k, r in self.roles.items() if r.get("status") in ("degraded", "failed", "timeout")]}
+               "answer": answer, "degraded": [TITLES[k][0] for k, r in self.roles.items() if r.get("status") in ("degraded", "failed", "timeout", "gated")]}
         rec["sources"] = [it for it in self.sources.items if it["kind"] != "user"]
         if self.models():
             rec["models"] = self.models()

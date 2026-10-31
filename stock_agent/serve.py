@@ -421,6 +421,9 @@ class Web(BaseHTTPRequestHandler):
         if self.path.split("?")[0] == "/api/approvals":
             from . import ledger
             return self._send(200, {"pending": ledger.approvals("pending"), "recent": [a for a in ledger.approvals(None) if a["status"] != "pending"][:20]})
+        if self.path.split("?")[0] == "/api/missing":
+            from . import missing
+            return self._send(200, {"items": missing.listing()})
         if self.path.split("?")[0] == "/api/learn":
             from . import learn
             return self._send(200, learn.listing())
@@ -686,6 +689,19 @@ class Web(BaseHTTPRequestHandler):
             reason = str(body.get("reason") or "")[:300]
             res = learn_feedback("web:" + sid, reason, f"web-{sid}", turn or None)
             return self._send(400 if res.get("error") else 200, res)
+        if path == "/api/missing/replay":  # 原样重放一次失败的工具调用
+            if not self._local_ok():
+                return self._send(403, {"error": "forbidden"})
+            from . import missing
+            from .agent import Agent
+            mid = re.sub(r"[^a-f0-9]", "", str(self._body().get("id", "")))[:12]
+            it = missing.get(mid)
+            if not it:
+                return self._send(404, {"error": "没有这条缺失记录"})
+            if it["tool"] in missing.SKIP_TOOLS or it["tool"].startswith("mcp__") and not it["tool"]:
+                return self._send(400, {"error": "这个工具不支持重放"})
+            a = Agent(channel="web")
+            return self._send(200, missing.replay(mid, a.run_tool))
         if path == "/api/learn/revoke":
             if not self._local_ok():
                 return self._send(403, {"error": "forbidden"})

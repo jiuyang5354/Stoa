@@ -454,7 +454,13 @@ def make_rule(cls: dict, tr: dict) -> dict:
     if sub == "cite_alias":
         return {"type": "alias", "name": data["name"], "symbol": data["symbol"], "module": "cite"}
     what = {"harness": "缺数据工具", "check": "检查规则待补", "debate": "辩论拆分/角色待调", "memory": "记忆待查", "expression": "表达/口径"}[cls["layer"]]
-    return {"type": "todo", "layer": cls["layer"], "text": f"{what}：{cls['why']}（提问：{(tr.get('question') or '')[:60]}）"}
+    rule = {"type": "todo", "layer": cls["layer"], "text": f"{what}：{cls['why']}（提问：{(tr.get('question') or '')[:60]}）"}
+    if cls["layer"] == "harness":  # v0.37：附上本轮失败调用的缺失记录编号，可在回答卡片或 /api/missing 原样重放
+        ids = [str(x.get("result", {}).get("missing_id")) for x in (tr.get("log") or []) if isinstance(x, dict) and isinstance(x.get("result"), dict) and x["result"].get("missing_id")]
+        if ids:
+            rule["missing_ids"] = list(dict.fromkeys(ids))[:8]
+            rule["text"] += f"；可重放的缺失调用 {len(rule['missing_ids'])} 条"
+    return rule
 
 
 def validate(case: dict, rule: dict | None = None) -> dict:

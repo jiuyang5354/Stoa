@@ -944,6 +944,19 @@ class Agent:
                 except Exception:
                     pass
         raw = self._screen(name, raw)
+        err = None
+        try:
+            from . import missing
+            err = missing.is_failure(raw)
+            if err:  # 失败的调用记成结构化条目（工具、参数、哈希、时间、错误），回答下方「缺失的数据」卡可原样重放
+                ent = missing.record(name, args, err, getattr(self, "session", ""), TOOL_LABELS.get(name, name))
+                if ent:
+                    with self.__dict__.setdefault("_card_lock", threading.Lock()):
+                        self.__dict__.setdefault("turn_missing", []).append(ent)
+                    if isinstance(raw, dict):
+                        raw = {**raw, "missing_id": ent["id"]}
+        except Exception:
+            pass
         tl = getattr(self, "_trace_log", None)
         if tl is not None:
             tl.append({"tool": name, "args": args, "result": raw})
@@ -975,6 +988,7 @@ class Agent:
     def _begin_sources(self, text: str):
         self.sources = cite.Sources()
         self.turn_cards = []
+        self.turn_missing = []
         self._trace_log = []  # 本轮工具调用与结果（点踩时归层、生成回放题用）
         self._trace_ctx = [(text, "你的提问", "user"), (self._memory_source_context, "Stoa 记忆与判断账本", "memory")]
         if self.digest and self.digest.get("text"):  # 纪要里的关键数字是早先对话的原话（带当时来源），复述时算有出处
@@ -999,6 +1013,13 @@ class Agent:
         reply, used = cite.finalize(reply, self.sources)
         cid = None
         tc = getattr(self, "turn_cards", None) or []
+        try:
+            from . import missing
+            mc = missing.card(getattr(self, "turn_missing", None) or [])
+            if mc:
+                tc = tc + [mc]
+        except Exception:
+            pass
         if tc:
             remap = {u["id"]: u["n"] for u in used}
             for c in tc:  # 卡片里的来源编号换成回答里重新编号后的角标
