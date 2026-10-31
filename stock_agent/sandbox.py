@@ -31,9 +31,11 @@ def run_python(code: str, timeout: int = 60) -> str:
     ws.mkdir(parents=True, exist_ok=True)
     env = {k: v for k, v in os.environ.items() if not any(h in k.upper() for h in SECRET_HINTS)}
     env["MPLBACKEND"] = "Agg"
+    env["PYTHONIOENCODING"] = "utf-8"   # Windows 默认 GBK，打印中文/emoji 会崩
+    env["PYTHONUTF8"] = "1"
     try:
         r = subprocess.run([sys.executable, "-c", code], cwd=ws, env=env, capture_output=True,
-                           text=True, timeout=timeout, preexec_fn=_limits if os.name == "posix" else None)
+                           text=True, encoding="utf-8", errors="replace", timeout=timeout, preexec_fn=_limits if os.name == "posix" else None)
     except subprocess.TimeoutExpired:
         return f"超时（>{timeout}s），已终止。"
     out = (r.stdout or "") + (f"\n[stderr]\n{r.stderr}" if r.stderr else "")

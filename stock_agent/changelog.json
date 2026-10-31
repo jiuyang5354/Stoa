@@ -1,5 +1,24 @@
 [
  {
+  "version": "0.31.4",
+  "date": "2026-10-31",
+  "title": "Rationes",
+  "items": [
+   {
+    "type": "fixed",
+    "text": "修复只写数字代码或中文名时查不到行情：600519、000858、00700、sh600519、600519.SH、「贵州茅台」都会自动补成正确代码，基金 LOF/ETF 也一样。"
+   },
+   {
+    "type": "fixed",
+    "text": "修复 .env 里「=# 说明」这种没空格的注释仍会被当成值。"
+   },
+   {
+    "type": "fixed",
+    "text": "修复 Windows 上运行 Python 代码时打印中文或 emoji 崩溃。"
+   }
+  ]
+ },
+ {
   "version": "0.31.3",
   "date": "2026-10-31",
   "title": "Rationes",

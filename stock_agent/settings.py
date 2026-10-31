@@ -70,7 +70,7 @@ def load_env_file():
     for line in p.read_text(encoding="utf-8-sig").splitlines():
         m = re.match(r"\s*([A-Z0-9_]+)\s*=\s*(.*)$", line)
         if m and m.group(1) not in os.environ:
-            v = re.sub(r"\s+#.*$", "", m.group(2)).strip().strip('"').strip("'")
+            v = re.sub(r"(^|\s+)#.*$", "", m.group(2).strip()).strip().strip('"').strip("'")
             if v:
                 os.environ[m.group(1)] = v
 

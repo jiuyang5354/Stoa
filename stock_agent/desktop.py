@@ -34,7 +34,7 @@ def load_env(p: Path):
         if not line or line.startswith("#") or "=" not in line:
             continue
         k, v = line.split("=", 1)
-        v = re.sub(r"\s+#.*$", "", v)          # 去掉行尾注释（.env.example 里有 `0.5   # 说明`）
+        v = re.sub(r"(^|\s+)#.*$", "", v.strip())          # 去掉行尾注释（.env.example 里有 `0.5   # 说明`）
         k, v = k.strip(), v.strip().strip('"').strip("'")
         if v and k not in os.environ:
             os.environ[k] = v
