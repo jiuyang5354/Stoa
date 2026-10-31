@@ -25,11 +25,17 @@ def _row(name, symbol, d):
 HEAD = "| 名称 | 代码 | 收盘 | 涨跌 | 5日 | 20日 | RSI | 信号 |\n|---|---|---:|---:|---:|---:|---:|---|"
 
 
-def render(snapshot: dict, session: str, ai: str | None) -> str:
+def render(snapshot: dict, session: str, ai: str | None, sections: list[str] | None = None, late: str | None = None) -> str:
+    """sections：早报的「今日判断」「重大数据前瞻」、晚报的「判断复盘」（已渲染好的 Markdown 行），放在行情表前面。
+    late：补发说明（如「原定 08:30，补发于 10:12」），标题加「补发」。"""
     now = datetime.now(CN_TZ).strftime("%Y-%m-%d %H:%M")
-    lines = [f"# {TITLES.get(session, '股市快照')} · {now}（北京时间）", ""]
+    lines = [f"# {TITLES.get(session, '股市快照')}{'（补发）' if late else ''} · {now}（北京时间）", ""]
+    if late:
+        lines += [f"> 补发：{late}。行情是补发时的最新数据。", ""]
     if ai:
         lines += ["## AI 点评", "", ai, ""]
+    if sections:
+        lines += sections
     for market, rows in snapshot["indices"].items():
         lines += [f"## {market}", "", HEAD]
         lines += [_row(r["name"], r["symbol"], r["data"]) for r in rows]

@@ -67,7 +67,10 @@ class Memory:
         )
         cols = {r[1] for r in self.db.execute("PRAGMA table_info(calls)")}
         for c, t in (("confidence", "INTEGER"), ("bench", "TEXT"), ("bench_pct", "REAL"), ("alpha_pct", "REAL"),
-                     ("mfe_pct", "REAL"), ("mae_pct", "REAL"), ("edge_pct", "REAL"), ("end_date", "TEXT")):
+                     ("mfe_pct", "REAL"), ("mae_pct", "REAL"), ("edge_pct", "REAL"), ("end_date", "TEXT"),
+                     # v0.34 早报判断：来源、翻转条件（文字 + 上下两个价位）、失效时间、早报日期、晚报复盘结果
+                     ("source", "TEXT"), ("flip", "TEXT"), ("flip_up", "REAL"), ("flip_down", "REAL"), ("expires", "TEXT"),
+                     ("report_date", "TEXT"), ("review", "TEXT"), ("review_note", "TEXT"), ("review_at", "TEXT"), ("review_price", "REAL"), ("price_date", "TEXT")):
             if c not in cols:
                 self.db.execute(f"ALTER TABLE calls ADD COLUMN {c} {t}")
         mcols = {r[1] for r in self.db.execute("PRAGMA table_info(session_meta)")}
@@ -363,18 +366,32 @@ class Memory:
         return n
 
     # ---------- 判断记账与复盘 ----------
-    def record_call(self, symbol, name, view, price, horizon_days, reason, confidence=None) -> int:
-        due = (datetime.now(CN_TZ) + timedelta(days=int(horizon_days))).strftime("%Y-%m-%d")
+    def record_call(self, symbol, name, view, price, horizon_days, reason, confidence=None, due=None, **extra) -> int:
+        """extra：source / flip / flip_up / flip_down / expires / report_date（早报判断用）。"""
+        due = due or (datetime.now(CN_TZ) + timedelta(days=int(horizon_days))).strftime("%Y-%m-%d")
         try:
             confidence = max(0, min(100, int(confidence))) if confidence not in (None, "") else None
         except (TypeError, ValueError):
             confidence = None
+        ok = ("source", "flip", "flip_up", "flip_down", "expires", "report_date", "price_date")
+        ex = {k: v for k, v in extra.items() if k in ok and v is not None}
+        cols = ["ts", "symbol", "name", "view", "price", "horizon_days", "reason", "due", "confidence", *ex]
         cur = self.db.execute(
-            "INSERT INTO calls(ts,symbol,name,view,price,horizon_days,reason,due,confidence) VALUES(?,?,?,?,?,?,?,?,?)",
-            (now(), symbol, name, view, price, horizon_days, reason, due, confidence),
+            f"INSERT INTO calls({','.join(cols)}) VALUES({','.join('?' * len(cols))})",
+            (now(), symbol, name, view, price, horizon_days, reason, due, confidence, *ex.values()),
         )
         self.db.commit()
         return cur.lastrowid
+
+    def calls_where(self, where: str, params=()) -> list[dict]:
+        cur = self.db.execute(f"SELECT * FROM calls WHERE {where} ORDER BY id", params)
+        names = [d[0] for d in cur.description]
+        return [dict(zip(names, r)) for r in cur.fetchall()]
+
+    def set_review(self, cid: int, review: str, note: str, price: float | None, at: str | None = None):
+        self.db.execute("UPDATE calls SET review=?, review_note=?, review_price=?, review_at=? WHERE id=?",
+                        (review, note, price, at or now(), cid))
+        self.db.commit()
 
     def due_calls(self) -> list[dict]:
         today = datetime.now(CN_TZ).strftime("%Y-%m-%d")
