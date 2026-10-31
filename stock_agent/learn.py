@@ -56,6 +56,16 @@ def db() -> sqlite3.Connection:
     with _LOCK:
         c = _DB.get(key)
         if c is None or not p.exists():
+            for k in [k for k in _DB if k != key][:max(0, len(_DB) - 3)]:  # 换了数据目录（测试、评测临时目录）：关掉旧连接，免得句柄越积越多
+                try:
+                    _DB.pop(k).close()
+                except Exception:
+                    pass
+            if c is not None:
+                try:
+                    c.close()
+                except Exception:
+                    pass
             p.parent.mkdir(parents=True, exist_ok=True)
             c = sqlite3.connect(p, check_same_thread=False, timeout=30)
             c.execute("PRAGMA journal_mode=WAL")
