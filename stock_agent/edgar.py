@@ -436,9 +436,30 @@ def earnings_release(symbol: str, date: str | None = None, start: str | None = N
 
 
 # ====================================================================== 历史收盘价
+_ALIAS = {"DXY": "DX-Y.NYB", "USDX": "DX-Y.NYB", "SPX": "^GSPC", "S&P500": "^GSPC", "SP500": "^GSPC", "NDX": "^NDX", "DJI": "^DJI", "DJIA": "^DJI",
+          "HSI": "^HSI", "恒生指数": "^HSI", "VIX": "^VIX", "N225": "^N225", "日经225": "^N225", "沪深300": "000300.SS", "上证指数": "000001.SS",
+          "深证成指": "399001.SZ", "创业板指": "399006.SZ", "GOLD": "GC=F", "黄金": "GC=F", "WTI": "CL=F", "BRENT": "BZ=F", "BTC": "BTC-USD",
+          "DAX": "^GDAXI", "FTSE": "^FTSE", "CAC40": "^FCHI", "KOSPI": "^KS11", "TNX": "^TNX", "US10Y": "^TNX"}
+
+
+def _yahoo_symbol(symbol: str) -> str:
+    s = re.sub(r"^(NASDAQ|NYSE|AMEX|NYSEARCA)\s*:\s*", "", symbol.strip(), flags=re.I)
+    if s.upper() in _ALIAS or s in _ALIAS:
+        return _ALIAS.get(s.upper(), _ALIAS.get(s))
+    if s.startswith("^") or "=" in s:
+        return s.upper()
+    if re.fullmatch(r"\d{6}", s):  # A股裸代码
+        return s + (".SS" if s[0] in "569" else ".SZ")
+    if re.fullmatch(r"\d{1,5}\.HK", s, re.I):
+        return s.upper().split(".")[0].zfill(4) + ".HK"
+    if re.fullmatch(r"[A-Za-z]{1,5}\.[A-Za-z]", s):  # BRK.B 这类美股类别股
+        return s.upper().replace(".", "-")
+    return s.upper()
+
+
 def _yahoo_daily(symbol: str, d0: str, d1: str) -> tuple[list[dict], dict]:
     from zoneinfo import ZoneInfo
-    sym = re.sub(r"^(NASDAQ|NYSE|AMEX)\s*:\s*", "", symbol.strip(), flags=re.I).upper().replace(".", "-") if not re.search(r"\.(SS|SZ|HK)$", symbol, re.I) else symbol.upper()
+    sym = _yahoo_symbol(symbol)
     p1 = int(datetime.fromisoformat(d0).replace(tzinfo=timezone.utc).timestamp())
     p2 = int((datetime.fromisoformat(d1) + timedelta(days=1)).replace(tzinfo=timezone.utc).timestamp())
     j = _fetch(f"https://query1.finance.yahoo.com/v8/finance/chart/{sym}", params={"period1": p1, "period2": p2, "interval": "1d",
@@ -456,14 +477,56 @@ def _yahoo_daily(symbol: str, d0: str, d1: str) -> tuple[list[dict], dict]:
         c = (q.get("close") or [None])[i]
         if c is None:
             continue
-        rows.append({"date": datetime.fromtimestamp(ts, tz).strftime("%Y-%m-%d"), "close": round(c, 4),
-                     "adj_close": round(adj[i], 4) if i < len(adj) and adj[i] is not None else None,
-                     "volume": (q.get("volume") or [None])[i]})
-    return rows, {"symbol": sym, "currency": meta.get("currency"), "exchange": meta.get("fullExchangeName") or meta.get("exchangeName"),
-                  "splits": list(((r.get("events") or {}).get("splits") or {}).values())[:5]}
+        g = lambda k: (q.get(k) or [None] * (i + 1))[i]
+        rows.append({"date": datetime.fromtimestamp(ts, tz).strftime("%Y-%m-%d"), "open": _r4(g("open")), "high": _r4(g("high")), "low": _r4(g("low")),
+                     "close": round(c, 4), "adj_close": round(adj[i], 4) if i < len(adj) and adj[i] is not None else None, "volume": g("volume")})
+    splits = sorted(((datetime.fromtimestamp(v["date"], tz).strftime("%Y-%m-%d"), v["numerator"] / v["denominator"])
+                     for v in ((r.get("events") or {}).get("splits") or {}).values() if v.get("denominator")), key=lambda x: x[0])
+    return rows, {"symbol": sym, "name": meta.get("longName") or meta.get("shortName"), "currency": meta.get("currency"),
+                  "exchange": meta.get("fullExchangeName") or meta.get("exchangeName"), "splits": [{"date": d, "ratio": k} for d, k in splits],
+                  "first_trade_date": datetime.fromtimestamp(meta["firstTradeDate"], timezone.utc).strftime("%Y-%m-%d") if meta.get("firstTradeDate") else None}
 
 
-def price_history(symbol: str, dates=None, start: str | None = None, end: str | None = None) -> dict:
+def _r4(x):
+    return round(x, 4) if isinstance(x, (int, float)) else None
+
+
+def _unadjust(rows: list[dict], splits: list[dict]) -> None:
+    """Yahoo 的 OHLC 已按之后的拆股调整；乘回去得到当时实际成交价（raw_*）。"""
+    if not splits:
+        return
+    for r in rows:
+        f = 1.0
+        for sp in splits:
+            if sp["date"] > r["date"]:
+                f *= sp["ratio"]
+        if f != 1.0:
+            for k in ("open", "high", "low", "close"):
+                if r.get(k) is not None:
+                    r["raw_" + k] = round(r[k] * f, 4)
+
+
+def _agg(rows: list[dict], period: str) -> list[dict]:
+    key = (lambda d: datetime.fromisoformat(d).strftime("%G-W%V")) if period == "week" else (lambda d: d[:7]) if period == "month" else (lambda d: d[:4])
+    out, prev = [], None
+    for r in rows:
+        k = key(r["date"])
+        if out and out[-1]["period"] == k:
+            o = out[-1]; o["end"] = r["date"]; o["close"] = r["close"]
+            o["high"] = max(x for x in (o["high"], r.get("high") or r["close"]) if x is not None)
+            o["low"] = min(x for x in (o["low"], r.get("low") or r["close"]) if x is not None)
+        else:
+            if out:
+                prev = out[-1]["close"]
+            out.append({"period": k, "start": r["date"], "end": r["date"], "open": r.get("open"), "high": r.get("high") or r["close"],
+                        "low": r.get("low") or r["close"], "close": r["close"], "prev_close": prev})
+    for o in out:
+        o["change_pct"] = round((o["close"] / o["prev_close"] - 1) * 100, 4) if o.get("prev_close") else None
+    return out
+
+
+def price_history(symbol: str, dates=None, start: str | None = None, end: str | None = None, period: str = "") -> dict:
+    """日线 OHLC。dates 查具体日子；start/end 给区间统计（最高/最低价及日期、最大单日/单周涨跌、最大回撤）；period=week/month/year 聚合。"""
     if isinstance(dates, str):
         dates = [x.strip() for x in re.split(r"[,\s]+", dates) if x.strip()]
     dates = [str(x)[:10] for x in dates or []]
@@ -474,29 +537,70 @@ def price_history(symbol: str, dates=None, start: str | None = None, end: str | 
     lo_f = (datetime.fromisoformat(lo) - timedelta(days=10)).strftime("%Y-%m-%d")
     hi_f = (datetime.fromisoformat(hi) + timedelta(days=10)).strftime("%Y-%m-%d")
     rows, meta = _yahoo_daily(symbol, lo_f, hi_f)
+    try:  # 之后所有拆股（窗口外的也要），用于还原当时实际成交价
+        p1 = int(datetime.fromisoformat(lo_f).replace(tzinfo=timezone.utc).timestamp())
+        j = _fetch(f"https://query1.finance.yahoo.com/v8/finance/chart/{meta['symbol']}", params={"period1": p1, "period2": int(time.time()), "interval": "3mo", "events": "splits"}, ttl=86400)
+        ev = ((((j.get("chart") or {}).get("result") or [{}])[0].get("events") or {}).get("splits") or {}).values()
+        meta["splits"] = sorted(({"date": datetime.fromtimestamp(v["date"], timezone.utc).strftime("%Y-%m-%d"), "ratio": v["numerator"] / v["denominator"]}
+                                 for v in ev if v.get("denominator")), key=lambda x: x["date"])
+    except Exception:
+        pass
+    _unadjust(rows, meta.get("splits"))
     out = {**meta, "source": "Yahoo Finance 日线", "url": f"https://finance.yahoo.com/quote/{meta['symbol']}/history",
-           "note": "close 是当日收盘价（已按拆股调整、未按分红调整）；adj_close 另含分红调整。题目说 closing price 时用 close。"}
+           "note": "open/high/low/close 已按拆股调整、未按分红调整；有 raw_* 时那是当时实际成交价（不复权）。题目问「当时的股价/历史最高价」且有拆股/送转时用 raw_*；"
+                   "问涨跌幅用 close。A股送转不在 Yahoo 拆股记录里时，绝对价位可能与交易所不复权价不同，要说明。"}
     if dates:
         by = {r["date"]: r for r in rows}
         res = []
         for d in dates:
             if d in by:
-                res.append({"date": d, "trading_day": True, "close": by[d]["close"], "adj_close": by[d]["adj_close"]})
+                i = rows.index(by[d])
+                res.append({**by[d], "trading_day": True, "prev_close": rows[i - 1]["close"] if i else None,
+                            "change_pct": round((by[d]["close"] / rows[i - 1]["close"] - 1) * 100, 4) if i else None})
             else:
                 prev = next((r for r in reversed(rows) if r["date"] < d), None)
                 nxt = next((r for r in rows if r["date"] > d), None)
-                res.append({"date": d, "trading_day": False, "previous_trading_day": prev and {"date": prev["date"], "close": prev["close"]},
-                            "next_trading_day": nxt and {"date": nxt["date"], "close": nxt["close"]},
+                res.append({"date": d, "trading_day": False, "previous_trading_day": prev, "next_trading_day": nxt,
                             "note": "非交易日：「截至某日」的价格一般用前一交易日收盘；题目另有约定时按题目"})
         out["dates"] = res
     if start:
         span = [r for r in rows if start <= r["date"] <= (end or hi)]
-        out["series"] = span[-260:] if len(span) > 260 else span
         if span:
-            out["range"] = {"first": span[0], "last": span[-1], "change_pct": round((span[-1]["close"] / span[0]["close"] - 1) * 100, 4),
-                            "high": max(r["close"] for r in span), "low": min(r["close"] for r in span)}
+            hi_r = max(span, key=lambda r: r.get("high") or r["close"]); lo_r = min(span, key=lambda r: r.get("low") or r["close"])
+            hc = max(span, key=lambda r: r["close"]); lc = min(span, key=lambda r: r["close"])
+            pre = next((r for r in reversed(rows) if r["date"] < span[0]["date"]), None)
+            daily = [(span[i]["date"], (span[i]["close"] / (span[i - 1] if i else pre or span[0])["close"] - 1) * 100) for i in range(len(span))]
+            peak, mdd, mdd_at = span[0]["close"], 0.0, None
+            for r in span:
+                peak = max(peak, r["close"]); dd = (r["close"] / peak - 1) * 100
+                if dd < mdd:
+                    mdd, mdd_at = dd, r["date"]
+            wk = _agg(span, "week")
+            if pre and wk:
+                wk[0]["prev_close"] = pre["close"]; wk[0]["change_pct"] = round((wk[0]["close"] / pre["close"] - 1) * 100, 4)
+            wk_ok = [w for w in wk if w.get("change_pct") is not None]
+            out["range"] = {"first": span[0], "last": span[-1], "trading_days": len(span),
+                            "change_pct": round((span[-1]["close"] / span[0]["close"] - 1) * 100, 4),
+                            "change_pct_from_prev_close": round((span[-1]["close"] / pre["close"] - 1) * 100, 4) if pre else None,
+                            "highest_high": {"date": hi_r["date"], "high": hi_r.get("high"), "raw_high": hi_r.get("raw_high")},
+                            "lowest_low": {"date": lo_r["date"], "low": lo_r.get("low"), "raw_low": lo_r.get("raw_low")},
+                            "highest_close": {"date": hc["date"], "close": hc["close"]}, "lowest_close": {"date": lc["date"], "close": lc["close"]},
+                            "max_daily_gain": max(daily, key=lambda x: x[1]) if daily else None, "max_daily_drop": min(daily, key=lambda x: x[1]) if daily else None,
+                            "max_weekly_gain": max(wk_ok, key=lambda w: w["change_pct"]) if wk_ok else None,
+                            "max_weekly_drop": min(wk_ok, key=lambda w: w["change_pct"]) if wk_ok else None,
+                            "max_drawdown_pct": round(mdd, 4), "max_drawdown_trough": mdd_at,
+                            "note": "周涨跌＝本周最后一个交易日收盘 / 上周最后一个交易日收盘 − 1；周以 ISO 周（周一到周五）划分"}
+            if period in ("week", "month", "year"):
+                agg = _agg(span, period)
+                if pre and agg:
+                    agg[0]["prev_close"] = pre["close"]; agg[0]["change_pct"] = round((agg[0]["close"] / pre["close"] - 1) * 100, 4)
+                out["series_" + period] = agg[-400:]
+            else:
+                out["series"] = span if len(span) <= 120 else None
+                if len(span) > 120:
+                    out["series_note"] = f"区间 {len(span)} 个交易日，日线不全部列出；区间统计已在 range 里算好，需要逐周/逐月用 period=week/month，具体某天用 dates"
     out["as_of"] = rows[-1]["date"] if rows else None
-    return out
+    return {k: v for k, v in out.items() if v is not None}
 
 
 # ====================================================================== 电话会文字稿
@@ -566,7 +670,7 @@ def run_tool(name: str, a: dict):
     if name == "earnings_release":
         return earnings_release(sym, a.get("date"), a.get("start"), a.get("end"), a.get("query") or "", int(a.get("max_chars") or 7000), int(a.get("start_offset") or 0))
     if name == "price_history":
-        return price_history(sym, a.get("dates"), a.get("start"), a.get("end"))
+        return price_history(sym, a.get("dates"), a.get("start"), a.get("end"), a.get("period") or "")
     if name == "earnings_transcript":
         return transcripts(sym, a.get("quarter") or "", a.get("query") or "")
     return {"error": f"未知工具 {name}"}
@@ -591,8 +695,12 @@ TOOL_SPECS = [
     {"name": "earnings_release", "description": "美股业绩新闻稿原文：8-K item 2.02 附的 EX-99.1（季度/全年业绩、管理层指引 guidance、Non-GAAP 与 Adjusted EBITDA 调节表、门店数等 KPI）。date 填大致发布日期（取 ±10 天内最近一份），"
      "或给 start/end 区间；query 检索段落（如 guidance、Adjusted EBITDA reconciliation）；返回 other_releases 可逐季再查。",
      "parameters": {"type": "object", "properties": {"symbol": S, "date": S, "start": S, "end": S, "query": S, "start_offset": {"type": "integer"}, "max_chars": {"type": "integer"}}, "required": ["symbol"]}},
-    {"name": "price_history", "description": "历史收盘价：dates 给一组日期（YYYY-MM-DD）返回每天的收盘价，非交易日给出前后最近交易日；或 start/end 返回区间日线和区间涨跌。用于「某日收盘价」「从 A 日到 B 日的涨跌」「公告后 N 天股价变化」。支持美股、港股、A股（Yahoo 代码）。",
-     "parameters": {"type": "object", "properties": {"symbol": S, "dates": {"type": "array", "items": S}, "start": S, "end": S}, "required": ["symbol"]}},
+    {"name": "price_history", "description": "历史日线（开高低收、成交量，含不复权 raw_* 价）：dates 给一组日期返回当天 OHLC 和当日涨跌，非交易日给出前后最近交易日；"
+     "start/end 返回区间统计（区间涨跌、最高价/最低价及日期、最大单日/单周涨跌及所在周、最大回撤），period=week/month/year 返回逐周/月/年收盘与涨跌。"
+     "用于某日开盘/收盘/最高价、区间涨跌、历史最高价、最大单周跌幅、公告后 N 天股价变化。股票、指数、外汇、商品、加密都行：美股 AAPL、A股 600519、港股 0700.HK、"
+     "指数 ^GSPC ^HSI ^N225 000300.SS、美元指数 DX-Y.NYB、汇率 USDCNY=X、期货 GC=F CL=F、比特币 BTC-USD。",
+     "parameters": {"type": "object", "properties": {"symbol": S, "dates": {"type": "array", "items": S}, "start": S, "end": S,
+                                                     "period": {"type": "string", "enum": ["", "week", "month", "year"]}}, "required": ["symbol"]}},
     {"name": "earnings_transcript", "description": "美股电话会文字稿（The Motley Fool 公开页面）：不给 quarter 列出可用季度；quarter 如「Q3 2025」（公司财年季度）读全文，query 检索段落（如 guidance、capex、new stores）。没有文字稿时改用 earnings_release。",
      "parameters": {"type": "object", "properties": {"symbol": S, "quarter": S, "query": S}, "required": ["symbol"]}},
 ]
