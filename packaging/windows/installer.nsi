@@ -60,6 +60,8 @@ Section "Uninstall"
   Delete "$DESKTOP\Stoa.lnk"
   RMDir /r "$SMPROGRAMS\Stoa"
   RMDir /r "$INSTDIR"
+  ; 一键更新留下的旧版备份（Stoa.previous-*）、暂存目录和更新结果一起删
+  nsExec::Exec `powershell -NoProfile -ExecutionPolicy Bypass -Command "Remove-Item -Path '$INSTDIR.previous-*','$INSTDIR.next-*','$INSTDIR.update-result.json' -Recurse -Force -ErrorAction SilentlyContinue"`
   IfFileExists "$INSTDIR\*.*" 0 removed
     Sleep 2000
     !insertmacro KillStoa

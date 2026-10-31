@@ -75,3 +75,21 @@ def test_readiness_checks_version_and_process_state():
         assert not wait_ready(Process(), server.server_port, "wrong-version", timeout=.15)
     finally:
         server.shutdown(); server.server_close()
+
+
+def test_update_keeps_installer_files_and_prunes_old_backups(tmp_path):
+    from stock_agent.update_worker import replace_install
+    install, source = tmp_path / "Stoa", tmp_path / "download" / "Stoa"
+    install.mkdir(); source.mkdir(parents=True)
+    (install / "Stoa.exe").write_text("old"); (install / "Uninstall.exe").write_text("nsis")
+    (source / "Stoa.exe").write_text("new")
+    old_backup = tmp_path / "Stoa.previous-1"; old_backup.mkdir(); (old_backup / "Stoa.exe").write_text("older")
+    stale_stage = tmp_path / "Stoa.next-1"; stale_stage.mkdir()
+    other = tmp_path / "Other.previous-1"; other.mkdir()
+    plan = {"install": str(install), "source": str(source), "backup": str(tmp_path / "Stoa.previous-2"),
+            "stage": str(tmp_path / "Stoa.next-2")}
+    assert replace_install(plan, lambda p: None, lambda proc: True)["ok"]
+    assert (install / "Stoa.exe").read_text() == "new"
+    assert (install / "Uninstall.exe").read_text() == "nsis"  # NSIS 卸载入口不能丢
+    assert (tmp_path / "Stoa.previous-2" / "Stoa.exe").read_text() == "old"
+    assert not old_backup.exists() and not stale_stage.exists() and other.exists()

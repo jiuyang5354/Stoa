@@ -18,13 +18,17 @@ def replace_install(plan, launch, ready):
     moved, child = False, None
     try:
         shutil.copytree(source, stage)
+        carry_installer_files(install, stage)
         install.rename(backup); moved = True
         stage.rename(install)
         child = launch(install)
         if not ready(child):
             raise RuntimeError("新版未能启动，恢复旧版")
+        prune_backups(install, keep=backup)
         return {"ok": True, "backup": str(backup)}
     except Exception as exc:
+        if not moved and stage.exists():
+            shutil.rmtree(stage, ignore_errors=True)
         if child is not None and child.poll() is None:
             child.terminate(); child.wait(timeout=10)
         if moved:
@@ -33,6 +37,35 @@ def replace_install(plan, launch, ready):
             backup.rename(install)
             launch(install)
         return {"ok": False, "rollback": moved, "error": str(exc)[:200]}
+
+
+def carry_installer_files(install: Path, stage: Path):
+    """安装包（NSIS）在程序目录里写的文件（Uninstall.exe 等）不在 zip 里；换目录时带过去，免得卸载入口失效。"""
+    for item in install.iterdir():
+        if item.is_file() and not (stage / item.name).exists():
+            shutil.copy2(item, stage / item.name)
+
+
+def prune_backups(install: Path, keep: Path):
+    """只留最近一份旧版（用于回滚），更早的 previous-* 和残留的 next-* 删掉，免得每次更新多占几百 MB。"""
+    for item in install.parent.iterdir():
+        if item != keep and item.is_dir() and item.name.startswith((install.name + ".previous-", install.name + ".next-")):
+            shutil.rmtree(item, ignore_errors=True)
+
+
+def update_registry(install: Path, version: str):
+    """安装版：把「应用和功能」里的版本号改成新版（绿色版没有这个键，跳过）。"""
+    if os.name != "nt":
+        return
+    try:
+        import winreg
+        key = r"Software\Microsoft\Windows\CurrentVersion\Uninstall\Stoa"
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, key, 0, winreg.KEY_READ | winreg.KEY_SET_VALUE) as k:
+            location = winreg.QueryValueEx(k, "InstallLocation")[0]
+            if Path(location).resolve() == install.resolve():
+                winreg.SetValueEx(k, "DisplayVersion", 0, winreg.REG_SZ, version)
+    except OSError:
+        pass
 
 
 def wait_parent(pid):
@@ -75,6 +108,8 @@ def main():
     def ready(child):
         return wait_ready(child, plan["port"], plan["version"], os.getenv("WEB_TOKEN", ""))
     result = replace_install(plan, launch, ready)
+    if result.get("ok"):
+        update_registry(Path(plan["install"]), plan["version"])
     result["time"] = time.time()
     Path(plan["result"]).write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
 
