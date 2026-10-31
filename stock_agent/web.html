@@ -2983,6 +2983,7 @@ function paintNews(){
 async function loadNews(){
   try { NEWS = await (await fetch('/api/headlines', {headers:H})).json(); } catch (_) { NEWS = {items: {}, error: 1}; }
   NEWS.loaded = 1; paintNews();
+  if (NEWS.error || ['A', 'HK', 'US'].some(m => !((NEWS.items || {})[m] || []).length)) { clearTimeout(window.__nwRetry); window.__nwRetry = setTimeout(loadNews, 60000); }  // 有市场没取到就一分钟后再试
 }
 (function asideResize(){
   const h = $('asz'), a = $('aside'); if (!h || !a) return;

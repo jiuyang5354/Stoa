@@ -195,18 +195,53 @@ def headlines() -> dict:
            "HK": ("港股", ("港股", "恒指", "恒生", "南向", "港交所")),
            "US": ("美股", ("美股", "纳指", "纳斯达克", "标普", "道指", "道琼斯", "美联储", "华尔街", "美债"))}
 
+    def flash():
+        """备用源：东方财富 7×24 快讯，取不到再用新浪财经滚动。两个都不依赖搜索接口。"""
+        out = []
+        try:
+            r = research._get("https://np-listapi.eastmoney.com/comm/web/getFastNewsList", ttl=300,
+                              params={"client": "web", "biz": "web_724", "fastColumn": "102", "sortEnd": "", "pageSize": 100, "req_trace": "stoa"})
+            for a in r.json()["data"]["fastNewsList"]:
+                out.append({"time": a.get("showTime", "")[:16], "title": research._clean(a.get("title") or a.get("summary", "")[:60]),
+                            "source": "东方财富快讯", "url": f"https://finance.eastmoney.com/a/{a['code']}.html"})
+        except Exception:
+            pass
+        if len(out) < 10:
+            try:
+                r = research._get("https://feed.mix.sina.com.cn/api/roll/get", ttl=300, params={"pageid": 153, "lid": 2516, "num": 50, "page": 1})
+                for a in r.json()["result"]["data"]:
+                    out.append({"time": datetime.fromtimestamp(int(a["ctime"]), CN_TZ).strftime("%Y-%m-%d %H:%M"), "title": a.get("title", ""),
+                                "source": a.get("media_name") or "新浪财经", "url": a.get("url", "")})
+            except Exception:
+                pass
+        return out
+
     def one(spec):
         kw, words = spec
-        try:
-            xs = [{k: it.get(k, "") for k in ("time", "title", "source", "url")} for it in research._em_news(kw, 30)]
-        except Exception:
-            return []
+        xs = []
+        for _ in range(2):  # 搜索接口偶尔超时，重试一次
+            try:
+                xs = [{k: it.get(k, "") for k in ("time", "title", "source", "url")} for it in research._em_news(kw, 30)]
+                break
+            except Exception:
+                xs = []
+        return xs
+    with ThreadPoolExecutor(4) as ex:
+        fut = ex.submit(flash)
+        raw = dict(zip(kws, ex.map(one, kws.values())))
+        fl = fut.result()
+    res = {}
+    for m, (kw, words) in kws.items():
+        xs = raw.get(m) or []
         hit = [x for x in xs if any(w in x["title"] for w in words)]
-        return (hit if len(hit) >= 3 else hit + [x for x in xs if x not in hit])[:8]
-    with ThreadPoolExecutor(3) as ex:
-        res = dict(zip(kws, ex.map(one, kws.values())))
+        if len(hit) < 3:  # 搜索没取到或太少：从快讯里补标题提到这个市场的
+            seen = {x["title"] for x in hit}
+            hit += [x for x in fl if any(w in x["title"] for w in words) and x["title"] not in seen]
+        if len(hit) < 3:
+            hit += [x for x in (xs or fl) if x not in hit][:8 - len(hit)]
+        res[m] = sorted(hit, key=lambda x: x["time"], reverse=True)[:8]
     out = {"items": res, "updated": datetime.now(CN_TZ).strftime("%H:%M")}
-    if any(res.values()):
+    if all(res.values()):  # 有市场是空的就不缓存，下次请求重取
         with _HEAD_LOCK:
             _HEAD.update(ts=time.time(), data=out)
     return out
