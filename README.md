@@ -496,6 +496,16 @@ Actions 页面也可以手动点 “Run workflow” 立即生成一份。
 - 背景岩壁与 3D 神庙石材：ambientCG「Travertine 009」（https://ambientcg.com/view?id=Travertine009），CC0。stock_agent/assets/travertine009_color.jpg 为原 1K 颜色图（重新压缩）；travertine009_normal.jpg 为原 NormalGL 叠加由颜色图亮度推导的浅浮雕法线（原法线图几乎是平的，这块是抛光板材）；travertine009_roughness.jpg 为原粗糙度图拉伸到 0.45–0.85 并缩到 512（原图接近镜面）。
 - 首页标题字体：Archeologicaps（dafont，标注 100% Free），stock_agent/assets/archeologicaps.woff2，已子集化为 ASCII。
 
+## 早报判断 · 晚报复盘 · 断点续跑（v0.34 · Constantia）
+- 早报每个标的：判断 + 失效时间 + 翻转条件，记进判断账本
+- CPI、非农、议息、PMI 公布前写偏热 / 符合 / 偏冷三情景及对持仓的影响
+- 晚报逐条复盘：站住、承压、失效
+- 成交分布 volume_profile：POC、高低量节点、价值区，平衡还是失衡
+- 回测审查加因子 Rank IC / ICIR（`backtest --mode factors`）
+- 关机、崩溃后从断点续跑，已跑完的工具不重跑；推送按键去重不重复
+- 错过的早晚报开机补发并标「补发」，过期太久跳过（`REPORT_CATCHUP`、`REPORT_MAX_LATE`）
+- 覆盖文件、新推送渠道要你确认，待确认重启后仍在
+
 ## 一键安装 · 国内数据 · 少放弃（v0.33 · Fontes）
 - Windows 一个 Stoa-Setup.exe 装好，桌面自动建快捷方式
 - 国内宏观、A 股财务指标与行业筛选、中证指数、不复权 K 线、基金净值
