@@ -110,7 +110,13 @@ class Memory:
         # HTTP、问答与后台索引各用自己的连接，避免并发复用游标和事务。
         connection = getattr(self._db_state, "connection", None)
         if connection is None:
-            connection = sqlite3.connect(self.home / "data" / "sessions.db")
+            # WAL：读不挡写、写不挡读；等锁最长 30 秒（默认 5 秒在慢的 Windows 磁盘上会 "database is locked"）
+            connection = sqlite3.connect(self.home / "data" / "sessions.db", timeout=30)
+            try:
+                connection.execute("PRAGMA journal_mode=WAL")
+                connection.execute("PRAGMA synchronous=NORMAL")
+            except sqlite3.DatabaseError:
+                pass
             self._db_state.connection = connection
         return connection
 
