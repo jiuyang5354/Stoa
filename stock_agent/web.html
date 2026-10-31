@@ -1005,6 +1005,13 @@
   .qa button{border:0;background:none;padding:2px 0;font:500 var(--fsn3) var(--sans);letter-spacing:.16em;text-transform:uppercase;color:var(--mute);cursor:pointer;border-bottom:1px solid transparent}
   .qa button:hover{color:var(--ink);border-color:var(--gold)}
   .m.u .qa{justify-content:flex-start;margin-top:6px}
+  .qa button.done{color:var(--ink);border-color:var(--gold);cursor:default}
+  .fbk{display:flex;align-items:baseline;gap:16px;margin-top:12px;white-space:normal}
+  .fbk input{flex:1;min-width:0;max-width:360px;border:0;border-bottom:1px solid var(--rule-2);background:none;padding:2px 0;color:var(--ink);font:italic var(--fs1)/1.5 var(--serif);outline:none}
+  .fbk input:focus{border-color:var(--gold)}
+  .fbk button{border:0;background:none;padding:2px 0;font:500 var(--fsn3) var(--sans);letter-spacing:.16em;text-transform:uppercase;color:var(--mute);cursor:pointer;border-bottom:1px solid transparent}
+  .fbk button:hover,.fbk .go{color:var(--ink);border-color:var(--gold)}
+  .fbk small{font:italic var(--fsn1) var(--serif);color:var(--mute)}
   .uedit textarea{width:100%;min-height:72px;resize:vertical;border:1px solid var(--rule-2);background:var(--paper-hi);color:var(--ink);font:italic var(--fs2)/1.5 var(--serif);padding:8px 10px;outline:none}
   .uedit textarea:focus{border-color:var(--gold)}
   .uedit .qa{opacity:1}
@@ -2419,11 +2426,24 @@ async function loadPb(id){
   const pick = id || (L.find(x => x.status === 'done' && x.mode !== 'rank' && x.mode !== 'factors') || L.find(x => x.status === 'done') || L[0] || {}).id;
   const cur = pick ? await (await fetch('/api/backtests/' + encodeURIComponent(pick), {headers:H})).json() : null;
   const evals = await (await fetch('/api/evals', {headers:H})).json().catch(() => null);
-  S.pb = {list: L, cur, evals, trials: BJ.trials || {}}; if (scur === 'probatio' && !$('set').hidden) show('probatio');
+  const learn = await (await fetch('/api/learn', {headers:H})).json().catch(() => null);
+  S.pb = {list: L, cur, evals, learn, trials: BJ.trials || {}}; if (scur === 'probatio' && !$('set').hidden) show('probatio');
   clearTimeout(loadPb.t); if (L.some(x => x.status === 'running')) loadPb.t = setTimeout(() => loadPb(id), 4000);
+}
+/* Emendatio：点踩账本 · 按层统计 · 修后是否复发 · 已入库可撤销 */
+function emendHTML(L){
+  if (!L) return '';
+  const st = L.stats || {layers: {}}, rows = Object.values(st.layers || {});
+  const tb = `<table class="pbt"><tr><th>层</th><th>失败</th><th>已修</th><th>修后复发</th><th>拒绝</th><th>待确认</th></tr>${rows.map(r => `<tr><td>${esc(r.name)}</td><td>${r.n}</td><td>${r.fixed}</td><td>${r.recurred}</td><td>${r.rejected}</td><td>${r.pending}</td></tr>`).join('')}</table>`;
+  const head = `<div class="pbh"><b>${st.total || 0}</b><div><span class="pbk">点踩记录 · 同类失败是否复发</span><small>${esc(st.recurrence_note || '')}</small></div></div>`;
+  const act = (L.active || []).map((c, i) => `<li><i>${roman(i + 1)}</i><span><b>${esc(c.title)}</b><br><span class="muted">${c.kind === 'case' ? '回归题 · 正式评测集' : '规则'} · ${esc((c.decided || '').slice(5, 16))}</span></span><span><button class="x" data-lrev="${esc(c.id)}">撤销</button></span></li>`).join('');
+  const rec = (L.failures || []).slice(0, 6).map(f => `<li><i>${esc(f.ts.slice(5, 10))}</i><span><b>${esc(f.question || '')}</b><br><span class="muted">${esc(f.layer_name)} · ${esc({pending: '待确认', approved: '已入库', rejected: '已拒绝', revoked: '已撤销', suppressed: '拒绝过，不再提', recurred: '修后复发'}[f.outcome] || f.outcome)}${f.reason ? ' · ' + esc(f.reason.slice(0, 40)) : ''}</span></span><span></span></li>`).join('');
+  return grp('Emendatio · 点踩与修正', (st.total ? head + tb : `<p class="muted">还没有点踩。回答下方「点踩」，或 /bad 原因。</p>`) +
+    (act ? `<ul class="ml" style="margin-top:12px">${act}</ul>` : '') + (rec ? `<ul class="ml" style="margin-top:12px">${rec}</ul>` : ''));
 }
 function bindPb(pane){
   if (!S.pb) { loadPb(); return; }
+  pane.querySelectorAll('[data-lrev]').forEach(b => b.onclick = async () => { const j = await (await fetch('/api/learn/revoke', {method:'POST', headers:H, body:JSON.stringify({id: b.dataset.lrev})})).json(); setSt(j.msg || j.error, j.error ? 'bad' : 'ok'); loadPb(S.pb.cur && S.pb.cur.id); });
   pane.querySelectorAll('[data-pb]').forEach(li => li.onclick = () => loadPb(li.dataset.pb));
   if ($('pbrun')) $('pbrun').onclick = async () => {
     const symbols = $('pbsym').value.split(/[,，\s]+/).filter(Boolean);
@@ -2622,7 +2642,7 @@ const PANES = {
         `<div class="lsw" style="grid-template-columns:1fr"><div class="lsg">${Object.entries(s.by_category).map(([k, v]) => `<div class="lsr" style="grid-template-columns:76px 1fr 46px 34px"><span>${esc(k)}</span><span class="lsb"><i style="width:${v}%"></i><em></em></span><b>${f1(v)}</b><small></small></div>`).join('')}</div></div>`;
     }
     return `<h3>回测与评测</h3><p class="lead">Probatio：回到历史上的每一天，只给 Stoa 当时看得到的行情，再用之后的收盘价打分。</p><p class="muted" style="margin:-4px 0 12px">目前的回测里，看多/看空的择时判断不具统计显著性（未胜过动量与随机基线），仅供参考。</p>` +
-      grp('Ultima · 最近一次回测', top) + mk + run + hist + grp('Examen · 评测集', ex);
+      grp('Ultima · 最近一次回测', top) + mk + run + hist + grp('Examen · 评测集', ex) + emendHTML(S.pb.learn);
   },
   data: () => {
     const w = wl || S.watchlist;
@@ -3381,6 +3401,9 @@ const CMDS = [
   {c: '/model', g: '界面', d: '切换本对话的模型', run: () => { const b = $('mdl'); if (b && !b.hidden) b.click(); else openSettings('model'); }},
   {c: '/poster', g: '界面', d: '战报长图：最近一次早晚报排成竖版图，可存 PNG', run: () => window.open('/poster' + (token ? `?token=${encodeURIComponent(token)}` : ''), '_blank')},
   {c: '/export', g: '界面', d: '把当前对话导出成 Markdown', run: () => exportSession(sid)},
+  {c: '/bad', a: '原因', g: '界面', d: '点踩上一条回答：归层后生成候选规则与回归题，批准才生效', run: async x => { const n = log.querySelectorAll(':scope>.m.u').length; if (!n) return;
+    const j = await (await fetch('/api/feedback', {method:'POST', headers:H, body:JSON.stringify({session: sid, turn: n, reason: x || ''})})).json();
+    toast({kind:'reply', time:'', title: j.error || `已记下 · ${j.layer_name}${j.candidates && j.candidates.length ? ` · ${j.candidates.length} 条候选待确认` : ''}`}); if (APPROV !== null) loadTasks(); }},
   {c: '/archive', g: '界面', d: '归档当前对话', run: async () => { await fetch('/api/sessions/rename', {method:'POST', headers:H, body:JSON.stringify({id: sid, archived: true})}); newChat(); toast({kind:'reply', time:'', title:'已归档，可在 History → 归档 里找回。'}); }},
   {c: '/tasks', g: '界面', d: '定时任务', run: () => openSettings('tasks')},
   {c: '/changelog', g: '界面', d: '更新日志 · 每个版本改了什么', run: () => openChangelog()},
@@ -3544,10 +3567,33 @@ function download(name, text, type = 'text/markdown;charset=utf-8'){
 /* 回答下方：复制 · 重新生成 · 导出 Markdown */
 function answerActions(out){
   if (!out || out.querySelector(':scope>.qa')) return;
-  out.insertAdjacentHTML('beforeend', `<div class="qa"><button type="button" data-q="cp">复制</button><button type="button" data-q="re">重新生成</button><button type="button" data-q="md">导出 Markdown</button></div>`);
+  out.insertAdjacentHTML('beforeend', `<div class="qa"><button type="button" data-q="cp">复制</button><button type="button" data-q="re">重新生成</button><button type="button" data-q="md">导出 Markdown</button><button type="button" data-q="bad" title="标记这条回答有问题">点踩</button></div>`);
   out.querySelector('[data-q=cp]').onclick = e => copyAnswer(out, e.target);
+  out.querySelector('[data-q=bad]').onclick = e => badAnswer(out, e.target);
   out.querySelector('[data-q=re]').onclick = () => regenerate(out.parentElement);
   out.querySelector('[data-q=md]').onclick = () => download(`stoa-answer-${new Date().toISOString().slice(0, 10)}.md`, cleanAnswer(out._raw) + '\n');
+}
+/* 点踩：可选一句原因 → 后端归层、生成候选（进「待确认」，批准才生效） */
+function badAnswer(out, btn){
+  if (btn.classList.contains('done') || out.querySelector(':scope>.fbk')) return;
+  let u = out.parentElement.previousElementSibling; while (u && !u.matches('.m.u')) u = u.previousElementSibling;
+  const n = u ? turnOf(u) : 0; if (n < 1) return;
+  const row = out.querySelector(':scope>.qa'); row.hidden = true;
+  out.insertAdjacentHTML('beforeend', `<div class="fbk"><input type="text" maxlength="300" placeholder="哪里不对（可不填）" aria-label="点踩原因"><button type="button" class="go">提交</button><button type="button" data-x>取消</button></div>`);
+  const f = out.querySelector(':scope>.fbk'), inp = f.querySelector('input');
+  const close = () => { f.remove(); row.hidden = false; };
+  const go = async () => {
+    f.innerHTML = '<small>记下中…</small>';
+    let j; try { j = await (await fetch('/api/feedback', {method:'POST', headers:H, body:JSON.stringify({session: sid, turn: n, reason: inp.value.trim()})})).json(); } catch (_) { j = {error: '连不上 Stoa'}; }
+    if (j.error) { f.innerHTML = `<small>${esc(j.error)}</small>`; setTimeout(close, 2400); return; }
+    f.innerHTML = `<small>已记下 · ${esc(j.layer_name)}${j.candidates && j.candidates.length ? ` · ${j.candidates.length} 条候选待确认` : j.note ? ' · ' + esc(j.note) : ''}</small>`;
+    btn.classList.add('done'); btn.textContent = '已点踩';
+    setTimeout(() => { f.remove(); row.hidden = false; }, 4200);
+    if (APPROV !== null) loadTasks();
+  };
+  f.querySelector('.go').onclick = go; f.querySelector('[data-x]').onclick = close;
+  inp.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); go(); } if (e.key === 'Escape') { e.stopPropagation(); close(); } };
+  inp.focus();
 }
 function copyAnswer(out, btn){ copyText(cleanAnswer(out._raw)); if (btn) flashBtn(btn, '已复制'); }
 function turnOf(uEl){ return [...log.querySelectorAll(':scope>.m.u')].indexOf(uEl) + 1; }
@@ -3630,7 +3676,7 @@ var APPROV = null, RUNLOG = null;
 function approvHTML(){
   const ap = APPROV || [], ir = ((RUNLOG || {}).interrupted || []).filter(r => /^web-/.test(r.session));
   if (!ap.length && !ir.length) return '';
-  const a = ap.map((x, i) => `<li><i>${roman(i + 1)}</i><span><b>${esc(x.title)}</b><br><span class="muted">${esc(x.created.slice(5, 16))} · 重启后仍保留，批准后才执行</span></span><span style="display:flex;gap:6px"><button class="x dark" data-apok="${esc(x.id)}">批准</button><button class="x" data-apno="${esc(x.id)}">拒绝</button></span></li>`).join('');
+  const a = ap.map((x, i) => `<li><i>${roman(i + 1)}</i><span><b>${esc(x.title)}</b><br><span class="muted">${esc(x.created.slice(5, 16))} · ${x.kind === 'learn' ? '批准后入库生效，可在 回测与评测 → Emendatio 撤销' : '重启后仍保留，批准后才执行'}</span></span><span style="display:flex;gap:6px"><button class="x dark" data-apok="${esc(x.id)}">批准</button><button class="x" data-apno="${esc(x.id)}">拒绝</button></span></li>`).join('');
   const r = ir.map((x, i) => `<li><i>${roman(ap.length + i + 1)}</i><span><b>中断的运行：${esc((x.text || '').slice(0, 40))}</b><br><span class="muted">${esc(x.started.slice(5, 16))} · 已完成 ${x.n_steps} 步，续跑时不重做</span></span><span><button class="x" data-rres="${esc(x.run_id)}">续跑</button></span></li>`).join('');
   return grp('Pendentia · 待确认', `<ul class="ml">${a}${r}</ul>`);
 }
