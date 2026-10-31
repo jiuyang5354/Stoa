@@ -85,7 +85,7 @@ def session_sections(session: str, snap: dict, closes: dict, mem, cfg: dict) -> 
 
 def sub_command() -> bool:
     """chat / review / memory 子命令；其余参数走报告模式。"""
-    if len(sys.argv) < 2 or sys.argv[1] not in ("chat", "review", "memory", "serve", "mcp", "providers", "desktop", "backtest", "eval", "earnings", "news-snapshot", "research"):
+    if len(sys.argv) < 2 or sys.argv[1] not in ("chat", "review", "memory", "serve", "mcp", "providers", "desktop", "backtest", "eval", "earnings", "news-snapshot", "research", "runs"):
         return False
     cmd = sys.argv[1]
     if cmd == "chat":
@@ -123,6 +123,20 @@ def sub_command() -> bool:
     elif cmd == "research":
         from .inquiry import main as im
         im(sys.argv[2:])
+    elif cmd == "runs":  # 断点续跑：列出中断的运行 / 续跑一条 / 列出待确认
+        from . import ledger, settings
+        settings.load_env_file()
+        args = sys.argv[2:]
+        if args[:1] == ["resume"] and len(args) > 1:
+            from .agent import Agent
+            _, reply = Agent.resume(args[1])
+            print(reply)
+        elif args[:1] == ["approvals"]:
+            for a in ledger.approvals("pending"):
+                print(a["id"], a["created"], a["title"])
+        else:
+            for r in ledger.runs_list():
+                print(f"{r['run_id']}  {r['status']:<9} {r['n_steps']:>3} 步  {r['started']}  {r['text']}")
     elif cmd == "earnings":
         from .earnings import main as em
         em(sys.argv[2:])

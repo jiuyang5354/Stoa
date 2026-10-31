@@ -201,6 +201,11 @@ def approval_add(kind: str, title: str, payload: dict, session: str | None = Non
     aid = uuid.uuid4().hex[:10]
     _x("INSERT INTO approvals(id, kind, title, payload, status, created, session) VALUES(?,?,?,?,?,?,?)",
        (aid, kind, title, json.dumps(payload, ensure_ascii=False, default=str), "pending", now(), session))
+    try:  # 网页弹 toast「待确认」
+        from . import alerts
+        alerts.add_events([{"time": now()[:16], "kind": "approval", "title": title, "approval": aid}])
+    except Exception:
+        pass
     return approval_get(aid)
 
 
