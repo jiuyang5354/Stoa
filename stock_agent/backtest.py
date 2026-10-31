@@ -464,7 +464,20 @@ def _mdd(curve):
     return round(mdd * 100, 2)
 
 
-def metrics(rows: list[dict], horizons: list[int], band5: float = 1.5) -> dict:
+def _honest(d: list[dict], hits_d: list[bool], h: int, step: int, band: float) -> dict:
+    """重叠窗口校正：持有期比判断间隔长时，相邻样本不独立（见 probatio.py）。"""
+    from . import probatio
+    if not hits_d:
+        return {}
+    k, n = sum(hits_d), len(hits_d)
+    no = probatio.nonoverlap(d, h, step)
+    kn = sum(hit(r["view"], r[f"ret{h}"], band) for r in no)
+    return {"overlap": round(probatio.overlap_factor(h, step), 2), "p_eff": probatio.p_hit_eff(k, n, h, step),
+            "wilson95": probatio.wilson(k, n), "n_nonoverlap": len(no), "p_nonoverlap": probatio.binom_p(kn, len(no)),
+            "hit_nonoverlap%": round(kn / len(no) * 100, 1) if no else None}
+
+
+def metrics(rows: list[dict], horizons: list[int], band5: float = 1.5, step: int = 5) -> dict:
     """方向胜率、含中性的总命中、置信度分组胜率（校准）、多空组合与买入持有。"""
     out = {"n": len(rows), "views": {v: sum(r["view"] == v for r in rows) for v in VIEWS}, "horizons": {}}
     for h in horizons:
@@ -481,6 +494,7 @@ def metrics(rows: list[dict], horizons: list[int], band5: float = 1.5) -> dict:
             "n": len(rs), "n_dir": len(d), "band%": round(band, 2),
             "hit_dir%": round(sum(hits_d) / len(hits_d) * 100, 1) if hits_d else None,
             "p_binom": _binom_p(sum(hits_d), len(hits_d)), "ci95": _boot_ci([(r["date"], x) for r, x in zip(d, hits_d)]),
+            **_honest(d, hits_d, h, step, band),
             **_calib_stats(d, h, band),
             "hit_all%": round(sum(hits_all) / len(hits_all) * 100, 1) if hits_all else None,
             "avg_signed_ret%": round(sum(SIGN[r["view"]] * r[f"ret{h}"] for r in d) / len(d), 3) if d else None,
@@ -511,13 +525,13 @@ def sleeves(curves: list[list]) -> list[tuple[str, float]]:
     return out
 
 
-def by_market(rows, horizons, band5):
+def by_market(rows, horizons, band5, step=5):
     res = {}
     for m in MARKETS:
         sub = [r for r in rows if r["market"] == m]
         if sub:
-            res[m] = metrics(sub, horizons, band5)
-    allm = metrics(rows, horizons, band5)
+            res[m] = metrics(sub, horizons, band5, step)
+    allm = metrics(rows, horizons, band5, step)
     if len(res) > 1:
         allm["curve"] = sleeves([v["curve"] for v in res.values()])
         allm["curve_bh"] = sleeves([v["curve_bh"] for v in res.values()])
@@ -577,7 +591,7 @@ def run(symbols=None, start=None, end=None, step=5, horizons=(5, 20), agent="bas
         rows = attach_returns(preds, pit, horizons, step)
         if name == "agent":
             rows = calibrate(rows, horizons, band5)
-        results[name] = by_market(rows, horizons, band5)
+        results[name] = by_market(rows, horizons, band5, step)
         if name == "agent":
             preds_main = rows
     out = {"id": run_id, "status": "done", "created": datetime.now(CN_TZ).strftime("%Y-%m-%d %H:%M"),
@@ -679,6 +693,16 @@ def listing(limit: int = 30) -> list[dict]:
     return out
 
 
+def all_runs(limit: int = 80) -> list[dict]:
+    out = []
+    for f in sorted(bt_dir().glob("*.json"), key=lambda p: p.stat().st_mtime)[-limit:]:
+        try:
+            out.append(json.loads(f.read_text(encoding="utf-8")))
+        except Exception:
+            pass
+    return out
+
+
 def load(run_id: str) -> dict | None:
     run_id = re.sub(r"[^A-Za-z0-9_.-]", "", run_id)
     f = bt_dir() / f"{run_id}.json"
@@ -750,6 +774,8 @@ def print_report(res: dict):
                 print(f"  {h}日：方向 {x['n_dir']} 题，单边二项 p={x['p_binom']}，按日自助 95% 区间 {x.get('ci95')}；"
                       f"Brier 自报 {x.get('brier_raw')} / 事后校准 {x.get('brier_cal')}（恒 50% = 0.25），ECE {x.get('ece_raw')} / {x.get('ece_cal')} 个百分点"
                       + (f"；pcal≥55 的 {sel.get('n')} 题胜率 {_f(sel.get('hit%'))}" if sel else ""))
+                if x.get("overlap", 1) > 1:
+                    print(f"       窗口重叠 ×{x['overlap']}：校正后 p={x.get('p_eff')}；只取不重叠的 {x.get('n_nonoverlap')} 题，胜率 {_f(x.get('hit_nonoverlap%'))}，p={x.get('p_nonoverlap')}")
     if res.get("llm"):
         print("\nLLM：", json.dumps(res["llm"], ensure_ascii=False))
     if res.get("usage"):
@@ -787,7 +813,13 @@ def main(argv=None):
     p.add_argument("--price-in", type=float, default=float(os.getenv("LLM_PRICE_IN", 0) or 0), help="每百万输入 token 美元，用于估算费用")
     p.add_argument("--price-out", type=float, default=float(os.getenv("LLM_PRICE_OUT", 0) or 0))
     p.add_argument("--json", action="store_true")
+    p.add_argument("--trials", action="store_true", help="不跑新回测：把做过的回测当一次多重检验，给 Holm 校正 p 和 Deflated Sharpe")
     a = p.parse_args(argv)
+    if a.trials:
+        from . import probatio
+        t = probatio.trials(all_runs())
+        print(json.dumps({k: v for k, v in t.items() if k != "verdict"}, ensure_ascii=False, indent=1) if a.json else t["verdict"])
+        return
     from . import settings
     settings.load_env_file()
     if a.mode == "rank":

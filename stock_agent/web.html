@@ -235,6 +235,7 @@
   .sec.nil>ul,.sec.nil>ol,.sec.nil>.tq{display:none}
   .sec.nil .sh{margin-bottom:0;border-bottom-color:var(--rule-2)}.sec.nil .sh h3{color:var(--mute)}.sec.nil .sh .rn{background:var(--mute)}
   .fasti{border:0;background:none;padding:0;margin-top:6px;font:inherit;letter-spacing:inherit;color:var(--mute);cursor:pointer;border-bottom:1px solid transparent;transition:color .2s,border-color .2s}.fasti:hover{color:var(--ink);border-color:var(--gold)}
+  .pbv{margin:0;font:var(--fs0)/1.75 var(--serif),var(--cn);color:var(--ink-2);border-left:1px solid var(--gold);padding:2px 0 2px 12px}
   .sh .add{display:none;border:0;background:none;padding:0 2px;font:300 var(--fs3)/1 var(--serif);color:var(--mute);cursor:pointer;transition:color .2s}
   .sec.nil .sh .add{display:block}.sh .add:hover{color:var(--gold)}
 
@@ -2188,7 +2189,7 @@ function ledgerStats(st){
   if (!st.closed) return `<div class="fr"><span><b>还没有到期复盘的判断</b><small>Stoa 每次给出看涨 / 看跌 / 震荡都会记账，到期按当天收盘打分并对照大盘算超额</small></span><span class="k"><small>未到期 ${st.open || 0}</small></span></div>`;
   const row = (k, v) => `<div class="lsr"><span>${esc(k)}</span><span class="lsb"><i style="width:${v['准确率%']}%" class="${v['准确率%'] < 45 && v.n >= 5 ? 'weak' : ''}"></i><em></em></span><b>${v['准确率%']}%</b><small>${v['对']} / ${v.n}</small></div>`;
   const tb = (title, g) => `<div class="lsg"><h5>${title}</h5>${Object.entries(g).sort((a, b) => b[1].n - a[1].n).map(([k, v]) => row(k, v)).join('')}</div>`;
-  return `<div class="lsh"><b>${st['准确率%']}<span>%</span></b><div><small>总体准确率 · 已复盘 ${st.closed} 次，对 ${st['对']} 错 ${st['错']}，未到期 ${st.open}</small><div class="lsk">${esc(st['最近10次'])}<span>最近十次 · 当前 ${esc(st['当前连续'])}</span></div></div></div>` +
+  return `<div class="lsh"><b>${st['准确率%']}<span>%</span></b><div><small>总体准确率 · 已复盘 ${st.closed} 次，对 ${st['对']} 错 ${st['错']}，未到期 ${st.open}${st['区间95%'] ? ` · 95% 区间 ${st['区间95%'][0]}–${st['区间95%'][1]}%${st['区间95%'][0] <= 50 && st['区间95%'][1] >= 50 ? '，和抛硬币还分不开' : ''}` : ''}</small><div class="lsk">${esc(st['最近10次'])}<span>最近十次 · 当前 ${esc(st['当前连续'])}</span></div></div></div>` +
     `<div class="lsw">${tb('按方向', st['按方向'])}${tb('按市场', st['按市场'])}${tb('按周期', st['按周期'])}</div>` +
     (st['超额口径'] ? (() => { const a = st['超额口径'], c = a['按置信度'] || {}; return `<div class="lsw"><div class="lsg"><h5>对照大盘</h5>` +
       row('胜率', {'准确率%': a['方向分胜率%'], 对: Math.round(a['方向分胜率%'] * a['超额样本'] / 100), n: a['超额样本']}) +
@@ -2212,11 +2213,11 @@ function pbCharts(r){
   }).join('');
 }
 async function loadPb(id){
-  const L = (await (await fetch('/api/backtests', {headers:H})).json()).items || [];
+  const BJ = await (await fetch('/api/backtests', {headers:H})).json(), L = BJ.items || [];
   const pick = id || (L.find(x => x.status === 'done' && x.mode !== 'rank') || L.find(x => x.status === 'done') || L[0] || {}).id;
   const cur = pick ? await (await fetch('/api/backtests/' + encodeURIComponent(pick), {headers:H})).json() : null;
   const evals = await (await fetch('/api/evals', {headers:H})).json().catch(() => null);
-  S.pb = {list: L, cur, evals}; if (scur === 'probatio' && !$('set').hidden) show('probatio');
+  S.pb = {list: L, cur, evals, trials: BJ.trials || {}}; if (scur === 'probatio' && !$('set').hidden) show('probatio');
   clearTimeout(loadPb.t); if (L.some(x => x.status === 'running')) loadPb.t = setTimeout(() => loadPb(id), 4000);
 }
 function bindPb(pane){
@@ -2387,7 +2388,7 @@ const PANES = {
     } else if (r && r.status === 'done') {
       const p = r.params, h = String(p.horizons[0]), A = r.results.agent['全部'], hd = r.headline, B = hd.baselines;
       top = `<div class="pbh"><b>${f1(hd['hit_dir%'])}<span>%</span></b><div><span class="pbk">方向胜率 · 持有 ${h} 日</span><small>${esc(AG[p.agent] || p.agent)} · ${p.symbols.length} 只标的 · ${A.horizons[h].n} 次判断 · ${esc(p.start)} → ${esc(p.end)} · 每 ${p.step} 个交易日${/synthetic/.test(p.data) ? ' · 合成行情' : ''}</small></div></div>
-        <div class="pbn"><span>多空累计<b>${sg(hd['long_short%'])}</b></span><span>买入持有<b>${sg(hd['buy_hold%'])}</b></span><span>动量基线<b>${f1(B.momentum20['hit_dir%'])}%</b></span><span>随机基线<b>${f1(B.random['hit_dir%'])}%</b></span></div>
+        <div class="pbn"><span>p（窗口重叠校正）<b>${A.horizons[h].p_eff == null ? '—' : (+A.horizons[h].p_eff).toFixed(2)}</b></span><span>多空累计<b>${sg(hd['long_short%'])}</b></span><span>买入持有<b>${sg(hd['buy_hold%'])}</b></span><span>动量基线<b>${f1(B.momentum20['hit_dir%'])}%</b></span><span>随机基线<b>${f1(B.random['hit_dir%'])}%</b></span></div>
         <div class="pbc">${pbCharts(r)}</div><div class="pbl"><span><i></i>Stoa</span><span><i class="o"></i>动量 20 日</span><span><i class="d"></i>一直看多</span></div>`;
     } else if (r && r.status === 'running') top = `<p class="muted">回测进行中…（${esc(r.id)}）</p>`;
     else if (r && r.status === 'error') top = `<p class="muted">这次回测失败：${esc(r.error || '')}</p>`;
@@ -2402,7 +2403,8 @@ const PANES = {
     const run = grp('Novum · 新回测', `<div class="fr"><span><b>判断者</b><small>规则 Agent 不需要模型；大模型 Agent 每个时点调用一次（有缓存，最多 200 次）；辩论 = Agora 回测版，每个时点约 5 次调用（只给截断行情，最多 600 次）</small></span><span>${sseg('pbAgent', [['baseline','规则'],['llm','大模型'],['debate','辩论']])}</span></div>
       <div class="fr"><span><b>标的</b><small>留空用默认 12 只 A / 港 / 美股</small></span><input type="text" id="pbsym" placeholder="600519.SS, 0700.HK, NVDA"></div>
       <div class="addrow" style="justify-content:space-between"><small class="muted">近一年 · 每 5 个交易日 · 持有 5 / 20 日；未来数据一律屏蔽</small><button class="x dark" id="pbrun">开始回测</button></div>`);
-    const hist = grp('Historia · 记录', `<ul class="ml pbr">${L.map((x, i) => `<li data-pb="${esc(x.id)}" class="${r && x.id === r.id ? 'on' : ''}"><i>${roman(L.length - i)}</i><span>${esc(x.created || '')} · ${esc(AG[x.agent] || x.agent || '')} <em>${x.status === 'done' && x.mode === 'rank' && x.headline ? `Rank IC ${(+x.headline.ic || 0).toFixed(3)} · p ${x.headline.p == null ? '—' : (+x.headline.p).toFixed(2)}` : x.status === 'done' && x.headline ? `胜率 ${f1(x.headline['hit_dir%'])}% · 多空 ${sg(x.headline['long_short%'])}` : x.status === 'running' ? '进行中' : '失败'}</em></span><span></span></li>`).join('') || '<li><i>—</i><span class="muted">还没有</span><span></span></li>'}</ul>`);
+    const TR = S.pb.trials || {};
+    const hist = (TR.n > 1 ? grp('Honestas · 扣掉试错次数', `<p class="pbv">${esc(TR.verdict)}</p>`) : '') + grp('Historia · 记录', `<ul class="ml pbr">${L.map((x, i) => `<li data-pb="${esc(x.id)}" class="${r && x.id === r.id ? 'on' : ''}"><i>${roman(L.length - i)}</i><span>${esc(x.created || '')} · ${esc(AG[x.agent] || x.agent || '')} <em>${x.status === 'done' && x.mode === 'rank' && x.headline ? `Rank IC ${(+x.headline.ic || 0).toFixed(3)} · p ${x.headline.p == null ? '—' : (+x.headline.p).toFixed(2)}` : x.status === 'done' && x.headline ? `胜率 ${f1(x.headline['hit_dir%'])}% · 多空 ${sg(x.headline['long_short%'])}` : x.status === 'running' ? '进行中' : '失败'}</em></span><span></span></li>`).join('') || '<li><i>—</i><span class="muted">还没有</span><span></span></li>'}</ul>`);
     let ex = `<p class="muted">还没有跑过评测。命令行 <span class="ep">python -m stock_agent eval</span>。</p>`;
     if (E && E.latest) {
       const s = E.latest.summary, pv = E.latest.previous;

@@ -339,7 +339,12 @@ class Web(BaseHTTPRequestHandler):
             return self._send(200, alerts.listing())
         if self.path.split("?")[0] == "/api/backtests":
             from . import backtest
-            return self._send(200, {"items": backtest.listing()})
+            from . import probatio
+            try:
+                tr = probatio.trials(backtest.all_runs())
+            except Exception:
+                tr = {"n": 0}
+            return self._send(200, {"items": backtest.listing(), "trials": tr})
         if self.path.startswith("/api/backtests/"):
             from . import backtest
             name = self.path.split("?")[0].rsplit("/", 1)[-1]

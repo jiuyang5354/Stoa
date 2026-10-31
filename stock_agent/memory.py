@@ -347,7 +347,9 @@ class Memory:
             if r[5] != sv:
                 break
             streak += 1
+        from . import probatio
         out = {"open": open_n, "closed": len(rows), **agg(rows),
+               "区间95%": probatio.wilson(sum(r[5] == "对" for r in rows), len(rows)),
                "按方向": group(lambda r: r[2]), "按市场": group(lambda r: mk(r[1])), "按周期": group(lambda r: hz(r[3] or 0)),
                "最近10次": "".join("✓" if r[5] == "对" else "✗" for r in last), "当前连续": f"{streak}次{sv}"}
         from . import scorecard
