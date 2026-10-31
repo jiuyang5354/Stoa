@@ -306,7 +306,7 @@ def _split(c: str) -> tuple[str | None, str]:
 
 
 def xbrl_facts(symbol: str, concepts=None, search: str = "", fy: int | None = None, fp: str | None = None, form: str | None = None,
-               annual_only: bool = False, limit: int = 12) -> dict:
+               annual_only: bool = False, limit: int = 12, end: str | None = None) -> dict:
     cik, name = _cik(symbol)
     d = _facts(cik)
     facts = d.get("facts") or {}
@@ -347,6 +347,8 @@ def xbrl_facts(symbol: str, concepts=None, search: str = "", fy: int | None = No
                     continue
                 if form and not str(x.get("form") or "").upper().startswith(form.upper()):
                     continue
+                if end and not str(x.get("end") or "").startswith(str(end)):
+                    continue
                 dur = None
                 if x.get("start"):
                     dur = (datetime.fromisoformat(x["end"]) - datetime.fromisoformat(x["start"])).days
@@ -363,8 +365,12 @@ def xbrl_facts(symbol: str, concepts=None, search: str = "", fy: int | None = No
             seen.add(key)
             uniq.append({k: v for k, v in r.items() if v is not None})
         uniq.sort(key=lambda r: (r.get("end") or "", r.get("filed") or ""), reverse=True)
-        out[f"{tax}:{tag}"] = {"label": node.get("label"), "values": uniq[:max(1, min(int(limit or 12), 40))]}
-    return {**base, "facts": out, "note": "val 是原始单位（USD 是美元，不是千/百万）；days≈365 为全年，≈90 为单季，没有 start 的是时点数（资产负债表/股数）"}
+        item = {"label": node.get("label"), "values": uniq[:max(1, min(int(limit or 12), 40))]}
+        latest = max((x.get("end") or "" for xs in (node.get("units") or {}).values() for x in xs), default="")
+        if latest and latest < (datetime.now() - timedelta(days=730)).strftime("%Y-%m-%d"):
+            item["warning"] = f"这个科目最后一次报告到 {latest}，公司之后改用了别的科目；用 search 找现行科目（如收入常换成 RevenueFromContractWithCustomerExcludingAssessedTax）"
+        out[f"{tax}:{tag}"] = item
+    return {**base, "facts": out, "note": "val 是原始单位（USD 是美元，不是千/百万）；days≈365 为全年，≈90 为单季，没有 start 的是时点数（资产负债表/股数）。fy/fp 是「申报文件」的财年（10-K 里的上年对比数 fy 也是当年），按 end 判断数值属于哪个期间"}
 
 
 def xbrl_frames(concept: str, period: str, unit: str = "USD", limit: int = 20) -> dict:
@@ -554,7 +560,7 @@ def run_tool(name: str, a: dict):
     if name == "sec_xbrl":
         if a.get("frame_period"):
             return xbrl_frames(a.get("concepts") if isinstance(a.get("concepts"), str) else (a.get("concepts") or [""])[0], a["frame_period"], a.get("unit") or "USD")
-        return xbrl_facts(sym, a.get("concepts"), a.get("search") or "", a.get("fy"), a.get("fp"), a.get("form"), bool(a.get("annual_only")), int(a.get("limit") or 12))
+        return xbrl_facts(sym, a.get("concepts"), a.get("search") or "", a.get("fy"), a.get("fp"), a.get("form"), bool(a.get("annual_only")), int(a.get("limit") or 12), a.get("end"))
     if name == "sec_search":
         return full_text_search(a["query"], a.get("forms"), a.get("start"), a.get("end"), sym or None, int(a.get("limit") or 10))
     if name == "earnings_release":
@@ -577,9 +583,9 @@ TOOL_SPECS = [
      "parameters": {"type": "object", "properties": {"url": S, "section": S, "query": S, "start": {"type": "integer"}, "max_chars": {"type": "integer"}}, "required": ["url"]}},
     {"name": "sec_xbrl", "description": "SEC XBRL 精确科目数值（公司申报原值，原始单位美元）：concepts 如 us-gaap:Revenues、us-gaap:RevenueFromContractWithCustomerExcludingAssessedTax、us-gaap:InterestExpense、"
      "us-gaap:DepreciationDepletionAndAmortization、us-gaap:OperatingLeaseCost、us-gaap:PaymentsToAcquirePropertyPlantAndEquipment、us-gaap:WeightedAverageNumberOfSharesOutstandingBasic、dei:EntityCommonStockSharesOutstanding；"
-     "可按 fy（财年）/fp（FY,Q1..）/form/annual_only 过滤；不知道科目名先用 search 关键词找。给 frame_period（如 CY2024）则返回该科目全市场横截面。",
+     "可按 end（期末日期前缀，如 2024 或 2024-12）/annual_only/form 过滤；不知道科目名先用 search 关键词找。给 frame_period（如 CY2024）则返回该科目全市场横截面。",
      "parameters": {"type": "object", "properties": {"symbol": S, "concepts": {"type": "array", "items": S}, "search": S, "fy": {"type": "integer"}, "fp": S, "form": S,
-                                                     "annual_only": {"type": "boolean"}, "limit": {"type": "integer"}, "frame_period": S, "unit": S}}},
+                                                     "annual_only": {"type": "boolean"}, "end": S, "limit": {"type": "integer"}, "frame_period": S, "unit": S}}},
     {"name": "sec_search", "description": "SEC EDGAR 全文检索（2001 年以后所有申报及附件）：query 用双引号做精确短语，可限 forms、日期 start/end、symbol。找并购公告、某个词首次出现、某笔交易的 8-K/委托书时用。",
      "parameters": {"type": "object", "properties": {"query": S, "forms": {"type": "array", "items": S}, "start": S, "end": S, "symbol": S, "limit": {"type": "integer"}}, "required": ["query"]}},
     {"name": "earnings_release", "description": "美股业绩新闻稿原文：8-K item 2.02 附的 EX-99.1（季度/全年业绩、管理层指引 guidance、Non-GAAP 与 Adjusted EBITDA 调节表、门店数等 KPI）。date 填大致发布日期（取 ±10 天内最近一份），"

@@ -47,6 +47,14 @@ SYSTEM = """你是「Stoa」，用户的长期股市助手，覆盖 A股、港�
 - A股规则：get_quotes 的 a_share_rules 给出涨跌停幅度和下一日涨跌停价、T+1、最小买入单位；谈买卖、止损、仓位时按这些规则说（如「今天买明天才能卖」「止损价低于跌停价时当天可能卖不出」）。
 - 年报/季报/10-K：问年报里写了什么、管理层怎么说、风险因素、分部收入 → read_filing（带页码，回答里注明「第 N 页」）；
   问「今年年报比去年多了哪些风险」「两年 MD&A 有什么变化」→ compare_filings。只转述段落里有的内容。
+- 美股 SEC 原文（问题点名某份 10-K/10-Q/8-K/新闻稿/封面股数，或要精确科目时，优先这组工具，不要拿网页转述或 Yahoo 汇总数代替）：
+  sec_filings 按表格类型/日期/8-K item 找申报（给 url 列出附件，EX-99.1 是新闻稿）；sec_document 读原文（section=cover 封面流通股数、mdna、risk、financial，query 检索表格和段落）；
+  sec_xbrl 取公司申报的精确科目值（不知道科目名先 search）；sec_search 全文检索（并购、合并协议、某个说法）；earnings_release 读业绩新闻稿与指引（逐季用 other_releases 再查）；
+  earnings_transcript 读电话会文字稿；退市或改名的公司 symbol 填公司名或 CIK。
+- 某个历史日期的收盘价、两个日期之间的涨跌、公告后 N 天的股价变化 → price_history（非交易日按题意取前一或后一交易日并说明）；不要因为 get_quotes 只有近期数据就说查不到。
+- 计算题：题目给了口径或公式（如 EBITDAR = EBITDA + 租金、按实际天数算 DIO、用指引区间中点）就严格照题目口径，逐项列出输入数字和出处，再用 calc 算；不要换成别的口径。
+  题目要的每一项都要给出数值；某个输入第一次没找到时，先换工具（sec_xbrl ↔ sec_document ↔ earnings_release ↔ read_filing）再试，确实找不到才标未知。
+- 回答语言跟随提问：用户用英文提问（或要求英文）时全文用英文回答。
 - 数据源冲突：工具结果的 warnings 里写了两源差异过大时，回答里必须说明「两个数据源不一致」及各自数值，不要只报其中一个当作确定值。
 - 深度分析：用户要「深度分析」「该不该买/卖」某只股票时，调用 deep_analysis（多位分析师 + 多空辩论 + 风控 + 基金经理裁决，会自动记账），
   再如实转述：先讲查证要点（带出处）和风险清单，方向与置信度放在后面、作为次要参考，不要改动它的数字。普通快问（价格、涨跌、某个指标）不要用它。
@@ -205,6 +213,8 @@ TOOLS = [
                     "required": ["name", "description", "content"]}},
     {"name": "skill_delete", "description": "删除一个过时或无用的技能。", "parameters": {"type": "object", "properties": {"name": {"type": "string"}}, "required": ["name"]}},
 ]
+from .edgar import TOOL_SPECS as _SEC_SPECS, TOOL_NAMES as SEC_TOOLS  # noqa: E402  SEC EDGAR 全文 / XBRL / 8-K 新闻稿 / 历史收盘价 / 电话会
+TOOLS += _SEC_SPECS
 
 
 ADVICE_RE = re.compile(r"推荐|稳赚|翻倍|杠杆|融资|借钱|all ?in|满仓|梭哈|期权|该不该|能不能买|能买吗|可以买|值得买|买入|卖出|加仓|减仓|抄底|收益|保本", re.I)
@@ -212,7 +222,8 @@ EVENT_TOOLS = {"get_corporate_events", "get_chips", "get_market_mood", "get_insi
 DEEP_TOOLS = EVENT_TOOLS | {"get_fund_flow", "get_northbound", "get_dragon_tiger", "get_consensus", "get_intraday", "get_options", "read_filing", "compare_filings"}
 QUANT_TOOLS = {"calc", "price_levels", "financial_bridge", "option_payoff", "trade_replay"}
 FUND_TOOLS = {"get_statements", "earnings_quality", "reverse_dcf", "dcf_scenarios", "regulatory_letters"}
-BIG_TOOLS = {"get_statements", "earnings_quality", "read_filing", "compare_filings", "get_consensus", "get_dragon_tiger"}  # 结果允许更长
+BIG_TOOLS = {"get_statements", "earnings_quality", "read_filing", "compare_filings", "get_consensus", "get_dragon_tiger",
+             "sec_document", "earnings_release", "earnings_transcript", "sec_xbrl", "sec_filings", "price_history"}  # 结果允许更长
 
 
 SIDE_EFFECT_TOOLS = {"start_inquiry", "inquiry_resume", "memory", "record_call", "alert_set", "alert_delete", "watchlist", "skill_save", "skill_delete", "run_python", "deep_analysis", "earnings_report"}
@@ -225,7 +236,18 @@ TOOL_LABELS = {"get_quotes": "查行情", "market_overview": "看大盘", "get_n
                "skill_save": "存技能", "skill_delete": "删技能", "get_corporate_events": "查公司事件", "get_chips": "看筹码两融",
                "get_market_mood": "看市场情绪", "calc": "硬算数字", "price_levels": "算支撑阻力", "financial_bridge": "拆利润结构",
                "option_payoff": "算期权收益", "trade_replay": "行情重放",
-               "get_statements": "读原始报表", "earnings_quality": "查盈利质量", "reverse_dcf": "反向 DCF", "dcf_scenarios": "情景估值", "regulatory_letters": "查问询函", "get_insiders": "查内部人交易", "get_short_volume": "看做空"}
+               "get_statements": "读原始报表", "earnings_quality": "查盈利质量", "reverse_dcf": "反向 DCF", "dcf_scenarios": "情景估值", "regulatory_letters": "查问询函", "get_insiders": "查内部人交易", "get_short_volume": "看做空",
+               "sec_filings": "查 SEC 申报", "sec_document": "读 SEC 原文", "sec_xbrl": "取 XBRL 科目", "sec_search": "SEC 全文检索",
+               "earnings_release": "读业绩新闻稿", "price_history": "查历史收盘", "earnings_transcript": "读电话会"}
+
+
+def _guess_lang(text: str) -> str:
+    """没有显式设置界面语言时按提问猜：没有汉字、且以英文字母为主 → en。"""
+    t = str(text or "")
+    if not t or re.search(r"[\u4e00-\u9fff]", t):
+        return "zh"
+    letters = len(re.findall(r"[A-Za-z]", t))
+    return "en" if letters >= 20 and letters >= .5 * len(re.sub(r"\s", "", t)) else "zh"
 
 
 def _arg_brief(raw) -> str:
@@ -518,6 +540,12 @@ class Agent:
         if name == "market_overview":
             from .__main__ import build_snapshot
             return build_snapshot(load_cfg(), with_news=False)
+        if name in SEC_TOOLS:
+            from . import edgar
+            try:
+                return edgar.run_tool(name, args)
+            except Exception as e:
+                return {"error": f"{name} 暂时取不到数据：{str(e)[:160]}"}
         if name in DEEP_TOOLS:
             try:
                 return deep_tool(name, args)
@@ -670,7 +698,7 @@ class Agent:
     def _chat(self, messages, tools="default"):
         """发给模型前去掉内部字段（_id 等）；tools=None 表示收尾轮不给工具。"""
         clean = [{k: v for k, v in m.items() if not k.startswith("_")} for m in messages]
-        if getattr(self, "lang", "zh") == "en" and clean and clean[0]["role"] == "system":
+        if (getattr(self, "lang", None) or _guess_lang(getattr(self, "_cur_text", ""))) == "en" and clean and clean[0]["role"] == "system":
             clean[0] = {**clean[0], "content": clean[0]["content"] + EN_NOTE}
         return self.llm.chat(clean, self.tools if tools == "default" else tools)
 
