@@ -15,7 +15,7 @@ import re
 import socket
 import time
 import xml.etree.ElementTree as ET
-from urllib.parse import urlparse, parse_qs, unquote
+from urllib.parse import urlparse, parse_qs, unquote, urljoin
 
 import requests
 
@@ -283,7 +283,7 @@ def _public(host: str) -> bool:
     try:
         for fam, *_, addr in socket.getaddrinfo(host, None):
             ip = ipaddress.ip_address(addr[0])
-            if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved or ip.is_multicast:
+            if not ip.is_global or ip.is_multicast:
                 return False
         return True
     except Exception:
@@ -291,21 +291,33 @@ def _public(host: str) -> bool:
 
 
 def fetch_url(url: str, max_chars: int = 6000) -> dict:
-    u = urlparse(url)
-    if u.scheme not in ("http", "https") or not u.hostname or not _public(u.hostname):
-        return {"url": url, "error": "只能读取公网 http(s) 网页"}
+    current = url
     try:
-        r = requests.get(url, headers=UA, timeout=15, allow_redirects=True, stream=True)
-        if not _public(urlparse(r.url).hostname or ""):
-            return {"url": url, "error": "跳转到了内网地址，已拒绝"}
-        if r.status_code >= 400:
-            return {"url": r.url, "error": f"网页返回 {r.status_code}"}
-        raw = r.raw.read(2_000_000, decode_content=True)
-        ctype = r.headers.get("content-type", "")
-        if "pdf" in ctype or url.lower().endswith(".pdf"):
-            return {"url": r.url, "error": "这是 PDF，暂不支持直接读取，可以让用户打开链接"}
-        enc = r.encoding if r.encoding and r.encoding.lower() != "iso-8859-1" else (r.apparent_encoding or "utf-8")
-        text = raw.decode(enc, errors="ignore")
+        for _ in range(6):
+            u = urlparse(current)
+            if u.scheme not in ("http", "https") or not u.hostname or not _public(u.hostname):
+                return {"url": current, "error": "只能读取公网 http(s) 网页（含每次跳转）"}
+            r = requests.get(current, headers=UA, timeout=15, allow_redirects=False, stream=True)
+            try:
+                if r.status_code in (301, 302, 303, 307, 308):
+                    location = r.headers.get("Location")
+                    if not location:
+                        return {"url": current, "error": "网页跳转缺少目标地址"}
+                    current = urljoin(current, location)
+                    continue
+                if r.status_code >= 400:
+                    return {"url": current, "error": f"网页返回 {r.status_code}"}
+                ctype = r.headers.get("content-type", "")
+                if "pdf" in ctype or u.path.lower().endswith(".pdf"):
+                    return {"url": current, "error": "这是 PDF，暂不支持直接读取，可以让用户打开链接"}
+                raw = r.raw.read(2_000_000, decode_content=True)
+                enc = r.encoding if r.encoding and r.encoding.lower() != "iso-8859-1" else "utf-8"
+                text = raw.decode(enc, errors="ignore")
+                break
+            finally:
+                r.close()
+        else:
+            return {"url": current, "error": "网页跳转次数过多（最多 5 次）"}
     except Exception as e:
         return {"url": url, "error": str(e)[:120]}
     title = _clean((re.search(r"<title[^>]*>(.*?)</title>", text, re.S | re.I) or [None, ""])[1])
@@ -323,4 +335,4 @@ def fetch_url(url: str, max_chars: int = 6000) -> dict:
     if sum(map(len, para)) > 300:  # 去掉导航、菜单这类短行
         lines = para
     out = "\n".join(lines)
-    return {"url": r.url, "title": title, "text": out[:max_chars], "truncated": len(out) > max_chars}
+    return {"url": current, "title": title, "text": out[:max_chars], "truncated": len(out) > max_chars}

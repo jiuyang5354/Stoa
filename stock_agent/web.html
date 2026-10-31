@@ -98,7 +98,7 @@
   .temple::before{content:"";position:absolute;inset:4px;border:1px solid var(--rule);pointer-events:none}
 
   /* ---- 檐口：行情条（Ticker） ---- */
-  .ticker{position:relative;border-bottom:1px solid var(--rule-2);overflow:hidden;white-space:nowrap;flex:none;margin:4px 4px 0;
+  .ticker{position:relative;height:38px;border-bottom:1px solid var(--rule-2);overflow:hidden;white-space:nowrap;flex:none;margin:4px 4px 0;
           mask-image:linear-gradient(90deg,transparent,#000 5%,#000 95%,transparent)}
   .ticker-track{display:inline-flex;gap:0;padding:10px 0;animation:marquee 80s linear infinite}
   .ticker:hover .ticker-track{animation-play-state:paused}
@@ -276,7 +276,7 @@
   .snap-f span{font:500 var(--fsn3) var(--sans);letter-spacing:.16em;text-transform:uppercase;color:var(--mute)}
 
   /* 藏品标签：编号 / 出处 / 计价 / 入藏 */
-  .tag{display:grid;grid-template-columns:1fr 1fr;margin:10px 14px 0;border-top:1px solid var(--ink);border-bottom:1px solid var(--rule)}
+  .tag{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);min-height:180px;margin:10px 14px 0;border-top:1px solid var(--ink);border-bottom:1px solid var(--rule)}
   .tag div{padding:8px 0 8px;border-bottom:1px solid var(--rule)}.tag div:nth-last-child(-n+2){border-bottom:0}
   .tag div:nth-child(odd){border-right:1px solid var(--rule);padding-right:10px}.tag div:nth-child(even){padding-left:12px}
   .tag dt{font:500 var(--fsn4)/1.2 var(--sans);letter-spacing:.2em;text-transform:uppercase;color:var(--mute)}
@@ -1256,6 +1256,13 @@
 </div>
 <script>
 const $ = id => document.getElementById(id);
+function visiblePoll(run, delay){
+  let timer = null, active = false;
+  const tick = async () => { if (document.hidden || active) return; active = true; try { await run(); } finally { active = false; } };
+  const arm = () => { clearInterval(timer); timer = document.hidden ? null : setInterval(tick, delay); };
+  document.addEventListener('visibilitychange', () => { arm(); if (!document.hidden) tick(); });
+  arm();
+}
 const token = new URLSearchParams(location.search).get('token') || localStorage.token || '';
 if (token) localStorage.token = token;
 const H = {'Content-Type':'application/json','X-Token':token};
@@ -1715,7 +1722,7 @@ function addUser(raw, files, mid, shownHTML){
 const RUNS = {};
 Object.defineProperty(window, 'busy', {get: () => !!RUNS[sid]});
 Object.defineProperty(window, 'stopped', {get: () => !!(RUNS[sid] && RUNS[sid].stopped)});
-/* 随时停止：前端立刻收手，后端在下一个检查点（模型返回 / 工具开始前）停下，不再继续查数据 */
+/* 随时停止：前端收手，后端终止模型请求进程；工具在下一检查点收手 */
 function stopChat(){
   const R = RUNS[sid]; if (!R || R.stopped) return; R.stopped = true; sync();
   fetch('/api/chat/stop', {method:'POST', headers:H, body:JSON.stringify({session:sid})}).catch(() => {});
@@ -1758,7 +1765,10 @@ async function send(text, opt = {}){
     return h + T.filter(t => t.at >= st.length).map(t => thinkLi(t.text)).join(''); };
   let thoughts = 0;
   const onEv = ev => {
-    if (ev.t === 'tool') {
+    if (ev.t === 'model') {
+      live = true; const tw = out.querySelector('.tw');
+      if (tw) tw.textContent = ev.status === 'retry' ? `服务繁忙，${ev.seconds} 秒后重试（${ev.attempt}）` : '等待模型回答';
+    } else if (ev.t === 'tool') {
       live = true; const s = {id: ev.id, label: ev.label, arg: ev.arg}; steps.push(s);
       const ol = out.querySelector('.steps'); if (ol) ol.insertAdjacentHTML('beforeend', stepLi(s));
       const tw = out.querySelector('.tw'); if (tw) tw.textContent = ev.label;
@@ -2056,12 +2066,12 @@ async function temple3d(host){
       rim.intensity = dk ? .5 : .9; halo.material.opacity = dk ? .26 : .1;
     };
     S.userData.relight(!!S.userData.dark);
-    if (still) requestAnimationFrame(frame);
+    if (still) scheduleFrame();
   });
   let mx = 0, my = 0; host.onpointermove = e => { const b = host.getBoundingClientRect(); mx = (e.clientX-b.left)/b.width - .5; my = (e.clientY-b.top)/b.height - .5; };
   host.onpointerleave = () => { mx = my = 0; };
   const still = matchMedia('(prefers-reduced-motion: reduce)').matches;
-  let cx = 0, cy = 0, t0 = performance.now(), alive = true;
+  let cx = 0, cy = 0, t0 = performance.now(), alive = true, frameId = 0;
   // 抖动后期：场景先画进离屏纹理，再用 4×4 Bayer 阵做 4 级有序抖动（石板黑 / 暗石 / 石灰华 / 粉笔白），
   // 量化前先做一次局部反差增强（原图减去周围均值），让石纹这类高频明暗在点阵里留下来
   const rt = new T.WebGLRenderTarget(2, 2, {samples: 0});
@@ -2088,12 +2098,15 @@ async function temple3d(host){
   const theme = () => { const d = document.documentElement.classList.contains('dark'), L = LOOK[d ? 'dark' : 'light'];
     PAL[d ? 'dark' : 'light'].forEach((c, i) => qm.uniforms['p' + i].value.set(...c));
     R.setClearColor(L.clear, 1); S.fog.color.set(L.fog); chalk.color.set(L.chalk); chalk.opacity = L.chalkO; dust.material.color.set(L.dust);
-    S.userData.dark = d; if (S.userData.relight) S.userData.relight(d); if (still) requestAnimationFrame(frame); };
+    S.userData.dark = d; if (S.userData.relight) S.userData.relight(d); if (still) scheduleFrame(); };
   document.addEventListener('stoa-theme', theme); theme();
   function size(){ const w = host.clientWidth, h = host.clientHeight, pr = R.getPixelRatio(); R.setSize(w, h, false); cam.aspect = w/h; cam.updateProjectionMatrix();
     rt.setSize(Math.round(w*pr), Math.round(h*pr)); qm.uniforms.res.value.set(Math.round(w*pr), Math.round(h*pr)); qm.uniforms.cell.value = Math.max(2, Math.round(1.6*pr)); }
   new ResizeObserver(size).observe(host); size();
+  function scheduleFrame(){ if (!frameId && !document.hidden && alive) frameId = requestAnimationFrame(frame); }
+  document.addEventListener('visibilitychange', () => { if (document.hidden) { cancelAnimationFrame(frameId); frameId = 0; } else scheduleFrame(); });
   function frame(now){
+    frameId = 0; if (document.hidden) return;
     if (!host.isConnected) { alive = false; R.dispose(); return; }
     const t = (now - t0)/1000;
     cx += (mx - cx)*.05; cy += (my - cy)*.05;
@@ -2103,9 +2116,9 @@ async function temple3d(host){
     if (!still) { for (let i = 0; i < N; i++) { dp[i*3+1] += .004 + (i%5)*.0008; dp[i*3] += Math.sin(t*.5 + i)*.002; if (dp[i*3+1] > 8) dp[i*3+1] = 0; } dg.attributes.position.needsUpdate = true; }
     cam.layers.set(0); R.setRenderTarget(rt); R.render(S, cam); R.setRenderTarget(null);
     R.autoClear = true; R.render(qs, qc); R.autoClear = false; R.clearDepth(); cam.layers.set(1); R.render(S, cam); R.autoClear = true;
-    if (!still) requestAnimationFrame(frame);
+    if (!still) scheduleFrame();
   }
-  requestAnimationFrame(frame);
+  scheduleFrame();
   requestAnimationFrame(() => cv.classList.add('on'));
 }
 
@@ -2235,8 +2248,14 @@ function select(x){
   const sym = x.symbol, locus = /\.SS$/.test(sym) ? '上海' : /\.SZ$/.test(sym) ? '深圳' : (/\.HK$/.test(sym) || x.market === '港股') ? '香港' : x.market === 'A股' ? '上海 · 深圳' : '纽约';
   const medium = locus === '香港' ? '港元 · HKD' : locus === '纽约' ? '美元 · USD' : '人民币 · CNY';
   const datum = (x.dates && x.dates[x.dates.length-1]) || updated || '—';
-  $('tag').innerHTML = [['Inv. No.', 'MMXXVI · ' + esc(sym), 1], ['Provenance · 出处', locus], ['Medium · 计价', medium], ['Acquired · 入藏', esc(datum), 1]]
-    .map(([t,v,n]) => `<div><dt>${t}</dt><dd${n?' class="num"':''}>${v}</dd></div>`).join('');
+  const unit = x.currency === 'points' ? '指数点位' : x.currency === 'HKD' ? '港元 · HKD' : x.currency === 'CNY' ? '人民币 · CNY' : x.currency === 'USD' ? '美元 · USD' : medium;
+  const state = x.market_state === 'schedule_open' ? '交易时段' : '非交易时段';
+  const quote = `${x.quote_time || datum}${x.quote_precision === 'date' ? '（源仅提供日期）' : ''}`;
+  const collected = x.retrieved_at ? new Date(x.retrieved_at).toLocaleString('sv-SE', {timeZone:'Asia/Hong_Kong', hour12:false}) : '—';
+  const info = [['代码', sym], ['来源', `${x.source || '未知'}${x.fallback ? ' · 备用源' : ''}`], ['计价', unit],
+    [x.data_kind === 'snapshot' ? '报价快照日期' : '收盘日期', quote], ['市场时区', x.timezone || locus],
+    ['采集时间（UTC+8）', collected], ['当前状态', `${state} · ${x.refresh_failed ? '更新失败，保留旧数据' : x.cached ? '缓存' : '本次采集'}${x.calendar_verified === false ? '（未校验节假日）' : ''}`]];
+  $('tag').innerHTML = info.map(([t,v]) => `<div><dt>${esc(t)}</dt><dd title="${esc(v)}">${esc(v)}</dd></div>`).join('');
   seg(); list(); chart();
 }
 async function loadIndices(){
@@ -2350,7 +2369,7 @@ $('mdl').onclick = e => { e.preventDefault(); e.stopPropagation(); modelMenu(); 
 document.addEventListener('click', e => { if (!e.target.closest('#mdlp')) modelMenu(false); });
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && $('mdlp').classList.contains('on')) modelMenu(false); });
 periods(); loadModels(); seg(); loadIndices(); loadMemory(); loadEvents(); watchAlerts(); setTimeout(() => checkUpdate(false), 4000);
-setInterval(loadIndices, 60*1000);  // 后端非交易时段缓存 10 分钟、交易时段 1 分钟，这里轮询便宜
+visiblePoll(loadIndices, 60*1000);
 addEventListener('resize', () => { seg(); periods(); });
 
 /* ---------- 设置：通用 · 模型 · 记忆 · 自选与行情 · 推送 · 定时 · 工具与接口 · 数据与关于 ---------- */
@@ -2549,10 +2568,11 @@ const PANES = {
     `<button class="x" id="tllm">测试连接</button>`;
   },
   memory: () => {
-    const li = (t, es) => `<ul class="ml">${es.map((e, i) => `<li><i>${roman(i+1)}</i><span>${esc(e)}</span><button class="x" data-del="${t}" data-i="${i}">删除</button></li>`).join('') || '<li><i>—</i><span class="muted">还没有</span><span></span></li>'}</ul><div class="addrow"><input data-add="${t}" placeholder="${t==='user' ? '写一条关于你的事，如：长线持有腾讯，成本 380' : '给 Stoa 记一条笔记'}"><button class="x" data-addb="${t}">添加</button></div>`;
+    const li = (t, es) => `<ul class="ml">${es.map((e, i) => `<li><i>${roman(i+1)}</i><span>${esc(e)}</span><span>${t === 'user' && e.includes('【待确认】') ? `<button class="x" data-confirm="${i}">确认持仓</button> ` : ''}<button class="x" data-del="${t}" data-i="${i}">删除</button></span></li>`).join('') || '<li><i>—</i><span class="muted">还没有</span><span></span></li>'}</ul><div class="addrow"><input data-add="${t}" placeholder="${t==='user' ? '写一条关于你的事，如：长线持有腾讯，成本 380' : '给 Stoa 记一条笔记'}"><button class="x" data-addb="${t}">添加</button></div>`;
     return `<h3>记忆</h3><p class="lead">Stoa 记住的东西都在这里，可以随时改、删。对话里说「记住…」它也会自己写。</p>` +
       grp(`Persona · 关于你 · ${esc(S.memory.usage.user)}`, li('user', S.memory.user)) +
       grp(`Codex · Stoa 的笔记 · ${esc(S.memory.usage.memory)}`, li('memory', S.memory.memory)) +
+      grp('记忆变更记录', `<ul class="ml">${(S.memory.changes || []).slice(0, 10).map(x => `<li><i>${x.target === 'user' ? '人' : '记'}</i><span>${esc(x.summary)}<br><small>${esc(x.time)} · ${x.source === 'agent' ? 'Stoa 写入' : x.source === 'undo' ? '撤销' : '手动修改'}</small></span><button class="x" data-undo="${x.id}">撤销</button></li>`).join('') || '<li><span class="muted">还没有变更记录</span></li>'}</ul>`) +
       grp(`Artes · 技能 · ${(S.memory.skills || []).length}`, `<ul class="ml">${(S.memory.skills || []).map((k, i) => `<li><i>${roman(i+1)}</i><span><b>${esc(k.name)}</b><br><span class="muted">${esc(k.description)} · 用过 ${k.uses} 次 · ${esc(k.updated)}</span><pre class="skb" data-skb="${esc(k.name)}" hidden></pre></span><span><button class="x" data-skv="${esc(k.name)}">查看</button> <button class="x" data-skd="${esc(k.name)}">删除</button></span></li>`).join('') || '<li><i>—</i><span class="muted">还没有。Stoa 做完多步骤分析后会自己把做法存成技能，下次照着做。</span><span></span></li>'}</ul>`) +
       grp('Ratio · 判断账本', ledgerStats(S.memory.stats || {}));
   },
@@ -2692,6 +2712,8 @@ function show(k){
   pane.querySelectorAll('[data-adel]').forEach(b => b.onclick = () => aReq('/api/alerts/delete', {id:b.dataset.adel}));
   if ($('aadd')) { $('akind').onchange = () => { $('aval').disabled = $('akind').value === 'announcement'; }; $('aadd').onclick = () => { const sym = $('asym').value.trim(); if (sym) aReq('/api/alerts/add', {symbol:sym, kind:$('akind').value, value:$('aval').value.trim(), repeat:$('arep').checked}); }; $('acheck').onclick = () => { setSt('检查中…'); aReq('/api/alerts/check', {}); }; }
   const memReq = async (path, body) => { const j = await (await fetch(path, {method:'POST', headers:H, body:JSON.stringify(body)})).json(); setSt(j.msg || j.error || '', /已|added|成功/.test(j.msg || '') ? 'ok' : ''); const s = await (await fetch('/api/settings', {headers:H})).json(); S.memory = s.memory; show('memory'); loadMemory(); };
+  pane.querySelectorAll('[data-confirm]').forEach(b => b.onclick = () => memReq('/api/memory/confirm', {target:'user', text:S.memory.user[+b.dataset.confirm]}));
+  pane.querySelectorAll('[data-undo]').forEach(b => b.onclick = () => memReq('/api/memory/undo', {id:+b.dataset.undo}));
   pane.querySelectorAll('[data-del]').forEach(b => b.onclick = () => memReq('/api/memory/delete', {target:b.dataset.del, text:S.memory[b.dataset.del][+b.dataset.i]}));
   pane.querySelectorAll('[data-addb]').forEach(b => b.onclick = () => { const v = pane.querySelector(`[data-add=${b.dataset.addb}]`).value.trim(); if (v) memReq('/api/memory/add', {target:b.dataset.addb, text:v}); });
   if ($('wadd')) {
@@ -2884,7 +2906,8 @@ function gstep(){
   GALPHA *= .975;
 }
 function gkick(a = .5){ GALPHA = Math.max(GALPHA, a); if (!GRAF) GRAF = requestAnimationFrame(gloop); }
-function gloop(){ if (GALPHA > .02) { gstep(); gstep(); } gdraw(); GRAF = (GALPHA > .02 || GDRAG) ? requestAnimationFrame(gloop) : 0; }
+function gloop(){ if (document.hidden) { GRAF = 0; return; } if (GALPHA > .02) { gstep(); gstep(); } gdraw(); GRAF = (GALPHA > .02 || GDRAG) ? requestAnimationFrame(gloop) : 0; }
+document.addEventListener('visibilitychange', () => { if (!document.hidden && !$('gph').hidden) gkick(); });
 function gfocusSet(){
   const id = GHOV?.id || GSEL?.id; if (id) return new Set([id, ...G.adj[id]]);
   if (GQ) { const s = new Set(); G.nodes.forEach(n => { if (gmatch(n)) { s.add(n.id); G.adj[n.id].forEach(x => s.add(x)); } });
@@ -3110,7 +3133,7 @@ function closeLdg(){ animHide($('ldg')); }
 $('ldgb').onclick = openLdg; $('ldx').onclick = closeLdg;
 $('ldg').addEventListener('click', e => { if (e.target === $('ldg')) closeLdg(); });
 addEventListener('keydown', e => { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'l') { e.preventDefault(); $('ldg').hidden ? openLdg() : closeLdg(); } else if (e.key === 'Escape' && !$('ldg').hidden) closeLdg(); });
-loadNews(); setInterval(loadNews, 20 * 60 * 1000);
+loadNews(); visiblePoll(loadNews, 20 * 60 * 1000);
 
 
 /* ---------- 交互：退场动画 + 只在贴底时跟随滚动 ---------- */
@@ -3243,6 +3266,7 @@ function watchInquiry(id, out){
     }
     if (!IQRUN.has(sm.status)) { clearInterval(timer); IQW.delete(w); loadInquiries(); loadMemory(); }
   }};
+  const tick = w.tick; w.tick = () => { if (!document.hidden) return tick(); };
   IQW.add(w); w.tick(); timer = setInterval(w.tick, 5000);
 }
 async function startInquiry(arg){
@@ -3281,7 +3305,8 @@ async function openInquiry(id, keep){
   if (!keep) $('evw').scrollTop = 0;
   $('evx').hidden = false; $('evc').onclick = () => animHide($('evx'));
 }
-loadInquiries(); setInterval(loadInquiries, 30000);
+loadInquiries(); visiblePoll(loadInquiries, 30000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) IQW.forEach(w => w.tick()); });
 /* ---------- 斜杠命令：执行模式 + 界面操作 ---------- */
 
 $('asfv').onclick = () => openChangelog();

@@ -51,6 +51,18 @@ If no model is configured, the first message opens Settings → Model. Quotes an
 
 Full documentation is in the [Chinese README](README.md).
 
+Code execution is off by default. When explicitly enabled, it requires Docker and a locally built `stoa-sandbox:local` image (`docker build -t stoa-sandbox:local packaging/sandbox`). Each run has no network, a read-only root filesystem and only the workspace mounted. An unavailable runner returns an error; there is no host-Python fallback. The standard Compose service has no Docker access, so its code tool is unavailable. Do not mount the host Docker socket into the app container to enable it.
+
+Quote checks bind recognized stock symbols or known names to quote fields and dates. They do not fully validate arbitrary financial prose, pronouns or cross-paragraph references. A source footnote alone is not proof that a claim is correct.
+
+## Reliability and data checks
+
+- Stopping a conversation terminates its active model request, including retry waits; fallback models share a total deadline. Other tools stop at their next checkpoint.
+- Decorative rendering and quote/news/inquiry polling pause while the page is hidden and resume when visible. Background answers continue.
+- Quote cards expose source, currency or index points, source date, retrieval time, timezone and cache status. Trading hours are weekday/clock estimates without a verified holiday calendar. Financial checks cover recognized companies, fields, currencies and report periods and remain heuristic.
+- New memories distinguish planned, historical, pending and confirmed holdings. Agent-added holdings require confirmation; changes can be audited and undone without overwriting newer edits. Concurrent history/chat requests use thread-local SQLite connections, and memory file reads share the write lock.
+- Updates verify the release asset SHA-256, retain the previous installation and roll back if the backend version fails its startup check.
+
 ## License
 
 MIT. Third-party assets are listed in the Chinese README under 素材.
