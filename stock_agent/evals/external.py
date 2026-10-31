@@ -142,7 +142,7 @@ def judge_fsc(item: dict, ans: str, llm) -> dict:
 
 def summarize(path: Path, suite: str) -> dict:
     rows = [json.loads(x) for x in open(path, encoding="utf-8")] if path.exists() else []
-    rows = [r for r in rows if "error" not in r.get("grade", {})]
+    rows = list({r["id"]: r for r in rows if "error" not in r.get("grade", {})}.values())  # 同一题重跑过：按 id 去重，取最后一次
     if not rows:
         return {"n": 0}
     if suite == "vals":
@@ -164,11 +164,12 @@ def main(argv=None):
     ap.add_argument("--out", default="data/external")
     ap.add_argument("--limit", type=int, default=0, help="本次最多跑几题（续跑用）")
     ap.add_argument("--summary", action="store_true")
+    ap.add_argument("--tag", default="", help="输出文件名后缀，如 2 → vals-stoa2.jsonl（改进前后分开存）")
     a = ap.parse_args(argv)
     data, out = Path(a.data), Path(a.out)
     data.mkdir(parents=True, exist_ok=True)
     out.mkdir(parents=True, exist_ok=True)
-    path = out / f"{a.suite}-{a.mode}.jsonl"
+    path = out / f"{a.suite}-{a.mode}{a.tag}.jsonl"
     if a.summary:
         print(json.dumps(summarize(path, a.suite), ensure_ascii=False))
         return
