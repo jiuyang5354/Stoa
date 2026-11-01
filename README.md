@@ -496,6 +496,17 @@ Actions 页面也可以手动点 “Run workflow” 立即生成一份。
 - 背景岩壁与 3D 神庙石材：ambientCG「Travertine 009」（https://ambientcg.com/view?id=Travertine009），CC0。stock_agent/assets/travertine009_color.jpg 为原 1K 颜色图（重新压缩）；travertine009_normal.jpg 为原 NormalGL 叠加由颜色图亮度推导的浅浮雕法线（原法线图几乎是平的，这块是抛光板材）；travertine009_roughness.jpg 为原粗糙度图拉伸到 0.45–0.85 并缩到 512（原图接近镜面）。
 - 首页标题字体：Archeologicaps（dafont，标注 100% Free），stock_agent/assets/archeologicaps.woff2，已子集化为 ASCII。
 
+## 自进化（v0.39 · Eruditio）
+参考 Hermes Agent v0.22（2026-10-13）的后台复盘与 curator、RRSI（arXiv 2609.24972）的训练/留出防过拟合、Google Harness²（arXiv 2610.14224）的同条件对比。只改数据目录里的技能、提示补充和笔记；代码、风控红线、出处核对、注入防护、guards 硬约束都不会被自动改。
+- **在线复盘**（`stock_agent/evolve.py`）：每轮快问结束后，如果用过 ≥ 3 个工具（`evolve.review_min_tools`，两次间隔 ≥ 300 秒）或你在纠正上一轮，后台用辅助模型（`evolve.review_model` / `EVOLVE_REVIEW_MODEL`，留空用 Agora 分析师模型）复盘一次，不阻塞回答：走通的研究套路写成新技能；你的纠正写进最对口的技能「纠正与坑」并记一条 MEMORY.md；纠正若是词表 / 简称漏网，交给 v0.36 点踩管线出候选规则和回放题。读到疑似注入内容的一轮、定时任务、评测都不复盘。`EVOLVE_REVIEW=off` 关掉
+- **按模型分开记**：复盘和进化新建的技能、给已有技能加的做法（存成按模型附上的笔记，不改原文件）、提示补充、工具描述补充，都记下在哪个模型上得来 / 验证；换模型（尤其更小的）不会自动套用，`python -m stock_agent evolve gate --model <名字>` 在新模型上过闸门（训练、留出都不退步）后才生效。你给的纠正是事实，所有模型都用
+- **Curator**（`stock_agent/curator.py`）：只管 Agent / 复盘 / 进化写的技能，钉住的、你自己的、内置的不动。14 天没用变「不常用」（系统提示里只列名字），30 天移到 `skills/.archive/`（可恢复）；重复技能按相似度合并；系统提示最多完整列 20 个自己的技能。每 24 小时检查一次（`evolve.curator`），`python -m stock_agent evolve curator [--dry-run]` 手动跑，报告在 `data/evolve/curator/`
+- **离线进化** `python -m stock_agent evolve`：读失败轨迹（点踩、回归题回放失败、最近一次评测失败、`--failures` 文件）→ 辅助模型提候选（技能 / 提示补充 / 工具描述补充；代码只出补丁）→ critic 拒掉太大（> 1200 字）、写了题号 / 题目原文 / 题里数字（针对特定题）、削弱红线、试过没通过的改动 → 闸门：题目按 id 哈希稳定分训练 / 留出（默认 35%，留出题的失败不给提议者看），训练题平均分提升且留出题不退步才算过；每个候选的改动数随轮次递减（`gate.max_edits` 起，每轮减 1）。`--tasks cases,replay,<jsonl>`、`--only`、`--concurrency`（≤ 4）、`--dry-run`。报告 `data/evolve/runs/<时间>.md`
+- **写入闸门**：`evolve.write_approval`（或 `EVOLVE_APPROVAL=skills=auto,memory=auto,prompts=approve,rules=approve`）。默认技能 / 笔记直接生效，提示与规则进「待确认」；风控（全仓 / 杠杆 / 保证收益提示、失效条件、止损仓位、免责）、出处与核对、注入防护、确认 / 批准相关的改动永远要你批准（`stock_agent/redline.py`），明显削弱这些的改动或带注入指令的文字直接拦下；代码改动只写成 `data/evolve/patches/*.diff` 供人审
+- **版本与回滚**：每次自进化写入都记进 `data/evolve.db`（改前 / 改后原文、来源、模型、闸门分数、红线判断）；`python -m stock_agent evolve rollback [<id>|--last]` 或界面一键回滚（同一对象有更新的改动时先回滚那次）；`evolve status` 列出最近改动
+- **界面**：设置 → 学到的东西（`/learned`）：概览、待批准（带训练 / 留出分数）、时间线（可回滚）、技能生命周期（钉住 / 恢复）、离线进化记录（含输入 token 与缓存命中）、复盘开关与审批设置
+- 模型用量新增缓存命中统计（`cached_tokens`：OpenAI `prompt_tokens_details.cached_tokens`、Anthropic `cache_read_input_tokens` 等）
+
 ## 修复（v0.38.1）
 - 单次模型请求超时（默认 120 秒，含 429/5xx 重试）只算这一次失败：`Router.chat` 每个模型各自一个请求窗口（不超过整轮硬上限），超时抛 `RequestTimeout` 并换备用模型；`Agent._chat` 在整轮还有时间时按退避重试（`LLM_TIMEOUT_RETRIES`，默认 3）。整轮硬上限到了抛 `TurnTimeout`，用已拿到的工具结果和模型的中间结论收尾；重试用完则写明「模型请求连续 N 次超时，本轮用时 X 秒」，不再冒充「到了 900 秒上限」
 - 引用核对：句子绑定了某个标的，但数字来自同一标的的其它数据（南向资金、资金流）或本轮计算（calc 合计）时也算有出处；涨停池与板块资金流分开登记出处，板块数字挂实际数据源（东方财富或新浪）的页面；网页/无数据日期的结果标「抓取于」、不计入数据日期，回答把今天或周末写成「最新交易日/收盘」日期会被核出；计算结果不标日期

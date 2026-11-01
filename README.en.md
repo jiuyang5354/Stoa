@@ -63,6 +63,18 @@ Quote checks bind recognized stock symbols or known names to quote fields and da
 - New memories distinguish planned, historical, pending and confirmed holdings. Agent-added holdings require confirmation; changes can be audited and undone without overwriting newer edits. Concurrent history/chat requests use thread-local SQLite connections, and memory file reads share the write lock.
 - Updates verify the release asset SHA-256, retain the previous installation and roll back if the backend version fails its startup check.
 
+## v0.39 · Eruditio — self-evolution
+
+Modeled on Hermes Agent v0.22 (background review + curator), RRSI (arXiv 2609.24972: train/held-out split against overfitting) and Google Harness² (arXiv 2610.14224: matched-condition contrasts). Only skills, prompt additions and notes in the data folder change; code, risk red lines, citation checks, injection defenses and guard constraints are never changed automatically.
+
+- **Background review**: after a quick answer that used ≥ 3 tools (or when you correct the previous answer), an auxiliary model (`evolve.review_model`, default: the Agora analyst model) reviews the turn without blocking it. Working research recipes become skills; your corrections go into the matching skill and MEMORY.md; lexicon/alias misses are routed to the v0.36 thumbs-down pipeline. Turns that read suspected injected content, scheduled runs and evals are never reviewed. `EVOLVE_REVIEW=off` disables it.
+- **Per-model records**: evolved skills, notes added to existing skills, prompt and tool-description additions record the model they were learned/validated on and are not applied to a different (especially smaller) model until `python -m stock_agent evolve gate --model <name>` passes on it. Your own corrections apply to every model.
+- **Curator**: agent/review/evolve skills go stale after 14 idle days (index lists names only) and are archived after 30 (recoverable); near-duplicates are merged; at most 20 own skills are listed in full. Pinned, user and built-in skills are untouched.
+- **Offline evolution** `python -m stock_agent evolve`: failure traces (thumbs-down, failing replay cases, latest eval, `--failures` file) → candidate edits (skills, prompt/tool-description additions; code only as patches) → critic (too large, task-specific ids/text/numbers, red-line weakening, already tried) → gate: tasks split by id hash into train/held-out (35%, held-out failures hidden from the proposer); a candidate passes only if train improves and held-out does not regress; edits per candidate anneal per round.
+- **Write gate**: `evolve.write_approval` (default skills/memory auto, prompts/rules approve). Changes touching risk warnings, sources/verification, injection defenses or confirmation always require approval; weakening edits are blocked; code changes are written as patches for review.
+- **Versions & rollback**: every write is recorded (before/after, origin, model, gate scores); `evolve rollback [<id>|--last]` or one click in Settings → Learned (`/learned`).
+- Usage now tracks cached input tokens (`cached_tokens`).
+
 ## v0.38.1
 
 - **A slow model request no longer ends the turn**: a single request that exceeds its 120-second window (including its own 429/5xx retries) is retried with backoff or switched to the fallback model while the turn still has time (`LLM_TIMEOUT_RETRIES`, default 3). Only the real turn limit, or exhausted retries, ends the turn — with the tool results and interim notes gathered so far and the real cause and elapsed time, never an empty "reached the 900-second limit".
