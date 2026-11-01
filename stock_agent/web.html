@@ -911,6 +911,18 @@
   .pbr li{cursor:pointer}.pbr li.on{background:rgba(158,123,86,.08)}
   .pbr li em{font:italic var(--fs0) var(--serif);color:var(--mute);font-style:italic}
   .pbx{display:inline-flex;margin-top:10px;border-color:var(--rule-2)}.pbx:hover{border-color:var(--bronze);color:var(--bronze)}
+  /* ---- Eruditio · 学到的东西：时间线一条一行，状态只用字色，回滚是唯一按钮 ---- */
+  .evt td,.evt th{white-space:nowrap;padding-left:14px}.evt td:first-child,.evt th:first-child{padding-left:0}
+  .evt td:nth-child(2){text-align:left;font:var(--fs0) var(--cn);white-space:normal;width:100%}
+  .evt td:nth-child(3),.evt td:nth-child(5){font:var(--fsn1) var(--cn)}.evt td:nth-child(4){font:italic var(--fsn1) var(--serif);color:var(--ink-2)}
+  .evt td:first-child{font:var(--fsn1) var(--serif)!important;color:var(--mute);white-space:nowrap;width:1%}
+  .evt td .x{padding:2px 8px;font-size:var(--fsn2)}
+  .evt .st-active{color:var(--ink)}.evt .st-pending{color:var(--bronze)}.evt .st-rolled_back,.evt .st-rejected{color:var(--mute);text-decoration:line-through}
+  .evt .st-blocked{color:var(--up,#B3543A)}.evt .st-patch{color:var(--mute);font-style:italic}
+  .evt tr.mut td{color:var(--mute)}
+  .evs td:first-child{font:var(--fs0) var(--serif)!important}.evs td{white-space:nowrap;padding-left:14px}.evs td:first-child{padding-left:0;width:100%}
+  .evs th{padding-left:14px;white-space:nowrap}.evs th:first-child{padding-left:0}.evs td:nth-child(5){font:italic var(--fsn1) var(--serif);color:var(--ink-2)}.evs td .x{padding:2px 8px;font-size:var(--fsn2)}.evs tr.mut td{color:var(--mute)}.evs td:nth-child(2){font:var(--fsn1) var(--cn)}
+  .evk{font:500 var(--fsn3) var(--sans);letter-spacing:.16em;text-transform:uppercase;color:var(--mute);margin-right:8px}
   .skb{white-space:pre-wrap;font:var(--fsn1)/1.6 var(--sans);margin:8px 0 0;padding:10px 12px;border:1px solid var(--rule);background:rgba(var(--hi-rgb),.35)}
   .ml li{display:grid;grid-template-columns:minmax(28px,max-content) 1fr auto;gap:10px;align-items:baseline;padding:10px 0;border-bottom:1px solid var(--rule);font-size:var(--fs0)}
   .ml li i{font:500 var(--fsn2) var(--display);font-style:normal;color:var(--mute)}
@@ -2454,6 +2466,40 @@ async function loadPb(id){
   S.pb = {list: L, cur, evals, learn, trials: BJ.trials || {}}; if (scur === 'probatio' && !$('set').hidden) show('probatio');
   clearTimeout(loadPb.t); if (L.some(x => x.status === 'running')) loadPb.t = setTimeout(() => loadPb(id), 4000);
 }
+/* Eruditio：自进化学到的东西 · 待批准 · 时间线（可回滚）· 技能生命周期 · 离线进化记录 */
+async function loadEv(){ try { S.ev = await (await fetch('/api/evolve', {headers:H})).json(); } catch (_) { S.ev = {error: 1}; } if (scur === 'eruditio' && !$('set').hidden) show('eruditio'); }
+function evHTML(){
+  const E = S.ev, head = `<h3>学到的东西</h3><p class="lead">Stoa 从对话和失败里学到的做法。每次改动都有版本，可以回滚；风控、出处、确认相关的改动永远要你批准。</p>`;
+  if (!E) return head + `<p class="muted">读取中…</p>`;
+  if (E.error) return head + `<p class="muted">读取失败</p>`;
+  const st = E.stats || {}, f1 = v => v == null ? '—' : (+v * 100).toFixed(0), pct = a => a ? `${f1(a[0])}→${f1(a[1])}` : '—';
+  const KN = {skill: '技能', skillnote: '技能笔记', prompt: '提示', tooldesc: '工具描述', memory: '笔记', code: '补丁', rule: '规则'};
+  const ON = {review: '复盘', evolve: '进化', curator: '整理'};
+  const kpi = `<div class="pbh"><b>${st.active || 0}</b><div><span class="pbk">生效中的改动 · 当前模型 ${esc(E.model || '—')}</span><small>复盘/进化技能 ${st.skills_learned || 0} · 待批准 ${st.pending || 0} · 已回滚 ${st.rolled_back || 0} · 拦下 ${st.blocked || 0}</small></div></div>`;
+  const pend = (E.pending || []).map((c, i) => `<li><i>${roman(i + 1)}</i><span><b>${esc(c.summary || c.target)}</b><br><span class="muted">${KN[c.kind] || c.kind} · ${ON[c.origin] || c.origin} · ${esc(c.model || '全部模型')}${c.gate ? ` · 训练 ${pct(c.gate.train)} · 留出 ${pct(c.gate.holdout)}` : ''}${c.redline && c.redline.level === 'touch' ? ' · 红线：' + esc(c.redline.why) : ''}</span></span><span style="display:flex;gap:6px">${c.approval_id ? `<button class="x dark" data-evok="${esc(c.approval_id)}">批准</button><button class="x" data-evno="${esc(c.approval_id)}">拒绝</button>` : ''}</span></li>`).join('');
+  const tl = (E.changes || []).slice(0, 24).map(c => `<tr class="${c.status === 'active' || c.status === 'pending' ? '' : 'mut'}"><td>${esc((c.ts || '').slice(5, 16))}</td><td><span class="evk">${KN[c.kind] || c.kind}</span>${esc(c.summary || c.target)}</td><td>${ON[c.origin] || esc(c.origin)}</td><td>${esc(c.model || '全部')}</td><td class="st-${c.status}">${esc(c.status_name)}</td><td>${c.status === 'active' ? `<button class="x" data-evrb="${esc(c.id)}">回滚</button>` : ''}</td></tr>`).join('');
+  const SN = {active: '常用', stale: '不常用', archived: '已归档'};
+  const own = (E.skills || []).filter(k => !k.builtin);
+  const sk = own.map(k => `<tr class="${k.applies === false ? 'mut' : ''}"><td>${esc(k.name)}</td><td>${SN[k.state] || k.state}${k.pinned ? ' · 钉住' : ''}</td><td>${k.uses || 0}</td><td>${esc((k.last_used || k.updated || '').slice(5, 10)) || '—'}</td><td>${esc((k.models || []).join(' ') || '全部')}</td><td><button class="x" data-evpin="${esc(k.name)}" data-on="${k.pinned ? 0 : 1}">${k.pinned ? '取消钉住' : '钉住'}</button></td></tr>`).join('') +
+    (E.archived || []).map(k => `<tr class="mut"><td>${esc(k.name)}</td><td>已归档${k.absorbed_into ? ' → ' + esc(k.absorbed_into) : ''}</td><td>${k.uses || 0}</td><td>${esc((k.archived_at || '').slice(5, 10))}</td><td>—</td><td><button class="x" data-evrs="${esc(k.name)}">恢复</button></td></tr>`).join('');
+  const runs = (E.runs || []).map(r => { const u = r.usage || {}; return `<tr><td>${esc((r.created || '').slice(5, 16))}</td><td>${esc(r.model || '')}</td><td>${r.tasks}</td><td>${esc(r.train[0])}→${esc(r.train[1])}</td><td>${esc(r.holdout[0])}→${esc(r.holdout[1])}</td><td>${r.passed}/${r.candidates}</td><td>${r.applied}</td><td>${u.prompt_tokens ? Math.round(u.prompt_tokens / 1000) + 'k' : '—'}<small>${u.cached_tokens ? '缓存 ' + Math.round(u.cached_tokens / 1000) + 'k' : ''}</small></td></tr>`; }).join('');
+  const cur = E.curator ? `<p class="lsn">${esc(E.curator.summary)} · ${esc((E.curator.at || '').slice(5, 16))}</p>` : '';
+  return head + grp('Summa · 概览', kpi) +
+    (pend ? grp(`Pendentia · 待批准 · ${(E.pending || []).length}`, `<ul class="ml">${pend}</ul>`) : '') +
+    grp('Fasti · 时间线', tl ? `<table class="pbt evt"><tr><th>时间</th><th style="text-align:left;padding-left:14px">改动</th><th>来源</th><th>模型</th><th>状态</th><th></th></tr>${tl}</table>` : `<p class="muted">还没有。对话里纠正它一次，或命令行 <span class="ep">python -m stock_agent evolve</span>。</p>`) +
+    grp(`Artes · 技能 · ${own.length}`, (sk ? `<table class="pbt evs"><tr><th>技能</th><th>状态</th><th>用过</th><th>最近</th><th>模型</th><th></th></tr>${sk}</table>` : `<p class="muted">还没有自己写的技能。</p>`) + cur) +
+    grp('Probatio · 离线进化', runs ? `<table class="pbt"><tr><th>时间</th><th>模型</th><th>题</th><th>训练</th><th>留出</th><th>过闸</th><th>采用</th><th>输入 token</th></tr>${runs}</table>` : `<p class="muted">还没跑过。训练题有提升、留出题不退步才会生效。</p>`) +
+    grp('Regula · 设置', field('EVOLVE_REVIEW') + field('EVOLVE_REVIEW_MODEL') + field('EVOLVE_APPROVAL') + `<div class="addrow" style="justify-content:space-between"><small class="muted">技能整理：14 天没用变不常用，30 天归档，重复的合并</small><button class="x" id="evcur">现在整理</button></div>`);
+}
+function bindEv(pane){
+  if (!S.ev) { loadEv(); return; }
+  const post = async (path, body) => { const j = await (await fetch(path, {method:'POST', headers:H, body:JSON.stringify(body)})).json(); setSt(j.msg || j.error || (j.status === 'approved' ? '已批准' : j.status === 'rejected' ? '已拒绝' : ''), j.error ? 'bad' : 'ok'); S.ev = null; loadEv(); };
+  pane.querySelectorAll('[data-evrb]').forEach(b => b.onclick = () => post('/api/evolve/rollback', {id: b.dataset.evrb}));
+  pane.querySelectorAll('[data-evpin]').forEach(b => b.onclick = () => post('/api/evolve/pin', {name: b.dataset.evpin, on: b.dataset.on === '1'}));
+  pane.querySelectorAll('[data-evrs]').forEach(b => b.onclick = () => post('/api/evolve/restore', {name: b.dataset.evrs}));
+  pane.querySelectorAll('[data-evok],[data-evno]').forEach(b => b.onclick = () => post('/api/approvals/' + (b.dataset.evok || b.dataset.evno), {decision: b.dataset.evok ? 'approve' : 'reject'}));
+  if ($('evcur')) $('evcur').onclick = () => post('/api/evolve/curator', {});
+}
 /* Emendatio：点踩账本 · 按层统计 · 修后是否复发 · 已入库可撤销 */
 function emendHTML(L){
   if (!L) return '';
@@ -2475,7 +2521,7 @@ function bindPb(pane){
     setSt(j.error ? j.error : '回测已开始，约一两分钟', j.error ? 'bad' : 'ok'); loadPb(j.id);
   };
 }
-const SECS = [['general','通用'],['model','模型'],['memory','记忆'],['probatio','回测与评测'],['data','自选与行情'],['push','推送渠道'],['tasks','定时与提醒'],['tools','工具与接口'],['mcp','MCP 服务器'],['about','数据与关于']];
+const SECS = [['general','通用'],['model','模型'],['memory','记忆'],['eruditio','学到的东西'],['probatio','回测与评测'],['data','自选与行情'],['push','推送渠道'],['tasks','定时与提醒'],['tools','工具与接口'],['mcp','MCP 服务器'],['about','数据与关于']];
 let S = null, dirty = {}, wl = null, scur = 'general';
 const setSt = (t, c='') => { const e = $('sst'); e.textContent = t; e.className = 'st ' + c; };
 function openSettings(sec){
@@ -2621,6 +2667,7 @@ const PANES = {
       grp(`Artes · 技能 · ${(S.memory.skills || []).length}`, `<ul class="ml">${(S.memory.skills || []).map((k, i) => `<li><i>${roman(i+1)}</i><span><b>${esc(k.name)}</b><br><span class="muted">${esc(k.description)} · 用过 ${k.uses} 次 · ${esc(k.updated)}</span><pre class="skb" data-skb="${esc(k.name)}" hidden></pre></span><span><button class="x" data-skv="${esc(k.name)}">查看</button> <button class="x" data-skd="${esc(k.name)}">删除</button></span></li>`).join('') || '<li><i>—</i><span class="muted">还没有。Stoa 做完多步骤分析后会自己把做法存成技能，下次照着做。</span><span></span></li>'}</ul>`) +
       grp('Ratio · 判断账本', ledgerStats(S.memory.stats || {}));
   },
+  eruditio: () => evHTML(),
   probatio: () => {
     if (!S.pb) return `<h3>回测与评测</h3><p class="lead">读取中…</p>`;
     const L = S.pb.list, r = S.pb.cur, E = S.pb.evals, f1 = v => v == null ? '—' : (+v).toFixed(1), sg = v => v == null ? '—' : (v >= 0 ? '+' : '') + (+v).toFixed(1) + '%';
@@ -2755,6 +2802,7 @@ function show(k){
   if (k === 'mcp') bindMcp(pane);
   if (k === 'model') bindModelPane(pane);
   if (k === 'probatio') bindPb(pane);
+  if (k === 'eruditio') bindEv(pane);
   const aReq = async (path, body) => { const j = await (await fetch(path, {method:'POST', headers:H, body:JSON.stringify(body)})).json(); setSt(j.msg || j.error || (j.events ? `检查完毕，新触发 ${j.events.length} 条` : ''), j.error ? '' : 'ok'); S.pa = await (await fetch('/api/alerts', {headers:H})).json(); show('tasks'); };
   if (k === 'tasks') { bindTasks(pane); if (!TASKS || APPROV === null) loadTasks(); }
   pane.querySelectorAll('[data-adel]').forEach(b => b.onclick = () => aReq('/api/alerts/delete', {id:b.dataset.adel}));
@@ -3422,6 +3470,7 @@ const CMDS = [
   {c: '/ledger', g: '界面', d: '账本与记忆', k: 'Ctrl+L', run: () => openLdg()},
   {c: '/graph', g: '界面', d: '记忆图谱', k: 'Ctrl+G', run: () => openGraph()},
   {c: '/backtest', g: '界面', d: '回测与评测', run: () => openSettings('probatio')},
+  {c: '/learned', g: '界面', d: '学到的东西（自进化）', run: () => { S && (S.ev = null); openSettings('eruditio'); }},
   {c: '/model', g: '界面', d: '切换本对话的模型', run: () => { const b = $('mdl'); if (b && !b.hidden) b.click(); else openSettings('model'); }},
   {c: '/poster', g: '界面', d: '战报长图：最近一次早晚报排成竖版图，可存 PNG', run: () => window.open('/poster' + (token ? `?token=${encodeURIComponent(token)}` : ''), '_blank')},
   {c: '/export', g: '界面', d: '把当前对话导出成 Markdown', run: () => exportSession(sid)},
