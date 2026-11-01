@@ -1207,6 +1207,7 @@ class Agent:
         self._cur_text = text
         self._turn_cache = {}
         self._steps, self._thoughts, self._why = [], [], ""
+        self._queries = []
         self._begin_sources(text)
         # 「深度分析 X」「该不该买 X」：直接开 Agora 辩论，不先绕一圈单 agent
         from . import debate
@@ -1331,7 +1332,7 @@ class Agent:
                     nudge, kind = None, ""
                     try:
                         if "stale" not in gated:
-                            nudge, kind = gates.stale_facts(text, reply, set(getattr(self, "_used_now", ()) or ())), "stale"
+                            nudge, kind = gates.stale_facts(text, reply, set(getattr(self, "_used_now", ()) or ()), getattr(self, "_queries", [])), "stale"
                         if not nudge and "code" not in gated:
                             nudge, kind = gates.code_issues(text, reply, gates.sandbox_runner()), "code"
                         if not nudge and "gap" not in gated and n_tools:
@@ -1425,6 +1426,8 @@ class Agent:
                 emit({"t": "tool", "i": i, "id": c["id"], "name": name, "label": TOOL_LABELS.get(name, name), "arg": _arg_brief(c["function"].get("arguments"))})
             try:
                 args = json.loads(c["function"].get("arguments") or "{}")
+                if name in ("web_search", "get_news") and (args.get("query") or args.get("keyword")):  # v0.38：时效闸门看本轮查过什么
+                    self.__dict__.setdefault("_queries", []).append(str(args.get("query") or args.get("keyword")))
                 key = name + json.dumps(args, sort_keys=True, ensure_ascii=False)
                 if name not in SIDE_EFFECT_TOOLS and key in cache:
                     result, hit = cache[key], True

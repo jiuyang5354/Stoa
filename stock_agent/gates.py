@@ -21,9 +21,14 @@ STALE_NUDGE = ("[系统：回答里写到了人事/职位/在任情况（{hit}�
                "或公司公告、SEC 8-K item 5.02 核对当前情况，确认后再写；查不到最新信息就明确写「截至某日的公开信息」。然后给出完整的最终回答：保留原回答里仍然成立的全部内容（结构、表格、计算），只改需要核对的那几句；不要写成「修正版/补充说明」，不要提到之前的草稿、「上一条」或这条提示。]")
 
 
-def stale_facts(question: str, reply: str, used: set) -> str | None:
-    """回答里有「X 继续担任董事长」这类时效敏感断言，但本轮没用过任何联网/公告工具 → 返回打回提示。"""
-    if used & WEB_TOOLS:
+ROLE_CHECK_TOOLS = {"get_announcements", "sec_filings", "regulatory_letters", "hk_interests", "get_insiders"}
+
+
+def stale_facts(question: str, reply: str, used: set, queries=()) -> str | None:
+    """回答里有「X 继续担任董事长」这类时效敏感断言，但本轮没有专门核对过人事 → 返回打回提示。
+    「核对过」= 查过公告/SEC 申报，或某次 web_search / 新闻检索的关键词里就有职位词（董事长/CEO/chairman…）。
+    只读了一份旧文件（如 2 月的股东信）不算：信里写的「仍任董事长」到今天可能已经变了（盲评 Q31）。"""
+    if used & ROLE_CHECK_TOOLS or any(ROLE.search(q or "") for q in queries):
         return None
     body = re.split(r"\n—— 来源 ——|\n-- Sources --", reply or "")[0]
     for sent in re.split(r"(?<=[。！？!?\n])|(?<=\.)\s", body):

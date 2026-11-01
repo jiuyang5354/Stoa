@@ -141,7 +141,9 @@ def test_stale_fact_gate():
     from stock_agent import gates
     r = "格雷格·阿贝尔已接任首席执行官；巴菲特继续担任董事会主席。"
     assert gates.stale_facts("总结伯克希尔最近一封致股东信", r, set())
-    assert gates.stale_facts("总结伯克希尔最近一封致股东信", r, {"web_search"}) is None
+    assert gates.stale_facts("总结伯克希尔最近一封致股东信", r, {"web_search", "doc_digest"}, ["Berkshire 2025 shareholder letter pdf"])  # 只读了旧信件
+    assert gates.stale_facts("总结伯克希尔最近一封致股东信", r, {"web_search"}, ["Berkshire Hathaway chairman 2026"]) is None
+    assert gates.stale_facts("总结伯克希尔最近一封致股东信", r, {"get_announcements"}) is None
     assert gates.stale_facts("茅台股价", "茅台收盘 1392 元。", set()) is None
 
 
