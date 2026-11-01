@@ -226,6 +226,26 @@ def auto_load(text: str, limit: int = 2, model=None) -> list[dict]:
             bump(name)
             if len(out) >= limit:
                 break
+    # v0.39.1：复盘新建的技能带 auto 触发词（只收本轮提问里出现过的词），同类提问也自动附上；只在验证过的模型上、未归档/未过时的
+    if len(out) < limit and model is not None:
+        bi = _builtin()
+        for p in sorted(_dir().glob("*.md")):
+            if p.stem in bi or len(out) >= limit:
+                continue
+            e = meta(p.stem)
+            if e.get("created_by") not in CURATED or e.get("state") in ("archived",) or not applies(p.stem, model, e):
+                continue
+            m = _parse(p.read_text(encoding="utf-8"))
+            pat = m.get("auto")
+            if not pat:
+                continue
+            try:
+                hit = re.search(pat, text or "")
+            except re.error:
+                continue
+            if hit:
+                out.append({"name": p.stem, "description": m.get("description", ""), "content": _with_notes(p.stem, m["body"], model), "hit": hit.group(0)})
+                bump(p.stem)
     return out
 
 
