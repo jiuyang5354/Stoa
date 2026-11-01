@@ -82,7 +82,62 @@ def cik_lookup(query: str) -> dict:
     if ms:
         return {"cik": ms[0]["cik"], "name": ms[0]["name"], "ticker": None, "matches": ms[:5],
                 "note": "代码不在现行代码表里（可能已退市/改名），按公司名匹配；确认 matches 里是不是你要的公司"}
+    if re.fullmatch(r"[A-Z]{1,5}(?:-[A-Z])?", t):  # v0.38：已退市/被收购的代码（GTLS）不在现行代码表 → 全文检索里找申报人显示名带这个代码的公司
+        hit = delisted_cik(t)
+        if hit:
+            return hit
     return {"error": f"SEC 找不到「{q}」。退市或改名的公司请改用公司全名（如 Seagen），或直接给 CIK"}
+
+
+def delisted_cik(t: str) -> dict | None:
+    """申报文件封面/正文常写「NYSE: GTLS」；EFTS 命中的 display_names 形如「CHART INDUSTRIES INC  (GTLS, GTLS-PB)  (CIK 0000892553)」。"""
+    for q in (f'"NYSE: {t}"', f'"NASDAQ: {t}"', f'"Nasdaq: {t}"', f'"({t})"'):
+        try:
+            d = _fetch("https://efts.sec.gov/LATEST/search-index", params={"q": q}, ttl=86400)
+        except Exception:
+            continue
+        for h in (d.get("hits") or {}).get("hits") or []:
+            for dn in h.get("_source", {}).get("display_names") or []:
+                m = re.match(r"\s*(.+?)\s+\(([^)]*)\)\s+\(CIK (\d+)\)", dn)
+                if m and t in [x.strip() for x in m.group(2).split(",")]:
+                    return {"cik": m.group(3).zfill(10), "name": m.group(1).strip(), "ticker": t,
+                            "note": f"{t} 已不在 SEC 现行代码表（多半已退市/被收购），按申报人显示名匹配到 {m.group(1).strip()}"}
+    return None
+
+
+MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
+CLOSE_FORMS = ["DEFM14A", "PREM14A", "SC 14D9", "SC TO-T", "S-4", "424B3", "8-K", "DEFA14A", "425"]
+
+
+def sec_close(symbol: str, date: str) -> dict | None:
+    """退市/被收购代码某日收盘价：合并委托书（DEFM14A/PREM14A）、要约文件、S-4 常写「On July 28, 2025, … the closing price of … was $171.65」。"""
+    try:
+        cik, name = _cik(symbol)
+    except LookupError:
+        return None
+    d = datetime.fromisoformat(date[:10])
+    phrase = f"{MONTHS[d.month - 1]} {d.day}, {d.year}"
+    try:
+        r = full_text_search(f'"{phrase}" closing price', CLOSE_FORMS, date[:10], (d + timedelta(days=400)).strftime("%Y-%m-%d"), cik, 10)
+    except Exception:
+        return None
+    order = {f: i for i, f in enumerate(CLOSE_FORMS)}
+    hits = sorted(r.get("hits") or [], key=lambda h: order.get(h.get("form") or "", 99))
+    pat = re.compile(re.escape(phrase) + r"[^$]{0,260}?closing (?:sale )?price[^$]{0,120}?\$\s?(\d{1,5}(?:,\d{3})*\.\d{2})|"
+                     r"closing (?:sale )?price[^$]{0,160}?on\s+" + re.escape(phrase) + r"[^$]{0,120}?\$\s?(\d{1,5}(?:,\d{3})*\.\d{2})", re.I | re.S)
+    for h in hits[:5]:
+        try:
+            doc = read_document(h["url"], query=f"closing price {phrase}", max_chars=4000)
+        except Exception:
+            continue
+        for ps in doc.get("passages") or []:
+            m = pat.search(ps.get("text") or "")
+            if m:
+                px = float((m.group(1) or m.group(2)).replace(",", ""))
+                return {"date": date[:10], "close": px, "trading_day": True, "source": f"SEC {h.get('form')}（{name or symbol}）",
+                        "url": h["url"], "filing_date": h.get("filing_date"), "quote": re.sub(r"\s+", " ", m.group(0))[:300],
+                        "note": "Yahoo 已无此代码（退市/被收购）；收盘价取自 SEC 申报文件原文，引用时写明出处"}
+    return None
 
 
 def _cik(symbol: str) -> tuple[str, str]:
@@ -525,6 +580,65 @@ def _agg(rows: list[dict], period: str) -> list[dict]:
     return out
 
 
+def _price_fallback(symbol, dates, lo_f, hi_f, start, end, period, full, warns, err):
+    """v0.38：Yahoo 404 / 数据过期时的备用源。港股指数（恒生科技等）、港股、A股 → 腾讯日线；美股退市/被收购代码 → SEC 申报原文里的收盘价。"""
+    from . import hkdata
+    if hkdata.tx_code(symbol):
+        try:
+            rows, meta = hkdata.tencent_daily(symbol, lo_f, hi_f)
+        except Exception:
+            rows = None
+        if rows:
+            return _summarize(rows, {**meta, "source": "腾讯证券日线（Yahoo 无此代码时的备用源）", "url": hkdata.page_url(meta.get("tencent_code", "")),
+                                     "note": "腾讯指数/个股日线（不复权收盘）。指数区间涨跌＝期末收盘 ÷ 期初前一交易日收盘 − 1（年初至今用上年最后一个交易日收盘）。"},
+                              dates, start, end, period, full, warns)
+    if dates and re.fullmatch(r"[A-Z]{1,5}(?:[.-][A-Z])?", _yahoo_symbol(symbol)):
+        res = [x for x in (sec_close(symbol, d) for d in dates) if x]
+        if res:
+            return {"symbol": _yahoo_symbol(symbol), "source": res[0]["source"], "url": res[0]["url"], "dates": res, "as_of": res[-1]["date"],
+                    "warnings": warns + ["Yahoo 没有该代码的历史日线（多半已退市/被收购），收盘价来自 SEC 申报原文"]}
+    return None
+
+
+def _summarize(rows, meta, dates, start, end, period, full, warns):
+    """备用源的日线复用同一套输出（dates / range）。"""
+    out = {**meta}
+    if warns:
+        out["warnings"] = list(warns)
+    if dates:
+        by = {r["date"]: r for r in rows}
+        res = []
+        for d in dates:
+            if d in by:
+                i = rows.index(by[d])
+                res.append({**by[d], "trading_day": True, "prev_close": rows[i - 1]["close"] if i else None,
+                            "change_pct": round((by[d]["close"] / rows[i - 1]["close"] - 1) * 100, 4) if i else None})
+            else:
+                prev = next((r for r in reversed(rows) if r["date"] < d), None)
+                nxt = next((r for r in rows if r["date"] > d), None)
+                res.append({"date": d, "trading_day": False, "previous_trading_day": prev, "next_trading_day": nxt})
+        out["dates"] = res
+    if start:
+        span = [r for r in rows if start <= r["date"] <= (end or rows[-1]["date"])]
+        if span:
+            pre = next((r for r in reversed(rows) if r["date"] < span[0]["date"]), None)
+            peak, mdd = span[0]["close"], 0.0
+            for r in span:
+                peak = max(peak, r["close"])
+                mdd = min(mdd, (r["close"] / peak - 1) * 100)
+            out["range"] = {"first": span[0], "last": span[-1], "trading_days": len(span), "prev_close_before_start": pre,
+                            "change_pct": round((span[-1]["close"] / span[0]["close"] - 1) * 100, 4),
+                            "change_pct_from_prev_close": round((span[-1]["close"] / pre["close"] - 1) * 100, 4) if pre else None,
+                            "highest_close": max(span, key=lambda r: r["close"]), "lowest_close": min(span, key=lambda r: r["close"]),
+                            "max_drawdown_pct": round(mdd, 4)}
+            if period in ("week", "month", "year"):
+                out["series_" + period] = _agg(span, period)[-400:]
+            elif full or len(span) <= 120:
+                out["series"] = span
+    out["as_of"] = rows[-1]["date"] if rows else None
+    return out
+
+
 def price_history(symbol: str, dates=None, start: str | None = None, end: str | None = None, period: str = "", full: bool = False) -> dict:
     """日线 OHLC。dates 查具体日子；start/end 给区间统计（最高/最低价及日期、最大单日/单周涨跌、最大回撤）；period=week/month/year 聚合。"""
     if isinstance(dates, str):
@@ -536,7 +650,19 @@ def price_history(symbol: str, dates=None, start: str | None = None, end: str | 
     hi = max(dates + ([end] if end else []) + ([start] if start and not end else []))
     lo_f = (datetime.fromisoformat(lo) - timedelta(days=10)).strftime("%Y-%m-%d")
     hi_f = (datetime.fromisoformat(hi) + timedelta(days=10)).strftime("%Y-%m-%d")
-    rows, meta = _yahoo_daily(symbol, lo_f, hi_f)
+    warns = []
+    try:
+        rows, meta = _yahoo_daily(symbol, lo_f, hi_f)
+        if rows and rows[-1]["date"] < (datetime.fromisoformat(lo) - timedelta(days=20)).strftime("%Y-%m-%d"):
+            warns.append(f"Yahoo 返回的最新数据停在 {rows[-1]['date']}，早于所查日期（代码可能已退市或被复用），已改用备用来源")
+            raise LookupError("stale")
+        if not rows:
+            raise LookupError("empty")
+    except Exception as e:
+        alt = _price_fallback(symbol, dates, lo_f, hi_f, start, end, period, full, warns, e)
+        if alt is None:
+            raise
+        return alt
     try:  # 之后所有拆股（窗口外的也要），用于还原当时实际成交价
         p1 = int(datetime.fromisoformat(lo_f).replace(tzinfo=timezone.utc).timestamp())
         j = _fetch(f"https://query1.finance.yahoo.com/v8/finance/chart/{meta['symbol']}", params={"period1": p1, "period2": int(time.time()), "interval": "3mo", "events": "splits"}, ttl=86400)

@@ -104,8 +104,8 @@ TOOLS = [
      "parameters": {"type": "object", "properties": {"symbol": {"type": "string"}}, "required": ["symbol"]}},
     {"name": "web_search", "description": "联网搜索（政策、行业、事件原因等），返回标题、链接、摘要。",
      "parameters": {"type": "object", "properties": {"query": {"type": "string"}, "limit": {"type": "integer"}}, "required": ["query"]}},
-    {"name": "fetch_url", "description": "读取一个网页的正文（新闻、公告详情页、搜索结果里的链接）。",
-     "parameters": {"type": "object", "properties": {"url": {"type": "string"}}, "required": ["url"]}},
+    {"name": "fetch_url", "description": "读取一个网页或 PDF 的正文（新闻、公告详情页、搜索结果里的链接）；没读完会给 next_start，用 start 接着读。整份长文档要完整总结用 doc_digest。",
+     "parameters": {"type": "object", "properties": {"url": {"type": "string"}, "start": {"type": "integer"}}, "required": ["url"]}},
     {"name": "get_fund_flow", "description": "A股个股资金流（日级，近 N 日）：主力净流入、超大单净流入（亿元）、5 日合计；东方财富与新浪两源交叉校验。只支持 A股。",
      "parameters": {"type": "object", "properties": {"symbol": {"type": "string"}, "days": {"type": "integer", "description": "1–60，默认 10"}}, "required": ["symbol"]}},
     {"name": "get_northbound", "description": "北向资金（沪深港通）：每日成交总额；个股北向持股与变化（现为季度披露）。注意 2024-08-19 起交易所不再披露北向每日净买入，取不到的字段为 null。symbol 可省略只看总额。",
@@ -215,6 +215,11 @@ from .volprofile import TOOL_SPECS as _VP_SPECS, TOOL_NAMES as VP_TOOLS  # noqa:
 TOOLS += _VP_SPECS
 from .sweep import TOOL_SPECS as _SWEEP_SPECS  # noqa: E402  批量年报矩阵
 TOOLS += _SWEEP_SPECS
+from . import hkdata as _hk, finmodel as _fm, docread as _doc  # noqa: E402  v0.38：南向/港股权益披露、可比公司与建模、长文档全文
+EXT_MODULES = (_hk, _fm, _doc)
+EXT_TOOLS = {n: mod for mod in EXT_MODULES for n in mod.TOOL_NAMES}
+for _mod in EXT_MODULES:
+    TOOLS += _mod.TOOL_SPECS
 
 
 # 免责只给投资内容：强词本身就是投资语境；弱词（推荐、收益、该不该…）要同时出现投资语境词才算，「推荐一本书」不加免责
@@ -269,7 +274,7 @@ DEEP_TOOLS = EVENT_TOOLS | {"get_fund_flow", "get_northbound", "get_dragon_tiger
 QUANT_TOOLS = {"calc", "price_levels", "financial_bridge", "option_payoff", "trade_replay"}
 FUND_TOOLS = {"get_statements", "earnings_quality", "reverse_dcf", "dcf_scenarios", "regulatory_letters"}
 BIG_TOOLS = {"get_statements", "earnings_quality", "read_filing", "compare_filings", "get_consensus", "get_dragon_tiger",
-             "sec_document", "earnings_release", "earnings_transcript", "sec_xbrl", "sec_filings", "price_history", "macro_series", "cn_data", "sweep_filings"}  # 结果允许更长
+             "sec_document", "earnings_release", "earnings_transcript", "sec_xbrl", "sec_filings", "price_history", "macro_series", "cn_data", "sweep_filings", "fin_model", "doc_digest", "hk_interests"}  # 结果允许更长
 
 
 SIDE_EFFECT_TOOLS = {"confirm_action", "write_file", "task_create", "task_delete", "start_inquiry", "inquiry_resume", "memory", "record_call", "alert_set", "alert_delete", "watchlist", "skill_save", "skill_delete", "run_python", "deep_analysis", "earnings_report"}
@@ -284,7 +289,8 @@ TOOL_LABELS = {"tool_search": "找工具", "sweep_filings": "批量读年报", "
                "option_payoff": "算期权收益", "trade_replay": "行情重放",
                "get_statements": "读原始报表", "earnings_quality": "查盈利质量", "reverse_dcf": "反向 DCF", "dcf_scenarios": "情景估值", "regulatory_letters": "查问询函", "get_insiders": "查内部人交易", "get_short_volume": "看做空",
                "sec_filings": "查 SEC 申报", "sec_document": "读 SEC 原文", "sec_xbrl": "取 XBRL 科目", "sec_search": "SEC 全文检索",
-               "earnings_release": "读业绩新闻稿", "price_history": "查历史行情", "macro_series": "查宏观数据", "cn_data": "查国内数据", "earnings_transcript": "读电话会", "volume_profile": "算成交分布"}
+               "earnings_release": "读业绩新闻稿", "price_history": "查历史行情", "macro_series": "查宏观数据", "cn_data": "查国内数据", "earnings_transcript": "读电话会", "volume_profile": "算成交分布",
+               "get_southbound": "看南向资金", "hk_interests": "查港股权益披露", "fin_model": "建模计算", "doc_digest": "通读长文档"}
 
 
 def _guess_lang(text: str) -> str:
@@ -386,6 +392,8 @@ def quotes(symbols: list[str], check: bool = False) -> dict:
             except Exception:
                 pass
         out[s] = a
+    if os.getenv("QUOTE_TURNOVER", "on").lower() not in ("off", "0", "false"):
+        add_turnover(out)
     if check and os.getenv("QUOTE_CROSSCHECK", "on").lower() not in ("off", "0", "false"):
         from concurrent.futures import ThreadPoolExecutor
         from . import marketdata
@@ -405,6 +413,31 @@ def quotes(symbols: list[str], check: bool = False) -> dict:
                 if cc.get("warnings"):
                     out[s]["warnings"] = cc["warnings"]
     return out
+
+
+def add_turnover(out: dict) -> None:
+    """v0.38（盲评 Q1）：行情里补成交量与成交额（腾讯实时行情），日期和日线收盘日一致才用，不一致就注明是哪天的。"""
+    from concurrent.futures import ThreadPoolExecutor
+    from . import hkdata
+    todo = [s for s, v in out.items() if isinstance(v, dict) and v.get("close") and (hkdata.tx_code(s) or not s.startswith("^"))]
+    if not todo:
+        return
+
+    def one(s):
+        try:
+            return s, hkdata.turnover(s)
+        except Exception:
+            return s, None
+
+    with ThreadPoolExecutor(max(1, min(6, len(todo)))) as ex:
+        for s, t in ex.map(one, todo):
+            if not t:
+                continue
+            v = out[s]
+            t = {k: t[k] for k in ("date", "amount", "amount_yi", "currency", "volume_shares", "volume_lots", "source", "url", "basis") if t.get(k) is not None}
+            if str(v.get("date") or "") and t.get("date") != str(v.get("date")):
+                t["note"] = f"成交额是 {t.get('date')} 的，日线收盘日是 {v.get('date')}，复述时写明日期"
+            v["turnover"] = t
 
 
 def review_due(mem: Memory) -> list[str]:
@@ -644,6 +677,12 @@ class Agent:
                 return (macro if name in MACRO_TOOLS else cndata).run_tool(name, args)
             except Exception as e:
                 return {"error": f"{name} 暂时取不到数据：{str(e)[:160]}"}
+        if name in EXT_TOOLS:
+            try:
+                mod = EXT_TOOLS[name]
+                return mod.run_tool(name, args, agent=self)
+            except Exception as e:
+                return {"error": f"{name} 暂时取不到数据：{str(e)[:160]}"}
         if name in SEC_TOOLS:
             from . import edgar
             try:
@@ -672,7 +711,7 @@ class Agent:
         if name == "web_search":
             return research.web_search(args["query"], int(args.get("limit") or 6))
         if name == "fetch_url":
-            return research.fetch_url(args["url"])
+            return research.fetch_url(args["url"], start=int(args.get("start") or 0))
 
     def _core_tool(self, name, args):
         m = self.mem

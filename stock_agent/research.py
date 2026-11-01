@@ -349,7 +349,29 @@ def _public(host: str) -> bool:
         return False
 
 
-def fetch_url(url: str, max_chars: int = 6000) -> dict:
+def _pdf_result(url: str, data: bytes, max_chars: int, start: int, pages: bool) -> dict:
+    """PDF：逐页抽文本（最多 400 页），按 start 分页返回；pages=True 时附逐页文本给 doc_digest。"""
+    from .filings import pdf_pages
+    try:
+        pp = pdf_pages(data, max_pages=400)
+    except ImportError:
+        return {"url": url, "error": "缺少 PDF 解析库（pypdf），读不了 PDF"}
+    except Exception as e:
+        return {"url": url, "error": f"PDF 解析失败：{str(e)[:80]}"}
+    text = "".join(f"[第 {i + 1} 页]\n{(t or '').strip()}\n\n" for i, t in enumerate(pp))
+    if len(text.strip()) < 50:
+        return {"url": url, "error": "PDF 没有可抽取的文字（可能是扫描件）"}
+    out = {"url": url, "title": "", "kind": "pdf", "pages": len(pp), "total_chars": len(text), "start": start, "text": text[start:start + max_chars],
+           "truncated": start + max_chars < len(text)}
+    if out["truncated"]:
+        out["next_start"] = start + max_chars
+        out["hint"] = "还没读完：给 start=next_start 继续读；要完整总结整份文档用 doc_digest"
+    if pages:
+        out["pdf_pages"] = pp
+    return out
+
+
+def fetch_url(url: str, max_chars: int = 6000, start: int = 0, pages: bool = False) -> dict:
     current = url
     try:
         for _ in range(6):
@@ -368,7 +390,7 @@ def fetch_url(url: str, max_chars: int = 6000) -> dict:
                     return {"url": current, "error": f"网页返回 {r.status_code}"}
                 ctype = r.headers.get("content-type", "")
                 if "pdf" in ctype or u.path.lower().endswith(".pdf"):
-                    return {"url": current, "error": "这是 PDF，暂不支持直接读取，可以让用户打开链接"}
+                    return _pdf_result(current, r.raw.read(40_000_000, decode_content=True), max_chars, max(0, int(start or 0)), pages)
                 raw = r.raw.read(2_000_000, decode_content=True)
                 enc = r.encoding if r.encoding and r.encoding.lower() != "iso-8859-1" else "utf-8"
                 text = raw.decode(enc, errors="ignore")
@@ -394,4 +416,10 @@ def fetch_url(url: str, max_chars: int = 6000) -> dict:
     if sum(map(len, para)) > 300:  # 去掉导航、菜单这类短行
         lines = para
     out = "\n".join(lines)
-    return {"url": current, "title": title, "text": out[:max_chars], "truncated": len(out) > max_chars}
+    start = max(0, int(start or 0))
+    res = {"url": current, "title": title, "text": out[start:start + max_chars], "truncated": start + max_chars < len(out)}
+    if start:
+        res["start"] = start
+    if res["truncated"]:
+        res.update({"total_chars": len(out), "next_start": start + max_chars, "hint": "还没读完：给 start=next_start 继续读；要完整总结整篇用 doc_digest"})
+    return res
