@@ -496,6 +496,15 @@ Actions 页面也可以手动点 “Run workflow” 立即生成一份。
 - 背景岩壁与 3D 神庙石材：ambientCG「Travertine 009」（https://ambientcg.com/view?id=Travertine009），CC0。stock_agent/assets/travertine009_color.jpg 为原 1K 颜色图（重新压缩）；travertine009_normal.jpg 为原 NormalGL 叠加由颜色图亮度推导的浅浮雕法线（原法线图几乎是平的，这块是抛光板材）；travertine009_roughness.jpg 为原粗糙度图拉伸到 0.45–0.85 并缩到 512（原图接近镜面）。
 - 首页标题字体：Archeologicaps（dafont，标注 100% Free），stock_agent/assets/archeologicaps.woff2，已子集化为 ASCII。
 
+## 估值建模 · 港股数据 · 回答前检查（v0.38 · Aestimatio）
+- 可比公司与建模 `fin_model`（`stock_agent/finmodel.py`）：`mode=comps` 每家 P/E、P/B、EV/EBITDA、EV/Sales、EV/EBIT、D/E、D/总资本、EBITDA 利润率 + 同行均值/中位数/区间/排名（`include_leases` 把经营租赁计入 EV，`target` 用同行中位数倍数推隐含价值，日期/币种不一致出 warnings）；`mode=dcf` 逐年 UFCF、退出倍数/永续增长/两者、期末或年中折现、EV→股权→每股；`mode=lbo` 资金来源与用途（超出最低现金的账上现金作来源、旧债按账面再融资）、平均余额计息（迭代求解）、全额扫债、退出 EV/股权、MOIC、IRR；`mode=coverage` EBITDAR、FCCR，多家比较给差值。结果带逐年表与公式，引用登记为「计算」出处
+- 港股与成交额（`stock_agent/hkdata.py`）：`get_quotes` 附 `turnover`（腾讯行情成交量/成交额）；`get_southbound` 南向每日净买入（东方财富 RPT_MUTUAL_DEAL_HISTORY 006/002/004）与个股港股通净买入（RPT_MUTUAL_TOP10DEAL，只在进十大成交股的日子有数）；`hk_interests` 港交所披露易权益披露（持有人、原因代码、买卖股数、均价、持股%、日期、原通知链接）；`price_history` 对 ^HSTECH/^HSI/^HSCE 等 Yahoo 没有的代码改走腾讯日线
+- 退市代码历史价：`price_history` 在 Yahoo 404 或数据过期时，对美股代码用 EFTS 显示名找回 CIK（`delisted_cik`），再从 DEFM14A/PREM14A/SC 14D9/S-4/8-K 原文抽「On <日期>, … closing price … $X」（`sec_close`）
+- 长文档：`fetch_url` 读 PDF（逐页，最多 400 页）并支持 `start` 分页；`doc_digest`（`stock_agent/docread.py`）分段（约 6000 字）读完全文、每段抽要点（模型并行 3 路，无模型时规则抽取），返回覆盖率
+- 回答前三道闸（`stock_agent/gates.py`，各打回一次）：人事/职位/在任等时效事实本轮没用联网或公告工具 → 先核对；回答里的 Python 代码 `ast` 编译，`ALLOW_CODE=1` 时再在沙箱试跑（缺包/缺文件/联网不算错）；停在「暂未查到/〔未知〕」→ 按缺的数据给具体备用来源
+- 引用：代码块整段保护（`p[0]` 不再被当成无效角标删掉，代码字面量不参与数字核对）；LaTeX 公式与代码里不插角标/「未核实」；「11.47×」角标放在「×」后
+- 口径清单 valuation-math 修订：利息用利润表报告科目（只报净额就用净额）、LBO 超额现金作资金来源、「保持占营收比例」默认最近实际财年、同行一定给均值与中位数；`reverse_dcf` 附逐年表、终值与公式（`reproduce`）
+
 ## 准确度 · 批量年报 · 投研 PPT（v0.37 · Accuratio）
 - 出处写真实数据源：来源清单写「东方财富 F10 财务分析」「腾讯证券行情」「东方财富 · 涨停板行情中心」「新浪财经板块资金流」等可打开的公开页，不写内部工具名；calc 写算式（「计算：loss = position*drop」）；整次失败的调用、HTTP 状态码（「接口返回 502」）不算出处
 - 推导不误报：calc 的结果和输入、题设数字（4% ↔ 0.04）、回答里写明的假设（「假设：……」及其下的列表）、由前文已核实数字再推一步的值都算已核实；由计算得出的数不做涨跌方向核对（「亏损 6,000」）。行情/财报字段的核对不变

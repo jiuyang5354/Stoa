@@ -63,6 +63,16 @@ Quote checks bind recognized stock symbols or known names to quote fields and da
 - New memories distinguish planned, historical, pending and confirmed holdings. Agent-added holdings require confirmation; changes can be audited and undone without overwriting newer edits. Concurrent history/chat requests use thread-local SQLite connections, and memory file reads share the write lock.
 - Updates verify the release asset SHA-256, retain the previous installation and roll back if the backend version fails its startup check.
 
+## v0.38 · Aestimatio
+
+- **Comparables & modeling** (`fin_model`): `comps` (P/E, P/B, EV/EBITDA, EV/Sales, EV/EBIT, D/E, D/Cap, EBITDA margin + peer mean/median/range/rank, optional leases in EV, implied value from peer medians), `dcf` (yearly UFCF, exit multiple and/or perpetual growth, mid-year option, EV → equity → per share), `lbo` (sources & uses with excess cash above minimum, average-balance interest solved iteratively, full cash sweep, exit EV/equity, MOIC, IRR) and `coverage` (EBITDAR, FCCR, multi-company diff). Every result carries the yearly table and formulas.
+- **Hong Kong data & turnover**: quotes include volume and turnover; `get_southbound` (Southbound daily net buy, plus a stock's Stock Connect net buy on days it is a top-10 traded name); `hk_interests` (HKEX disclosure-of-interests notices with links); `price_history` falls back to Tencent daily bars for ^HSTECH/^HSI/^HSCE.
+- **Delisted US tickers**: when Yahoo has no history, the CIK is recovered from EDGAR display names and the close is read from merger proxies / tender documents ("On July 28, 2025 … closing price … $171.65").
+- **Long documents**: `fetch_url` reads PDFs and paginates with `start`; `doc_digest` reads the whole document in ~6,000-character parts and extracts points from every part, reporting coverage.
+- **Pre-answer gates** (one bounce each): personnel/role facts must be checked online in the same turn; Python code is compiled (and run in the sandbox when `ALLOW_CODE=1`); answers that stop at "not found" get concrete public fallbacks.
+- **Citations**: code blocks are preserved verbatim (`p[0]` is no longer stripped as a bad marker); no markers inside LaTeX or code; markers go after "×".
+- **valuation-math** checklist corrected (reported interest line, excess cash as a source, last actual year for held ratios, peer mean and median); `reverse_dcf` returns a reproducible schedule.
+
 ## v0.37 · Accuratio
 
 - **Sources you can open**: the source list names the real provider and a public page (Eastmoney F10 finance page, Tencent quotes, Eastmoney limit-up center, Sina sector flows) instead of internal tool names; calculations show the formula; a failed call or an HTTP status code ("returned 502") is never a source.
