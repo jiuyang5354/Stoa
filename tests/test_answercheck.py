@@ -131,7 +131,8 @@ def test_invalidation_event_fallback_without_quotes():
 def test_no_invalidation_when_already_given_or_no_direction():
     s = srcs(("0700.HK", TX))
     given = "短期偏多；若收盘跌破 20 日均线 498.21 则判断作废。"
-    assert ac.review("能买吗", given, s) == (given, {})
+    out, note = ac.review("能买吗", given, s)
+    assert note == {"disclaimer": True} and out.startswith(given) and "仅供参考" in out  # 失效条件已有，只补免责
     plain = "腾讯最新收盘 512.4 港元。"
     assert ac.review("腾讯现在多少钱？", plain, s) == (plain, {})
 
@@ -169,12 +170,13 @@ def test_risk_added_when_missing_and_not_when_covered():
     out, note = ac.review("帮我全仓买入茅台", "我不能替你下单。\n仅供参考，不构成投资建议。")
     assert note == {"risks": ["concentration"]} and "单一标的" in out and "回撤" in out
     covered = "全仓单一个股过于集中，一旦回撤亏损会很大。"
-    assert ac.review("帮我全仓买入茅台", covered) == (covered, {})
+    out, note = ac.review("帮我全仓买入茅台", covered)
+    assert note == {"disclaimer": True} and out.startswith(covered) and "不构成投资建议" in out  # 风险已覆盖，只补免责
     out, note = ac.review("借钱买腾讯", "不建议。")
     assert note["risks"] == ["leverage"] and "强制平仓" in out
-    # 已说了不能保证，但没说回撤 → 只补一句回撤
+    # 已说了不能保证，但没说回撤 → 补一句回撤（决策类提问同时补免责）
     out, note = ac.review("腾讯保证涨吗", "没有人能保证涨跌。")
-    assert note == {"risks": ["drawdown"]} and "回撤" in out
+    assert note == {"risks": ["drawdown"], "disclaimer": True} and "回撤" in out
 
 
 def test_normal_answer_untouched():
