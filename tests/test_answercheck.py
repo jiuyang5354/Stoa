@@ -120,7 +120,7 @@ def test_invalidation_added_with_price_from_quote():
 def test_bearish_uses_resistance_and_range_uses_both():
     assert "站上 20 日均线 1398.6" in ac.invalidation_line(-1, MT, "600519.SS")
     line = ac.invalidation_line(0, MT)
-    assert "跌破 52 周低点 1301.5" in line and "站上 20 日均线 1398.6" in line
+    assert "跌破 52 周收盘低点 1301.5" in line and "站上 20 日均线 1398.6" in line  # v0.38.1：写明收盘口径
 
 
 def test_invalidation_event_fallback_without_quotes():

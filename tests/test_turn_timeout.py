@@ -78,16 +78,18 @@ def test_soft_deadline_finishes_with_tool_results(home, monkeypatch):
     assert llm.final_tools is None and llm.calls == 2  # 第二次调用没有给工具
 
 
-def test_hard_timeout_answers_from_tool_results(home):
+def test_hard_timeout_answers_from_tool_results(home, monkeypatch):
+    """v0.38.1：请求一直超时（不是整轮到点）→ 退避重试用完后用已拿到的结果收尾，写真实原因（以前误写成「到了 900 秒上限」）。"""
     from stock_agent import ledger
+    monkeypatch.setenv("LLM_RETRY_BASE", "0.01")
     llm = LLM(hard=True)
     a = _agent(llm)
     r = a.ask("茅台现在多少")
-    assert "模型等待超时" not in r and "秒上限" in r and "未完成" in r
+    assert "模型等待超时" not in r and "连续 4 次超时" in r and "900 秒上限" not in r and "未完成" in r
     assert "查行情" in r and "1354" in r  # 已拿到的工具结果写进了答复
     assert a.last_meta["timeout"] and a.last_meta["partial"]
     hist = a.mem.history("web-tt")
-    assert [h["role"] for h in hist] == ["user", "assistant"] and "秒上限" in hist[-1]["text"]
+    assert [h["role"] for h in hist] == ["user", "assistant"] and "超时" in hist[-1]["text"]
     assert [m["role"] for m in a.messages[1:]] == ["user", "assistant"]  # 上下文仍然合法，下一问可以接着聊
     runs = ledger.runs_list()
     assert runs and runs[0]["status"] == "done"

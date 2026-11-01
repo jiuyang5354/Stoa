@@ -22,13 +22,21 @@ from pathlib import Path
 import requests
 
 # 真实用量（接口返回的 usage）：回测/评测用它报 token，没有 usage 的接口记 calls_no_usage
-USAGE = {"calls": 0, "prompt_tokens": 0, "completion_tokens": 0, "calls_no_usage": 0, "errors": 0, "retries": 0}
+USAGE = {"calls": 0, "prompt_tokens": 0, "completion_tokens": 0, "calls_no_usage": 0, "errors": 0, "retries": 0, "timeouts": 0}
 RETRY_STATUS = {429, 500, 502, 503, 504}  # 中转/网关常见的限流与临时故障：退避重试（LLM_RETRIES，默认 3 次）
 _USAGE_LOCK = threading.Lock()
 
 
 class RequestCancelled(InterruptedError):
     """The caller stopped an in-flight model request."""
+
+
+class RequestTimeout(TimeoutError):
+    """单次模型请求（含它自己的 429/5xx 重试）超过 timeout：只算这一次请求失败，整轮还有时间就由调用方重试或换路（v0.38.1）。"""
+
+
+class TurnTimeout(TimeoutError):
+    """整轮（一问）的硬上限 Router.deadline 到了：不再重试，调用方用已拿到的结果收尾。"""
 
 
 def start_request_worker(args, env, flags, stop, deadline):
@@ -550,16 +558,28 @@ class Router:
     def chat(self, messages, tools=None, temperature=0.3, timeout=120, stop=None, on_event=None) -> dict:
         stop = stop if stop is not None else getattr(self, "stop", None)
         on_event = on_event or getattr(self, "on_event", None)
-        deadline = min(time.monotonic() + timeout, getattr(self, "deadline", float("inf")))
+        turn_deadline = getattr(self, "deadline", float("inf"))
         err = None
-        for llm in self.chain:
+        for i, llm in enumerate(self.chain):
+            # 每个模型各自一个请求窗口（timeout），但不超过整轮的硬上限
+            remaining = min(timeout, turn_deadline - time.monotonic())
+            if remaining <= 0:
+                raise TurnTimeout("本轮时长已到上限")
             try:
-                remaining = deadline - time.monotonic()
                 if stop is not None:
                     return controlled_chat(llm, messages, tools, temperature, remaining, stop, on_event)
                 return llm.chat(messages, tools, temperature, remaining)
-            except (RequestCancelled, TimeoutError):
+            except RequestCancelled:
                 raise
+            except TimeoutError as e:
+                if time.monotonic() >= turn_deadline - .5:
+                    raise TurnTimeout("本轮时长已到上限") from e
+                # v0.38.1：单次请求超时只算这次失败；有备用模型就换路，否则交给调用方按退避重试
+                with _USAGE_LOCK:
+                    USAGE["timeouts"] += 1
+                err = RequestTimeout(f"模型请求超过 {timeout:g} 秒（{llm.name}）")
+                if on_event and i + 1 < len(self.chain):
+                    on_event({"t": "model", "status": "fallback", "provider": self.chain[i + 1].name, "reason": "timeout"})
             except Exception as e:
                 err = e
         raise err

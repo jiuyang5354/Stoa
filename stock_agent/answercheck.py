@@ -86,7 +86,8 @@ def _levels(q: dict, d: int) -> list[tuple[str, float]]:
     if not isinstance(close, (int, float)) or close <= 0:
         return []
     names = {"ma20": ("20 日均线", "the 20-day average"), "ma60": ("60 日均线", "the 60-day average"),
-             "low_52w": ("52 周低点", "the 52-week low"), "high_52w": ("52 周高点", "the 52-week high")}
+             # 52 周高低点是日线收盘价算的（不是盘中最低/最高），写明「收盘」（v0.38.1 盲评 Q18）
+             "low_52w": ("52 周收盘低点", "the 52-week closing low"), "high_52w": ("52 周收盘高点", "the 52-week closing high")}
     below = sorted(((k, q[k]) for k in ("ma20", "ma60", "low_52w") if isinstance(q.get(k), (int, float)) and q[k] < close * .995), key=lambda x: -x[1])
     above = sorted(((k, q[k]) for k in ("ma20", "ma60", "high_52w") if isinstance(q.get(k), (int, float)) and q[k] > close * 1.005), key=lambda x: x[1])
     out = []

@@ -267,6 +267,7 @@ def a_mood(date: str | None = None) -> dict:
             continue
         out[f"{kind}_inflow"], out[f"{kind}_outflow"], out[f"{kind}_top_gainers"] = bf["inflow"], bf["outflow"], bf["top_gainers"]
         out[f"{kind}_flow_source"] = f"{bf['source']} · {bf['basis']}"
+        out[f"{kind}_flow_url"] = bf["url"]
         out["sources"].append(src(f"{bf['source']} · {label}板块资金流（{bf['basis']}）", bf["url"], out.get("date") or now_cn().strftime("%Y-%m-%d")))
     if any(k.endswith("_flow_source") and not v.startswith("东方财富") for k, v in out.items() if isinstance(v, str)):
         out["source"] = out["source"] + " + 新浪财经板块资金流"

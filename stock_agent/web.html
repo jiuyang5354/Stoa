@@ -1404,8 +1404,8 @@ function splitCites(text){
   const i = t.indexOf(SRC_HEAD), src = {};
   if (i >= 0){ t.slice(i + SRC_HEAD.length).split('\n').forEach(l => { const m = l.match(/^\[(\d+)\]\s+(.+)$/); if (!m) return;
       const parts = m[2].split(' · '), url = /^https?:\/\//.test(parts[parts.length-1]) ? parts.pop() : '';
-      const asOf = parts.length && /^截至 /.test(parts[parts.length-1]) ? parts.pop().slice(3) : '';
-      src[m[1]] = {name: parts.join(' · '), as_of: asOf, url}; });
+      const asLab = parts.length && /^(截至|抓取于) /.exec(parts[parts.length-1]); const asOf = asLab ? parts.pop().slice(asLab[1].length + 1) : '';
+      src[m[1]] = {name: parts.join(' · '), as_of: asOf, fetched: !!(asLab && asLab[1] === '抓取于'), url}; });
     t = t.slice(0, i).trimEnd(); }
   return {text: t, src, debate: deb, cards};
 }
@@ -1416,7 +1416,7 @@ function citeHTML(html, src){
 function srcList(src){
   const ks = Object.keys(src); if (!ks.length) return '';
   return `<div class="srcs"><span class="label">Fontes · 来源 ${ks.length}</span><ol>${ks.map(n => { const s = src[n];
-    return `<li data-n="${n}"><i>${n}</i><span>${esc(s.name)}${s.as_of ? ` · 截至 ${esc(s.as_of)}` : ''}${s.url ? ` · <a href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.url.replace(/^https?:\/\//, '').slice(0, 52))}</a>` : ''}</span></li>`; }).join('')}</ol></div>`;
+    return `<li data-n="${n}"><i>${n}</i><span>${esc(s.name)}${s.as_of ? ` · ${s.fetched ? '抓取于' : '截至'} ${esc(s.as_of)}` : ''}${s.url ? ` · <a href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.url.replace(/^https?:\/\//, '').slice(0, 52))}</a>` : ''}</span></li>`; }).join('')}</ol></div>`;
 }
 function bindCites(host, src){
   host.querySelectorAll('sup.ct').forEach(sp => {
@@ -1424,7 +1424,7 @@ function bindCites(host, src){
     const show = () => { host.querySelectorAll('.ctip').forEach(x => x.remove()); host.querySelectorAll('.srcs li.on,sup.ct.on').forEach(x => x.classList.remove('on'));
       const B = host.getBoundingClientRect(), r = sp.getBoundingClientRect();
       const tip = document.createElement('div'); tip.className = 'ctip';
-      tip.innerHTML = `<small>Fons ${roman(+sp.dataset.n)} · 来源 [${sp.dataset.n}]</small><b>${esc(s.name)}</b>${s.as_of ? `<em>截至 ${esc(s.as_of)}</em>` : ''}${s.url ? `<a href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.url)}</a>` : ''}`;
+      tip.innerHTML = `<small>Fons ${roman(+sp.dataset.n)} · 来源 [${sp.dataset.n}]</small><b>${esc(s.name)}</b>${s.as_of ? `<em>${s.fetched ? '抓取于' : '截至'} ${esc(s.as_of)}</em>` : ''}${s.url ? `<a href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.url)}</a>` : ''}`;
       tip.style.left = Math.max(0, Math.min(r.left - B.left - 12, host.clientWidth - 290)) + 'px'; tip.style.top = (r.bottom - B.top + 8) + 'px';
       host.append(tip); sp.classList.add('on'); host.querySelector(`.srcs li[data-n="${sp.dataset.n}"]`)?.classList.add('on'); };
     const hide = () => setTimeout(() => { const tip = host.querySelector('.ctip'); if (tip && !tip.matches(':hover') && !sp.matches(':hover')) { tip.remove(); sp.classList.remove('on'); host.querySelectorAll('.srcs li.on').forEach(x => x.classList.remove('on')); } }, 260);
