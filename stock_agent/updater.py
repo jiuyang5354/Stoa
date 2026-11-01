@@ -92,6 +92,24 @@ def extract_package(path: Path, target: Path):
         archive.extractall(root)
 
 
+def clean_stale(older_than: float = 6 * 3600) -> int:
+    """删掉以前更新留下的临时目录（下载包、解压结果、复制出来的运行时）。
+
+    更新进程跑在那份临时运行时里，退出前删不掉自己；没人清理的话每更新一次
+    就多留几百 MB。只删够旧的，正在跑的那次不动。
+    """
+    root = Path(tempfile.gettempdir())
+    now, removed = time.time(), 0
+    for item in root.glob("stoa-update-*"):
+        try:
+            if item.is_dir() and now - item.stat().st_mtime > older_than:
+                shutil.rmtree(item, ignore_errors=True)
+                removed += 1
+        except OSError:
+            pass
+    return removed
+
+
 def apply() -> dict:
     info = check(force=True)
     if not info.get("available"):
@@ -103,6 +121,7 @@ def apply() -> dict:
     from .memory import home
     if home().resolve().is_relative_to(INSTALL.resolve()):
         return {"error": "数据目录位于程序目录内，请先迁移并备份数据后再更新。"}
+    clean_stale()
     tmp = Path(tempfile.mkdtemp(prefix="stoa-update-"))
     z = tmp / "Stoa-Windows.zip"
     with requests.get(info["asset"], stream=True, timeout=60) as r:
@@ -129,6 +148,7 @@ def apply() -> dict:
     plan = {"install": str(INSTALL), "source": str(src), "pid": os.getpid(), "version": info["latest"],
             "port": int(os.getenv("PORT", "8080")), "backup": str(INSTALL.with_name(INSTALL.name + ".previous-" + tag)),
             "stage": str(INSTALL.with_name(INSTALL.name + ".next-" + tag)),
+            "workdir": str(tmp),
             "result": str(INSTALL.parent / (INSTALL.name + ".update-result.json"))}
     plan_path = tmp / "plan.json"
     plan_path.write_text(json.dumps(plan, ensure_ascii=False), encoding="utf-8")

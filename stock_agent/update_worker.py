@@ -36,7 +36,21 @@ def replace_install(plan, launch, ready):
                 shutil.rmtree(install)
             backup.rename(install)
             launch(install)
-        return {"ok": False, "rollback": moved, "error": str(exc)[:200]}
+        return {"ok": False, "rollback": moved, "error": explain(exc)}
+
+
+def explain(exc: BaseException) -> str:
+    """把系统错误换成用户能照着做的说明。
+
+    WinError 5 在更新里几乎只有一个原因：程序目录正被别的进程当工作目录用
+    （在 Stoa\\app 里开着的终端最典型），Windows 不允许重命名这种目录。
+    """
+    text = str(exc)[:200]
+    winerror = getattr(exc, "winerror", None)
+    if winerror == 5 or isinstance(exc, PermissionError) or "WinError 5" in text or "拒绝访问" in text:
+        return (f"程序目录被占用，无法替换（{text}）。"
+                "常见原因：有终端或资源管理器正开在程序目录里，或安全软件锁住了文件；关掉后重试。")
+    return text
 
 
 def carry_installer_files(install: Path, stage: Path):
@@ -100,18 +114,38 @@ def wait_ready(child, port, version, token="", timeout=45):
 
 def main():
     plan = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
-    wait_parent(plan["pid"])
     def launch(path):
         flags = {"creationflags": subprocess.CREATE_NO_WINDOW} if os.name == "nt" else {}
         return subprocess.Popen([str(path / "python" / "pythonw.exe"), "-B", "-m", "stock_agent", "desktop"],
                                 cwd=path, env=dict(os.environ), **flags)
     def ready(child):
         return wait_ready(child, plan["port"], plan["version"], os.getenv("WEB_TOKEN", ""))
-    result = replace_install(plan, launch, ready)
-    if result.get("ok"):
-        update_registry(Path(plan["install"]), plan["version"])
+    try:
+        wait_parent(plan["pid"])
+        result = replace_install(plan, launch, ready)
+        if result.get("ok"):
+            update_registry(Path(plan["install"]), plan["version"])
+    except Exception as exc:
+        # 原程序没退出、计划文件坏了、更新进程自身出错：都要留下可读的结果，
+        # 否则界面上看到的是上一次更新的旧结果，用户不知道这次为什么没成。
+        result = {"ok": False, "rollback": False, "error": explain(exc)}
     result["time"] = time.time()
     Path(plan["result"]).write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
+    cleanup_workdir(plan.get("workdir"))
+
+
+def cleanup_workdir(workdir):
+    """删掉本次更新的临时目录（下载包、解压、复制出来的运行时）。
+
+    Windows 上更新进程自己就跑在这份运行时里，rmtree 多半删不掉自己占着的
+    pythonw.exe —— 所以是尽力而为，剩下的由下一次 apply() 清理。
+    """
+    if not workdir:
+        return
+    path = Path(workdir)
+    if not path.name.startswith("stoa-update-") or not path.is_dir():
+        return
+    shutil.rmtree(path, ignore_errors=True)
 
 
 if __name__ == "__main__":
