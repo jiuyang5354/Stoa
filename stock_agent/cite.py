@@ -884,7 +884,7 @@ def correction_prompt(bad: list[str], why: dict | None = None) -> str:
     items = [f"{b}（{why[b]}）" if why.get(b) and why[b] != "找不到出处" else b for b in dict.fromkeys(bad)]
     return ("[系统核对：你回答里的这些数字或日期和本轮工具结果对不上：" + "、".join(items) +
             "。请重写回答：找不到出处的要么调用工具取得出处，要么删掉或改成「查不到」；方向写反的按数据改正涨跌；日期以工具结果里的数据日期为准。"
-            "不要估算或凭记忆写数字。关键数字后保留 [编号]。直接给出完整的新回答。]")
+            "不要估算或凭记忆写数字。关键数字后保留 [编号]。直接给出完整的新回答（保留原回答里没问题的全部内容），不要写「更正说明」「上一版/前一版」或提到这条核对。]")
 
 
 def flag(text: str, src: Sources) -> tuple[str, list[str]]:

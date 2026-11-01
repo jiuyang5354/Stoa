@@ -369,3 +369,21 @@ def test_finalize_keeps_code_indexing():
     txt = "茅台收盘 1392.05 元。\n\n```python\npeak = prices[0]\nx = arr[1] + arr[2]\n```"
     out, _ = cite.finalize(txt, src)
     assert "peak = prices[0]" in out and "x = arr[1] + arr[2]" in out and "1392.05[1]" in out
+
+
+def test_gap_gate_only_for_asked_data_and_keeps_full_answer():
+    """盲评 v2 预跑（快照 526b9b5）：DCF 题回答里顺带一句「某数没查到」也被打回，模型把完整 DCF 改成了「补充核查后的修正版」。
+    现在只按问题问到的数据打回；所有闸门提示都要求保留原回答内容、不提草稿。"""
+    from stock_agent import gates, cite, agent
+    assert gates.gap_hints("用 DCF 给可口可乐估值，写出完整假设与敏感性表。", "汇率影响的具体收盘价暂未查到。") is None
+    assert gates.gap_hints("茅台成交额多少", "成交额暂未查到。")
+    for txt in (gates.STALE_NUDGE, gates.GAP_NUDGE, cite.correction_prompt(["1.0"]), agent.GIVE_UP_NUDGE):
+        assert "草稿" in txt or "更正说明" in txt
+
+
+def test_a_share_pb_uses_latest_bps():
+    """盲评 Q10：招行市净率用了 Yahoo 的 1.00（真值约 0.93）。A股改为 现价 ÷ 最新一期每股净资产，两源差 >5% 出 warning。"""
+    from stock_agent import research
+    out = {"valuation": {"市净率": 1.0026}}
+    research.pb_mrq(out, 43.55, 46.87, "2026三季报")
+    assert out["valuation"]["市净率"] == 0.9292 and out["valuation"]["市净率_Yahoo"] == 1.0026 and "两源不一致" in out["warnings"][0]

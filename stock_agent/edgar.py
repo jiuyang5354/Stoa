@@ -589,7 +589,7 @@ def _price_fallback(symbol, dates, lo_f, hi_f, start, end, period, full, warns, 
         except Exception:
             rows = None
         if rows:
-            return _summarize(rows, {**meta, "source": "腾讯证券日线（Yahoo 无此代码时的备用源）", "url": hkdata.page_url(meta.get("tencent_code", "")),
+            return _summarize(rows, {**meta, "source": "腾讯证券 · 日线", "url": hkdata.page_url(meta.get("tencent_code", "")),
                                      "note": "腾讯指数/个股日线（不复权收盘）。指数区间涨跌＝期末收盘 ÷ 期初前一交易日收盘 − 1（年初至今用上年最后一个交易日收盘）。"},
                               dates, start, end, period, full, warns)
     if dates and re.fullmatch(r"[A-Z]{1,5}(?:[.-][A-Z])?", _yahoo_symbol(symbol)):

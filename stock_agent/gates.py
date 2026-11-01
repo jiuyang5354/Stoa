@@ -18,7 +18,7 @@ ROLE = re.compile(r"(?:董事长|董事会主席|名誉董事长|副董事长|�
 CLAIM = re.compile(r"(?:仍|继续|依然|现任|目前|已|将|担任|出任|接任|改任|转任|兼任|由.{1,12}(?:担任|接任)|is (?:still |now )?(?:the )?|remains?|became|will (?:become|remain)|"
                    r"serves? as|succeeded|took over|named)", re.I)
 STALE_NUDGE = ("[系统：回答里写到了人事/职位/在任情况（{hit}），这类事实变化快，不能凭模型记忆或旧文件写。还有工具轮数：先用 web_search（带年份/「最新」/英文名）"
-               "或公司公告、SEC 8-K item 5.02 核对当前情况，确认后再写；查不到最新信息就明确写「截至某日的公开信息」。]")
+               "或公司公告、SEC 8-K item 5.02 核对当前情况，确认后再写；查不到最新信息就明确写「截至某日的公开信息」。然后给出完整的最终回答：保留原回答里仍然成立的全部内容（结构、表格、计算），只改需要核对的那几句；不要写成「修正版/补充说明」，不要提到之前的草稿、「上一条」或这条提示。]")
 
 
 def stale_facts(question: str, reply: str, used: set) -> str | None:
@@ -38,7 +38,7 @@ CODE_ASK = re.compile(r"代码|python|写一段|写个|函数|脚本|程序|实�
 SOFT_ERR = re.compile(r"ModuleNotFoundError|ImportError|FileNotFoundError|No such file|ConnectionError|URLError|HTTPError|getaddrinfo|Temporary failure|"
                       r"代码执行未开启|未执行代码|workspace 不能", re.I)
 CODE_NUDGE = ("[系统：回答里的 Python 代码{how}报错，不能这样交给用户：\n{err}\n请修正代码（保持原有功能，必要时加最小示例数据让它能直接运行），"
-              "给出改好的完整代码；不要提这条系统提示。]")
+              "给出改好的完整代码；不要提到之前的版本或这条系统提示。]")
 
 
 def code_blocks(reply: str) -> list[str]:
@@ -99,7 +99,7 @@ HINTS = [
     (r"收盘价|股价|close", "历史收盘 → price_history；美股已退市/被收购代码会改查 SEC 合并委托书里的收盘价"),
 ]
 GAP_NUDGE = ("[系统：回答里有没查到就停下的地方（{hit}）。还有工具轮数，先换公开来源补齐，并写明口径与出处：\n{hints}\n"
-             "补到了就给具体数值；确实没有公开来源再写「未知」，并说明查过哪些来源。]")
+             "补到了就给具体数值；确实没有公开来源再写「未知」，并说明查过哪些来源。最后给出完整的最终回答：保留原回答里仍然成立的全部内容，只补上缺的数据；不要写成「修正版/补充核查」，不要写「上一条」「此前写成」这类提到草稿或这条提示的话。]")
 
 
 def gap_hints(question: str, reply: str) -> str | None:
@@ -107,8 +107,8 @@ def gap_hints(question: str, reply: str) -> str | None:
     m = GAP.search(body)
     if not m:
         return None
-    ctx = (question or "") + "\n" + body
-    hs = [h for pat, h in HINTS if re.search(pat, ctx, re.I)]
+    # 只按「问题问到的数据」给备用来源：回答里顺带提到的缺口（如 DCF 题里说某个次要数没查到）不打回，免得把完整回答改成「补充核查版」
+    hs = [h for pat, h in HINTS if re.search(pat, question or "", re.I)]
     if not hs:
         return None
     s = max(0, m.start() - 20)

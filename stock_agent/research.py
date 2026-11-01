@@ -209,11 +209,30 @@ def _add_operating_revenue(rows: list[dict], raw: list[dict], code: str):
             row["营业收入同比%"] = round((float(cur["OPERATE_INCOME"]) / float(prev["OPERATE_INCOME"]) - 1) * 100, 4)
 
 
+def pb_mrq(out: dict, px, bps, period: str | None = None) -> None:
+    """A股市净率 = 现价 ÷ 最新一期每股净资产（东方财富 BPS，MRQ）；和 Yahoo priceToBook 相差 >5% 写 warnings，保留 Yahoo 值。"""
+    try:
+        bps = float(bps or 0)
+    except (TypeError, ValueError):
+        return
+    if bps <= 0 or not isinstance(px, (int, float)) or px <= 0:
+        return
+    v = out.setdefault("valuation", {})
+    yb = v.get("市净率")
+    v["市净率"] = round(px / bps, 4)
+    v["市净率口径"] = f"现价 {px} ÷ {period or '最新一期'}每股净资产 {bps}（东方财富，MRQ）"
+    if isinstance(yb, (int, float)):
+        v["市净率_Yahoo"] = yb
+        if abs(yb / v["市净率"] - 1) > 0.05:
+            out.setdefault("warnings", []).append(f"市净率两源不一致：按最新每股净资产算 {v['市净率']}，Yahoo {yb}；默认用前者（MRQ）")
+
+
 def financials(symbol: str) -> dict:
     info = resolve(symbol)
     out = {"symbol": symbol, "name": info["name"]}
     unified: dict[str, list] = {}  # 来源 → 统一口径行（finunify.FIELDS）
     from . import finunify
+    i: dict = {}
     try:
         import yfinance as yf
         t = yf.Ticker(symbol)
@@ -253,6 +272,10 @@ def financials(symbol: str) -> dict:
             raw = r.json()["result"]["data"]
             out["main_indicators"] = [{names[k]: (v if k == "REPORT_DATE_NAME" else _num(v)) for k, v in row.items() if k in names}
                                       for row in raw]
+            try:  # v0.38（盲评 Q10）：A股市净率用 现价 ÷ 最新一期每股净资产（MRQ），Yahoo 的 priceToBook 口径偏高（招行 1.00 vs 0.93）
+                pb_mrq(out, _num(i.get("currentPrice") or i.get("regularMarketPrice") or i.get("previousClose")), raw[0].get("BPS"), raw[0].get("REPORT_DATE_NAME"))
+            except Exception:
+                pass
             unified["东方财富"] = finunify.from_eastmoney(raw)
             out["source"] = "东方财富 F10 + Yahoo Finance"
             out["url"] = _f10(symbol)
