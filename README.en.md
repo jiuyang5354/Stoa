@@ -63,6 +63,11 @@ Quote checks bind recognized stock symbols or known names to quote fields and da
 - New memories distinguish planned, historical, pending and confirmed holdings. Agent-added holdings require confirmation; changes can be audited and undone without overwriting newer edits. Concurrent history/chat requests use thread-local SQLite connections, and memory file reads share the write lock.
 - Updates verify the release asset SHA-256, retain the previous installation and roll back if the backend version fails its startup check.
 
+## v0.38.1
+
+- **A slow model request no longer ends the turn**: a single request that exceeds its 120-second window (including its own 429/5xx retries) is retried with backoff or switched to the fallback model while the turn still has time (`LLM_TIMEOUT_RETRIES`, default 3). Only the real turn limit, or exhausted retries, ends the turn — with the tool results and interim notes gathered so far and the real cause and elapsed time, never an empty "reached the 900-second limit".
+- **Citations**: totals computed with calc and other data for the same ticker (Southbound flows) count as sources in sentences that name the ticker; sector flows cite the provider that actually served them (Eastmoney or Sina); web pages show "fetched on" instead of "as of" and are not treated as trading days; your memory is cited only for your own holdings, costs and calls; 52-week highs/lows are labelled as closing-price based; "backtested" claims are removed unless a backtest ran in the turn.
+
 ## v0.38 · Aestimatio
 
 - **Comparables & modeling** (`fin_model`): `comps` (P/E, P/B, EV/EBITDA, EV/Sales, EV/EBIT, D/E, D/Cap, EBITDA margin + peer mean/median/range/rank, optional leases in EV, implied value from peer medians), `dcf` (yearly UFCF, exit multiple and/or perpetual growth, mid-year option, EV → equity → per share), `lbo` (sources & uses with excess cash above minimum, average-balance interest solved iteratively, full cash sweep, exit EV/equity, MOIC, IRR) and `coverage` (EBITDAR, FCCR, multi-company diff). Every result carries the yearly table and formulas.

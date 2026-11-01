@@ -496,6 +496,13 @@ Actions 页面也可以手动点 “Run workflow” 立即生成一份。
 - 背景岩壁与 3D 神庙石材：ambientCG「Travertine 009」（https://ambientcg.com/view?id=Travertine009），CC0。stock_agent/assets/travertine009_color.jpg 为原 1K 颜色图（重新压缩）；travertine009_normal.jpg 为原 NormalGL 叠加由颜色图亮度推导的浅浮雕法线（原法线图几乎是平的，这块是抛光板材）；travertine009_roughness.jpg 为原粗糙度图拉伸到 0.45–0.85 并缩到 512（原图接近镜面）。
 - 首页标题字体：Archeologicaps（dafont，标注 100% Free），stock_agent/assets/archeologicaps.woff2，已子集化为 ASCII。
 
+## 修复（v0.38.1）
+- 单次模型请求超时（默认 120 秒，含 429/5xx 重试）只算这一次失败：`Router.chat` 每个模型各自一个请求窗口（不超过整轮硬上限），超时抛 `RequestTimeout` 并换备用模型；`Agent._chat` 在整轮还有时间时按退避重试（`LLM_TIMEOUT_RETRIES`，默认 3）。整轮硬上限到了抛 `TurnTimeout`，用已拿到的工具结果和模型的中间结论收尾；重试用完则写明「模型请求连续 N 次超时，本轮用时 X 秒」，不再冒充「到了 900 秒上限」
+- 引用核对：句子绑定了某个标的，但数字来自同一标的的其它数据（南向资金、资金流）或本轮计算（calc 合计）时也算有出处；涨停池与板块资金流分开登记出处，板块数字挂实际数据源（东方财富或新浪）的页面；网页/无数据日期的结果标「抓取于」、不计入数据日期，回答把今天或周末写成「最新交易日/收盘」日期会被核出；计算结果不标日期
+- 「你的记忆」只在说你自己的持仓、成本、判断时作出处；同一次计算/题设里两个输入之和（100 + 5 = 105）算推导
+- 52 周高低点按日线收盘价计算：回答与补写的失效条件写「52 周收盘低点/高点」（`cite.relabel_52w`）
+- 本轮没跑回测（`trade_replay`、沙箱 Python）时，「择时判断经回测不具统计显著性」改写为「方向判断仅供参考，可能出错」（`cite.unsupported_claims`）
+
 ## 估值建模 · 港股数据 · 回答前检查（v0.38 · Aestimatio）
 - 可比公司与建模 `fin_model`（`stock_agent/finmodel.py`）：`mode=comps` 每家 P/E、P/B、EV/EBITDA、EV/Sales、EV/EBIT、D/E、D/总资本、EBITDA 利润率 + 同行均值/中位数/区间/排名（`include_leases` 把经营租赁计入 EV，`target` 用同行中位数倍数推隐含价值，日期/币种不一致出 warnings）；`mode=dcf` 逐年 UFCF、退出倍数/永续增长/两者、期末或年中折现、EV→股权→每股；`mode=lbo` 资金来源与用途（超出最低现金的账上现金作来源、旧债按账面再融资）、平均余额计息（迭代求解）、全额扫债、退出 EV/股权、MOIC、IRR；`mode=coverage` EBITDAR、FCCR，多家比较给差值。结果带逐年表与公式，引用登记为「计算」出处
 - 港股与成交额（`stock_agent/hkdata.py`）：`get_quotes` 附 `turnover`（腾讯行情成交量/成交额）；`get_southbound` 南向每日净买入（东方财富 RPT_MUTUAL_DEAL_HISTORY 006/002/004）与个股港股通净买入（RPT_MUTUAL_TOP10DEAL，只在进十大成交股的日子有数）；`hk_interests` 港交所披露易权益披露（持有人、原因代码、买卖股数、均价、持股%、日期、原通知链接）；`price_history` 对 ^HSTECH/^HSI/^HSCE 等 Yahoo 没有的代码改走腾讯日线
