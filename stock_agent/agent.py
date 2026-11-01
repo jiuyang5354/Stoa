@@ -49,6 +49,12 @@ SYSTEM = """你是「Stoa」，用户的长期助手：本职是股市（A股、
 - 年报/季报/10-K 写了什么 → read_filing（回答注明「第 N 页」）；两年对比 → compare_filings。只转述段落里有的内容。
 - 计算题：题目给了口径或公式就严格照题目口径，逐项列输入数字和出处，再用 calc 算；每一项都要给出数值，第一次没找到先换工具再试。营业收入与营业总收入、归母与含少数股东净利润不要混用，按题目字面取科目。
 - 查数题一定要落到一个具体答案：先想最权威出处、能用结构化工具就直接取；再 web_search 换 3 种问法并 fetch_url 打开原页核对；仍无精确值就给有出处的最佳估计并写明口径。题目给的口径照做，合并报表优先；多条件筛选要逐个核对给确定名单；只给一个答案，中间不提前四舍五入；「当时的股价」用不复权价，涨跌幅用收盘价。
+- 缺数据别停在「未知」：先换公开来源补齐并写口径——成交额看 get_quotes 的 turnover；南向资金 get_southbound；指数本身的区间涨跌 price_history（^HSTECH/^HSI 走腾讯指数日线，不用 ETF 近似）；港股大股东增减持 hk_interests（披露易）。
+- 时效敏感事实（人事任免、谁现任董事长/CEO、「最新」公告/回购/指引）不要凭记忆写，本轮先 web_search 或查公告核对再写，并注明截至日期。
+- 长文档（股东信、年报全文、研报 PDF）要总结时用 doc_digest 读完全文再写，每个主题都要覆盖。
+- 每个数字尽量挂可点开的公开页面（个股具体数据页，不是网站首页）；计算类（反向 DCF、回撤、夏普、DCF、倍数）写出公式和全部输入，读者能复算。
+- 可比公司倍数、DCF、LBO、FCCR → fin_model（逐年表与公式全在结果里），不要心算拼表。
+- 写代码：给用户前系统会编译/试跑，代码要能直接运行（附最小示例数据）。
 - 回答语言跟随提问（英文提问全文英文）。
 - 思路可见：调用工具时在同一条回复正文先写一句话（≤30 字）说明这一步为什么查。
 - 数据 / 推断 / 未知：回答末尾的要点（2–5 条，短问答可省）每条行首标〔数据〕（有工具出处、带 [编号]）、〔推断〕（你的判断）或〔未知〕（查不到/需用户确认）。「未知」是合法答案。
@@ -1257,6 +1263,7 @@ class Agent:
             content += "\n\n[系统提醒：上一轮你用了很多步工具。如果那套做法以后还用得上，先用 skill_save 存成技能（或更新已有技能），再回答这条。]"
             self._heavy = False
         n_tools, saved, retried, first_bad, pushed = 0, False, False, [], False
+        gated = []  # v0.38 闸门触发记录（stale / code / gap），每种每轮最多一次
         try:  # 计算/取数口径类问题：本轮自动附上内置技能全文（LBO/DCF/FCCR、FRED vintage 等），回答后从上下文拿掉，不占以后各轮
             auto = skills.auto_load(text)
         except Exception:
@@ -1317,6 +1324,24 @@ class Agent:
                     reply, _, tail = reply.rpartition("<<<META")  # 取最后一个：正文里可能引用到旧记录中的模板
                     self.last_tail = "<<<META" + tail
                     reply = reply.rstrip()
+                # v0.38 三道闸（各打回一次）：时效事实没联网核对 / 代码编译或试跑报错 / 缺数据停在「未知」→ 给具体公开备用来源
+                if not final and rounds < max_rounds - 1:
+                    from . import gates
+                    nudge, kind = None, ""
+                    try:
+                        if "stale" not in gated:
+                            nudge, kind = gates.stale_facts(text, reply, set(getattr(self, "_used_now", ()) or ())), "stale"
+                        if not nudge and "code" not in gated:
+                            nudge, kind = gates.code_issues(text, reply, gates.sandbox_runner()), "code"
+                        if not nudge and "gap" not in gated and n_tools:
+                            nudge, kind = gates.gap_hints(text, reply), "gap"
+                    except Exception:
+                        nudge = None
+                    if nudge:
+                        gated.append(kind)
+                        pushed = pushed or kind == "gap"
+                        self.messages.append({"role": "user", "content": nudge})
+                        continue
                 # 查数题过早放弃（「无法核实」「请提供数据」）且还有工具轮数：打回一次，要求换数据源再查、给出有出处的最佳答案
                 if not final and not pushed and n_tools and rounds < max_rounds - 3 and gave_up(reply):
                     pushed = True
@@ -1334,7 +1359,7 @@ class Agent:
                     body, tail = cite.split_sources(reply)
                     reply = body.rstrip() + "\n\n" + TIME_NOTE.format(t=getattr(self, "_turn_T", TURN_TIMEOUT)) + ("\n\n" + tail if tail else "")
                 reply = self._finish(reply, {"first_unverified": first_bad, "fixed": bool(first_bad) and not flagged, "flagged": flagged,
-                                             "rounds": rounds, "stopped": final, **({"added": added} if added else {})})
+                                             "rounds": rounds, "stopped": final, **({"added": added} if added else {}), **({"gates": gated} if gated else {})})
                 aid = self.mem.log(self.session, "assistant", reply)
                 self._trace(text, raw_reply, reply, aid)
                 # 收尾提示只是过程：从上下文里拿掉，免得下一轮的模型以为还不能用工具

@@ -143,6 +143,7 @@ def southbound(symbol: str | None = None, days: int = 5) -> dict:
                 out["sources"].append(src("东方财富 · 港股通十大成交股", url, stock[0]["date"] if stock else "", ok=bool(stock),
                                           error=None if stock else "近期没有进入港股通十大成交股，个股逐日净买入未披露"))
                 out["stock_url"] = url
+                out["url"] = url  # 出处链接指向该股的港股通页面
             except Exception as e:
                 out["sources"].append(src("东方财富 · 港股通十大成交股", url, ok=False, error=str(e)[:100]))
     if not any(s["ok"] for s in out["sources"]):

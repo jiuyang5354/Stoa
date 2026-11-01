@@ -34,7 +34,9 @@ def test_auto_load_quiet_on_everyday_questions(home, q):
 
 def test_checklist_covers_known_failure_modes(home):
     v = skills.view("valuation-math", count=False)["content"]
-    for must in ("毛利息", "不默认当资金来源", "优先股", "少数股东", "10-Q", "mid-year", "同业均值", "不要因为财年错位就拒算"):
+    # v0.38：利息口径改为「利润表报告的科目（只报净额就用净额）」、LBO 超出最低现金的部分作资金来源——v0.37 的「毛利息 / 现金不当资金来源」
+    # 与 Vals vals-10（Target 只报净利息费用）、vals-25（题设最低现金 5 亿）的标准答案相反，两题因此一直 0 分
+    for must in ("净利息费用", "超出最低现金", "优先股", "少数股东", "10-Q", "年中", "peer average", "不要因为财年错位", "fin_model", "最近一个实际财年"):
         assert must in v, must
     m = skills.view("macro-data-rules", count=False)["content"]
     for must in ("vintage", "目标区间", "上周最后一个交易日", "SA", "full=true"):

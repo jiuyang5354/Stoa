@@ -387,6 +387,21 @@ def _pv(fcf0, g, years, r, tg, fade=True):
     return pv + tv / (1 + r) ** years
 
 
+def pv_schedule(fcf0, g, years, r, tg) -> dict:
+    """v0.38：反向 DCF / 情景 DCF 的逐年表与公式（读者能逐行复算）。"""
+    rows, pv, f = [], 0.0, fcf0
+    for y in range(1, years + 1):
+        gy = g + (tg - g) * (y - 1) / max(1, years - 1)
+        f *= 1 + gy
+        d = (1 + r) ** y
+        pv += f / d
+        rows.append({"year": y, "growth": round(gy, 6), "fcf": round(f, 2), "discount_factor": round(1 / d, 6), "pv": round(f / d, 2)})
+    tv = f * (1 + tg) / (r - tg)
+    return {"rows": rows, "pv_explicit": round(pv, 2), "terminal_value": round(tv, 2), "pv_terminal": round(tv / (1 + r) ** years, 2),
+            "total": round(pv + tv / (1 + r) ** years, 2),
+            "formula": f"EV = Σ_(t=1..{years}) FCF_t/(1+r)^t + TV/(1+r)^{years}；FCF_t = FCF_(t-1)×(1+g_t)，g_t 从 g 线性降到 {tg}；TV = FCF_{years}×(1+{tg})/(r−{tg})"}
+
+
 def _base_fcf(st: dict, years: int = 3) -> tuple[float | None, list]:
     vals = []
     for p in st["periods"][:years]:
@@ -444,6 +459,9 @@ def reverse_dcf(symbol: str, discount: float | None = None, terminal_growth: flo
             "fcf_base": fcf0, "fcf_history": hist, "enterprise_value": ev,
             "ev_parts": {"market_cap": mcap, "debt": debt, "cash": cash, "minority": minority},
             "sensitivity_by_discount": sens, "hist_revenue_cagr": _r(hist_cagr, 4), "market_cap_detail": mc,
+            "inputs": {"fcf_base": fcf0, "enterprise_value": ev, "market_cap": mcap, "debt": debt, "cash": cash, "minority": minority, "r": r, "terminal_growth": tg, "years": years},
+            "reproduce": pv_schedule(fcf0, g, years, r, tg) if g is not None else None,
+            "formula": "企业价值 EV = 市值 + 有息负债 − 现金 + 少数股东；FCF 基数 = 近几年（经营现金流 − 资本开支）平均；隐含增速 g 使 Σ 折现 FCF + 终值现值 = EV（二分法）",
             "method": f"两段式 DCF：自由现金流=经营现金流−资本开支（近 {len(hist)} 年平均），前 {years} 年增速从隐含值线性降到永续增速 {tg:.1%}，二分法反解使现值=企业价值。",
             "note": "隐含增速是「现价要求公司做到什么」，不是预测。折现率是假设，看敏感性。", "source": st["source"]}
 

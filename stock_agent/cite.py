@@ -66,7 +66,7 @@ TOOL_TITLES = {"get_market_mood": "涨停与板块资金", "price_levels": "支�
                "dcf_scenarios": "情景估值（由报表计算）", "regulatory_letters": "问询函与监管措施", "trade_replay": "交易回放（由日线计算）",
                "option_payoff": "期权到期损益（按输入计算）", "inquiry_status": "研究课题进度", "task_list": "定时任务", "pending_actions": "待确认操作"}
 F10_TOOLS = {"get_financials", "get_statements", "earnings_quality", "reverse_dcf", "dcf_scenarios", "financial_bridge"}
-CALC_TOOLS = {"calc", "run_python", "option_payoff"}  # 由输入推导的结果：数值本身没有「涨跌方向」含义（「亏损 6000」对 -6000 不算写反）
+CALC_TOOLS = {"calc", "run_python", "option_payoff", "fin_model"}  # 由输入推导的结果：数值本身没有「涨跌方向」含义（「亏损 6000」对 -6000 不算写反）
 
 
 def source_url(tool: str, sym: str, result) -> str:
@@ -164,7 +164,8 @@ FALLBACK = {"营业收入": "营收", "营业收入同比%": "营收同比%"}
 DATA_LABELS = {"get_fund_flow": "资金流", "get_northbound": "北向资金", "get_dragon_tiger": "龙虎榜", "get_consensus": "分析师一致预期",
                "get_intraday": "分钟线", "get_options": "期权",
                "sec_filings": "SEC 申报清单", "sec_document": "SEC 原文", "sec_xbrl": "SEC XBRL", "sec_search": "SEC 全文检索",
-               "earnings_release": "业绩新闻稿", "price_history": "历史行情", "macro_series": "宏观数据 FRED", "cn_data": "国内结构化数据", "get_statements": "原始报表", "earnings_transcript": "电话会文字稿", "volume_profile": "成交分布"}
+               "earnings_release": "业绩新闻稿", "price_history": "历史行情", "macro_series": "宏观数据 FRED", "cn_data": "国内结构化数据", "get_statements": "原始报表", "earnings_transcript": "电话会文字稿", "volume_profile": "成交分布",
+               "get_southbound": "南向资金（港股通）", "hk_interests": "港交所披露易 · 权益披露"}
 
 
 def report_period(text: str, basis: str = "") -> tuple | None:
@@ -408,6 +409,17 @@ class Sources:
                 self.bind({"results": result.get("results"), "inputs": result.get("inputs")}, sid)
                 self.bind(" ".join(str(v) for v in (result.get("expressions") or {}).values()), sid)
                 return {**result, "_cite": sid} if "error" not in result else result
+        elif tool == "fin_model" and isinstance(result, dict) and "error" not in result:
+            mode = {"comps": "可比公司倍数", "dcf": "DCF", "lbo": "LBO", "coverage": "FCCR/利息保障"}.get(str(result.get("mode")), "财务模型")
+            fs = result.get("formulas") or {}
+            f1 = "；".join(f"{k}: {v}" for k, v in list(fs.items())[:2])[:110]
+            sid = self.new(f"计算：{mode}（{f1}；输入来自上文出处与题设，逐年表见本回答）", "", today(), tool=tool)
+            self.bind(result, sid)
+            return {**result, "_cite": sid}
+        elif tool == "doc_digest" and isinstance(result, dict) and "error" not in result:
+            sid = self.new(f"文档全文 · {(result.get('title') or '')[:40]}".rstrip(" ·"), result.get("url") or "", today(), tool=tool)
+            self.bind(result, sid)
+            return {**result, "_cite": sid}
         elif tool == "run_python":
             sid = self.new("计算：沙箱 Python（代码与输出见本回答）", "", today(), tool=tool)
         elif tool in names:
@@ -624,6 +636,19 @@ def _round(tok: str) -> bool:
     """有效数字不超过两位（7%、30%、1.1、0.8、89%）：多半是假设或阈值，凑巧和别处数字相等的概率高，不自动加角标。"""
     d = re.sub(r"[^\d]", "", tok).lstrip("0").rstrip("0")
     return len(d) <= 2
+
+
+MATH_RE = re.compile(r"```.*?```|`[^`\n]+`|\$\$.*?\$\$|\\\[.*?\\\]|\\\(.*?\\\)|\$[^$\n]*[\\^_{}][^$\n]*\$", re.S)
+
+
+def protected_spans(body: str) -> list[tuple[int, int]]:
+    """代码块、行内代码、LaTeX 公式（$$…$$、\\[…\\]、\\(…\\)、含 \\ ^ _ {} 的 $…$）：不往里面插角标或「未核实」，
+    否则「120{,}637[5]{,}192」「93.18[1]\\%」这类插入会把公式和数字拆坏（v0.37 外部评测 vals-09/11/26 的回答里都出现过）。"""
+    return [m.span() for m in MATH_RE.finditer(body or "")]
+
+
+def in_spans(pos: int, spans) -> bool:
+    return any(a <= pos < b for a, b in spans)
 
 
 def has_marker(body: str, end: int) -> bool:
@@ -865,7 +890,10 @@ def flag(text: str, src: Sources) -> tuple[str, list[str]]:
     body, tail = split_sources(text)
     v = verify(body, src)
     bad = [n for n in v["numbers"] if not n["sids"] and not n["flagged"]]
+    spans = protected_spans(body)
     for n in sorted(bad, key=lambda x: -x["end_num"]):
+        if in_spans(n["start"], spans):  # 公式/代码里不插字，免得拆坏；回答末尾的计数照常
+            continue
         body = body[:n["end_num"]] + UNVERIFIED + body[n["end_num"]:]
     if bad:
         body += f"\n\n注：标「未核实」的 {len(bad)} 处数字或日期和本轮数据对不上，请勿据此决策。"
@@ -921,8 +949,11 @@ def finalize(text: str, src: Sources) -> tuple[str, list[dict]]:
     # 模型自己写的 [n]：指向不存在的来源就删掉
     body = re.sub(r"\[(\d+)\]", lambda m: m.group(0) if src.get(int(m.group(1))) else "", body)
     v = verify(body, src)
+    spans = protected_spans(body)
     for n in sorted(v["numbers"], key=lambda x: -x["end_num"]):
         if not n["sids"] or n.get("date_only") or n.get("flagged"):  # 已标「未核实」的数不再补角标
+            continue
+        if in_spans(n["start"], spans):  # 公式/代码里不插角标
             continue
         sids = [s for s in n["sids"] if (src.get(s) or {}).get("kind") not in ("user", None)]
         if not sids:
@@ -940,6 +971,9 @@ def finalize(text: str, src: Sources) -> tuple[str, list[dict]]:
         bei = re.match(r"\s?倍(?!杠杆)", body[at:]) if n["scale"] == 1 and not n["text"].rstrip().endswith(("%", "％")) else None
         if bei:  # 「16.79 倍」角标放在「倍」后
             at += bei.end()
+        times = re.match(r"\s?(?:×|x(?![A-Za-z]))", body[at:]) if not bei and n["scale"] == 1 else None
+        if times:  # 「11.47×」「2.22x」角标放在倍数符号后
+            at += times.end()
         rest = body[at:]
         if re.match(r"\s?\[\d+\]", rest) or re.match(r"\s?\[\d+\]", body[n["end_num"]:]):
             continue
