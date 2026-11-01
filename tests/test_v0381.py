@@ -208,6 +208,9 @@ def test_fetched_page_says_fetched_not_as_of(monkeypatch):
     out, used = cite.finalize("同花顺行业资金榜显示电子信息净额 -71.33 亿。", s)
     assert "抓取于 2026-11-01" in out and "截至 2026-11-01" not in out
     assert used[0]["fetched"]
+    s.add("get_financials", {"symbol": "000300.SS"}, {"symbol": "000300.SS", "pe": 13.4})  # 财务数据没给日期：同样是抓取日
+    out2, _ = cite.finalize("沪深300 市盈率 13.4 倍。", s)
+    assert "抓取于 2026-11-01" in out2 and "截至 2026-11-01" not in out2
 
 
 def test_fetch_date_written_as_latest_trading_day_is_flagged(monkeypatch):

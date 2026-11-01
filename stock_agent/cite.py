@@ -317,7 +317,7 @@ class Sources:
         if tool == "get_financials" and isinstance(result, dict) and not result.get("error"):
             sym = str(result.get("symbol") or args.get("symbol") or "")
             sid = self.new(f"财报与估值 · {sym} · {result.get('source') or '财务数据'}", result.get("url") or f10_url(sym),
-                           str(result.get("as_of") or today()), tool=tool)
+                           str(result.get("as_of") or today()), tool=tool, fetched=not result.get("as_of"))
             self.bind(result, sid)
             aliases = ({sym, str(result.get("name") or "")} | name_aliases(sym, str(result.get("name") or ""))) - {""}
             currency = (result.get("valuation") or {}).get("货币") or result.get("currency")
