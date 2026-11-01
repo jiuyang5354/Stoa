@@ -638,6 +638,7 @@ def _round(tok: str) -> bool:
     return len(d) <= 2
 
 
+CODE_SPAN_RE = re.compile(r"```.*?```|`[^`\n]+`", re.S)
 MATH_RE = re.compile(r"```.*?```|`[^`\n]+`|\$\$.*?\$\$|\\\[.*?\\\]|\\\(.*?\\\)|\$[^$\n]*[\\^_{}][^$\n]*\$", re.S)
 
 
@@ -671,6 +672,7 @@ def key_numbers(text: str) -> list[dict]:
     masked = URL_RE.sub(lambda m: " " * len(m.group(0)), body)
     masked = re.sub(r"\[\d+\]", lambda m: " " * len(m.group(0)), masked)
     masked = re.sub(r"\[\[[^\]]*\]\]", lambda m: " " * len(m.group(0)), masked)
+    masked = CODE_SPAN_RE.sub(lambda m: " " * len(m.group(0)), masked)  # 代码块里的字面量不是数据断言（v0.38：代码题被当成未核实数字打回）
     out = []
     for m in NUM_RE.finditer(masked):
         tok, unit = m.group(1), m.group(3)
@@ -946,6 +948,13 @@ def fix_tags(body: str) -> str:
 def finalize(text: str, src: Sources) -> tuple[str, list[dict]]:
     """补引用角标、清理无效角标、按出现顺序重新编号，末尾附来源清单。返回 (文本, 用到的来源)。"""
     body, _ = split_sources(text)
+    # 代码块先整段藏起来：代码里的 p[0]、arr[1] 不是角标，不能被删掉或重新编号（v0.37 把 peak = p[0] 改成了 peak = p）
+    codes: list[str] = []
+
+    def _hide(m):
+        codes.append(m.group(0))
+        return "\ue000" + chr(0xE100 + len(codes) - 1) + "\ue000"
+    body = CODE_SPAN_RE.sub(_hide, body)
     # 模型自己写的 [n]：指向不存在的来源就删掉
     body = re.sub(r"\[(\d+)\]", lambda m: m.group(0) if src.get(int(m.group(1))) else "", body)
     v = verify(body, src)
@@ -987,6 +996,8 @@ def finalize(text: str, src: Sources) -> tuple[str, list[dict]]:
     remap = {old: i + 1 for i, old in enumerate(order)}
     body = re.sub(r"\[(\d+)\]", lambda m: f"[{remap.get(int(m.group(1)), m.group(1))}]", body)
     used = [{**src.get(o), "n": remap[o]} for o in order if src.get(o)]
+    if codes:
+        body = re.sub("\ue000(.)\ue000", lambda m: codes[ord(m.group(1)) - 0xE100], body)
     if not used:
         return body, []
     lines = [SOURCES_HEAD]
