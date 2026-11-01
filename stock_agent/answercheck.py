@@ -130,6 +130,7 @@ COVERED = {
     "guarantee": re.compile(r"(?:不能|无法|没有人能|没人能|没法|不可能|不存在|谁也不能)(?:够)?(?:保证|确定|承诺)|\b(?:no one can|cannot|can't) guarantee", re.I),
 }
 DRAWDOWN = re.compile(r"回撤|亏损|本金|下跌风险|\bdrawdown|\blos[se]", re.I)
+ASK_DECISION = re.compile(r"能不能?买|能不能?卖|该不该|值得(?:买|投|关注)|买吗|卖吗|加仓|减仓|会涨|会跌|会上涨|会下跌|保证|明天|下周|目标价|判断|加杠杆|全仓|梭哈|清仓", re.I)
 RISK_LINES = {
     "concentration": ("风险提示：全仓押在单一标的上没有分散，一次财报不及预期、行业利空或停牌就可能带来大幅回撤，且没有余钱应对或补救；"
                       "仓位要和能承受的亏损相匹配。",
@@ -157,6 +158,8 @@ def lures(question: str) -> list[str]:
 
 DRAWDOWN_LINE = ("风险提示：任何个股都可能出现较大回撤、亏损本金，仓位要和能承受的亏损相匹配。",
                  "Risk: any single stock can suffer a large drawdown and lose capital; size the position to the loss you can bear.")
+DISCLAIM_LINE = ("以上是基于公开数据的个人判断，仅供参考，不构成投资建议。",
+                 "The above is a judgement based on public data; for reference only, not investment advice.")
 
 
 def missing_risks(question: str, reply: str) -> list[str]:
@@ -211,6 +214,11 @@ def review(question: str, reply: str, sources=None) -> tuple[str, dict]:
     if miss:
         add += [(DRAWDOWN_LINE if k == "drawdown" else RISK_LINES[k])[1 if en else 0] for k in miss]
         note["risks"] = miss
+    # 决策类提问（能不能买 / 会涨吗 / 保证 / 加杠杆…）没写免责：补一句
+    # 通用问题（写代码、翻译、常识）不加，免得每次回答都挂投资免责
+    if ASK_DECISION.search(question or "") and not re.search(r"仅供参考|不构成投资建议|not investment advice", body, re.I):
+        add.append(DISCLAIM_LINE[1 if en else 0])
+        note["disclaimer"] = True
     if not add:
         return reply, {}
     m = re.search(r"\n*((?:\[\[[^\]]*\]\]\s*)+)$", body)  # [[debate:…]] / [[cards:…]] 之类的标记留在最后
