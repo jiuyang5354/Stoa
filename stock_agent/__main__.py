@@ -92,7 +92,7 @@ def session_sections(session: str, snap: dict, closes: dict, mem, cfg: dict) -> 
 
 def sub_command() -> bool:
     """chat / review / memory 子命令；其余参数走报告模式。"""
-    if len(sys.argv) < 2 or sys.argv[1] not in ("chat", "review", "memory", "serve", "mcp", "providers", "desktop", "backtest", "eval", "earnings", "news-snapshot", "research", "runs"):
+    if len(sys.argv) < 2 or sys.argv[1] not in ("chat", "review", "memory", "serve", "mcp", "providers", "desktop", "backtest", "eval", "earnings", "news-snapshot", "research", "runs", "evolve"):
         return False
     cmd = sys.argv[1]
     if cmd == "chat":
@@ -124,6 +124,11 @@ def sub_command() -> bool:
     elif cmd == "eval":
         from .evals import main as ev
         ev(sys.argv[2:])
+    elif cmd == "evolve":  # v0.39 离线进化 / 回滚 / curator / 换模型过闸门
+        from . import settings
+        settings.load_env_file()
+        from .evolve import main as evm
+        evm(sys.argv[2:])
     elif cmd == "news-snapshot":
         from .newsdaily import main as nm
         nm(sys.argv[2:])

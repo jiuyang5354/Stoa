@@ -427,6 +427,14 @@ class Web(BaseHTTPRequestHandler):
         if self.path.split("?")[0] == "/api/learn":
             from . import learn
             return self._send(200, learn.listing())
+        if self.path.split("?")[0] == "/api/evolve":  # v0.39 学到的东西：技能时间线、待批准、回滚
+            from . import evolve
+            from .providers import Router
+            try:
+                model = Router(load_cfg().get("llm", {})).chain[0].model
+            except Exception:
+                model = None
+            return self._send(200, evolve.listing(model))
         if self.path.split("?")[0] == "/api/runs":
             from . import ledger
             return self._send(200, {"runs": ledger.runs_list(), "interrupted": ledger.interrupted(), "jobs": ledger.jobs_list()})
@@ -702,6 +710,20 @@ class Web(BaseHTTPRequestHandler):
                 return self._send(400, {"error": "这个工具不支持重放"})
             a = Agent(channel="web")
             return self._send(200, missing.replay(mid, a.run_tool))
+        if path in ("/api/evolve/rollback", "/api/evolve/pin", "/api/evolve/restore", "/api/evolve/curator"):
+            if not self._local_ok():
+                return self._send(403, {"error": "forbidden"})
+            from . import evolve, skills, curator
+            body = self._body()
+            if path == "/api/evolve/rollback":
+                return self._send(200, evolve.rollback(re.sub(r"[^a-f0-9]", "", str(body.get("id", "")))[:20] or None, MEM))
+            if path == "/api/evolve/pin":
+                return self._send(200, skills.pin(str(body.get("name", ""))[:60], bool(body.get("on", True))))
+            if path == "/api/evolve/restore":
+                ok = skills.restore(str(body.get("name", ""))[:60])
+                return self._send(200, {"ok": ok, "msg": "已恢复" if ok else "没有这个归档技能"} if ok else {"error": "没有这个归档技能"})
+            r = curator.run(dry_run=bool(body.get("dry_run")), force=True)
+            return self._send(200, {"ok": True, "msg": r["summary"], "report": r})
         if path == "/api/learn/revoke":
             if not self._local_ok():
                 return self._send(403, {"error": "forbidden"})
@@ -1089,7 +1111,12 @@ def main():
         uploads.cleanup()
     except Exception:
         pass
-    for fn in (reaper, telegram, scheduler, auto_resume, lambda: tasks.loop(task_runner, log), lambda: inquiry.loop(log, MEM), lambda: alerts.loop(log), lambda: vectors.indexer_loop(MEM, log), lambda: newsdaily.loop(log)):
+    def _curator():  # v0.39 技能生命周期：每小时看一次到没到周期（默认 24 小时跑一次）
+        from . import curator
+        while True:
+            curator.maybe_run()
+            time.sleep(3600)
+    for fn in (_curator, reaper, telegram, scheduler, auto_resume, lambda: tasks.loop(task_runner, log), lambda: inquiry.loop(log, MEM), lambda: alerts.loop(log), lambda: vectors.indexer_loop(MEM, log), lambda: newsdaily.loop(log)):
         threading.Thread(target=fn, daemon=True).start()
     log(f"Stoa 已启动：http://{host}:{port}  数据目录 {home()}")
     from .data import provider_order

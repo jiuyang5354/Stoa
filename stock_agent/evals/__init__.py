@@ -94,7 +94,7 @@ def fixture_tool(fx: dict, name: str, args: dict):
     return None
 
 
-def make_agent(fx: dict, mem, llm, log: list, blocked: list | None = None):
+def make_agent(fx: dict, mem, llm, log: list, blocked: list | None = None, live: bool = False):
     from ..agent import Agent
 
     class EvalAgent(Agent):
@@ -112,12 +112,16 @@ def make_agent(fx: dict, mem, llm, log: list, blocked: list | None = None):
                     else earnings.calendar_view(self.mem, refresh_now=True, fetch=f)
                 log.append({"tool": name, "args": args, "result": res})
                 return res
-            res = fixture_tool(fx, name, args) if name in DATA_TOOLS else super().run_tool(name, args)
+            res = fixture_tool(fx, name, args) if name in DATA_TOOLS and not live else super().run_tool(name, args)
             log.append({"tool": name, "args": args, "result": res})
             return res
 
     a = EvalAgent(mem, channel="eval")
     a.llm = llm
+    # 换了模型：系统提示（技能索引、自进化的提示补充）和工具描述按实际评测的模型重算（v0.39 按模型分开记）
+    a.refresh_tools()
+    a._sys_base = a._system()
+    a.messages[0]["content"] = a._sys_base
     a.tools = [t for t in a.tools if not t["name"].startswith("mcp__")]
     return a
 
@@ -715,7 +719,7 @@ def merge_fixtures(fx: dict, extra: dict | None) -> dict:
     return out
 
 
-def run_case(case, fx, llm_kind, real_home: Path):
+def run_case(case, fx, llm_kind, real_home: Path, prepare=None):
     from ..memory import Memory
     if case.get("replay"):  # 点踩回归题：按记录的现场回放事后检查，不调模型（learn.py）
         from .. import learn
@@ -731,6 +735,8 @@ def run_case(case, fx, llm_kind, real_home: Path):
     shutil.copy(real_home / "config.yaml", tmp / "config.yaml") if (real_home / "config.yaml").exists() else None
     log, answer, err, t0, meta = [], "", None, time.time(), {}
     try:
+        if prepare:  # v0.39 离线进化：把已生效的技能 / 提示补充与候选改动套进临时数据目录
+            prepare(tmp)
         mem = Memory(tmp)
         setup = case.get("setup") or {}
         for t in ("user", "memory"):
@@ -741,7 +747,7 @@ def run_case(case, fx, llm_kind, real_home: Path):
         for c in setup.get("calls", []):
             mem.record_call(c["symbol"], c.get("name", ""), c["view"], c["price"], c.get("horizon_days", 20), c["reason"])
         llm = pick_llm(llm_kind)
-        agent = make_agent(fx, mem, llm, log, blocked)
+        agent = make_agent(fx, mem, llm, log, blocked, live=bool(case.get("live")))
 
         def tune(a):
             if case.get("context_extra"):  # 人为把上下文预算压小，触发长对话压缩
@@ -752,7 +758,7 @@ def run_case(case, fx, llm_kind, real_home: Path):
         for turn in case["turns"]:
             if turn == "/new":
                 agent.end_session()
-                agent = tune(make_agent(fx, mem, llm, log, blocked))
+                agent = tune(make_agent(fx, mem, llm, log, blocked, live=bool(case.get("live"))))
                 continue
             answer = agent.ask(turn)
         checks = score_case(case, answer, log, fx, tmp, " ".join(case["turns"]) + " " + json.dumps(case.get("setup") or {}, ensure_ascii=False),

@@ -600,6 +600,11 @@ class Agent:
     def refresh_tools(self):
         """内置工具 + 用户在 mcp.json 里接的外部 MCP 服务器的工具；每轮提问前刷新，设置页改了立刻生效。"""
         self.tools = [t for t in TOOLS if t["name"] != "run_python" or sandbox.enabled()]
+        try:  # v0.39 自进化：工具描述补充（只在验证过的模型上）
+            from . import evolve
+            self.tools = evolve.tool_overlay(self.tools, self._model_name())
+        except Exception:
+            pass
         try:
             from .mcpclient import MCP
             names = {t["name"] for t in self.tools}
@@ -619,8 +624,14 @@ class Agent:
         st = self.mem.call_stats()
         ledger = "## 判断账本\n" + (f"已复盘 {st['closed']} 次，准确率 {st['准确率%']}%，最近：{st['最近10次']}，未到期 {st['open']} 次。"
                                    + (f" 短板：{st['短板']}。" if st.get("短板") else "") if st.get("closed") else f"还没有复盘过的判断，未到期 {st['open']} 次。")
-        system = SYSTEM.format(now=now(), memory=self.mem.snapshot(), skills=skills.index(), ledger=ledger, reviews=rv)
+        model = self._model_name()
+        system = SYSTEM.format(now=now(), memory=self.mem.snapshot(), skills=skills.index(model=model), ledger=ledger, reviews=rv)
         self._memory_source_context = system.split("当前时间：", 1)[-1]
+        try:  # v0.39 自进化：在当前模型上过了闸门的提示补充（放在全部规则之后）
+            from . import evolve
+            system += evolve.prompt_block(model)
+        except Exception:
+            pass
         return system + "\n\n" + toolsel.DOMAIN_INDEX
 
     # ----- 工具 -----
@@ -743,7 +754,7 @@ class Agent:
                 res = do() + f"（{note}）"
             return res
         if name == "skill_view":
-            return skills.view(args["name"])
+            return skills.view(args["name"], model=self._model_name())
         if name == "skill_save":
             return skills.save(args["name"], args.get("description", ""), args.get("content", ""))
         if name == "skill_delete":
@@ -937,7 +948,7 @@ class Agent:
         try:
             return self.llm.chain[0].model
         except Exception:
-            return getattr(self.llm, "model", "") or ""
+            return getattr(self.llm, "model", "") or ("mock" if repr(self.llm) == "mock" else "")
 
     # ----- 上下文预算与压缩 -----
     def turn_tools(self) -> list[dict]:
@@ -1319,7 +1330,7 @@ class Agent:
         n_tools, saved, retried, first_bad, pushed = 0, False, False, [], False
         gated = []  # v0.38 闸门触发记录（stale / code / gap），每种每轮最多一次
         try:  # 计算/取数口径类问题：本轮自动附上内置技能全文（LBO/DCF/FCCR、FRED vintage 等），回答后从上下文拿掉，不占以后各轮
-            auto = skills.auto_load(text)
+            auto = skills.auto_load(text, model=self._model_name())
         except Exception:
             auto = []
         self.auto_skills = [a["name"] for a in auto]
@@ -1425,6 +1436,11 @@ class Agent:
                         m["content"] = m["content"].split("\n\n" + AUTO_SKILL_MARK, 1)[0]
                 self._heavy = n_tools >= 4 and not saved
                 self._last_used = set(getattr(self, "_used_now", ()) or ()) - set(toolsel.CORE_TOOLS) - {"tool_search"}
+                try:  # v0.39 自进化：后台复盘这一轮（辅助模型，可关；不阻塞回答）
+                    from . import evolve
+                    self._review_thread = evolve.after_turn(self, text, reply, n_tools)
+                except Exception:
+                    pass
                 return reply
             rounds += 1
             n_tools += len(calls)

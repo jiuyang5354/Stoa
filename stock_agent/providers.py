@@ -22,7 +22,7 @@ from pathlib import Path
 import requests
 
 # 真实用量（接口返回的 usage）：回测/评测用它报 token，没有 usage 的接口记 calls_no_usage
-USAGE = {"calls": 0, "prompt_tokens": 0, "completion_tokens": 0, "calls_no_usage": 0, "errors": 0, "retries": 0, "timeouts": 0}
+USAGE = {"calls": 0, "prompt_tokens": 0, "completion_tokens": 0, "cached_tokens": 0, "calls_no_usage": 0, "errors": 0, "retries": 0, "timeouts": 0}
 RETRY_STATUS = {429, 500, 502, 503, 504}  # 中转/网关常见的限流与临时故障：退避重试（LLM_RETRIES，默认 3 次）
 _USAGE_LOCK = threading.Lock()
 
@@ -155,6 +155,18 @@ def record_usage(u: dict | None = None, error: bool = False):
             return
         USAGE["prompt_tokens"] += int(u.get("prompt_tokens") or u.get("input_tokens") or u.get("promptTokenCount") or 0)
         USAGE["completion_tokens"] += int(u.get("completion_tokens") or u.get("output_tokens") or u.get("candidatesTokenCount") or 0)
+        USAGE["cached_tokens"] += cached_tokens(u)
+
+
+def cached_tokens(u: dict) -> int:
+    """输入里命中缓存的部分（v0.39，区分缓存 / 未缓存）：OpenAI prompt_tokens_details.cached_tokens、
+    Responses input_tokens_details.cached_tokens、Anthropic cache_read_input_tokens、Gemini cachedContentTokenCount。"""
+    try:
+        d = u.get("prompt_tokens_details") or u.get("input_tokens_details") or {}
+        return int((d.get("cached_tokens") if isinstance(d, dict) else 0) or u.get("cache_read_input_tokens") or u.get("cachedContentTokenCount")
+                   or u.get("prompt_cache_hit_tokens") or 0)
+    except Exception:
+        return 0
 
 
 def _backoff(resp, attempt: int) -> float:

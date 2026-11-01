@@ -57,6 +57,9 @@ FIELDS = {
     "CODE_SANDBOX": ("tools", "代码执行环境", False, "auto（默认）：Docker 优先，没有时本机受限模式；docker：只用 Docker"),
     "DEBATE_ANALYST_MODEL": ("tools", "深度分析 · 分析师模型", False, "四位分析师与多空研究员用的模型；留空用默认模型。可写「模型名」或「服务商:模型名」"),
     "DEBATE_JUDGE_MODEL": ("tools", "深度分析 · 裁决模型", False, "风控、基金经理裁决与核对修订用的模型；留空用默认模型"),
+    "EVOLVE_REVIEW": ("tools", "后台复盘", False, "on / off，默认 on：每轮结束用辅助模型把走通的做法和你的纠正写成技能"),
+    "EVOLVE_REVIEW_MODEL": ("tools", "复盘模型", False, "留空用深度分析的分析师模型；可写「模型名」或「服务商:模型名」"),
+    "EVOLVE_APPROVAL": ("tools", "自进化审批", False, "如 skills=auto,prompts=approve（默认技能/笔记自动，提示/规则要批准）"),
     "WEB_TOKEN": ("tools", "访问口令", True, "放到公网时必须设"),
     "CORS_ORIGIN": ("tools", "跨域来源", False, ""),
 }
