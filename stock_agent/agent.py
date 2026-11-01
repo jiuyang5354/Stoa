@@ -17,7 +17,7 @@ from .providers import Router, RequestCancelled, RequestTimeout, TurnTimeout
 
 RESUME_MSGS = 40  # 恢复旧对话时最多带回的原文条数；更早的（或超出上下文预算的）滚动摘要成会话纪要，不再直接丢掉
 NUDGE_EVERY = 6  # 每隔几轮提醒自己是否该存记忆
-MAX_TOOL_ROUNDS = 12  # 工具循环默认上限（config.yaml agent.max_tool_rounds / AGENT_MAX_ROUNDS）；上下文预算先用完会提前收尾
+MAX_TOOL_ROUNDS = 16  # 工具循环默认上限（config.yaml agent.max_tool_rounds / AGENT_MAX_ROUNDS）；上下文预算先用完会提前收尾
 EN_NOTE = """
 
 Language: the user is using the English interface. Write every reply (and the one-line "why" before tool calls) in English, even though these instructions and some tool data are in Chinese. Translate Chinese news titles / names when quoting (keep the stock name in original in parentheses once). Keep [n] citation markers. For the closing key points use the tags [Data] (has a [n] source), [Inference] (your own judgement) and [Unknown] (not found / needs the user to check) at the start of each line. End important conclusions with "For reference only, not investment advice." and for timing calls add once "Timing calls were not statistically significant in backtests."
@@ -1371,7 +1371,8 @@ class Agent:
             if final:
                 msg = {**msg, "tool_calls": None}
                 if not (msg.get("content") or "").strip():
-                    msg["content"] = f"（{final}，以下只能基于已查到的部分回答：暂时没有足够的数据给出完整结论。）"
+                    msg["content"] = (f"（{final}，以下只能基于已查到的部分回答：暂时没有足够的数据给出完整结论。）\n\n"
+                                      "缺口未补齐，结论可能不完整；任何操作请自行评估风险，以上不构成投资建议。")
             self.messages.append({k: v for k, v in msg.items() if v is not None and k != "_reasoning"})
             calls = msg.get("tool_calls") or []
             think = (msg.get("_reasoning") or "").strip()
