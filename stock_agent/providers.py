@@ -169,6 +169,35 @@ def cached_tokens(u: dict) -> int:
         return 0
 
 
+def explain_http(e: requests.HTTPError) -> str:
+    """把上游的 4xx/5xx 换成人能照着做的说明。
+
+    真实案例（2026-11-01）：中转站余额不足返回 403 + {"code":"INSUFFICIENT_BALANCE"}，
+    界面只显示 "403 Client Error: Forbidden"，用户完全不知道是欠费。
+    """
+    r = getattr(e, "response", None)
+    status = getattr(r, "status_code", None) if r is not None else None
+    body = ""
+    if r is not None:
+        try:
+            body = (r.text or "")[:800]
+        except Exception:
+            body = ""
+    low = body.lower()
+    if "insufficient_balance" in low or "余额不足" in body or "insufficient quota" in low:
+        return "模型账户余额不足：请到服务商控制台充值，或在「设置 → 服务商」换一个来源"
+    if status == 401 or "invalid api key" in low or "停用" in body:
+        return "模型密钥无效或已停用：请到服务商控制台核对密钥，或在设置里重新填写"
+    if status == 402 or "payment required" in low:
+        return "模型账户需要付费后才能使用：请到服务商控制台充值"
+    if status == 429:
+        return "模型服务限流（429）：稍等几秒再试，或在设置里填备用模型"
+    if status == 404:
+        return "模型名或接口地址不对（404）：核对设置里的「模型」与「接口地址」"
+    hint = body.strip()[:120]
+    return f"{str(e)[:160]}{'：' + hint if hint else ''}"
+
+
 def _backoff(resp, attempt: int) -> float:
     """Retry-After（秒）优先，否则 2、4、8… 秒加抖动，最多 30 秒。"""
     try:
@@ -387,7 +416,7 @@ class LLM:
                 code = getattr(e.response, "status_code", None)
                 if code not in RETRY_STATUS or attempt >= retries:
                     record_usage(error=True)
-                    raise
+                    raise requests.HTTPError(explain_http(e), response=e.response) from e
                 with _USAGE_LOCK:
                     USAGE["retries"] += 1
                 delay = _backoff(e.response, attempt)
