@@ -63,6 +63,14 @@ Quote checks bind recognized stock symbols or known names to quote fields and da
 - New memories distinguish planned, historical, pending and confirmed holdings. Agent-added holdings require confirmation; changes can be audited and undone without overwriting newer edits. Concurrent history/chat requests use thread-local SQLite connections, and memory file reads share the write lock.
 - Updates verify the release asset SHA-256, retain the previous installation and roll back if the backend version fails its startup check.
 
+## v0.39.1
+
+- **Online review writes where it will be read again** (found by a 10-question live test on gpt-6.1-sol): the review snapshot records which skills the turn actually read (auto-attached or `skill_view`); non-correction notes only land on those skills (4 of 5 live notes had gone to built-in skills that are never read for that kind of question). New review skills carry `auto:` triggers taken from the question (2–12 chars, must appear in the question, generic words such as closing price / P/E / trading day are dropped) and are auto-attached to similar questions on the model they were learned on; triggers survive later patches.
+- **No duplicate or misplaced memory**: research turns no longer write method notes into MEMORY.md (they go into per-model skills); when the assistant already saved the correction with the `memory` tool, the review does not add a near-duplicate.
+- **Pasted injection is not learned from**: text pasted into the user's own message that matches the injection patterns (`taint.scan`) now skips the review, as tool results and attachments already did.
+- **Windows updater** (merged #7): a busy install directory (WinError 5) now explains what to close; pre-flight failures still write a result; stale stoa-update-* temp dirs are swept.
+- Skills created from a user correction apply to all models; the Learned page lists built-in skills that received review notes; `evolve <subcommand> --help` prints usage instead of running the curator.
+
 ## v0.39 · Eruditio — self-evolution
 
 Modeled on Hermes Agent v0.22 (background review + curator), RRSI (arXiv 2609.24972: train/held-out split against overfitting) and Google Harness² (arXiv 2610.14224: matched-condition contrasts). Only skills, prompt additions and notes in the data folder change; code, risk red lines, citation checks, injection defenses and guard constraints are never changed automatically.

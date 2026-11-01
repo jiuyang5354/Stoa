@@ -496,6 +496,15 @@ Actions 页面也可以手动点 “Run workflow” 立即生成一份。
 - 背景岩壁与 3D 神庙石材：ambientCG「Travertine 009」（https://ambientcg.com/view?id=Travertine009），CC0。stock_agent/assets/travertine009_color.jpg 为原 1K 颜色图（重新压缩）；travertine009_normal.jpg 为原 NormalGL 叠加由颜色图亮度推导的浅浮雕法线（原法线图几乎是平的，这块是抛光板材）；travertine009_roughness.jpg 为原粗糙度图拉伸到 0.45–0.85 并缩到 512（原图接近镜面）。
 - 首页标题字体：Archeologicaps（dafont，标注 100% Free），stock_agent/assets/archeologicaps.woff2，已子集化为 ASCII。
 
+## 修复（v0.39.1）
+- 在线复盘用真实模型（gpt-6.1-sol）实测 10 轮快问后修的问题（`tests/test_v0391.py`）：
+- 复盘写进「下次读得到」的地方：快照记下本轮读过的技能（自动附上的 + `skill_view`），非纠正的补充只写进这些技能，写给没读过的技能直接丢弃（实测 5 条里 4 条写进了从不被读到的内置技能）；复盘新建的技能带 `auto:` 触发词（模型给 `triggers`，只收本轮提问里出现过、2–12 字、不是「收盘价/市盈率/交易日」这类泛词的），同类提问时 `skills.auto_load` 自动附上（只在验证过的模型上），改写技能时触发词保留
+- 记忆不重复、不乱写：非纠正的研究轮不再往 MEMORY.md 写方法笔记（研究套路进技能、按模型分开）；助手本轮已用 `memory` 工具记下纠正时，复盘不再写一条近义重复
+- 用户消息里贴进来的文字含疑似注入（`taint.scan`：「忽略之前所有指令」「【系统指令】」…）时不复盘——以前只看工具结果和附件，贴在提问里的注入带「以后不要…」会被当成用户纠正去学
+- 用户纠正新建的技能对所有模型生效（和纠正写进已有技能一致）
+- Windows 一键更新（合入 #7）：安装目录被占用（WinError 5）时说明原因与做法；更新预检失败也写结果；清理 6 小时以上的 stoa-update-* 临时目录
+- 「学到的东西」技能表列出被复盘补充过 / 用过的内置技能（「内置 · 复盘补充 N」）；`evolve curator --help` 等子命令的 `--help` 只打印用法，不再真的跑一次整理
+
 ## 自进化（v0.39 · Eruditio）
 参考 Hermes Agent v0.22（2026-10-13）的后台复盘与 curator、RRSI（arXiv 2609.24972）的训练/留出防过拟合、Google Harness²（arXiv 2610.14224）的同条件对比。只改数据目录里的技能、提示补充和笔记；代码、风控红线、出处核对、注入防护、guards 硬约束都不会被自动改。
 - **在线复盘**（`stock_agent/evolve.py`）：每轮快问结束后，如果用过 ≥ 3 个工具（`evolve.review_min_tools`，两次间隔 ≥ 300 秒）或你在纠正上一轮，后台用辅助模型（`evolve.review_model` / `EVOLVE_REVIEW_MODEL`，留空用 Agora 分析师模型）复盘一次，不阻塞回答：走通的研究套路写成新技能；你的纠正写进最对口的技能「纠正与坑」并记一条 MEMORY.md；纠正若是词表 / 简称漏网，交给 v0.36 点踩管线出候选规则和回放题。读到疑似注入内容的一轮、定时任务、评测都不复盘。`EVOLVE_REVIEW=off` 关掉
