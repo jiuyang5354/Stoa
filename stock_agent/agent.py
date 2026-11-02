@@ -1015,6 +1015,11 @@ class Agent:
         from . import guards, ledger
         step = step if step is not None else getattr(_STEP, "n", None)
         rid, raw, hit = getattr(self, "_run_id", None), None, False
+        counts = self.__dict__.setdefault("_turn_counts", {})
+        with self.__dict__.setdefault("_count_lock", threading.Lock()):
+            stuck = guards.repeat(name, args, counts)  # 缓存命中也得拦：重复本身不含新信息
+        if stuck:
+            return stuck
         if rid and step is not None:
             try:
                 st = ledger.step_get(rid, step)
@@ -1025,7 +1030,6 @@ class Agent:
                 if name == "deep_analysis" and isinstance(raw, dict) and raw.get("debate_id"):
                     self.last_debate = raw["debate_id"]
         if not hit:
-            counts = self.__dict__.setdefault("_turn_counts", {})
             with self.__dict__.setdefault("_count_lock", threading.Lock()):
                 blocked = guards.check(name, args, getattr(self, "_cur_text", "") or "", counts)
                 if not blocked:
@@ -1033,11 +1037,20 @@ class Agent:
             if blocked:
                 return blocked
             raw = self.run_tool(name, args)
+            try:
+                guards.observe(name, args, raw, counts)  # 记结果指纹：原地打转的调用第三次会被 check 拦下
+            except Exception:
+                pass
             if rid and step is not None:
                 try:
                     ledger.step_put(rid, step, "tool", name, {"args": args, "result": raw})
                 except Exception:
                     pass
+        else:
+            try:
+                guards.observe(name, args, raw, counts)  # 缓存命中：结果相同，一样进入重复计数
+            except Exception:
+                pass
         raw = self._screen(name, raw)
         err = None
         try:
@@ -1506,6 +1519,11 @@ class Agent:
                 key = name + json.dumps(args, sort_keys=True, ensure_ascii=False)
                 if name not in SIDE_EFFECT_TOOLS and key in cache:
                     result, hit = cache[key], True
+                    from . import guards
+                    stuck = guards.repeat(name, args, self._turn_counts)  # 同样的调用已经原样返回过两次
+                    guards.observe(name, args, result, self._turn_counts)
+                    if stuck:
+                        result = stuck  # 第三次起不再默默回同一份结果，改成明确的拦截理由
                 else:
                     _STEP.n = base + i  # 线程本地：并行工具各自的步号（_tool 读取；测试里可能把 _tool 换成两参数的包装）
                     try:
