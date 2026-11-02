@@ -120,6 +120,9 @@ def db() -> sqlite3.Connection:
                     before TEXT, after TEXT, summary TEXT, status TEXT, mode TEXT, redline TEXT, gate TEXT, approval_id TEXT,
                     decided TEXT, note TEXT, run TEXT);
                 CREATE INDEX IF NOT EXISTS changes_t ON changes(target);
+                CREATE TABLE IF NOT EXISTS reviews(id TEXT PRIMARY KEY, ts TEXT, outcome TEXT, model TEXT, session TEXT,
+                    tools INTEGER, correction INTEGER, n_changes INTEGER, ms INTEGER, error TEXT, why TEXT);
+                CREATE INDEX IF NOT EXISTS reviews_ts ON reviews(ts);
             """)
             c.commit()
             _DB[key] = c
@@ -467,22 +470,35 @@ def after_turn(agent, question: str, reply: str, n_tools: int):
     """Agent 每轮快问收尾时调用：够条件就开后台线程复盘，不阻塞回答。"""
     try:
         c = cfg()
-        if not _on(c.get("review")) or getattr(agent, "channel", "") == "eval":
+
+        def _skip(reason):
+            """跳过也要留痕，否则「自进化没产出」无从解释（这台机器 0 条改动就是这么来的）。"""
+            name = ""
+            try:
+                name = agent._model_name() if hasattr(agent, "_model_name") else ""
+            except Exception:
+                pass
+            _log_review(f"skip:{reason}", name, getattr(agent, "session", ""), n_tools, False)
             return None
+
+        if not _on(c.get("review")):
+            return _skip("off")
+        if getattr(agent, "channel", "") == "eval":
+            return _skip("eval")
         if repr(agent.llm) == "mock" and os.getenv("EVOLVE_REVIEW_FORCE") != "1":
-            return None
+            return _skip("mock")
         from .guards import unattended
         if unattended(question):
-            return None
+            return _skip("unattended")
         tainted = bool((getattr(agent, "_turn_counts", None) or {}).get("_tainted")) or _pasted_injection(question)
         corr = bool(CORRECTION.search(question or ""))
         if tainted:  # 本轮读到疑似注入的外部内容：不从这一轮学任何东西
-            return None
+            return _skip("tainted")
         if not corr:
             if n_tools < int(c.get("review_min_tools") or 3):
-                return None
+                return _skip("below_tools")
             if time.time() - _LAST_REVIEW[0] < float(c.get("review_gap") or 0):
-                return None
+                return _skip("gap")
         _LAST_REVIEW[0] = time.time()
         snap = snapshot(agent, question, reply, corr)
         llm = review_llm(agent.llm)
@@ -505,10 +521,63 @@ def _pasted_injection(question: str) -> bool:
 
 
 def _safe_review(snap, llm, mem):
+    """复盘一次，并把结果记进 reviews 表。
+
+    v0.40.1：原来异常被 `pass` 吞掉，于是「自进化一直没产出」这件事在界面上看不出来
+    （实测这台机器 evolve.db 的 changes 表 0 条、skills 目录 0 个文件，日志里连一句复盘都没有）。
+    现在成功、无产出、失败、跳过都留一行，带模型名与耗时。
+    """
+    t0 = time.time()
     try:
-        review_turn(snap, llm, mem)
+        r = review_turn(snap, llm, mem) or {}
+    except Exception as e:
+        _log_review("failed", snap.get("model") or "", snap.get("session") or "", len(snap.get("tools") or []),
+                    bool(snap.get("correction")), 0, int((time.time() - t0) * 1000), f"{type(e).__name__}: {e}", "")
+        return {"changes": [], "why": "复盘失败"}
+    ch = r.get("changes") or []
+    _log_review("changed" if ch else "noop", snap.get("model") or "", snap.get("session") or "", len(snap.get("tools") or []),
+                bool(snap.get("correction")), len(ch), int((time.time() - t0) * 1000), "", str(r.get("why") or ""))
+    return r
+
+
+REVIEW_KEEP = 500
+SKIP_NAMES = {"off": "已关闭", "eval": "评测轮", "mock": "mock 模型", "unattended": "定时/无人值守",
+              "tainted": "读到疑似注入", "below_tools": "工具太少", "gap": "间隔内"}
+
+
+def _log_review(outcome, model="", session="", tools=0, correction=False, n_changes=0, ms=0, error="", why=""):
+    try:
+        _x("INSERT INTO reviews(id,ts,outcome,model,session,tools,correction,n_changes,ms,error,why) VALUES(?,?,?,?,?,?,?,?,?,?,?)",
+           (uuid.uuid4().hex[:12], datetime.now(CN).isoformat(timespec="seconds"), outcome, str(model)[:60], str(session)[:40],
+            int(tools or 0), 1 if correction else 0, int(n_changes or 0), int(ms or 0), str(error)[:300], str(why)[:200]))
+        _x("DELETE FROM reviews WHERE id NOT IN (SELECT id FROM reviews ORDER BY ts DESC LIMIT ?)", (REVIEW_KEEP,))
     except Exception:
         pass
+
+
+def review_stats(limit: int = 12) -> dict:
+    rows = _q("SELECT * FROM reviews ORDER BY ts DESC LIMIT ?", (limit,))
+    counts = {r["outcome"]: r["n"] for r in (_q("SELECT outcome, COUNT(*) n FROM reviews GROUP BY outcome") or [])}
+    last_fail = _q("SELECT * FROM reviews WHERE outcome='failed' ORDER BY ts DESC LIMIT 1", one=True)
+    return {"recent": rows, "counts": counts, "last_fail": last_fail}
+
+
+def review_line() -> str:
+    """一行自进化健康状态：有没有在学、为什么没学。"""
+    s = review_stats()
+    c = s["counts"]
+    if not c:
+        return "复盘 从未运行（打开一次对话就会开始；evolve.review=on 时每轮后台跑）"
+    total = sum(v for k, v in c.items() if not k.startswith("skip:"))
+    parts = [f"复盘 尝试 {total}", f"改动 {c.get('changed', 0)}", f"无产出 {c.get('noop', 0)}", f"失败 {c.get('failed', 0)}"]
+    skips = sorted(((k.split(":", 1)[1], v) for k, v in c.items() if k.startswith("skip:")), key=lambda x: -x[1])
+    if skips:
+        parts.append("跳过 " + "、".join(f"{SKIP_NAMES.get(k, k)} {v}" for k, v in skips[:4]))
+    line = " · ".join(parts)
+    if s["last_fail"]:
+        f = s["last_fail"]
+        line += f"\n  最近一次失败：{f['ts'][5:16]} {f['error'][:120]}"
+    return line
 
 
 def _brief(result, n=400) -> str:
@@ -1307,7 +1376,8 @@ CLI_HELP = """用法：python -m stock_agent evolve <子命令>
   run [--llm real|mock] [--tasks cases,replay,x.jsonl] [--only ids] [--rounds N] [--candidates N] [--concurrency N] [--dry-run]
                      离线进化：失败轨迹 → 候选改动 → 训练/留出闸门 → 生效或待批准
   gate --model 名称   已生效的自进化改动在另一个模型上验证（同分即加进这个模型）
-  status             最近的改动与状态
+  status             最近的改动与状态，外加自进化健康（复盘尝试 / 改动 / 无产出 / 失败 / 跳过原因）
+  reviews [N]        最近 N 次复盘与跳过记录（默认 20）
   rollback [id|--last]  回滚一次改动（不给 id 就是最近一次）
   curator [--dry-run]   现在整理一次技能（不常用 / 归档 / 合并）"""
 
@@ -1316,7 +1386,7 @@ def main(argv=None):
     import argparse
     import sys
     argv = list(sys.argv[2:] if argv is None else argv)
-    if argv[:1] in (["rollback"], ["status"], ["list"], ["curator"]) and ({"-h", "--help"} & set(argv)):
+    if argv[:1] in (["rollback"], ["status"], ["list"], ["curator"], ["reviews"]) and ({"-h", "--help"} & set(argv)):
         # v0.39.1：以前 `evolve curator --help` 会直接跑一次整理（改数据），子命令的 --help 只打印用法
         print(CLI_HELP)
         return
@@ -1328,8 +1398,19 @@ def main(argv=None):
     if argv[:1] in (["status"], ["list"]):
         L = listing()
         print(f"生效 {L['stats']['active']} · 待批准 {L['stats']['pending']} · 已回滚 {L['stats']['rolled_back']} · 拦下 {L['stats']['blocked']}")
+        print(review_line())
         for x in L["changes"][:20]:
             print(f"  {x['id']}  {x['ts'][5:16]}  {x['status_name']:<4}  {x['kind']:<8} {x['origin']:<7} {x['model'] or '—':<14} {x['summary'][:60]}")
+        return
+    if argv[:1] == ["reviews"]:
+        n = int(argv[1]) if len(argv) > 1 and argv[1].isdigit() else 20
+        rows = _q("SELECT * FROM reviews ORDER BY ts DESC LIMIT ?", (n,)) or []
+        if not rows:
+            print(review_line())
+            return
+        for r in rows:
+            tail = r["error"] or r["why"] or (f"{r['n_changes']} 处改动" if r["n_changes"] else "")
+            print(f"  {r['ts'][5:16]}  {r['outcome']:<14} {r['tools']:>2}工具 {(r['ms'] or 0):>5}ms  {(r['model'] or '—')[:18]:<18} {str(tail)[:70]}")
         return
     if argv[:1] == ["curator"]:
         from . import curator
