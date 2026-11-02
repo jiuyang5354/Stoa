@@ -36,7 +36,7 @@ CN = timezone(timedelta(hours=8))
 KIND_GROUP = {"skill": "skills", "skillnote": "skills", "memory": "memory", "prompt": "prompts", "tooldesc": "prompts", "rule": "rules", "code": "code"}
 DEFAULT_APPROVAL = {"skills": "auto", "memory": "auto", "prompts": "approve", "rules": "approve"}
 DEFAULTS = {
-    "review": "on", "review_model": "", "review_min_tools": 3, "review_gap": 300,
+    "review": "on", "review_model": "", "review_min_tools": 1, "review_min_chars": 600, "review_gap": 300,
     "write_approval": dict(DEFAULT_APPROVAL),
     "gate": {"holdout": 0.35, "max_edits": 3, "max_edit_chars": 1200, "min_gain": 0.0, "max_prompt_growth": 1500, "seed": "stoa"},
     "curator": {"enabled": "on", "interval_hours": 24, "stale_after_days": 14, "archive_after_days": 30, "merge_threshold": 0.6},
@@ -495,8 +495,11 @@ def after_turn(agent, question: str, reply: str, n_tools: int):
         if tainted:  # 本轮读到疑似注入的外部内容：不从这一轮学任何东西
             return _skip("tainted")
         if not corr:
-            if n_tools < int(c.get("review_min_tools") or 3):
+            if n_tools < int(c.get("review_min_tools") or 1):
                 return _skip("below_tools")
+            # 1–2 次工具的轮次：回答够长才复盘，否则每句闲聊都调一次模型（贵）
+            if n_tools < STRONG_TOOLS and len(reply or "") < int(c.get("review_min_chars") or 600):
+                return _skip("below_chars")
             if time.time() - _LAST_REVIEW[0] < float(c.get("review_gap") or 0):
                 return _skip("gap")
         _LAST_REVIEW[0] = time.time()
@@ -542,7 +545,8 @@ def _safe_review(snap, llm, mem):
 
 REVIEW_KEEP = 500
 SKIP_NAMES = {"off": "已关闭", "eval": "评测轮", "mock": "mock 模型", "unattended": "定时/无人值守",
-              "tainted": "读到疑似注入", "below_tools": "工具太少", "gap": "间隔内"}
+              "tainted": "读到疑似注入", "below_tools": "工具太少", "below_chars": "回答太短", "gap": "间隔内"}
+STRONG_TOOLS = 3  # 工具到这个数就复盘，不看回答长度
 
 
 def _log_review(outcome, model="", session="", tools=0, correction=False, n_changes=0, ms=0, error="", why=""):
@@ -728,10 +732,21 @@ def _to_learn(snap: dict, mem):
         learn.feedback(mem or Memory(), tr.get("session") or "", snap["question"], trace=tr)
 
 
-def render_skill(name: str, description: str, body: str, uses: int = 0, auto: str = "") -> str:
+def render_skill(name: str, description: str, body: str, uses: int = 0, auto: str = "", learned: str = "") -> str:
     today = datetime.now(CN).strftime("%Y-%m-%d")
     a = f"auto: {auto}\n" if auto else ""
-    return f"---\nname: {name}\ndescription: {' '.join(description.split())[:120]}\n{a}updated: {today}\nuses: {uses}\n---\n{body.strip()}\n"
+    lr = f"learned: {(learned or today)[:10]}\n"  # 哪天学到的：回测按 as_of 过滤，改正文不重置
+    return f"---\nname: {name}\ndescription: {' '.join(description.split())[:120]}\n{a}{lr}updated: {today}\nuses: {uses}\n---\n{body.strip()}\n"
+
+
+def _own_learned(name: str) -> str:
+    """这个技能是哪天学到的；改正文时原样带回去，别把「学到日」刷新成今天。"""
+    from . import skills
+    raw = skills.read_raw(name)
+    if not raw:
+        return ""
+    m = skills._parse(raw)
+    return str(m.get("learned") or m.get("updated") or "")[:10]
 
 
 def _own_auto(name: str) -> str:
@@ -779,7 +794,7 @@ def patch_skill(name: str, note: str, origin: str, model: str = "", mem=None, co
     body2 = (body.rstrip() + "\n" + line) if head in body else (body.rstrip() + f"\n\n{head}\n{line}")
     if len(body2) > skills.MAX_LEN:
         return None
-    raw = render_skill(name, desc, body2, int(m.get("use_count") or 0), auto=_own_auto(name))
+    raw = render_skill(name, desc, body2, int(m.get("use_count") or 0), auto=_own_auto(name), learned=_own_learned(name))
     return propose_change("skill", name, raw, origin, model, label, gate=gate, run=run, mem=mem)
 
 
@@ -938,8 +953,8 @@ def edit_raw(e: dict) -> str | None:
         head = "## 纠正与坑（复盘）"
         line = f"- {' '.join(str(e['text']).split())}"
         body2 = (body.rstrip() + "\n" + line) if head in body else (body.rstrip() + f"\n\n{head}\n{line}")
-        return render_skill(name, desc, body2, auto=_own_auto(name)) if len(body2) <= skills.MAX_LEN else None
-    return render_skill(name, str(e.get("description") or (parts[0] if parts else name)), str(e["text"]))
+        return render_skill(name, desc, body2, auto=_own_auto(name), learned=_own_learned(name)) if len(body2) <= skills.MAX_LEN else None
+    return render_skill(name, str(e.get("description") or (parts[0] if parts else name)), str(e["text"]), learned=_own_learned(name))
 
 
 def _eval_one(args):
@@ -1378,6 +1393,7 @@ CLI_HELP = """用法：python -m stock_agent evolve <子命令>
   gate --model 名称   已生效的自进化改动在另一个模型上验证（同分即加进这个模型）
   status             最近的改动与状态，外加自进化健康（复盘尝试 / 改动 / 无产出 / 失败 / 跳过原因）
   reviews [N]        最近 N 次复盘与跳过记录（默认 20）
+  skills [YYYY-MM-DD] 技能清单；给日期就是「那天之前学到的」（回测前先看一眼）
   rollback [id|--last]  回滚一次改动（不给 id 就是最近一次）
   curator [--dry-run]   现在整理一次技能（不常用 / 归档 / 合并）"""
 
@@ -1386,7 +1402,7 @@ def main(argv=None):
     import argparse
     import sys
     argv = list(sys.argv[2:] if argv is None else argv)
-    if argv[:1] in (["rollback"], ["status"], ["list"], ["curator"], ["reviews"]) and ({"-h", "--help"} & set(argv)):
+    if argv[:1] in (["rollback"], ["status"], ["list"], ["curator"], ["reviews"], ["skills"]) and ({"-h", "--help"} & set(argv)):
         # v0.39.1：以前 `evolve curator --help` 会直接跑一次整理（改数据），子命令的 --help 只打印用法
         print(CLI_HELP)
         return
@@ -1401,6 +1417,14 @@ def main(argv=None):
         print(review_line())
         for x in L["changes"][:20]:
             print(f"  {x['id']}  {x['ts'][5:16]}  {x['status_name']:<4}  {x['kind']:<8} {x['origin']:<7} {x['model'] or '—':<14} {x['summary'][:60]}")
+        return
+    if argv[:1] == ["skills"]:
+        from . import skills
+        d = argv[1] if len(argv) > 1 else None
+        rows = skills.list_skills(as_of=d)
+        print(f"{'截至 ' + d if d else '现在'}：{len(rows)} 个技能")
+        for s in sorted(rows, key=lambda x: (x.get("learned") or "0000", x["name"])):
+            print(f"  {(s.get('learned') or '—'):<10} {s['name']:<24} {s['description'][:50]}")
         return
     if argv[:1] == ["reviews"]:
         n = int(argv[1]) if len(argv) > 1 and argv[1].isdigit() else 20

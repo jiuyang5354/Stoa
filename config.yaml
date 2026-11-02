@@ -63,7 +63,8 @@ agent:
 evolve:
   review: on            # 每轮结束后台复盘（用过 ≥ review_min_tools 个工具、或用户在纠正时才复盘）；off 关掉
   review_model: ""      # 复盘/离线提议用的辅助模型；留空 = 深度分析的分析师模型，再没有就用默认模型。写「模型名」或「服务商:模型名」
-  review_min_tools: 3
+  review_min_tools: 1     # 用过 ≥ 这个数的工具就复盘
+  review_min_chars: 600   # 1–2 个工具的轮次，回答短于这个数不复盘（省调用）
   review_gap: 300       # 两次「研究套路」复盘至少间隔秒数（纠正不受限）
   write_approval:       # auto = 直接生效（可回滚）；approve = 进待确认。风控/出处/注入/确认相关的改动永远要批准，这里改不了
     skills: auto

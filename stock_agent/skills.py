@@ -8,6 +8,7 @@ v0.39 生命周期（仿 Hermes curator）：skills/.usage.json 记每个技能�
 状态（active → stale → archived）、是否钉住、在哪些模型上验证过（models）。归档的移到 skills/.archive/，可恢复。
 来源是后台复盘（review）或离线进化（evolve）的技能只在验证过的模型上进索引——换了模型（尤其更小的）不自动套用。
 """
+import contextlib
 import json
 import re
 import shutil
@@ -40,6 +41,45 @@ def _builtin():
 
 def _now() -> str:
     return datetime.now(timezone(timedelta(hours=8))).strftime("%Y-%m-%d %H:%M:%S")
+
+
+# ---------------------------------------------------------------- 时间机器（回测/复盘用）
+AS_OF: str | None = None
+
+
+def _norm_day(d) -> str | None:
+    """把日期各式（date / datetime / pandas.Timestamp / '2026-03-01T…'）压成 YYYY-MM-DD。"""
+    if d is None:
+        return None
+    s = str(d)[:10]
+    return s if len(s) == 10 and s[4] == "-" and s[7] == "-" else None
+
+
+@contextlib.contextmanager
+def as_of(d=None):
+    """`with skills.as_of("2026-03-01"):` 期间只看那天之前学到的技能。
+
+    回测/复盘时必须套上：否则今天学到的教训会被拿去解释去年的一笔交易，
+    等于偷看未来（TradingAgents #1251 就是缺这个）。
+    """
+    global AS_OF
+    old = AS_OF
+    AS_OF = _norm_day(d)
+    try:
+        yield AS_OF
+    finally:
+        AS_OF = old
+
+
+def _learned(p: Path, m: dict) -> str:
+    """技能是哪天学到的：front matter 的 learned > updated > 文件时间。"""
+    v = str(m.get("learned") or m.get("updated") or "")[:10]
+    if len(v) == 10 and v[4] == "-":
+        return v
+    try:
+        return datetime.fromtimestamp(p.stat().st_mtime).strftime("%Y-%m-%d")
+    except OSError:
+        return ""
 
 
 def model_key(model) -> str:
@@ -157,17 +197,25 @@ def _parse(text: str) -> dict:
     return meta
 
 
-def list_skills() -> list[dict]:
+def list_skills(as_of=None) -> list[dict]:
+    """技能清单。给了 as_of（或外面开着 skills.as_of(...)）就只返回那天之前学到的。
+
+    内置技能跟着版本走，不参与时间过滤；自己/复盘/进化写的有 learned 日期。
+    """
+    cutoff = _norm_day(as_of) if as_of is not None else AS_OF
     out, own = [], {p.stem for p in _dir().glob("*.md")}
     for name, p in _builtin().items():
         if name not in own:
             m = _parse(p.read_text(encoding="utf-8"))
-            out.append({"name": name, "description": m.get("description", ""), "updated": "", "uses": int(m.get("uses", 0) or 0), "builtin": True})
+            out.append({"name": name, "description": m.get("description", ""), "updated": "", "learned": "", "uses": int(m.get("uses", 0) or 0), "builtin": True})
     u = usage_all()
     for p in sorted(_dir().glob("*.md")):
         m = _parse(p.read_text(encoding="utf-8"))
+        learned = _learned(p, m)
+        if cutoff and learned and learned > cutoff:
+            continue  # 那一天之后才学到的，回测时不许用
         e = {**meta(p.stem), **(u.get(p.stem) or {})}
-        out.append({"name": p.stem, "description": m.get("description", ""), "updated": m.get("updated", ""),
+        out.append({"name": p.stem, "description": m.get("description", ""), "updated": m.get("updated", ""), "learned": learned,
                     "uses": max(int(m.get("uses", 0) or 0), int(e.get("use_count") or 0)),
                     "builtin": False, "overrides": p.stem in _builtin(), "state": e.get("state", "active"), "created_by": e.get("created_by", "user"),
                     "models": e.get("models") or [], "pinned": bool(e.get("pinned")), "last_used": e.get("last_used_at", ""), "version": e.get("version", 0)})
@@ -185,8 +233,8 @@ def archived() -> list[dict]:
     return out
 
 
-def index(model=None) -> str:
-    sk = [x for x in list_skills() if x.get("builtin") or applies(x["name"], model, {"created_by": x.get("created_by"), "models": x.get("models")})]
+def index(model=None, as_of=None) -> str:
+    sk = [x for x in list_skills(as_of=as_of) if x.get("builtin") or applies(x["name"], model, {"created_by": x.get("created_by"), "models": x.get("models")})]
     if not sk:
         return "## 你的技能\n（还没有。做完一件多步骤、以后还会再做的分析后，用 skill_save 把做法存下来。）"
     # 内置流程只给名字和半句说明（全文 skill_view 再读）；用户/Agent 自己存的技能给完整一句话
@@ -206,9 +254,10 @@ def index(model=None) -> str:
     return out
 
 
-def auto_load(text: str, limit: int = 2, model=None) -> list[dict]:
+def auto_load(text: str, limit: int = 2, model=None, as_of=None) -> list[dict]:
     """内置技能 front matter 的 auto: 正则命中提问时，返回技能全文（本轮附在提问后，不进每轮的系统提示）。
-    用户/Agent 同名覆盖过的，用覆盖版的正文。"""
+    用户/Agent 同名覆盖过的，用覆盖版的正文；as_of 之后才学到的技能不附上。"""
+    cutoff = _norm_day(as_of) if as_of is not None else AS_OF
     out = []
     for name, p in _builtin().items():
         m = _parse(p.read_text(encoding="utf-8"))
@@ -236,6 +285,8 @@ def auto_load(text: str, limit: int = 2, model=None) -> list[dict]:
             if e.get("created_by") not in CURATED or e.get("state") in ("archived",) or not applies(p.stem, model, e):
                 continue
             m = _parse(p.read_text(encoding="utf-8"))
+            if cutoff and (_learned(p, m) or "") > cutoff:
+                continue  # 那天之后才学到的
             pat = m.get("auto")
             if not pat:
                 continue
@@ -260,8 +311,14 @@ def view(name: str, count: bool = True, model=None) -> dict:
 
 
 def _write(p, m):
-    p.write_text(f"---\nname: {p.stem}\ndescription: {m.get('description', '')}\nupdated: {m.get('updated', '')}\n"
-                 f"uses: {m.get('uses', 0)}\n---\n{m['body']}\n", encoding="utf-8")
+    """写技能文件。front matter 里除 name/description 外的键按固定顺序保留（auto 触发词、learned 学到日）。"""
+    head = [f"name: {p.stem}", f"description: {m.get('description', '')}"]
+    if m.get("auto"):
+        head.append(f"auto: {m['auto']}")
+    if m.get("learned"):
+        head.append(f"learned: {m['learned']}")
+    head += [f"updated: {m.get('updated', '')}", f"uses: {m.get('uses', 0)}"]
+    p.write_text("---\n" + "\n".join(head) + f"\n---\n{m['body']}\n", encoding="utf-8")
 
 
 def save(name: str, description: str, content: str, origin: str = "agent", model=None) -> str:
@@ -275,7 +332,9 @@ def save(name: str, description: str, content: str, origin: str = "agent", model
         return f"技能已满 {MAX_SKILLS} 个，先删掉不用的。"
     old = _parse(p.read_text(encoding="utf-8")) if p.exists() else {}
     today = datetime.now(timezone(timedelta(hours=8))).strftime("%Y-%m-%d")
-    _write(p, {"description": description, "updated": today, "uses": old.get("uses", 0), "body": content})
+    # learned = 第一次学到的那天，改正文不重置；updated = 最后一次改
+    _write(p, {"description": description, "updated": today, "learned": (old.get("learned") or old.get("updated") or today)[:10],
+               "uses": old.get("uses", 0), "body": content})
     m = meta(p.stem)
     kw = {"version": int(m.get("version") or 0) + 1, "state": "active", "last_patched_at": _now()}
     if not old:
