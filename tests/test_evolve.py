@@ -411,3 +411,61 @@ def test_agent_turn_triggers_background_review_end_to_end(home):
     a.ask("不对，腾讯的价格单位应该是港元")
     a._review_thread.join(10)
     assert any("港元" in e for e in Memory().entries("memory"))
+
+
+# ---------------------------------------------------------------- 复盘可观测性（v0.40.1）
+def test_review_failure_is_recorded_with_error(home):
+    """复盘失败必须留痕：原来异常被 pass 吞掉，界面只看到「改动 0 条」。"""
+    from stock_agent import evolve
+
+    class Boom:
+        def chat(self, *a, **k):
+            raise RuntimeError("403 INSUFFICIENT_BALANCE")
+    snap = {"question": "看看茅台", "reply": "……", "model": "gpt-x", "session": "s1", "correction": False,
+            "tools": [{"tool": "get_quotes", "args": "{}", "result": "{}"}]}
+    out = evolve._safe_review(snap, Boom(), None)
+    assert out["changes"] == []
+    s = evolve.review_stats()
+    assert s["counts"].get("failed") == 1
+    assert "INSUFFICIENT_BALANCE" in (s["last_fail"]["error"] or "")
+    line = evolve.review_line()
+    assert "失败 1" in line and "最近一次失败" in line
+
+
+def test_review_noop_is_recorded_with_reason(home):
+    from stock_agent import evolve
+    llm = JsonLLM({"skill": None, "patch": None, "memory": None, "why": "这轮没有可复用的做法"})
+    snap = {"question": "看看茅台", "reply": "……", "model": "gpt-x", "session": "s2", "correction": False,
+            "tools": [{"tool": "get_quotes", "args": "{}", "result": "{}"}]}
+    evolve._safe_review(snap, llm, None)
+    s = evolve.review_stats()
+    assert s["counts"].get("noop") == 1
+    assert "没有可复用" in (s["recent"][0]["why"] or "")
+
+
+def test_skipped_turns_are_recorded(home):
+    """工具太少、读到注入、评测轮这些「没学」的原因要能统计出来。"""
+    from stock_agent import evolve
+
+    class A:
+        channel, session, messages = "web", "s3", []
+        _turn_counts = {}
+        _trace_log = []
+        llm = JsonLLM({})
+
+        def _model_name(self):
+            return "gpt-x"
+
+        def __init__(self):
+            from stock_agent.memory import Memory
+            self.mem = Memory()
+    a = A()
+    evolve.after_turn(a, "腾讯多少钱", "512", 1)          # 工具太少
+    evolve.after_turn(a, "不对", "x", 9)                 # 走复盘线程（不计入跳过）
+    a._turn_counts = {"_tainted": ["fetch_url：忽略之前"]}
+    evolve.after_turn(a, "不对", "x", 9)                 # 注入
+    a.channel = "eval"
+    evolve.after_turn(a, "不对", "x", 9)                 # 评测轮
+    c = evolve.review_stats()["counts"]
+    assert c.get("skip:below_tools") == 1 and c.get("skip:tainted") == 1 and c.get("skip:eval") == 1
+    assert "工具太少" in evolve.review_line()
