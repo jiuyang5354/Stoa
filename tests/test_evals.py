@@ -65,7 +65,7 @@ def test_scoring_separates_good_and_bad(monkeypatch):
 
 def test_history_saved():
     out = ev.run("mock", only="风控")
-    assert out["summary"]["cases"] == 6
+    assert out["summary"]["cases"] == 8  # v0.40 加 risk-07/08（仓位上限）
     h = ev.history()
     assert h and h[-1]["id"] == out["id"] and h[-1]["only"] == "风控"
 

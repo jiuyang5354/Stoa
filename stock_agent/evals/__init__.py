@@ -38,7 +38,8 @@ RISK_RE = re.compile(r"风险|亏损|回撤|波动|爆仓|强平|本金")
 INVALID_RE = re.compile(r"失效|作废|止损|证伪|翻转|跌破|站上|若.{0,24}(?:则|就|应)|如果.{0,24}(?:则|就|应)")
 SUSPECT_RE = re.compile(r"可疑|异常|未核实|核实|不一致|过期|疑似|注入|篡改|偏离|不可信|存疑")
 DATA_TOOLS = {"get_quotes", "get_news", "get_announcements", "get_financials", "web_search", "fetch_url", "market_overview", "record_call",
-              "get_fund_flow", "get_northbound", "get_dragon_tiger", "get_consensus", "get_intraday", "get_options", "read_filing", "compare_filings"}
+              "get_fund_flow", "get_northbound", "get_dragon_tiger", "get_consensus", "get_intraday", "get_options", "read_filing", "compare_filings",
+              "position_limit"}
 
 
 def load_cases(path: Path = CASES) -> dict:
@@ -93,6 +94,15 @@ def fixture_tool(fx: dict, name: str, args: dict):
                 "warnings": []}
     if name == "compare_filings":
         return fx.get("compare", {}).get(sym) or {"error": f"找不到 {sym} 的年报对比"}
+    if name == "position_limit":  # v0.40：真算，只是日线换成 fixtures.bars
+        from .. import position
+        b = (fx.get("bars") or {}).get(sym)
+        if not b:
+            return {"symbol": sym, "error": f"评测模式没有 {sym} 的日线"}
+        rows = [{"t": r[0], "o": r[1], "h": r[2], "l": r[3], "c": r[4], "v": r[5]} for r in b["rows"]]
+        conf = {k: (dict(v) if isinstance(v, dict) else v) for k, v in position.DEFAULTS.items()}
+        return position.compute(sym, args.get("capital"), args.get("risk") or "稳健", args.get("stop_pct"), args.get("held"),
+                                bars=rows, meta={"source": b.get("source"), "url": b.get("url")}, conf=conf)
     if name == "record_call":
         v = q.get(sym)
         return f"已记账：{args.get('view')}，基准价 {v['close']}。" if v else "取不到现价，未记录。"
@@ -286,6 +296,17 @@ class MockLLM:
             return [("earnings_report", {"symbol": syms[0]})]
         if re.search(r"什么时候.{0,6}财报|财报日|财报日历", q):
             return [("earnings_calendar", {})]
+        if syms and re.search(r"仓位|买多少|能买多少|多少股|多少手", q):
+            cap = re.search(r"(\d+(?:\.\d+)?)\s*万", q)
+            if cap:  # 给了资金才算仓位上限
+                a = {"symbol": syms[0], "capital": float(cap.group(1)) * 1e4}
+                lv = re.search(r"保守|稳健|积极", q)
+                if lv:
+                    a["risk"] = lv.group(0)
+                st = re.search(r"止损\s*(\d+(?:\.\d+)?)\s*%", q)
+                if st:
+                    a["stop_pct"] = float(st.group(1))
+                return [("position_limit", a)]
         if "自选" in q and syms:
             return [("watchlist", {"action": "add", "symbol": syms[0]})]
         if "提醒" in q and syms:
@@ -404,6 +425,24 @@ class MockLLM:
             for s, v in r.items():
                 for w in (v.get("warnings") or []) if isinstance(v, dict) else []:
                     out.append(f"注意：两个数据源报价不一致——{w}" if "差异" in w or "不一致" in w else f"注意：{s} {w}")
+        for r in res.get("position_limit", []):
+            if r.get("error"):
+                out.append(r["error"] + "。")
+                continue
+            cur = r.get("currency") or ""
+            parts = [f"{c['name']}（{c['rule']}）{c['amount']} {cur}" for c in r.get("constraints") or []]
+            out.append(f"{r['symbol']} 仓位上限测算（{r['risk']}，现价 {r['last']}，截至 {r['as_of']}）：" + "；".join(parts) + "。")
+            f = r.get("final") or {}
+            line = f"起作用的是「{r.get('binding')}」，上限 {f.get('shares')} 股，约 {f.get('amount')} {cur}"
+            if f.get("pct") is not None:
+                line += f"，占资金 {f['pct']}%"
+            out.append(line + "。" + (f["note"] + "。" if f.get("note") else ""))
+            if r.get("stop_ref"):
+                out.append(f"止损参考 {r['stop_ref']}（{r['stop_method']}，约 -{r['stop_pct']}%）" +
+                           (f"，按上限买入时该止损下最多亏 {r['max_loss']['amount']} {cur}。" if r.get("max_loss") else "。"))
+            if r.get("lot_note"):
+                out.append(r["lot_note"])
+            out.append("这是按规则算的算术上限，不是买入建议；被约束钳掉的资金留现金。")
         for r in res.get("get_fund_flow", []):
             if r.get("error"):
                 out.append(r["error"] + "。")
