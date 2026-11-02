@@ -1520,8 +1520,9 @@ class Agent:
                 if name not in SIDE_EFFECT_TOOLS and key in cache:
                     result, hit = cache[key], True
                     from . import guards
-                    stuck = guards.repeat(name, args, self._turn_counts)  # 同样的调用已经原样返回过两次
-                    guards.observe(name, args, result, self._turn_counts)
+                    counts = self.__dict__.setdefault("_turn_counts", {})
+                    stuck = guards.repeat(name, args, counts)  # 同样的调用已经原样返回过两次
+                    guards.observe(name, args, result, counts)
                     if stuck:
                         result = stuck  # 第三次起不再默默回同一份结果，改成明确的拦截理由
                 else:

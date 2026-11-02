@@ -57,4 +57,11 @@ def test_parallel_tools_and_reuse(monkeypatch):
     assert [r["ok"] for r in res] == ["get_quotes", "get_news", "get_financials", "get_quotes"]
     assert len(a._steps) == 4 and sum(s["cached"] for s in a._steps) <= 1
     res2 = a._run_calls([calls[0]])
-    assert a._steps[-1]["cached"] and res2[0] == {"ok": "get_quotes"}
+    assert a._steps[-1]["cached"] and res2[0] == {"ok": "get_quotes"}  # 第二次仍复用缓存
+    blocked = None
+    for _ in range(3):  # 继续原样问同一件事：必须被拦下（guards 规则 7）
+        r = a._run_calls([calls[0]])[0]
+        if isinstance(r, dict) and r.get("blocked_by"):
+            blocked = r
+            break
+    assert blocked and blocked["blocked_by"] == "guard:repeat"
