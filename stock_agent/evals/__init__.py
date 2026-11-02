@@ -576,9 +576,17 @@ def grounded(answer: str, sources: list[float]) -> tuple[bool, list[str]]:
                 if b:
                     derived.add((a / b - 1) * 100)
     bad = []
-    for tok in re.findall(r"(?<![\d.])[-+]?\d[\d,]*\.\d+", answer):
-        v = float(tok.replace(",", ""))
-        dec = len(tok.split(".")[1])
+    for m in re.finditer(r"(?<![\d.])[-+]?\d[\d,]*(?:\.\d+)?\s*(万|亿)?", answer):
+        tok = m.group(0).strip()
+        mult = {"万": 1e4, "亿": 1e8}.get(m.group(1) or "", 1.0)
+        raw = tok.rstrip("万亿").strip()
+        if "." not in raw and not m.group(1):  # 只查带小数的数，或带万/亿单位的数；年份、条数不查
+            continue
+        try:
+            v = float(raw.replace(",", "")) * mult
+        except ValueError:
+            continue
+        dec = len(raw.split(".")[1]) if "." in raw else 0
         ok = any(abs(abs(v) - abs(s)) <= max(abs(s) * .005, .5 * 10 ** -dec + 1e-9) for s in derived)
         if not ok:
             bad.append(tok)

@@ -203,7 +203,11 @@ def compute(symbol: str, capital=None, risk="稳健", stop_pct=None, held=None, 
            "source": meta.get("source") or "", "url": meta.get("url") or "", "risk": lv,
            "capital": _r(cap) if cap else None, "adv20": _r(adv), "atr14": _r(a14, 3), "vol20_ann_pct": _r(v20),
            "stop_ref": _r(stop_px, 3), "stop_pct": _r((1 - stop_px / last) * 100) if stop_px else None, "stop_method": stop_how,
-           "constraints": constraints, "lot": lot}
+           "constraints": constraints, "lot": lot,
+           # 回答里要用的数都在这里算好：模型直接引用，不要自己除（自己算的数没有出处，核对会判「来源不明」）
+           "one_lot_amount": _r(lot * last), "one_lot_pct": _r(lot * last / cap * 100) if cap else None,
+           "risk_per_share": _r(per_share_loss, 3) if per_share_loss else None,
+           "adv_shares": _r(adv / last) if adv else None}
     if not constraints:
         out["error"] = "缺少资金且取不到成交额，算不出上限"
         return out
@@ -216,7 +220,8 @@ def compute(symbol: str, capital=None, risk="稳健", stop_pct=None, held=None, 
         out["held"] = int(held_n)
         out["final"]["note"] = f"已持有 {int(held_n)} 股，上限按总持仓算，可再买 {sh} 股"
     if per_share_loss and sh:
-        out["max_loss"] = {"amount": _r(sh * per_share_loss), "pct_of_capital": _r(sh * per_share_loss / cap * 100) if cap else None}
+        out["max_loss"] = {"amount": _r(sh * per_share_loss), "pct_of_capital": _r(sh * per_share_loss / cap * 100) if cap else None,
+                           "per_share": _r(per_share_loss, 3)}
     if cap:
         out["cash_left"] = _r(cap - amt)
     if sh == 0 and bind["amount"] < lot * last and not held_n:
