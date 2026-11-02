@@ -1,0 +1,33 @@
+{
+  "tool": "position_limit",
+  "commit": "f279f33",
+  "purpose": "复现 docs/position-verification.md 里的随机不变量与脏参数用例",
+  "inputs": {
+    "stock_agent/position.py": "98bd1de2734b6bda3b2d534c2989ee0537f0d053c2887f153c80a48760c671f5",
+    "tests/test_position.py": "51d7641a743d83b1b25258ab5ff00b896b289af94a84cf3fbd311984139ab190"
+  },
+  "defaults": {
+    "max_weight_conservative": 0.1,
+    "max_weight_moderate": 0.2,
+    "max_weight_aggressive": 0.3,
+    "adv_pct": 0.01,
+    "risk_per_trade_conservative": 0.005,
+    "risk_per_trade_moderate": 0.01,
+    "risk_per_trade_aggressive": 0.02,
+    "atr_mult_by_level": [
+      1.5,
+      2.0,
+      2.5
+    ],
+    "atr_window": 14,
+    "vol_window": 20,
+    "lot_a_share": 100,
+    "lot_other": 1
+  },
+  "random_seeds": {
+    "invariants": 20261102
+  },
+  "reproduce": [
+    "STOCK_AGENT_HOME=$TMPDIR/repro python -m pytest tests/test_position.py -q"
+  ]
+}

@@ -80,6 +80,25 @@ def _r(x, n=2):
     return None if x is None else round(float(x), n)
 
 
+def pos_num(x, lo: float = 0.0, hi: float | None = None) -> float | None:
+    """把工具参数洗成有限正数：Infinity/NaN/数字字符串/负数都落到 None 或截断。
+
+    模型偶尔会传 Infinity 或 "100000" 这种字符串；直接 float() 会让后面的 int(//lot)
+    抛 OverflowError/ValueError，整个工具挂掉。宁可当成没给，也不能崩。
+    """
+    if isinstance(x, bool) or x is None:
+        return None
+    try:
+        v = float(str(x).replace(",", "").strip())
+    except (TypeError, ValueError):
+        return None
+    if not math.isfinite(v):
+        return None
+    if v <= lo:  # 0 或负数都当成没给
+        return None
+    return min(v, hi) if hi is not None else v
+
+
 def atr(bars: list[dict], n: int = 14) -> float | None:
     """ATR：真实波幅的简单均值（没有高低价时退化为 |Δ收盘|）。"""
     if len(bars) < 2:
@@ -142,11 +161,12 @@ def compute(symbol: str, capital=None, risk="稳健", stop_pct=None, held=None, 
     a14 = atr(bars)
     v20 = vol20(bars)
     adv = adv20(bars, float(meta.get("vol_mult") or 1.0))
-    cap = float(capital) if isinstance(capital, (int, float)) and capital > 0 else None
-    held_n = float(held) if isinstance(held, (int, float)) and held > 0 else 0.0
+    cap = pos_num(capital)
+    held_n = pos_num(held) or 0.0
 
     # 止损参考价
-    if isinstance(stop_pct, (int, float)) and 0 < stop_pct < 100:
+    stop_pct = pos_num(stop_pct, lo=1e-9, hi=100.0)
+    if stop_pct and 0 < stop_pct < 100:
         stop_px, stop_how = last * (1 - stop_pct / 100), f"用户给的止损幅度 {_r(stop_pct)}%"
     elif a14:
         k = c["atr_mult"].get(lv, 2.0)
