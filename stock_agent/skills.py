@@ -139,9 +139,10 @@ def bump(name: str):
 
 
 def applies(name: str, model=None, m: dict | None = None) -> bool:
-    """自进化来源的技能只在验证过的模型上生效；model=None（不分模型的场合，如设置页）一律算。"""
+    """自进化来源的技能只在验证过的模型上生效；model=None（不分模型的场合，如设置页）一律算。
+    人在「待批准」里点过同意的（approved_by=user），不再按模型白名单挡——批了却用不上比不批更糟。"""
     m = m or meta(name)
-    if m.get("created_by") not in EVOLVED or model is None:
+    if m.get("created_by") not in EVOLVED or model is None or m.get("approved_by") == "user":
         return True
     return model_key(model) in {model_key(x) for x in m.get("models") or []}
 
