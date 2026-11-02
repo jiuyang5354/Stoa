@@ -32,7 +32,7 @@ def test_three_constraints_min_wins_and_a_share_lot():
     names = {c["name"]: c for c in r["constraints"]}
     assert names["单票上限"]["amount"] == 200000 and names["流动性"]["amount"] == 1000000 and names["风险预算"]["amount"] == 250000
     assert r["binding"] == "单票上限" and r["final"] == {"shares": 2000, "amount": 200000.0, "pct": 20.0}
-    assert r["stop_ref"] == 96 and r["max_loss"] == {"amount": 8000.0, "pct_of_capital": 0.8}
+    assert r["max_loss"]["amount"] == 8000.0 and r["max_loss"]["pct_of_capital"] == 0.8 and r["max_loss"]["per_share"] == 4
     assert r["cash_left"] == 800000 and r["lot"] == 100 and "不是买入建议" in r["note"]
 
 
