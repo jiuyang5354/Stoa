@@ -492,6 +492,11 @@ def feedback(mem, session: str, reason: str = "", turn: int | None = None, chan:
     tr = trace or (trace_for_turn(mem, session, int(turn)) if turn else last_trace(session=None if chan else session, chan=chan))
     if not tr or not (tr.get("reply") or tr.get("raw_reply")):
         return {"error": "没找到要标记的回答"}
+    try:  # v0.40 质量指标：这一轮记为被点踩
+        from . import quality
+        quality.mark_down(tr.get("session") or session, tr.get("q_id"))
+    except Exception:
+        pass
     reason = (reason or "").strip()[:300]
     cls = classify(tr, reason, llm)
     fid = uuid.uuid4().hex[:8]

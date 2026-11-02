@@ -424,6 +424,17 @@ class Web(BaseHTTPRequestHandler):
         if self.path.split("?")[0] == "/api/missing":
             from . import missing
             return self._send(200, {"items": missing.listing()})
+        if self.path.split("?")[0] == "/api/quality":  # v0.40 按次质量指标：近 N 天汇总（设置 → 用量）
+            from . import quality
+            from urllib.parse import parse_qs, urlparse
+            try:
+                days = max(1, min(90, int((parse_qs(urlparse(self.path).query).get("days") or ["7"])[0])))
+            except ValueError:
+                days = 7
+            try:
+                return self._send(200, quality.summary(days))
+            except Exception as e:
+                return self._send(200, {"days": days, "total": {"turns": 0}, "models": [], "daily": [], "error": str(e)[:120]})
         if self.path.split("?")[0] == "/api/learn":
             from . import learn
             return self._send(200, learn.listing())

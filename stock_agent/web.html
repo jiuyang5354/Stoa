@@ -2501,6 +2501,21 @@ function bindEv(pane){
   pane.querySelectorAll('[data-evok],[data-evno]').forEach(b => b.onclick = () => post('/api/approvals/' + (b.dataset.evok || b.dataset.evno), {decision: b.dataset.evok ? 'approve' : 'reject'}));
   if ($('evcur')) $('evcur').onclick = () => post('/api/evolve/curator', {});
 }
+/* Usus · 用量：每轮质量指标近 7 天（不记原文，只记长度） */
+async function loadQ(){ try { S.q = await (await fetch('/api/quality?days=7', {headers:H})).json(); } catch (_) { S.q = {error: 1}; } if (scur === 'usage' && !$('set').hidden) show('usage'); }
+function usageHTML(){
+  const Q = S.q, head = `<h3>用量</h3><p class="lead">近 7 天每轮回答的用量与质量。只记长度和计数，不记提问与回答原文。</p>`;
+  if (!Q) return head + `<p class="muted">读取中…</p>`;
+  const T = Q.total || {}, k = v => v == null ? '—' : v >= 10000 ? (v / 1000).toFixed(1) + 'k' : Math.round(v), pc = v => v == null ? '—' : (+v).toFixed(1) + '%', sc = v => v == null ? '—' : (+v).toFixed(1) + ' s';
+  if (!T.turns) return head + grp('Summa · 近 7 天', `<p class="muted">还没有记录。之后每轮回答都会记一行。</p>`);
+  const kpi = `<div class="pbh"><b>${T.turns}</b><div><span class="pbk">轮 · 近 7 天</span><small>点踩 ${T.downs || 0} · 补写风险或免责 ${T.added || 0} · 超时 ${T.timeouts || 0}</small></div></div>
+    <div class="pbn"><span>平均 token<b>${k(T.avg_tokens)}</b></span><span>平均缓存<b>${k(T.avg_cached)}</b></span><span>平均耗时<b>${sc(T.avg_secs)}</b></span><span>平均工具<b>${T.avg_tools ?? '—'}</b></span><span>未核实数字率<b>${pc(T.unverified_rate)}</b></span><span>兜底率<b>${pc(T.fallback_rate)}</b></span></div>`;
+  const md = (Q.models || []).map(m => `<tr><td>${esc(m.model)}</td><td>${m.turns}</td><td>${k(m.avg_tokens)}</td><td>${sc(m.avg_secs)}</td><td>${pc(m.unverified_rate)}</td><td>${pc(m.fallback_rate)}</td><td>${m.downs || 0}</td></tr>`).join('');
+  const dy = (Q.daily || []).map(d => `<td>${d.turns}</td>`).join(''), dh = (Q.daily || []).map(d => `<th>${esc(d.date.slice(5))}</th>`).join('');
+  return head + grp('Summa · 近 7 天', kpi) +
+    grp(`Per exemplar · 按模型 · ${(Q.models || []).length}`, `<table class="pbt"><tr><th>模型</th><th>轮数</th><th>平均 token</th><th>平均耗时</th><th>未核实</th><th>兜底</th><th>点踩</th></tr>${md}</table>`) +
+    grp('Dies · 每天轮数', `<table class="pbt"><tr>${dh}</tr><tr>${dy}</tr></table>`);
+}
 /* Emendatio：点踩账本 · 按层统计 · 修后是否复发 · 已入库可撤销 */
 function emendHTML(L){
   if (!L) return '';
@@ -2522,7 +2537,7 @@ function bindPb(pane){
     setSt(j.error ? j.error : '回测已开始，约一两分钟', j.error ? 'bad' : 'ok'); loadPb(j.id);
   };
 }
-const SECS = [['general','通用'],['model','模型'],['memory','记忆'],['eruditio','学到的东西'],['probatio','回测与评测'],['data','自选与行情'],['push','推送渠道'],['tasks','定时与提醒'],['tools','工具与接口'],['mcp','MCP 服务器'],['about','数据与关于']];
+const SECS = [['general','通用'],['model','模型'],['memory','记忆'],['eruditio','学到的东西'],['probatio','回测与评测'],['usage','用量'],['data','自选与行情'],['push','推送渠道'],['tasks','定时与提醒'],['tools','工具与接口'],['mcp','MCP 服务器'],['about','数据与关于']];
 let S = null, dirty = {}, wl = null, scur = 'general';
 const setSt = (t, c='') => { const e = $('sst'); e.textContent = t; e.className = 'st ' + c; };
 function openSettings(sec){
@@ -2669,6 +2684,7 @@ const PANES = {
       grp('Ratio · 判断账本', ledgerStats(S.memory.stats || {}));
   },
   eruditio: () => evHTML(),
+  usage: () => usageHTML(),
   probatio: () => {
     if (!S.pb) return `<h3>回测与评测</h3><p class="lead">读取中…</p>`;
     const L = S.pb.list, r = S.pb.cur, E = S.pb.evals, f1 = v => v == null ? '—' : (+v).toFixed(1), sg = v => v == null ? '—' : (v >= 0 ? '+' : '') + (+v).toFixed(1) + '%';
@@ -2804,6 +2820,7 @@ function show(k){
   if (k === 'model') bindModelPane(pane);
   if (k === 'probatio') bindPb(pane);
   if (k === 'eruditio') bindEv(pane);
+  if (k === 'usage' && !S.q) loadQ();
   const aReq = async (path, body) => { const j = await (await fetch(path, {method:'POST', headers:H, body:JSON.stringify(body)})).json(); setSt(j.msg || j.error || (j.events ? `检查完毕，新触发 ${j.events.length} 条` : ''), j.error ? '' : 'ok'); S.pa = await (await fetch('/api/alerts', {headers:H})).json(); show('tasks'); };
   if (k === 'tasks') { bindTasks(pane); if (!TASKS || APPROV === null) loadTasks(); }
   pane.querySelectorAll('[data-adel]').forEach(b => b.onclick = () => aReq('/api/alerts/delete', {id:b.dataset.adel}));
@@ -3472,6 +3489,7 @@ const CMDS = [
   {c: '/graph', g: '界面', d: '记忆图谱', k: 'Ctrl+G', run: () => openGraph()},
   {c: '/backtest', g: '界面', d: '回测与评测', run: () => openSettings('probatio')},
   {c: '/learned', g: '界面', d: '学到的东西（自进化）', run: () => { S && (S.ev = null); openSettings('eruditio'); }},
+  {c: '/usage', g: '界面', d: '用量与质量（近 7 天）', run: () => { S && (S.q = null); openSettings('usage'); }},
   {c: '/model', g: '界面', d: '切换本对话的模型', run: () => { const b = $('mdl'); if (b && !b.hidden) b.click(); else openSettings('model'); }},
   {c: '/poster', g: '界面', d: '战报长图：最近一次早晚报排成竖版图，可存 PNG', run: () => window.open('/poster' + (token ? `?token=${encodeURIComponent(token)}` : ''), '_blank')},
   {c: '/export', g: '界面', d: '把当前对话导出成 Markdown', run: () => exportSession(sid)},

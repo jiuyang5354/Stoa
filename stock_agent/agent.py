@@ -1154,15 +1154,19 @@ class Agent:
         self._turn_t0 = time.monotonic()
         self._hard_deadline = self._turn_t0 + T
         self._req_timeouts = 0
+        from . import quality
+        u0 = quality.usage_snapshot()
         try:
             reply = self._ask(text, on_tool)
             if getattr(self, "_run_id", None):
                 _quiet(ledger.run_finish, self._run_id, "done", reply)
+            quality.record(self, text, reply, u0, self._turn_t0)  # v0.40 按次质量指标（不记原文，失败不影响回答）
             return reply
         except TimeoutError as exc:  # 硬上限到了、模型也没来得及收尾：用已拿到的工具结果拼一份答复，注明未完成部分
             reply = self._timeout_reply(text, turn=isinstance(exc, TurnTimeout))
             if getattr(self, "_run_id", None):
                 _quiet(ledger.run_finish, self._run_id, "done", reply, f"timeout: {str(exc)[:200]}")
+            quality.record(self, text, reply, u0, self._turn_t0, timeout=True)
             return reply
         except (Cancelled, RequestCancelled) as exc:
             if getattr(self, "_run_id", None):
