@@ -111,3 +111,59 @@ def test_tool_wired_and_selected_only_with_capital_words():
     assert "position_limit" not in pick("茅台今天涨了多少？")
     spec = [t for t in TOOLS if t["name"] == "position_limit"][0]
     assert len(spec["description"]) < 100  # 工具描述保持短
+
+
+# ---------------- v0.40.1：随机不变量 + 脏参数 ----------------
+
+def _rand_bars(rnd, n=30):
+    c = rnd.uniform(1, 3000)
+    out = []
+    for i in range(n):
+        c = max(0.2, c * (1 + rnd.gauss(0, rnd.uniform(0.005, 0.06))))
+        rng = c * rnd.uniform(0.001, 0.05)
+        out.append({"t": f"2026-09-{i + 1:02d}", "o": c, "h": c + rng, "l": c - rng, "c": c, "v": rnd.uniform(0, 2e7)})
+    return out
+
+
+def test_invariants_hold_on_random_market_conditions():
+    """5000 组随机行情/资金/风险档位：六条不变量一条都不许破。"""
+    import random
+    rnd = random.Random(20261102)
+    for _ in range(5000):
+        sym = rnd.choice(["600000.SS", "000001.SZ", "0700.HK", "NVDA", "688111.SS"])
+        cap = rnd.choice([None, 10_000, 100_000, 1_000_000, 50_000_000])
+        risk = rnd.choice(["保守", "稳健", "积极"])
+        r = P.compute(sym, cap, risk, rnd.choice([None, 3, 8, 15]), rnd.choice([None, 100, 5000]),
+                      bars=_rand_bars(rnd), meta={"source": "测试"}, conf=CONF)
+        if "error" in r:
+            continue
+        lot, sh, amt = r["lot"], r["final"]["shares"], r["final"]["amount"]
+        w = CONF["max_weight"][r["risk"]]
+        assert sh >= 0 and sh % lot == 0, (sym, sh, lot)
+        assert r["binding"] in {c["name"] for c in r["constraints"]}
+        if cap:
+            assert amt <= cap * w + 1e-6, (sym, amt, cap * w)
+            assert r["cash_left"] >= -1e-6
+            if "max_loss" in r:
+                assert r["max_loss"]["amount"] <= cap * CONF["risk_per_trade"][r["risk"]] + 1e-6
+        if r["adv20"]:
+            assert amt <= r["adv20"] * CONF["adv_pct"] + 1e-6, (sym, amt, r["adv20"])
+
+
+@pytest.mark.parametrize("kw", [
+    {"capital": float("inf")}, {"capital": float("nan")}, {"held": float("inf")},
+    {"capital": "100000"}, {"capital": -5}, {"stop_pct": float("nan")}, {"stop_pct": -3},
+])
+def test_dirty_parameters_never_crash(kw):
+    """模型可能传 Infinity / NaN / 字符串：只能当成没给，不能抛异常。"""
+    r = P.compute("600000.SS", kw.get("capital"), "稳健", kw.get("stop_pct"), kw.get("held"),
+                  bars=bars(), meta={"source": "测试"}, conf=CONF)
+    assert "error" not in r, r
+    assert r["final"]["shares"] >= 0 and r["final"]["shares"] % r["lot"] == 0
+
+
+def test_numeric_string_capital_is_used():
+    assert P.pos_num("100,000") == 100000 and P.pos_num("abc") is None and P.pos_num(0) is None
+    a = P.compute("600000.SS", "100000", bars=bars(), meta={"source": "测试"}, conf=CONF)
+    b = P.compute("600000.SS", 100000, bars=bars(), meta={"source": "测试"}, conf=CONF)
+    assert a["final"] == b["final"] and a["binding"] == b["binding"]
