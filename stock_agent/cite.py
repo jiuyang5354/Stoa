@@ -686,9 +686,21 @@ LOW_PRIORITY = {"get_quotes", "market_overview"}  # 同一个数多处对得上�
 UNIT_AFTER = re.compile(r"(?:港元|美元|人民币|元|千升|千克|吨|户|股|家|人次|人|辆|台|张|手)")
 
 
+def auto_skip(n: dict) -> bool:
+    """这个数字要不要自动补角标：短数（阈值/假设）不补，但算出来的结果（derived）要补。
+    finalize 与评测的 cited 检查共用这一条，免得一边故意不标、一边判错（v0.39.1 的 6 道题就是这么扣的）。"""
+    return _round(n["text"]) and not n.get("derived")
+
+
 def _round(tok: str) -> bool:
-    """有效数字不超过两位（7%、30%、1.1、0.8、89%）：多半是假设或阈值，凑巧和别处数字相等的概率高，不自动加角标。"""
-    d = re.sub(r"[^\d]", "", tok).lstrip("0").rstrip("0")
+    """有效数字不超过两位（7%、30%、1.1、0.8、89%）：多半是假设或阈值，凑巧和别处数字相等的概率高，不自动加角标。
+    带小数点的数按写出来的位数算：530.0 是 4 位，不能被 rstrip("0") 削成 53。"""
+    t = tok.strip().rstrip("%％")
+    if "." in t:
+        d = re.sub(r"[^\d]", "", t.split(".")[1])  # 只看小数部分的有效位
+        i = re.sub(r"[^\d]", "", t.split(".")[0])
+        return len(i + d) <= 2
+    d = re.sub(r"[^\d]", "", t).lstrip("0").rstrip("0")
     return len(d) <= 2
 
 
@@ -936,7 +948,7 @@ def verify(text: str, src: Sources) -> dict:
             sids = None
         elif not sids and not flagged:
             why[n["text"]] = "数字与该标的的指标、报告期或计价不符" if scoped else "找不到出处"
-        nums.append({**n, "sids": sids, "flagged": flagged, "_scoped": bool(scope) or move, "_p": p, "_allowed": allowed})
+        nums.append({**n, "sids": sids, "flagged": flagged, "derived": derived, "_scoped": bool(scope) or move, "_p": p, "_allowed": allowed})
     # 第二遍：由前文已核实的数再推一步（3 万持仓 = 1 万 × 3 已核实 → 亏损 6000 = 3 万 × 20%），只用于没绑定具体标的的数
     ok = [(x["value"], x["sids"][0]) for x in nums if x["sids"]]
     if ok and any(not x["sids"] and not x["flagged"] and not x["_scoped"] for x in nums):
@@ -947,6 +959,7 @@ def verify(text: str, src: Sources) -> dict:
             sids = s3.match(x["value"], x["dec"], x["scale"], x["_p"], None)
             if sids:
                 x["sids"] = sids
+                x["derived"] = True  # 由已核实的数推出来的，也算派生：短数也要带角标
                 why.pop(x["text"], None)
     for x in nums:
         for k in ("_scoped", "_p", "_allowed"):
@@ -1101,7 +1114,7 @@ def finalize(text: str, src: Sources) -> tuple[str, list[dict]]:
             marker = re.match(r"(\s*(?:港元|美元|人民币|元|倍)?\s*)\[(\d+)\]", body[at:])
             if marker and int(marker.group(2)) not in sids:
                 body = body[:at] + marker.group(1) + body[at + marker.end():]
-        if _round(n["text"]):
+        if auto_skip(n):  # 短数字多半是阈值/假设，不补角标；算出来的结果（derived）例外
             continue
         cu = UNIT_AFTER.match(body[at:at + 3]) if n["scale"] != 1 else None  # 「4.66 亿元」「235.4 万千升」角标放在单位后
         if cu:

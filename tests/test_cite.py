@@ -191,3 +191,24 @@ def test_data_tag_without_source_is_downgraded():
     assert lines[2] == "2. 〔推断〕估值偏贵"
     assert lines[3] == "3. 〔推断〕短线偏强" and lines[4] == "4. 〔未知〕下季度回购节奏"
     assert lines[5] == "- [Inference] valuation looks rich"
+
+
+# ---------------- 派生数字与「看起来像阈值」的数（v0.39.2） ----------------
+
+def test_decimal_with_trailing_zero_is_not_short():
+    """530.0 是四位有效数字，不能被 rstrip("0") 削成 53 当成阈值跳过。"""
+    assert cite._round("530.0") is False
+    assert cite._round("40%") is True
+    assert cite._round("200") is True
+    s, _ = src()
+    out, used = cite.finalize("52 周收盘高点 530.0 港元。", s)
+    assert "530.0[" in out and used
+
+
+def test_derived_short_number_gets_marker():
+    """算出来的短数（占比 40%）要带角标；纯阈值（仓位 20%）不补。"""
+    assert cite.auto_skip({"text": "40%", "derived": True}) is False
+    assert cite.auto_skip({"text": "20%", "derived": False}) is True
+    s, _ = src()
+    out, _ = cite.finalize("仓位控制在 20%。", s)
+    assert "20%[" not in out

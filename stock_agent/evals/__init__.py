@@ -668,6 +668,7 @@ def score_case(case: dict, answer: str, log: list, fx: dict, home: Path, prompt_
             src = sources or _inject_sources(log, case)
             nums = [n for n in cite.verify(answer, src)["numbers"] if n["sids"]]
             plain = [n["text"] for n in nums if not cite.has_marker(answer, n["end_num"])
+                     and not cite.auto_skip(n)
                      and not all((src.get(s) or {}).get("kind") == "user" for s in n["sids"])]
             refs = {int(x) for x in re.findall(r"\[(\d+)\]", answer)}
             add(k, bool(srcs) and not plain and refs <= set(srcs), f"来源 {len(srcs)} 条；缺角标 {plain}" if plain or not srcs else f"来源 {len(srcs)} 条")
