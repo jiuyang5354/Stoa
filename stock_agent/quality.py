@@ -15,13 +15,19 @@ from pathlib import Path
 _LOCK = threading.Lock()
 
 
+def _now() -> datetime:
+    """北京时间（与 Stoa 其它记录一致），去掉时区写成本地 ISO。"""
+    from .memory import CN_TZ
+    return datetime.now(CN_TZ).replace(tzinfo=None)
+
+
 def folder() -> Path:
     from .memory import home
     return home() / "data" / "quality"
 
 
 def _write(row: dict, when: datetime | None = None) -> None:
-    when = when or datetime.now()
+    when = when or _now()
     d = folder()
     d.mkdir(parents=True, exist_ok=True)
     line = json.dumps(row, ensure_ascii=False, default=str) + "\n"
@@ -70,7 +76,7 @@ def build(agent, question: str, reply: str, u0: dict, t0: float, timeout: bool =
         vc = {}
     stopped = vm.get("stopped")
     row = {
-        "ts": datetime.now().isoformat(timespec="seconds"),
+        "ts": _now().isoformat(timespec="seconds"),
         "session": getattr(agent, "session", "") or "",
         "q_id": getattr(agent, "_cur_id", None),
         "channel": getattr(agent, "channel", "") or "",
@@ -108,13 +114,13 @@ def mark_down(session: str, q_id) -> None:
     """点踩：补一行事件，汇总时按 (session, q_id) 合并到那一轮。"""
     try:
         if session and q_id is not None:
-            _write({"ev": "down", "ts": datetime.now().isoformat(timespec="seconds"), "session": session, "q_id": q_id})
+            _write({"ev": "down", "ts": _now().isoformat(timespec="seconds"), "session": session, "q_id": q_id})
     except Exception:
         pass
 
 
 def load(days: int = 7, now: datetime | None = None) -> list[dict]:
-    now = now or datetime.now()
+    now = now or _now()
     since = now - timedelta(days=days)
     months = {f"{since:%Y-%m}", f"{now:%Y-%m}"}
     rows, downs = [], set()

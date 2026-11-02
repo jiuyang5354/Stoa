@@ -66,7 +66,7 @@ def test_one_line_per_turn_without_raw_text(home):
     assert r["verify"]["numbers"] >= 1 and r["verify"]["unverified"] == 0 and r["verify"]["verified"] == r["verify"]["numbers"]
     assert "invalidation" in r["added"] and "disclaimer" in r["added"]  # answercheck 补了失效条件和免责
     assert r["q_len"] == len(SECRET_Q) and r["a_len"] == len(reply)
-    raw = (home / "data" / "quality").joinpath(f"{datetime.now():%Y-%m}.jsonl").read_text(encoding="utf-8")
+    raw = (home / "data" / "quality").joinpath(f"{quality._now():%Y-%m}.jsonl").read_text(encoding="utf-8")
     assert "777" not in raw and "秘密" not in raw and "1354" not in raw  # 不记提问和回答原文
 
 
