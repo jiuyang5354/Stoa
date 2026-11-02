@@ -66,7 +66,7 @@ TOOL_TITLES = {"get_market_mood": "涨停与板块资金", "price_levels": "支�
                "dcf_scenarios": "情景估值（由报表计算）", "regulatory_letters": "问询函与监管措施", "trade_replay": "交易回放（由日线计算）",
                "option_payoff": "期权到期损益（按输入计算）", "inquiry_status": "研究课题进度", "task_list": "定时任务", "pending_actions": "待确认操作"}
 F10_TOOLS = {"get_financials", "get_statements", "earnings_quality", "reverse_dcf", "dcf_scenarios", "financial_bridge"}
-CALC_TOOLS = {"calc", "run_python", "option_payoff", "fin_model"}  # 由输入推导的结果：数值本身没有「涨跌方向」含义（「亏损 6000」对 -6000 不算写反）
+CALC_TOOLS = {"calc", "run_python", "option_payoff", "fin_model", "position_limit"}  # 由输入推导的结果：数值本身没有「涨跌方向」含义（「亏损 6000」对 -6000 不算写反）
 
 
 def source_url(tool: str, sym: str, result) -> str:
@@ -411,6 +411,13 @@ class Sources:
                  "earnings_calendar": "财报日历（交易所/公司公告披露日）", "call_stats": "你的判断记录（Stoa 账本）",
                  "record_call": "你的判断记录（Stoa 账本）", "alert_list": "你设的提醒", "watchlist": "你的自选股"}
         sym = str((result.get("symbol") if isinstance(result, dict) else "") or (args or {}).get("symbol") or "")
+        if tool == "position_limit" and isinstance(result, dict) and not result.get("error"):
+            # 由日线 + 用户给的资金算出的上限（可复算）：数据日期是日线最后一天，链接到日线来源
+            sid = self.new(f"仓位上限测算 · {sym} · 由 {result.get('source') or '日线'} 日线与输入计算", result.get("url") or "",
+                           str(result.get("as_of") or ""), tool=tool, sym=sym)
+            self.bind({k: v for k, v in result.items() if k not in ("note", "lot_note", "note_capital", "stop_method", "url")}, sid)
+            self.bind({"inputs": args}, sid)
+            return {**result, "_cite": sid}
         if tool == "calc":
             sid = self.new(calc_label(args, result), "", "", tool=tool)  # 计算没有「数据日期」
             if isinstance(result, dict):  # 结果 + 输入 + 算式里的常数都算这次计算的出处

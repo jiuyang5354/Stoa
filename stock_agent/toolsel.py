@@ -29,6 +29,9 @@ GROUPS: dict[str, tuple[tuple[str, ...], str, str]] = {
               r"支撑|阻力|关键价位|压力位|利润结构|瀑布|钱花在哪|收入到净利|期权组合|备兑|价差|跨式|收益曲线|止损.{0,20}目标|目标.{0,20}止损|胜算|概率.{0,6}(?:碰|到)|成交密集|成交分布|筹码峰|\bPOC\b|价值区|震荡还是趋势",
               "支撑阻力 → price_levels；利润结构 → financial_bridge；期权组合盈亏 → option_payoff；给了入场/止损/目标想知道胜算 → trade_replay（压力测试不是预测）；"
               "成交密集区/震荡还是趋势 → volume_profile（结构描述，不当买卖信号）。这些工具会在回答下方画图。"),
+    "position": (("position_limit",),
+                 r"仓位|买多少|能买多少|买几手|多少股|多少手|本金|资金.{0,6}\d|\d+(?:\.\d+)?\s*万|position siz|how many shares",
+                 "仓位上限 → position_limit：只在用户给了资金或持仓、问能不能买/买多少/仓位时调用；照抄它的上限与起作用的约束，说明这是算术上限、不是买入建议，免责照写。"),
     "fundamental": (("get_statements", "earnings_quality", "reverse_dcf", "dcf_scenarios", "regulatory_letters"),
                     r"三表|报表|科目|资产负债表|利润表|现金流量表|现金流|资本开支|盈利质量|含金量|造假|勾稽|M-?score|F-?score|Altman|估值|DCF|折现|隐含.{0,4}增长|情景|问询函|关注函|监管|处罚|立案|SEC 意见|comment letter|valuation|intrinsic",
                     "原始三表科目 → get_statements；利润含金量/造假风险 → earnings_quality；现价隐含增长 → reverse_dcf；三情景估值 → dcf_scenarios（情景假设写清楚）；问询函/监管/处罚 → regulatory_letters。"),
@@ -89,7 +92,7 @@ DOMAIN_INDEX = (
     "## 域工具（未下发 schema 的可直接按名字调用或先 tool_search）\n"
     "大盘 market_overview watchlist｜资金筹码 get_fund_flow get_northbound get_southbound get_dragon_tiger get_chips get_market_mood｜"
     "预期 get_consensus get_intraday get_options get_corporate_events get_insiders get_short_volume hk_interests｜"
-    "计算画图 price_levels financial_bridge option_payoff trade_replay volume_profile｜基本面 get_statements earnings_quality reverse_dcf dcf_scenarios regulatory_letters｜"
+    "计算画图 price_levels financial_bridge option_payoff trade_replay volume_profile position_limit｜基本面 get_statements earnings_quality reverse_dcf dcf_scenarios regulatory_letters｜"
     "SEC sec_filings sec_document sec_xbrl sec_search earnings_release earnings_transcript｜历史宏观 price_history cn_data macro_series run_python｜"
     "文档 sweep_filings doc_digest｜建模 fin_model｜记忆 memory_links session_search search_memory call_stats｜定时 task_create task_list task_delete alert_set alert_list alert_delete pending_actions confirm_action｜"
     "深度 deep_analysis earnings_calendar earnings_report｜课题 start_inquiry inquiry_status inquiry_resume｜技能 skill_view skill_save skill_delete"

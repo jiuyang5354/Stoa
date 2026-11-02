@@ -55,7 +55,7 @@ def test_core_is_twelve_and_known():
     grouped = {n for tools, _, _ in toolsel.GROUPS.values() for n in tools}
     assert names - set(toolsel.CORE_TOOLS) - {"sweep_filings"} <= grouped  # 每个域工具都属于某个组（能被预选/检索到）
     assert all(n in toolsel.DOMAIN_INDEX for n in grouped)
-    assert len(toolsel.DOMAIN_INDEX) < 900
+    assert len(toolsel.DOMAIN_INDEX) < 930  # v0.40 加 position_limit（+16 字）
 
 
 def test_fixed_overhead_drops(home):
