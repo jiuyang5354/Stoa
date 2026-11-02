@@ -2513,7 +2513,7 @@ function usageHTML(){
   const md = (Q.models || []).map(m => `<tr><td>${esc(m.model)}</td><td>${m.turns}</td><td>${k(m.avg_tokens)}</td><td>${sc(m.avg_secs)}</td><td>${pc(m.unverified_rate)}</td><td>${pc(m.fallback_rate)}</td><td>${m.downs || 0}</td></tr>`).join('');
   const dy = (Q.daily || []).map(d => `<td>${d.turns}</td>`).join(''), dh = (Q.daily || []).map(d => `<th>${esc(d.date.slice(5))}</th>`).join('');
   return head + grp('Summa · 近 7 天', kpi) +
-    grp(`Per exemplar · 按模型 · ${(Q.models || []).length}`, `<table class="pbt"><tr><th>模型</th><th>轮数</th><th>平均 token</th><th>平均耗时</th><th>未核实</th><th>兜底</th><th>点踩</th></tr>${md}</table>`) +
+    grp('Per exemplar · 按模型', `<table class="pbt"><tr><th>模型</th><th>轮数</th><th>平均 token</th><th>平均耗时</th><th>未核实</th><th>兜底</th><th>点踩</th></tr>${md}</table>`) +
     grp('Dies · 每天轮数', `<table class="pbt"><tr>${dh}</tr><tr>${dy}</tr></table>`);
 }
 /* Emendatio：点踩账本 · 按层统计 · 修后是否复发 · 已入库可撤销 */
