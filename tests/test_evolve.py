@@ -460,12 +460,69 @@ def test_skipped_turns_are_recorded(home):
             from stock_agent.memory import Memory
             self.mem = Memory()
     a = A()
-    evolve.after_turn(a, "腾讯多少钱", "512", 1)          # 工具太少
+    evolve.after_turn(a, "腾讯多少钱", "512", 1)          # 工具够但回答短
+    evolve.after_turn(a, "腾讯多少钱", "512", 0)          # 一个工具都没用
     evolve.after_turn(a, "不对", "x", 9)                 # 走复盘线程（不计入跳过）
     a._turn_counts = {"_tainted": ["fetch_url：忽略之前"]}
     evolve.after_turn(a, "不对", "x", 9)                 # 注入
     a.channel = "eval"
     evolve.after_turn(a, "不对", "x", 9)                 # 评测轮
     c = evolve.review_stats()["counts"]
-    assert c.get("skip:below_tools") == 1 and c.get("skip:tainted") == 1 and c.get("skip:eval") == 1
-    assert "工具太少" in evolve.review_line()
+    assert c.get("skip:below_chars") == 1 and c.get("skip:below_tools") == 1
+    assert c.get("skip:tainted") == 1 and c.get("skip:eval") == 1
+    assert "回答太短" in evolve.review_line()
+
+
+# ---------------------------------------------------------------- 学到日（as_of）+ 复盘门槛
+def test_skill_learned_date_hides_it_from_earlier_backtests(home):
+    """回测 2026-01 时，不能用到 2026-02 才学到的教训（TradingAgents #1251 那类偷看未来）。"""
+    import re
+    from stock_agent import skills
+    skills.save("jan-lesson", "一月学到的做法", "1. 先看预收款")
+    p = skills._dir() / "jan-lesson.md"
+    p.write_text(re.sub(r"learned: \d{4}-\d{2}-\d{2}", "learned: 2026-02-10", p.read_text(encoding="utf-8")), encoding="utf-8")
+
+    assert "jan-lesson" in {s["name"] for s in skills.list_skills()}
+    assert "jan-lesson" in skills.index()
+    assert "jan-lesson" not in {s["name"] for s in skills.list_skills(as_of="2026-01-31")}
+    assert "jan-lesson" not in skills.index(as_of="2026-01-31")
+    with skills.as_of("2026-01-31"):
+        assert "jan-lesson" not in skills.index()
+    with skills.as_of("2026-03-01"):
+        assert "jan-lesson" in skills.index()
+    assert skills.AS_OF is None  # 退出后恢复
+
+
+def test_editing_a_skill_keeps_its_learned_date(home):
+    import re
+    from stock_agent import skills
+    skills.save("keep-day", "原来的说法", "1. 原来的步骤")
+    p = skills._dir() / "keep-day.md"
+    p.write_text(re.sub(r"learned: \d{4}-\d{2}-\d{2}", "learned: 2025-12-01", p.read_text(encoding="utf-8")), encoding="utf-8")
+    skills.save("keep-day", "改过的说法", "2. 新步骤")
+    assert "learned: 2025-12-01" in skills.read_raw("keep-day")
+    assert "keep-day" not in {s["name"] for s in skills.list_skills(as_of="2025-11-30")}
+
+
+def test_review_fires_on_a_single_tool_when_the_answer_is_long(home, monkeypatch):
+    """以前 3 个工具以下永远不学；现在 1–2 个工具 + 长回答也复盘，短回答仍跳过。"""
+    from stock_agent import evolve
+
+    class A:
+        channel, session, messages = "web", "s", []
+        _turn_counts = {}
+        _trace_log = []
+
+        def __init__(self):
+            from stock_agent.memory import Memory
+            self.llm, self.mem = JsonLLM({}), Memory()
+
+        def _model_name(self):
+            return "gpt-x"
+    evolve._LAST_REVIEW[0] = 0.0
+    assert evolve.after_turn(A(), "腾讯多少钱", "512", 1) is None          # 短回答：跳过
+    assert evolve.review_stats()["counts"].get("skip:below_chars") == 1
+    evolve._LAST_REVIEW[0] = 0.0
+    t = evolve.after_turn(A(), "腾讯多少钱", "很长的分析。" * 200, 1)      # 长回答：复盘
+    assert t is not None
+    t.join(5)
