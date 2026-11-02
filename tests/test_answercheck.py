@@ -183,3 +183,23 @@ def test_normal_answer_untouched():
     s = srcs(("600519.SS", MT))
     reply = "600519.SS 最新收盘 1354.0（2026-10-28），当日 -0.84%。\n仅供参考，不构成投资建议。"
     assert ac.review("茅台现在多少钱？", reply, s) == (reply, {})
+
+
+# ================================================================ v0.40：决策词须与投资语境同现才补免责
+@pytest.mark.parametrize("q", ["明天天气怎么样", "帮我判断这段代码有没有bug", "下周一是几号", "Will it rain tomorrow?"])
+def test_no_disclaimer_on_general_decision_words(q):
+    reply = "这是一个普通回答。"
+    assert ac.review(q, reply, cite.Sources()) == (reply, {})
+    assert not ac.wants_decision_disclaimer(q)
+
+
+@pytest.mark.parametrize("q", ["茅台能买吗", "腾讯明天会涨吗", "全仓梭哈英伟达", "600519 下周怎么判断"])
+def test_disclaimer_on_investment_decision_questions(q):
+    out, note = ac.review(q, "我不替你做决定。", cite.Sources())
+    assert note.get("disclaimer") is True and "不构成投资建议" in out
+
+
+def test_disclaimer_when_market_tool_called_even_without_ctx_words():
+    s = srcs(("0700.HK", TX))
+    assert ac.wants_decision_disclaimer("明天呢？", s)  # 追问里没写标的，但本轮查了行情
+    assert not ac.wants_decision_disclaimer("明天呢？", cite.Sources())

@@ -131,6 +131,44 @@ COVERED = {
 }
 DRAWDOWN = re.compile(r"回撤|亏损|本金|下跌风险|\bdrawdown|\blos[se]", re.I)
 ASK_DECISION = re.compile(r"能不能?买|能不能?卖|该不该|值得(?:买|投|关注)|买吗|卖吗|加仓|减仓|会涨|会跌|会上涨|会下跌|保证|明天|下周|目标价|判断|加杠杆|全仓|梭哈|清仓", re.I)
+# 决策词（明天/下周/判断…）本身太宽：「明天天气怎么样」「帮我判断这段代码」「下周一是几号」都会中（PR #10 误挂免责）。
+# 只有和投资语境同现才补免责：提问提到股票/标的/买卖/仓位/涨跌/基金/大盘…，或本轮调用了行情类工具。
+INVEST_Q = re.compile(
+    r"股|基金|ETF|债券|可转债|期货|期权|仓位|持仓|建仓|加仓|减仓|清仓|满仓|全仓|梭哈|抄底|止损|止盈|杠杆|融资|配资|"
+    r"买入|卖出|买卖|做多|做空|涨|跌|大盘|指数|板块|标的|估值|市值|市盈率|财报|分红|美股|港股|A股|证券|券商|投资|理财|行情|"
+    r"(?<![0-9])\d{6}(?![0-9])|\.(?:SS|SZ|SH|HK)\b|\$[A-Z]{1,5}\b|\b(?:stocks?|shares?|tickers?|equit(?:y|ies)|etf|bullish|bearish|portfolio|"
+    r"invest\w*|trading|nasdaq|s&p|dow)\b", re.I)
+MARKET_TOOLS = {"get_quotes", "market_overview", "price_history", "get_intraday", "get_fund_flow", "get_northbound", "get_southbound",
+                "get_dragon_tiger", "get_consensus", "get_options", "get_financials", "get_statements", "get_chips", "get_market_mood",
+                "volume_profile", "price_levels", "position_limit", "deep_analysis", "get_news", "get_announcements"}
+
+
+def _names() -> set[str]:
+    """常用标的简称（茅台、腾讯、英伟达…）也算投资语境。"""
+    try:
+        from .debate import ALIAS
+        return set(ALIAS)
+    except Exception:
+        return set()
+
+
+def invest_context(question: str, sources=None) -> bool:
+    q = question or ""
+    if INVEST_Q.search(q) or any(n in q for n in _names()):
+        return True
+    if sources is None:
+        return False
+    try:
+        with sources.lock:
+            if sources.quotes:
+                return True
+            return any(it.get("tool") in MARKET_TOOLS for it in sources.items)
+    except Exception:
+        return False
+
+
+def wants_decision_disclaimer(question: str, sources=None) -> bool:
+    return bool(ASK_DECISION.search(question or "")) and invest_context(question, sources)
 RISK_LINES = {
     "concentration": ("风险提示：全仓押在单一标的上没有分散，一次财报不及预期、行业利空或停牌就可能带来大幅回撤，且没有余钱应对或补救；"
                       "仓位要和能承受的亏损相匹配。",
@@ -215,8 +253,8 @@ def review(question: str, reply: str, sources=None) -> tuple[str, dict]:
         add += [(DRAWDOWN_LINE if k == "drawdown" else RISK_LINES[k])[1 if en else 0] for k in miss]
         note["risks"] = miss
     # 决策类提问（能不能买 / 会涨吗 / 保证 / 加杠杆…）没写免责：补一句
-    # 通用问题（写代码、翻译、常识）不加，免得每次回答都挂投资免责
-    if ASK_DECISION.search(question or "") and not re.search(r"仅供参考|不构成投资建议|not investment advice", body, re.I):
+    # 决策词须与投资语境同现（v0.40）：通用问题（写代码、天气、日期）不加，免得每次回答都挂投资免责
+    if wants_decision_disclaimer(question, sources) and not re.search(r"仅供参考|不构成投资建议|not investment advice", body, re.I):
         add.append(DISCLAIM_LINE[1 if en else 0])
         note["disclaimer"] = True
     if not add:
