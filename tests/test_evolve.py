@@ -526,3 +526,19 @@ def test_review_fires_on_a_single_tool_when_the_answer_is_long(home, monkeypatch
     t = evolve.after_turn(A(), "腾讯多少钱", "很长的分析。" * 200, 1)      # 长回答：复盘
     assert t is not None
     t.join(5)
+
+
+def test_human_approval_lets_a_learned_skill_apply_to_any_model(home, monkeypatch):
+    """复盘在 glm 上学的技能，人批过之后，用户主模型（另一个模型）也得能用——否则批了等于没批。"""
+    from stock_agent import evolve, skills
+    # 自动生效的：只认学到它的那个模型
+    evolve.propose_change("skill", "lot-check", evolve.render_skill("lot-check", "高价股先算一手", "1. 算一手金额再谈价位"), "review", "glm-5.3")
+    assert skills.applies("lot-check", "glm-5.3") is True
+    assert skills.applies("lot-check", "gpt-6.1-terra") is False
+    # 要人批的：批过之后不再按模型白名单挡
+    monkeypatch.setenv("EVOLVE_APPROVAL", "skills=approve")
+    r = evolve.propose_change("skill", "gap-check", evolve.render_skill("gap-check", "缺口先写清楚", "1. 说清缺哪张表"), "review", "glm-5.3")
+    assert r["status"] == "pending"
+    evolve.approve(r["id"])
+    assert skills.applies("gap-check", "gpt-6.1-terra") is True
+    assert skills.meta("gap-check")["approved_by"] == "user"

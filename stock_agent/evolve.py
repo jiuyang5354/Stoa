@@ -428,6 +428,12 @@ def approve(cid: str, mem=None) -> dict:
         raise ValueError("这条改动不在待批准里")
     _apply(c, mem)
     _x("UPDATE changes SET status='active', decided=? WHERE id=?", (now(), cid))
+    if c["kind"] in ("skill", "skillnote") and c.get("target"):
+        try:
+            from . import skills as SK
+            SK.set_meta(c["target"], approved_by="user")  # 人点过同意：这条不再按「验证过的模型」白名单卡住
+        except Exception:
+            pass
     return {"ok": True, "id": cid, "msg": "已生效（可回滚）"}
 
 
