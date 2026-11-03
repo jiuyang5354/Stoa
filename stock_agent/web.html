@@ -2726,7 +2726,7 @@ const PANES = {
     let ex = `<p class="muted">还没有跑过评测。命令行 <span class="ep">python -m stock_agent eval</span>。</p>`;
     if (E && E.latest) {
       const s = E.latest.summary, pv = E.latest.previous;
-      ex = `<div class="pbh"><b>${f1(s.total)}</b><div><span class="pbk">评测总分 · ${s.cases} 题 · 满分 ${s.perfect}</span><small>v${esc(E.latest.version)} · ${E.latest.llm === 'mock' ? 'mock 模型（只验证管线）' : esc(E.latest.llm)} · ${esc(E.latest.created)}${pv ? ` · 上次 ${f1(pv.total)}` : ''}</small></div></div>` +
+      ex = `<div class="pbh"><b>${f1(s.total)}</b><div><span class="pbk">评测总分 · 满分题 ${s.perfect}/${s.cases}</span><small>v${esc(E.latest.version)} · ${E.latest.llm === 'mock' ? 'mock 模型（只验证管线）' : esc(E.latest.llm)} · ${esc(E.latest.created)}${pv ? ` · 上次 ${f1(pv.total)}` : ''}</small></div></div>` +
         `<div class="lsw" style="grid-template-columns:1fr"><div class="lsg">${Object.entries(s.by_category).map(([k, v]) => `<div class="lsr" style="grid-template-columns:76px 1fr 46px 34px"><span>${esc(k)}</span><span class="lsb"><i style="width:${v}%"></i><em></em></span><b>${f1(v)}</b><small></small></div>`).join('')}</div></div>`;
     }
     return `<h3>回测与评测</h3><p class="lead">Probatio：回到历史上的每一天，只给 Stoa 当时看得到的行情，再用之后的收盘价打分。</p><p class="muted" style="margin:-4px 0 12px">目前的回测里，看多/看空的择时判断不具统计显著性（未胜过动量与随机基线），仅供参考。</p>` +
