@@ -51,7 +51,7 @@
   .mdl svg{width:8px;height:8px;stroke:currentColor;fill:none;stroke-width:1.2;flex:none;transition:transform .3s var(--ease)}
   .mdl:hover b{border-color:var(--ink)}
   .mdl[aria-expanded="true"] svg{transform:rotate(180deg)}
-  .mdlp{position:absolute;right:0;bottom:calc(100% - 6px);width:300px;max-height:320px;overflow:auto;z-index:60;background:rgba(var(--paper-rgb),.98);border:1px solid var(--ink);box-shadow:4px 4px 0 -1px rgba(var(--paper-rgb),.98),4px 4px 0 0 var(--ink);padding:8px 0;opacity:0;transform:translateY(6px);pointer-events:none;transition:opacity .2s,transform .3s var(--ease)}
+  .mdlp{position:absolute;right:0;bottom:calc(100% - 6px);width:300px;max-height:320px;overflow:auto;z-index:60;background:var(--paper);border:1px solid var(--ink);box-shadow:4px 4px 0 -1px var(--paper),4px 4px 0 0 var(--ink);padding:8px 0;opacity:0;transform:translateY(6px);pointer-events:none;transition:opacity .2s,transform .3s var(--ease)}
   .mdlp.on{opacity:1;transform:none;pointer-events:auto}
   .mdlp .h{padding:6px 16px 8px;border-bottom:1px solid var(--rule);margin-bottom:4px;display:flex;justify-content:space-between}
   .mdlp button{display:flex;width:100%;align-items:center;gap:10px;border:0;background:transparent;text-align:left;padding:8px 16px;font:400 var(--fs0) var(--serif);color:var(--ink);cursor:pointer}
@@ -137,7 +137,7 @@
   .ix-t{position:absolute;left:8px;width:10px;height:1px;background:var(--rule-2);transform-origin:left center;transition:transform .28s var(--spring),background .25s}
   .ix-t.in{background:var(--ink)}
   .ix-t.cur{background:var(--gold)}
-  .ix-tip{position:absolute;right:calc(100% + 12px);max-width:260px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;background:rgba(var(--paper-rgb),.98);border:1px solid var(--ink);box-shadow:3px 3px 0 -1px rgba(var(--paper-rgb),.98),3px 3px 0 0 var(--ink);padding:4px 10px;font:italic var(--fsn1)/1.5 var(--serif),var(--cn);color:var(--ink);transform:translate(4px,-50%);opacity:0;pointer-events:none;transition:opacity .18s,transform .28s var(--ease)}
+  .ix-tip{position:absolute;right:calc(100% + 12px);max-width:260px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;background:var(--paper);border:1px solid var(--ink);box-shadow:3px 3px 0 -1px var(--paper),3px 3px 0 0 var(--ink);padding:4px 10px;font:italic var(--fsn1)/1.5 var(--serif),var(--cn);color:var(--ink);transform:translate(4px,-50%);opacity:0;pointer-events:none;transition:opacity .18s,transform .28s var(--ease)}
   .ix-tip b{font:500 var(--fsn3) var(--sans);font-style:normal;letter-spacing:.16em;color:var(--mute);margin-right:8px}
   .ix-r:hover .ix-tip.on{opacity:1;transform:translate(0,-50%)}
   @container (max-width:700px){.ix-r{display:none}#log.ix{scrollbar-width:thin}#log.ix::-webkit-scrollbar{display:block}}
@@ -599,7 +599,7 @@
   .framed .lw,.framed .hw{top:34px}
   .gear.gl{right:132px}
   /* ---- 斜杠命令面板（参考 Claude Code / Linear 的 / 菜单）---- */
-  .slp{position:absolute;left:0;bottom:calc(100% - 8px);width:min(460px,100%);max-height:360px;overflow:auto;z-index:60;background:rgba(var(--paper-rgb),.98);border:1px solid var(--ink);box-shadow:4px 4px 0 -1px rgba(var(--paper-rgb),.98),4px 4px 0 0 var(--ink);padding:6px 0;opacity:0;transform:translateY(6px);pointer-events:none;transition:opacity .18s,transform .28s var(--ease)}
+  .slp{position:absolute;left:0;bottom:calc(100% - 8px);width:min(460px,100%);max-height:360px;overflow:auto;z-index:60;background:var(--paper);border:1px solid var(--ink);box-shadow:4px 4px 0 -1px var(--paper),4px 4px 0 0 var(--ink);padding:6px 0;opacity:0;transform:translateY(6px);pointer-events:none;transition:opacity .18s,transform .28s var(--ease)}
   .slp.on{opacity:1;transform:none;pointer-events:auto}
   .slp .g{font:500 var(--fsn4) var(--sans);letter-spacing:.22em;text-transform:uppercase;color:var(--mute);padding:10px 16px 4px}
   .slp button{display:grid;grid-template-columns:118px 1fr auto;gap:12px;align-items:baseline;width:100%;border:0;background:transparent;text-align:left;padding:8px 16px;cursor:pointer;color:var(--ink)}
@@ -812,7 +812,7 @@
   .tg::after{content:"";position:absolute;left:2px;top:2px;width:12px;height:12px;border-radius:50%;background:var(--ink);transition:transform .3s var(--spring),background .25s}
   .tg:checked{background:var(--ink)}.tg:checked::after{transform:translateX(18px);background:var(--chalk)}
   .mpk{position:relative}
-  .mpick{position:absolute;left:0;right:0;top:calc(100% + 6px);max-height:300px;overflow:auto;z-index:70;background:rgba(var(--paper-rgb),.98);border:1px solid var(--ink);box-shadow:4px 4px 0 -1px rgba(var(--paper-rgb),.98),4px 4px 0 0 var(--ink);padding:6px 0;opacity:0;transform:translateY(-4px);pointer-events:none;transition:opacity .18s,transform .28s var(--ease)}
+  .mpick{position:absolute;left:0;right:0;top:calc(100% + 6px);max-height:300px;overflow:auto;z-index:70;background:var(--paper);border:1px solid var(--ink);box-shadow:4px 4px 0 -1px var(--paper),4px 4px 0 0 var(--ink);padding:6px 0;opacity:0;transform:translateY(-4px);pointer-events:none;transition:opacity .18s,transform .28s var(--ease)}
   .mpick.on{opacity:1;transform:none;pointer-events:auto}
   .mpick .h{padding:4px 14px 8px;border-bottom:1px solid var(--rule);margin-bottom:4px}
   .mpick button{display:block;width:100%;border:0;background:transparent;text-align:left;padding:6px 14px;font:400 var(--fs0) var(--sans);color:var(--ink);cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
