@@ -31,6 +31,7 @@ ASSET_TYPES = {"zeno.glb": "model/gltf-binary", "i18n-en.json": "application/jso
                **{f: "font/woff2" for f in ("optimus-princeps.woff2", "optimus-princeps-semibold.woff2", "libertine-regular.woff2",
                                             "libertine-bold.woff2", "libertine-italic.woff2", "alte-haas-grotesk.woff2", "alte-haas-grotesk-bold.woff2")},
                "travertine009_color.jpg": "image/jpeg", "travertine009_normal.jpg": "image/jpeg", "travertine009_roughness.jpg": "image/jpeg",
+               "favicon.svg": "image/svg+xml", "favicon.ico": "image/x-icon",
                "three.module.min.js": "text/javascript; charset=utf-8"}  # 本地带一份 three.js，国内网不用连 CDN
 
 
@@ -402,6 +403,18 @@ class Web(BaseHTTPRequestHandler):
     def do_GET(self):
         if self.path.split("?")[0] in ("/", "/index.html"):
             return self._send(200, UI, "text/html")
+        if self.path.split("?")[0] in ("/favicon.ico", "/favicon.svg"):
+            name = self.path.split("?")[0].lstrip("/")
+            f = ASSETS / name
+            if not f.exists():
+                return self._send(404, b"", "text/plain")
+            data = f.read_bytes()
+            self.send_response(200)
+            self.send_header("Content-Type", ASSET_TYPES.get(name, "image/svg+xml"))
+            self.send_header("Content-Length", str(len(data)))
+            self.send_header("Cache-Control", "public, max-age=604800")
+            self.end_headers()
+            return self.wfile.write(data)
         if self.path.startswith("/assets/"):
             # 静态素材白名单：胸像（Poly Haven CC0）、标题字体（dafont 100% Free）、石灰华贴图（ambientCG CC0）
             name = self.path[8:].split("?")[0]

@@ -1,13 +1,23 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="240" height="240" viewBox="0 0 240 240">
-  <rect width="240" height="240" rx="54" fill="#1b1a17"/>
-  <g fill="#ece8df">
-    <path d="M60 92 L120 58 L180 92 Z"/>
-    <rect x="56" y="98" width="128" height="9" rx="2"/>
-    <rect x="66" y="114" width="14" height="62" rx="3"/>
-    <rect x="99" y="114" width="14" height="62" rx="3"/>
-    <rect x="127" y="114" width="14" height="62" rx="3"/>
-    <rect x="160" y="114" width="14" height="62" rx="3"/>
-    <rect x="52" y="182" width="136" height="10" rx="2"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <title>Stoa · Glaucus of Athena</title>
+  <g fill="#181715">
+  <!-- 方印压痕 Quadratum Incusum · ring 8u -->
+  <path d="M 56 12 H 200 A 44 44 0 0 1 244 56 V 200 A 44 44 0 0 1 200 244 H 56 A 44 44 0 0 1 12 200 V 56 A 44 44 0 0 1 56 12 Z M 56 20 A 36 36 0 0 0 20 56 V 200 A 36 36 0 0 0 56 236 H 200 A 36 36 0 0 0 236 200 V 56 A 36 36 0 0 0 200 20 Z" fill-rule="evenodd"/>
+  <!-- 新月 Crescent -->
+  <path d="M 50.7 46.4 A 14 14 0 1 0 67.6 63.3 A 12 12 0 0 1 50.7 46.4 Z"/>
+  <!-- 橄榄枝 Olive sprig -->
+  <path d="M 37 110.8 Q 49 101 62.8 90.6 L 65.2 93.4 Q 51 104.5 39 113.2 Z M 63 93 Q 73.5 93.4 75 83 Q 64.5 82.6 63 93 Z M 47 105 Q 54.98 98.6 49.1 90.2 Q 41.1 96.6 47 105 Z M 53.6 100 Q 60 107.98 68.45 102.1 Q 62 94.1 53.6 100 Z"/>
+  <!-- 铭文 ΣΤΟΑ · stroke 3.5u, cap 18u -->
+  <path d="M 200 50 H 216 V 53.5 H 205.5 L 210.5 59 L 205.5 64.5 H 216 V 68 H 200 V 65 L 205.5 59 L 200 53 Z"/>
+  <path d="M 200 80 H 216 V 83.5 H 209.75 V 98 H 206.25 V 83.5 H 200 Z"/>
+  <path d="M 208 110.5 A 8.5 8.5 0 1 0 208 127.5 A 8.5 8.5 0 1 0 208 110.5 Z M 208 114 A 5 5 0 1 1 208 124 A 5 5 0 1 1 208 114 Z" fill-rule="evenodd"/>
+  <path d="M 206 140 H 210 L 216.5 158 H 212.78 L 211.52 154.5 H 204.48 L 203.22 158 H 199.5 Z M 208 144.76 L 210.25 151 H 205.75 Z" fill-rule="evenodd"/>
+  <!-- 神鸮头部 Owl head (eyes + beak as real holes) -->
+  <path d="M 86 43.3 L 108 56 L 128 61.36 L 148 56 L 170 43.3 L 168 62 C 173 74 172 94 164 104 Q 160 110 152 110 H 104 Q 96 110 92 104 C 84 94 83 74 88 62 Z M 111 65 A 15 15 0 1 0 111 95 A 15 15 0 1 0 111 65 Z M 145 65 A 15 15 0 1 0 145 95 A 15 15 0 1 0 145 65 Z M 125 93 H 131 L 128 104.2 Z" fill-rule="evenodd"/>
+  <path d="M 111 73 A 7 7 0 1 0 111 87 A 7 7 0 1 0 111 73 Z M 145 73 A 7 7 0 1 0 145 87 A 7 7 0 1 0 145 73 Z"/>
+  <!-- 柱身 Doric shaft: capital band + 5 carved flutes -->
+  <path d="M 96 114 H 160 Q 170 114 170 124 C 170 146 166 168 160 188 H 96 C 90 168 86 146 86 124 Q 86 114 96 114 Z M 97 124 H 101 C 100 146 103 166 108 180 A 2 2 0 0 1 104.2 181.3 C 99 166 96 146 97 124 Z M 159 124 H 155 C 156 146 153 166 148 180 A 2 2 0 0 0 151.8 181.3 C 157 166 160 146 159 124 Z M 115 122 H 119 V 178.0 A 2.0 2.0 0 0 1 115 178.0 Z M 126 122 H 130 V 178.0 A 2.0 2.0 0 0 1 126 178.0 Z M 137 122 H 141 V 178.0 A 2.0 2.0 0 0 1 137 178.0 Z" fill-rule="evenodd"/>
+  <!-- 台基 Stylobate (Doric: no column base) -->
+  <path d="M 80 192 H 176 V 198 H 80 Z M 68 202 H 188 V 208 H 68 Z M 56 212 H 200 V 218 H 56 Z"/>
   </g>
-  <circle cx="120" cy="81" r="5" fill="#c9a24a"/>
 </svg>

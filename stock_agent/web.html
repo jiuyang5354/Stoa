@@ -4,6 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Stoa · 股市 Agent</title>
+<link rel="icon" type="image/svg+xml" href="/assets/favicon.svg">
+<link rel="alternate icon" href="/favicon.ico">
+
 <script>(() => { try { const t = JSON.parse(localStorage.stoaPrefs || '{}').theme || 'light'; if (t === 'dark' || (t === 'auto' && matchMedia('(prefers-color-scheme: dark)').matches)) document.documentElement.classList.add('dark'); } catch (_) {} })();</script>
 <!--
   风格：古希腊神庙 / 博物馆展签。字体全部来自 dafont.com（100% Free / OFL）：Optimus Princeps 铭文标题 + Linux Libertine 数字与斜体 + Alte Haas Grotesk 展签小字 + Archeologicaps 海报大字；中文 Noto Serif SC。
@@ -75,6 +78,10 @@
   .framed #wbar{display:flex;position:fixed;top:0;left:0;right:0;height:34px;z-index:10000;align-items:stretch;user-select:none;-webkit-user-select:none}
   .framed .temple{top:34px}
   #wbar .wt{flex:1;display:flex;align-items:center;gap:12px;padding-left:22px;min-width:0}
+  #wbar .wmark{display:inline-flex;align-items:center;justify-content:center;color:var(--ink);flex:none;opacity:.88;transition:opacity .2s,transform .3s var(--spring)}
+  #wbar .wmark:hover{opacity:1;transform:scale(1.1)}
+  #wbar .wmark svg{width:18px;height:18px;display:block}
+
   #wbar .wt b{font:500 var(--fsn1) var(--display);letter-spacing:.32em;color:var(--ink);padding-left:.32em}
   #wbar .wt i{width:1px;height:9px;background:var(--rule-2)}
   #wbar .wt span{font:500 var(--fsn3) var(--sans);letter-spacing:.2em;text-transform:uppercase;color:var(--mute)}
@@ -118,6 +125,10 @@
   @container (max-width:880px){header>.label{visibility:hidden}}
   .inner{width:100%;max-width:760px;margin:0 auto;display:flex;flex-direction:column;min-height:0;flex:1;position:relative}
   header{padding:26px 0 18px;text-align:center;border-bottom:1px solid var(--rule);position:relative}
+  .stoa-medallion{display:inline-flex;align-items:center;justify-content:center;width:48px;height:48px;margin:0 auto 10px;color:var(--ink);opacity:.92;transition:transform .4s var(--spring),opacity .2s;cursor:default}
+  .stoa-medallion:hover{transform:scale(1.08) rotate(-2deg);opacity:1}
+  .stoa-medallion svg{width:48px;height:48px;display:block}
+
   header .label{display:block;padding:0 236px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}  /* 左右各让出两枚按钮的宽度，英文长串不再压到按钮上 */
   h1{font:500 var(--fs7)/1.1 var(--display);letter-spacing:.15em;margin:10px 0 8px;text-transform:uppercase;padding-left:.15em}
   header em{font:italic 400 var(--fs2) var(--serif);color:var(--mute)}
@@ -1142,7 +1153,12 @@
   })();
 })();</script>
 <script>if (new URLSearchParams(location.search).get('frame') === 'custom') document.documentElement.classList.add('framed');</script>
-<div id="wbar"><div class="wt" id="wdrag"><b>STOA</b><i></i><span>股市 · Agora</span></div>
+<div id="wbar"><div class="wt" id="wdrag"><span class="wmark" aria-hidden="true"><svg viewBox="0 0 256 256" width="18" height="18" fill="currentColor">
+<path d="M 56 8 H 200 A 48 48 0 0 1 248 56 V 200 A 48 48 0 0 1 200 248 H 56 A 48 48 0 0 1 8 200 V 56 A 48 48 0 0 1 56 8 Z M 58 24 A 34 34 0 0 0 24 58 V 198 A 34 34 0 0 0 58 232 H 198 A 34 34 0 0 0 232 198 V 58 A 34 34 0 0 0 198 24 Z" fill-rule="evenodd"/>
+  <path d="M 64 48 L 100 74 L 128 81.5 L 156 74 L 192 48 L 192 82 C 200 100 198 124 186 134 Q 180 140 170 140 H 86 Q 76 140 70 134 C 58 124 56 100 64 82 Z M 104 83 A 21 21 0 1 0 104 125 A 21 21 0 1 0 104 83 Z M 152 83 A 21 21 0 1 0 152 125 A 21 21 0 1 0 152 83 Z M 124.25 122 H 131.75 L 128 136 Z" fill-rule="evenodd"/>
+  <path d="M 104 94 A 10 10 0 1 0 104 114 A 10 10 0 1 0 104 94 Z M 152 94 A 10 10 0 1 0 152 114 A 10 10 0 1 0 152 94 Z"/>
+  <path d="M 72 150 H 184 Q 192 150 192 158 C 193 180 188 200 180 216 H 76 C 68 200 63 180 64 158 Q 64 150 72 150 Z M 97 164 H 107 V 205.0 A 5.0 5.0 0 0 1 97 205.0 Z M 123 164 H 133 V 205.0 A 5.0 5.0 0 0 1 123 205.0 Z M 149 164 H 159 V 205.0 A 5.0 5.0 0 0 1 149 205.0 Z" fill-rule="evenodd"/>
+</svg></span><b>STOA</b><i></i><span>股市 · Agora</span></div>
   <div class="wc"><button id="wmin" type="button" aria-label="最小化"><svg viewBox="0 0 10 10"><path d="M0 5.5h10"/></svg></button><button id="wmax" type="button" aria-label="最大化"><svg viewBox="0 0 10 10"><rect x=".5" y=".5" width="9" height="9"/></svg></button><button id="wcls" class="x" type="button" aria-label="关闭"><svg viewBox="0 0 10 10"><path d="M.5.5l9 9M9.5.5l-9 9"/></svg></button></div></div>
 <div class="wrs" data-e="12"></div><div class="wrs" data-e="15"></div><div class="wrs" data-e="10"></div><div class="wrs" data-e="11"></div><div class="wrs" data-e="13"></div><div class="wrs" data-e="14"></div><div class="wrs" data-e="16"></div><div class="wrs" data-e="17"></div>
 <script>(() => {
@@ -1179,6 +1195,26 @@
 <div class="wrap">
 <main><div class="inner">
   <header>
+    <div class="stoa-medallion" style="margin:0 auto 10px;width:48px;height:48px"><svg width="48" height="48" viewBox="0 0 256 256" fill="currentColor" role="img" aria-label="Stoa" style="display:block;width:100%;height:100%">
+<!-- 方印压痕 Quadratum Incusum · ring 8u -->
+  <path d="M 56 12 H 200 A 44 44 0 0 1 244 56 V 200 A 44 44 0 0 1 200 244 H 56 A 44 44 0 0 1 12 200 V 56 A 44 44 0 0 1 56 12 Z M 56 20 A 36 36 0 0 0 20 56 V 200 A 36 36 0 0 0 56 236 H 200 A 36 36 0 0 0 236 200 V 56 A 36 36 0 0 0 200 20 Z" fill-rule="evenodd"/>
+  <!-- 新月 Crescent -->
+  <path d="M 50.7 46.4 A 14 14 0 1 0 67.6 63.3 A 12 12 0 0 1 50.7 46.4 Z"/>
+  <!-- 橄榄枝 Olive sprig -->
+  <path d="M 37 110.8 Q 49 101 62.8 90.6 L 65.2 93.4 Q 51 104.5 39 113.2 Z M 63 93 Q 73.5 93.4 75 83 Q 64.5 82.6 63 93 Z M 47 105 Q 54.98 98.6 49.1 90.2 Q 41.1 96.6 47 105 Z M 53.6 100 Q 60 107.98 68.45 102.1 Q 62 94.1 53.6 100 Z"/>
+  <!-- 铭文 ΣΤΟΑ · stroke 3.5u, cap 18u -->
+  <path d="M 200 50 H 216 V 53.5 H 205.5 L 210.5 59 L 205.5 64.5 H 216 V 68 H 200 V 65 L 205.5 59 L 200 53 Z"/>
+  <path d="M 200 80 H 216 V 83.5 H 209.75 V 98 H 206.25 V 83.5 H 200 Z"/>
+  <path d="M 208 110.5 A 8.5 8.5 0 1 0 208 127.5 A 8.5 8.5 0 1 0 208 110.5 Z M 208 114 A 5 5 0 1 1 208 124 A 5 5 0 1 1 208 114 Z" fill-rule="evenodd"/>
+  <path d="M 206 140 H 210 L 216.5 158 H 212.78 L 211.52 154.5 H 204.48 L 203.22 158 H 199.5 Z M 208 144.76 L 210.25 151 H 205.75 Z" fill-rule="evenodd"/>
+  <!-- 神鸮头部 Owl head (eyes + beak as real holes) -->
+  <path d="M 86 43.3 L 108 56 L 128 61.36 L 148 56 L 170 43.3 L 168 62 C 173 74 172 94 164 104 Q 160 110 152 110 H 104 Q 96 110 92 104 C 84 94 83 74 88 62 Z M 111 65 A 15 15 0 1 0 111 95 A 15 15 0 1 0 111 65 Z M 145 65 A 15 15 0 1 0 145 95 A 15 15 0 1 0 145 65 Z M 125 93 H 131 L 128 104.2 Z" fill-rule="evenodd"/>
+  <path d="M 111 73 A 7 7 0 1 0 111 87 A 7 7 0 1 0 111 73 Z M 145 73 A 7 7 0 1 0 145 87 A 7 7 0 1 0 145 73 Z"/>
+  <!-- 柱身 Doric shaft: capital band + 5 carved flutes -->
+  <path d="M 96 114 H 160 Q 170 114 170 124 C 170 146 166 168 160 188 H 96 C 90 168 86 146 86 124 Q 86 114 96 114 Z M 97 124 H 101 C 100 146 103 166 108 180 A 2 2 0 0 1 104.2 181.3 C 99 166 96 146 97 124 Z M 159 124 H 155 C 156 146 153 166 148 180 A 2 2 0 0 0 151.8 181.3 C 157 166 160 146 159 124 Z M 115 122 H 119 V 178.0 A 2.0 2.0 0 0 1 115 178.0 Z M 126 122 H 130 V 178.0 A 2.0 2.0 0 0 1 126 178.0 Z M 137 122 H 141 V 178.0 A 2.0 2.0 0 0 1 137 178.0 Z" fill-rule="evenodd"/>
+  <!-- 台基 Stylobate (Doric: no column base) -->
+  <path d="M 80 192 H 176 V 198 H 80 Z M 68 202 H 188 V 208 H 68 Z M 56 212 H 200 V 218 H 56 Z"/>
+</svg></div>
     <span class="label">Agora · 上海 · 香港 · 纽约 · Est. MMXXVI</span>
     <h1>Stoa<span class="h1s"> · 股市</span></h1>
     <em>A stoic market agent that remembers.</em>
