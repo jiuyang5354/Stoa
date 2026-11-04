@@ -788,9 +788,9 @@
   .pane{overflow:auto;padding:26px 34px 90px;}
   .pane h3{font:500 var(--fs4)/1.2 var(--cn);margin:0 0 4px;letter-spacing:.04em}
   .pane .lead{font:italic var(--fs2)/1.5 var(--serif);color:var(--mute);margin:0 0 20px}
-  .grp{border-top:1px solid var(--ink);margin:0 0 26px}
+  .grp{border-top:1px solid var(--ink);margin:0 0 26px;transition:margin-bottom .22s var(--ease)}
   .grp>.label{display:block;padding:10px 0 2px}
-  .fr{display:grid;grid-template-columns:150px 1fr;gap:6px 18px;align-items:center;padding:12px 0;border-bottom:1px solid var(--rule)}
+  .fr{display:grid;grid-template-columns:150px 1fr;gap:6px 18px;align-items:center;padding:12px 0;border-bottom:1px solid var(--rule);transition:margin-bottom .22s var(--ease)}
   .fr>span b{display:block;font:500 var(--fs0) var(--cn)}.fr>span small{display:block;font:var(--fsn1)/1.45 var(--sans);color:var(--mute)}
   .fr input[type=text],.fr input[type=password],.fr input[type=time],.fr select{width:100%;box-sizing:border-box;border:0;border-bottom:1px solid var(--rule-2);background:transparent;font:400 var(--fs1) var(--sans);color:var(--ink);padding:6px 2px;outline:0;border-radius:0}
   .fr input:focus,.fr select:focus{border-bottom-color:var(--ink)}
@@ -2580,6 +2580,7 @@ function paintPick(){
   const head = `<div class="h"><span class="label">${esc(PROBE.msg)}${q && !all ? ` · 匹配 ${hit.length}/${L.length}` : ''}</span></div>`;
   if (!hit.length) {  // 搜不到就直说，别把整张表当成「搜索结果」端上来
     box.innerHTML = head + `<div class="mpnone">没有名字含「${esc(cur)}」的模型<button type="button" data-all="1">看全部 ${L.length} 个</button></div>`;
+    fitPick(); return;
   } else {
     const rows = [...hit].sort((a, b) => (b === cur) - (a === cur) || a.localeCompare(b));  // 当前用的排最前
     box.innerHTML = head + rows.map(m => `<button type="button" role="option" data-m="${esc(m)}" class="${m === cur ? 'k' : ''}">${esc(m)}${m === cur ? '<i class="mpok">当前</i>' : ''}</button>`).join('');
@@ -2587,15 +2588,24 @@ function paintPick(){
   const ab = box.querySelector('[data-all]');
   if (ab) ab.onmousedown = e => { e.preventDefault(); box.dataset.all = '1'; paintPick(); };
   box.querySelectorAll('[data-m]').forEach(b => b.onmousedown = e => { e.preventDefault(); $('mpin').value = b.dataset.m; dirty.LLM_MODEL = b.dataset.m; setSt('有未保存的修改'); pickOpen(false); });
+  fitPick();
 }
-function pickOpen(on){ const b = $('mpick'); if (!b) return; if (on) { delete b.dataset.all; paintPick(); } else delete b.dataset.all; b.classList.toggle('on', on); }
+/* 面板开着时给下面的组让位：列表再长也不许盖住「备用模型」。
+   让位要落在 .grp（整组）上——落在 .fr 上只在这组内部生效，压不住下一组。 */
+function fitPick(){
+  const b = $('mpick'); if (!b) return;
+  if (!b.offsetHeight) return;  // 面板还没进布局（重建中/未打开）时不要写异样的 margin
+  const host = b.closest('.grp') || b.closest('.fr'); if (!host) return;
+  host.style.marginBottom = b.classList.contains('on') ? (b.offsetHeight + 12) + 'px' : '';
+}
+function pickOpen(on){ const b = $('mpick'); if (!b) return; if (on) { delete b.dataset.all; paintPick(); } else delete b.dataset.all; b.classList.toggle('on', on); fitPick(); }
 function bindModelPane(pane){
   let t = 0;
   ['LLM_API_KEY', 'LLM_BASE_URL'].forEach(k => { const el = pane.querySelector(`[data-env="${k}"]`); if (el) el.addEventListener('input', () => { clearTimeout(t); t = setTimeout(() => probeModels(), 700); }); });
   $('mpbtn').onclick = () => { const on = !$('mpick').classList.contains('on'); pickOpen(on); if (on && !PROBE.list.length) probeModels(true); };
   $('mpre').onclick = () => { probeModels(true); pickOpen(true); };
   $('mpin').addEventListener('focus', () => { if (PROBE.list.length) pickOpen(true); });
-  $('mpin').addEventListener('input', () => { if (PROBE.list.length) { paintPick(); $('mpick').classList.add('on'); } });
+  $('mpin').addEventListener('input', () => { if (PROBE.list.length) pickOpen(true); });
   $('mpin').addEventListener('blur', () => setTimeout(() => pickOpen(false), 120));
   $('mpin').addEventListener('keydown', e => { if (e.key === 'Escape') pickOpen(false); });
   probeModels();
