@@ -112,30 +112,53 @@ def _statements_a(info: dict, freq: str, periods: int) -> dict:
             "note": note, "caliber": CALIBER}
 
 
+_YF_CACHE: dict[tuple, tuple[float, dict]] = {}
+_YF_LOCK = __import__("threading").Lock()
+_YF_KEY_LOCKS: dict[tuple, object] = {}
+
+
 def _statements_yf(symbol: str, info: dict, freq: str, periods: int) -> dict:
+    import copy
+    import time
     import yfinance as yf
-    t = yf.Ticker(symbol)
-    dfs = {"income": t.income_stmt, "balance": t.balance_sheet, "cashflow": t.cashflow} if freq == "annual" else \
-          {"income": t.quarterly_income_stmt, "balance": t.quarterly_balance_sheet, "cashflow": t.quarterly_cashflow}
-    cols = sorted({c for df in dfs.values() if df is not None for c in df.columns}, reverse=True)[:periods]
-    out = []
-    for c in cols:
-        p = {"period": str(c.date()), "end": str(c.date())}
-        for k, df in dfs.items():
-            p[k] = {f: (_f(df.at[v, c]) if df is not None and v in df.index and c in df.columns else None) for f, v in YF_MAP[k].items()}
-        cf = p["cashflow"]
-        if cf.get("capex") is not None:
-            cf["capex"] = abs(cf["capex"])  # Yahoo 资本开支记为负数，统一成正数（流出）
-        if cf.get("dividends_paid") is not None:
-            cf["dividends_paid"] = abs(cf["dividends_paid"])
-        p["basis"] = "全年" if freq == "annual" else "单季"
-        out.append(p)
-    try:
-        fin_cur = (t.info or {}).get("financialCurrency")
-    except Exception:
-        fin_cur = None
-    return {"symbol": symbol, "name": info.get("name"), "currency": fin_cur, "freq": freq, "periods": out,
-            "source": "Yahoo Finance 财务报表", "note": "年报口径。" if freq == "annual" else "单季口径。"}
+    key = (symbol.upper(), freq, periods, id(yf.Ticker))
+    now_t = time.monotonic()
+    with _YF_LOCK:
+        hit = _YF_CACHE.get(key)
+        if hit and now_t - hit[0] < 180:
+            return copy.deepcopy(hit[1])
+        klock = _YF_KEY_LOCKS.setdefault(key, __import__("threading").Lock())
+    with klock:
+        with _YF_LOCK:
+            hit = _YF_CACHE.get(key)
+            if hit and time.monotonic() - hit[0] < 180:
+                return copy.deepcopy(hit[1])
+        t = yf.Ticker(symbol)
+        dfs = {"income": t.income_stmt, "balance": t.balance_sheet, "cashflow": t.cashflow} if freq == "annual" else \
+              {"income": t.quarterly_income_stmt, "balance": t.quarterly_balance_sheet, "cashflow": t.quarterly_cashflow}
+        cols = sorted({c for df in dfs.values() if df is not None for c in df.columns}, reverse=True)[:periods]
+        out = []
+        for c in cols:
+            p = {"period": str(c.date()), "end": str(c.date())}
+            for k, df in dfs.items():
+                p[k] = {f: (_f(df.at[v, c]) if df is not None and v in df.index and c in df.columns else None) for f, v in YF_MAP[k].items()}
+            cf = p["cashflow"]
+            if cf.get("capex") is not None:
+                cf["capex"] = abs(cf["capex"])  # Yahoo 资本开支记为负数，统一成正数（流出）
+            if cf.get("dividends_paid") is not None:
+                cf["dividends_paid"] = abs(cf["dividends_paid"])
+            p["basis"] = "全年" if freq == "annual" else "单季"
+            out.append(p)
+        try:
+            fin_cur = (t.info or {}).get("financialCurrency")
+        except Exception:
+            fin_cur = None
+        res = {"symbol": symbol, "name": info.get("name"), "currency": fin_cur, "freq": freq, "periods": out,
+               "source": "Yahoo Finance 财务报表", "note": "年报口径。" if freq == "annual" else "单季口径。"}
+        if out:
+            with _YF_LOCK:
+                _YF_CACHE[key] = (time.monotonic(), copy.deepcopy(res))
+        return res
 
 
 def statements(symbol: str, freq: str = "annual", periods: int = 4) -> dict:

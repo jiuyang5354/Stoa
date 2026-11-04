@@ -93,3 +93,55 @@ def test_hard_timeout_answers_from_tool_results(home, monkeypatch):
     assert [m["role"] for m in a.messages[1:]] == ["user", "assistant"]  # 上下文仍然合法，下一问可以接着聊
     runs = ledger.runs_list()
     assert runs and runs[0]["status"] == "done"
+
+
+def test_continue_after_timeout_reuses_fetched_tools_and_sources(home, monkeypatch):
+    """上一轮超时中断后，用户回复「继续」直接复用上一轮已完成工具的结果与引用源，不必重跑工具。"""
+    monkeypatch.setenv("LLM_RETRY_BASE", "0.01")
+    tool_runs = {"n": 0}
+
+    class ContinueLLM:
+        ready = True
+
+        def __init__(self):
+            self.turn = 0
+            self.calls = 0
+
+        def chat(self, messages, tools=None, **kw):
+            self.calls += 1
+            if self.turn == 0:
+                if messages[-1]["role"] == "tool":
+                    raise TimeoutError("request deadline")
+                return {"role": "assistant", "content": "先查行情。下一步并行取：盈利质量、利润桥、一致预期、持仓逻辑。", "tool_calls": [
+                    {"id": "c1", "type": "function", "function": {"name": "get_quotes", "arguments": json.dumps({"symbols": ["600519.SS"]})}}]}
+            # 第二轮用户说「继续」：模型直接引用上一轮已取到的 1354.0 作答，不再调 get_quotes
+            return {"role": "assistant", "content": "接着上一轮已取到的数据：贵州茅台收盘 1354.0 元[1]，跌幅 0.84%[1]。"}
+
+    from stock_agent.agent import Agent
+    from stock_agent.memory import Memory
+
+    llm = ContinueLLM()
+
+    class A(Agent):
+        def run_tool(self, name, args):
+            tool_runs["n"] += 1
+            return dict(Q)
+
+    a = A(Memory(), channel="web", session="web-cont")
+    a.llm = llm
+    r1 = a.ask("深度看看贵州茅台")
+    assert a.last_meta["timeout"] and tool_runs["n"] == 1
+    llm.turn = 1
+    r2 = a.ask("继续")
+    assert tool_runs["n"] == 1  # 没有重跑 get_quotes
+    assert "1354.0" in r2 and "未核实" not in r2  # 引用核对通过
+    picked_names = {t["name"] for t in a.turn_tools()}
+    assert {"earnings_quality", "financial_bridge", "get_consensus", "memory_links"} <= picked_names
+
+
+def test_fake_ip_and_sec_ua_in_fetch_url(monkeypatch):
+    from stock_agent import research
+    monkeypatch.setattr(research.socket, "getaddrinfo", lambda host, port: [(2, 1, 6, "", ("198.18.0.25", 0))])
+    assert research._public("www.sec.gov") is True
+    monkeypatch.setattr(research.socket, "getaddrinfo", lambda host, port: [(2, 1, 6, "", ("127.0.0.1", 0))])
+    assert research._public("localhost") is False

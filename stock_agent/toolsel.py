@@ -22,18 +22,18 @@ GROUPS: dict[str, tuple[tuple[str, ...], str, str]] = {
              "资金流/主力/超大单 → get_fund_flow（仅 A股；港股/美股资金流直接说明没有可靠免费逐日数据，不编）；北向 → get_northbound（2024-08 起不披露每日净买入）；南向/港股通 → get_southbound（每日净买入仍披露）；"
              "龙虎榜 → get_dragon_tiger；两融、股东户数、筹码 → get_chips；A股情绪、涨停炸板、板块资金 → get_market_mood。"),
     "street": (("get_consensus", "get_intraday", "get_options", "get_corporate_events", "get_insiders", "get_short_volume", "hk_interests"),
-               r"权益披露|大股东|披露易|目标价|评级|一致预期|盈利预测|EPS|分析师|consensus|分时|盘中|几点|分钟|intraday|期权|隐含波动|\bIV\b|put|call|最大痛点|解禁|减持|增持|回购|质押|业绩预告|调研|内部人|高管.{0,4}(?:买|卖)|insider|form 4|做空|空头|short",
+               r"权益披露|大股东|披露易|目标价|评级|一致预期|盈利预测|EPS|分析师|consensus|分时|盘中|几点|分钟|intraday|期权|隐含波动|\bIV\b|put|call|最大痛点|公司事件|解禁|减持|增持|回购|质押|业绩预告|调研|内部人|高管.{0,4}(?:买|卖)|insider|form 4|做空|空头|short",
                "分析师目标价/评级/盈利预测 → get_consensus；盘中/分时 → get_intraday；美股期权 IV、Put/Call、最大痛点 → get_options；"
                "解禁、减持、增持、回购、质押、业绩预告、调研、美股高管买卖 → get_corporate_events / get_insiders；港股大股东/董事增减持 → hk_interests（披露易）；美股做空 → get_short_volume。"),
     "quant": (("price_levels", "financial_bridge", "option_payoff", "trade_replay", "volume_profile"),
-              r"支撑|阻力|关键价位|压力位|利润结构|瀑布|钱花在哪|收入到净利|期权组合|备兑|价差|跨式|收益曲线|止损.{0,20}目标|目标.{0,20}止损|胜算|概率.{0,6}(?:碰|到)|成交密集|成交分布|筹码峰|\bPOC\b|价值区|震荡还是趋势",
-              "支撑阻力 → price_levels；利润结构 → financial_bridge；期权组合盈亏 → option_payoff；给了入场/止损/目标想知道胜算 → trade_replay（压力测试不是预测）；"
+              r"支撑|阻力|关键价位|压力位|利润结构|利润桥|利润拆解|瀑布|钱花在哪|收入到净利|期权组合|备兑|价差|跨式|收益曲线|止损.{0,20}目标|目标.{0,20}止损|胜算|概率.{0,6}(?:碰|到)|成交密集|成交分布|筹码峰|\bPOC\b|价值区|震荡还是趋势",
+              "支撑阻力 → price_levels；利润结构/利润桥 → financial_bridge；期权组合盈亏 → option_payoff；给了入场/止损/目标想知道胜算 → trade_replay（压力测试不是预测）；"
               "成交密集区/震荡还是趋势 → volume_profile（结构描述，不当买卖信号）。这些工具会在回答下方画图。"),
     "position": (("position_limit",),
                  r"仓位|买多少|能买多少|买几手|多少股|多少手|本金|资金.{0,6}\d|\d+(?:\.\d+)?\s*万|position siz|how many shares",
                  "仓位上限 → position_limit：只在用户给了资金或持仓、问能不能买/买多少/仓位时调用；照抄它的上限与起作用的约束，说明这是算术上限、不是买入建议，免责照写。"),
     "fundamental": (("get_statements", "earnings_quality", "reverse_dcf", "dcf_scenarios", "regulatory_letters"),
-                    r"三表|报表|科目|资产负债表|利润表|现金流量表|现金流|资本开支|盈利质量|含金量|造假|勾稽|M-?score|F-?score|Altman|估值|DCF|折现|隐含.{0,4}增长|情景|问询函|关注函|监管|处罚|立案|SEC 意见|comment letter|valuation|intrinsic",
+                    r"三表|报表|科目|资产负债表|利润表|现金流量表|现金流|资本开支|盈利质量|含金量|造假|勾稽|M-?score|F-?score|Altman|估值|DCF|反向\s*DCF|三情景|折现|隐含.{0,4}增长|情景|问询函|问询|关注函|监管|处罚|立案|SEC 意见|comment letter|valuation|intrinsic",
                     "原始三表科目 → get_statements；利润含金量/造假风险 → earnings_quality；现价隐含增长 → reverse_dcf；三情景估值 → dcf_scenarios（情景假设写清楚）；问询函/监管/处罚 → regulatory_letters。"),
     "sec": (("sec_filings", "sec_document", "sec_xbrl", "sec_search", "earnings_release", "earnings_transcript", "price_history"),
             r"\bSEC\b|EDGAR|10-?K|10-?Q|8-?K|20-?F|DEF 14A|proxy|S-4|filing|XBRL|press release|新闻稿|earnings call|transcript|电话会|guidance|指引|fiscal|FY ?20\d\d|Q[1-4] ?20\d\d|"
@@ -41,14 +41,14 @@ GROUPS: dict[str, tuple[tuple[str, ...], str, str]] = {
             "美股 SEC 原文（点名某份 10-K/10-Q/8-K/新闻稿/封面股数，或要精确科目时优先这组，不拿网页转述或 Yahoo 汇总数代替）：sec_filings 找申报；sec_document 读原文（cover 封面股数、mdna、risk、financial，query 检索表格）；"
             "sec_xbrl 取精确科目值；sec_search 全文检索；earnings_release 读业绩新闻稿与指引；earnings_transcript 读电话会。退市/改名公司 symbol 填公司名或 CIK。"),
     "history": (("price_history", "cn_data", "macro_series", "run_python"),
-                r"历史|当时|那天|某日|收盘价|开盘价|最高价|最低价|区间|期间|之间|以来|最大(?:单周|单日|回撤)|单周|周涨跌|连续.{0,6}(?:涨|跌)|多少天|几天|20[0-2]\d ?年|\b(?:19|20)\d\d[-/年.]\d{1,2}|"
+                r"历史|历史价格|事件研究|当时|那天|某日|收盘价|开盘价|最高价|最低价|区间|期间|之间|以来|最大(?:单周|单日|回撤)|单周|周涨跌|连续.{0,6}(?:涨|跌)|多少天|几天|20[0-2]\d ?年|\b(?:19|20)\d\d[-/年.]\d{1,2}|"
                 r"统计|年鉴|国家统计局|统计局|宏观|CPI|PPI|GDP|PMI|M2|社零|工业增加值|固投|LPR|利率|汇率|外储|经常账户|就业|工资|房价|金价|上海金|黄金|申万|行业指数|中证|交易所|上市公司.{0,6}(?:家|总|数)|总市值|退市|ETF|基金净值|期权|"
                 r"\bFRED\b|vintage|federal funds|bank credit|seasonally|index\b|historical|closing price|opening price|all[- ]time|between .{3,30} and|since 20\d\d|in 20\d\d|as of",
                 "历史/统计查数：某日收盘、区间涨跌、公告后 N 天股价 → price_history（恒生科技/恒指等港股指数用 ^HSTECH ^HSI，自动走腾讯指数日线；美股已退市/被收购代码改从 SEC 合并委托书取收盘价；非交易日按题意取前/后一交易日并说明；不要因为 get_quotes 只有近期数据就说查不到；full=true 给完整逐日序列 + csv）；中国宏观、A股财务筛选、中证/申万指数、交易所统计、ETF 期权、国家统计局、上海金 → cn_data；"
                 "海外宏观 → macro_series（指定数据版本给 vintage）；序列计算（连涨天数、回撤、计数）→ run_python 读返回的 csv。查数题要落到一个具体答案，"
                 "结构化工具 → web_search 换 3 种问法 → fetch_url 打开原页核对；仍无精确值给有出处的最佳估计并写口径。"),
     "memory": (("memory_links", "session_search", "search_memory", "call_stats"),
-               r"上次|之前|以前|记得|说过|定的|我的(?:持仓|成本|风格|偏好)|记忆|画像|离场价|账本|战绩|准确率|胜率|复盘|判断.{0,4}(?:对|错)",
+               r"上次|之前|以前|记得|说过|定的|我的(?:持仓|成本|风格|偏好)|持仓逻辑|记忆图谱|记忆|画像|离场价|账本|战绩|准确率|胜率|复盘|判断.{0,4}(?:对|错)",
                "「上次/之前说过」→ session_search；找某条记忆、过去的判断理由或辩论结论 → search_memory；分析某只股票前把相关记忆一次取齐 → memory_links；判断账本统计 → call_stats。"),
     "schedule": (("task_create", "task_list", "task_delete", "alert_set", "alert_list", "alert_delete", "pending_actions", "confirm_action"),
                  r"提醒|每天|每周|每个工作日|每隔|定时|到点|明天.{0,6}点|alert|跌破|涨到|突破.{0,6}告诉|通知我|推送|任务|待确认|确认|批准|同意|拒绝",
@@ -140,7 +140,7 @@ def notes(groups: list[str]) -> str:
     return ("\n## 本轮相关工具的用法\n" + "\n".join(f"- {x}" for x in lines)) if lines else ""
 
 
-def search(query: str, pool: list[dict], limit: int = 5, exclude=()) -> list[dict]:
+def search(query: str, pool: list[dict], limit: int = 8, exclude=()) -> list[dict]:
     """关键词（名字/说明/组触发词，BM25）+ 本地向量（vectors.local_tf 余弦）融合排序。"""
     from . import vectors
     import numpy as np
@@ -148,6 +148,7 @@ def search(query: str, pool: list[dict], limit: int = 5, exclude=()) -> list[dic
     cand = [t for t in pool if t["name"] not in set(exclude) and t["name"] != "tool_search"]
     if not cand or not (query or "").strip():
         return []
+    matched_groups = set(intent_groups(query))
     group_of = {n: g for g, (tools, _, _) in GROUPS.items() for n in tools}
     docs = []
     for t in cand:
@@ -157,6 +158,7 @@ def search(query: str, pool: list[dict], limit: int = 5, exclude=()) -> list[dic
     toks = [Counter(vectors.tokens(d, unigrams=False)) for d in docs]
     kw = vectors.bm25(query, toks)
     direct = np.array([3.0 if t["name"].lower() in query.lower() else 0.0 for t in cand])
+    in_grp = np.array([0.015 if group_of.get(t["name"]) in matched_groups else 0.0 for t in cand])
     try:
         qv = vectors.local_tf(query)
         dv = np.stack([vectors.local_tf(d) for d in docs])
@@ -164,6 +166,6 @@ def search(query: str, pool: list[dict], limit: int = 5, exclude=()) -> list[dic
     except Exception:
         cos = np.zeros(len(cand))
     rk = vectors.rrf([list(np.argsort(-kw)), list(np.argsort(-cos))])
-    score = {i: rk.get(i, 0) + direct[i] + (0.02 if kw[i] > 0 else 0) for i in range(len(cand))}
+    score = {i: rk.get(i, 0) + direct[i] + in_grp[i] + (0.02 if kw[i] > 0 else 0) for i in range(len(cand))}
     order = sorted(score, key=lambda i: -score[i])
-    return [cand[i] for i in order if kw[i] > 0 or cos[i] > 0.05 or direct[i]][:max(1, min(10, limit))]
+    return [cand[i] for i in order if kw[i] > 0 or cos[i] > 0.05 or direct[i] or in_grp[i]][:max(1, min(12, limit))]

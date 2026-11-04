@@ -361,11 +361,16 @@ def web_search(query: str, limit: int = 6) -> dict:
     return {"query": query, "results": [], "errors": errs}
 
 
+_FAKE_IP = ipaddress.ip_network("198.18.0.0/15")  # Clash / Mihomo / Sing-box TUN Fake-IP 池
+
+
 def _public(host: str) -> bool:
     try:
         for fam, *_, addr in socket.getaddrinfo(host, None):
             ip = ipaddress.ip_address(addr[0])
-            if not ip.is_global or ip.is_multicast:
+            if ip.is_multicast or ip.is_loopback or ip.is_link_local or ip.is_unspecified:
+                return False
+            if not ip.is_global and ip not in _FAKE_IP:
                 return False
         return True
     except Exception:
@@ -401,7 +406,8 @@ def fetch_url(url: str, max_chars: int = 6000, start: int = 0, pages: bool = Fal
             u = urlparse(current)
             if u.scheme not in ("http", "https") or not u.hostname or not _public(u.hostname):
                 return {"url": current, "error": "只能读取公网 http(s) 网页（含每次跳转）"}
-            r = requests.get(current, headers=UA, timeout=15, allow_redirects=False, stream=True)
+            hdrs = SEC_UA if "sec.gov" in (u.hostname or "").lower() else UA
+            r = requests.get(current, headers=hdrs, timeout=15, allow_redirects=False, stream=True)
             try:
                 if r.status_code in (301, 302, 303, 307, 308):
                     location = r.headers.get("Location")

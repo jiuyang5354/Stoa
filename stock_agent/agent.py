@@ -499,6 +499,30 @@ class Cancelled(Exception):
     """用户在网页上点了停止：在下一个检查点（模型返回后、每个工具开始前）收手。"""
 
 
+_CONTINUE_RE = re.compile(r"^\s*(?:继续|接着(?:写|查|看|说|分析|完成)?|把.{0,10}(?:写完|补齐|做完|说完)|往下(?:写|看|说)|continue|go on|keep going)\s*[。！!？?…]*\s*$", re.I)
+
+
+def _completed_tool_rounds(msgs: list[dict]) -> list[dict]:
+    """从中断轮的消息切片里只保留配对完整的 (assistant tool_calls + 全部对应 tool) 回合，保证上下文对所有模型 API 合法。"""
+    out, i, n = [], 0, len(msgs)
+    while i < n:
+        m = msgs[i]
+        if m.get("role") == "assistant" and m.get("tool_calls"):
+            want = {c.get("id") for c in (m.get("tool_calls") or []) if c.get("id")}
+            j, tools = i + 1, []
+            while j < n and msgs[j].get("role") == "tool":
+                if msgs[j].get("tool_call_id") in want:
+                    tools.append(msgs[j])
+                j += 1
+            if want and {t.get("tool_call_id") for t in tools} >= want:
+                out.append(m)
+                out.extend(tools)
+            i = j
+        else:
+            i += 1
+    return out
+
+
 def _why_line(text) -> str:
     """模型在调工具时附带的那句「为什么查」：取第一句，去掉 markdown，限长。"""
     t = re.sub(r"[*#>`_]+", "", str(text or "")).strip()
@@ -639,7 +663,11 @@ class Agent:
     # ----- 工具 -----
     def _tool_search(self, args: dict) -> dict:
         have = {t["name"] for t in self.turn_tools()}
-        hits = toolsel.search(str(args.get("query") or ""), self.tools, int(args.get("limit") or 5), exclude=have)
+        q = str(args.get("query") or ""); hits = toolsel.search(q, self.tools, int(args.get("limit") or 8), exclude=have)
+        for g in toolsel.intent_groups(q):
+            self._unlock(toolsel.GROUPS[g][0])
+            if getattr(self, "_turn_groups", None) is not None and g not in self._turn_groups:
+                self._turn_groups.append(g)
         self._unlock([t["name"] for t in hits])
         return {"query": args.get("query"), "found": [{"name": t["name"], "description": t.get("description", "")[:300], "parameters": t.get("parameters")} for t in hits],
                 "note": "这些工具本轮已可直接调用" if hits else "没找到对口的工具；换个关键词，或用 web_search",
@@ -1104,6 +1132,55 @@ class Agent:
         for t, n, k in self._trace_ctx:
             self.sources.add_context(t, n, k)
 
+    def _restore_partial(self, text: str) -> str:
+        """用户回复「继续」时，把上一轮超时中断前已取到的工具结果、缓存和引用编号直接继承过来，避免重跑全部工具。"""
+        if not _CONTINUE_RE.match(text or ""):
+            self._partial_turn = None
+            return ""
+        pt = getattr(self, "_partial_turn", None)
+        self._partial_turn = None
+        if pt:
+            self._turn_cache.update(pt.get("cache") or {})
+            for item in pt.get("trace_log") or []:
+                try:
+                    self.sources.add(item["tool"], item["args"], item["result"])
+                    self._trace_log.append(item)
+                except Exception:
+                    pass
+            if pt.get("cards"):
+                self.turn_cards.extend(pt["cards"])
+            self._last_used = (set(getattr(self, "_last_used", ()) or ()) | set(pt.get("used") or ())) - set(toolsel.CORE_TOOLS) - {"tool_search"}
+            tool_msgs = pt.get("tool_msgs") or []
+            if tool_msgs and len(self.messages) >= 2 and self.messages[-1].get("role") == "assistant":
+                self.messages[-1:-1] = tool_msgs
+            return ("\n\n[系统提醒：上一轮因时间上限中断，上面已完成的工具调用结果与引用编号已全部保留在上下文中。"
+                    "请不要重复调用已成功的工具，只补查尚未取到的缺口数据，然后直接给出完整分析与结论。]")
+        if len(self.messages) >= 2 and ("秒上限" in (self.messages[-1].get("content") or "") or "未完成：最终的分析与结论没有生成" in (self.messages[-1].get("content") or "")):
+            try:
+                from . import learn
+                tr = learn.last_trace(session=self.session)
+                tools_run = (tr or {}).get("tools") or []
+                if tools_run:
+                    digests = []
+                    used = set()
+                    for item in tools_run:
+                        tname, targs, tres = item.get("tool") or "", item.get("args") or {}, item.get("result")
+                        if not tname:
+                            continue
+                        used.add(tname)
+                        if tname not in SIDE_EFFECT_TOOLS:
+                            self._turn_cache[tname + json.dumps(targs, sort_keys=True, ensure_ascii=False)] = tres
+                        cited = self.sources.add(tname, targs, tres)
+                        self._trace_log.append({"tool": tname, "args": targs, "result": tres})
+                        digests.append(f"- {tname}({json.dumps(targs, ensure_ascii=False)[:80]}): {context.clip_tool(cited, 1800)}")
+                    self._last_used = (set(getattr(self, "_last_used", ()) or ()) | used) - set(toolsel.CORE_TOOLS) - {"tool_search"}
+                    if digests:
+                        return ("\n\n[系统提醒：上一轮已取到的工具数据如下（含引用编号 `_cite`，可直接引用，不必重复调用）：\n"
+                                + "\n".join(digests[:20]) + "\n请只补查缺失的数据，并直接给出完整分析与结论。]")
+            except Exception:
+                pass
+        return ""
+
     def _trace(self, question: str, raw_reply: str, reply: str, aid):
         """这一问的现场落库（learn.db）：问题、模型原始回答、工具调用与结果、核对与补写。点踩时用。"""
         from . import learn
@@ -1157,7 +1234,7 @@ class Agent:
         self._turn_start = len(self.messages)
         T = self._turn_T = turn_timeout()
         # 软上限：留出收尾时间（最多 120 秒），到点后不再给工具，让模型用已拿到的结果作答；硬上限 T 由模型请求的截止时间保证
-        self._soft_deadline = time.monotonic() + T - min(120, T * .15)
+        self._soft_deadline = time.monotonic() + T - min(180, T * .2)
         self._time_final = False
         if isinstance(self.llm, Router):
             previous_control = (getattr(self.llm, "stop", None), getattr(self.llm, "on_event", None), getattr(self.llm, "deadline", float("inf")))
@@ -1225,7 +1302,9 @@ class Agent:
         if got:
             parts.append("已经拿到的结果：\n" + "\n".join(got))
         body = (f"{why}。下面是已有的部分：\n" + "\n\n".join(parts)) if parts else f"{why}，还没拿到任何工具结果。"
-        body += "\n\n未完成：最终的分析与结论没有生成。可以点「重新生成」，或把问题拆小一点再问；上限可在 config.yaml 的 agent.turn_timeout 调整。"
+        body += "\n\n未完成：最终的分析与结论没有生成。可以直接回复「继续」基于以上已查到的数据接着生成结论，或点「重新生成」；上限可在 config.yaml 的 agent.turn_timeout 调整。"
+        tool_msgs = _completed_tool_rounds(self.messages[getattr(self, "_turn_start", 0) + 1:])
+        self._last_used = (set(getattr(self, "_last_used", ()) or ()) | set(getattr(self, "_used_now", ()) or ())) - set(toolsel.CORE_TOOLS) - {"tool_search"}
         if not hasattr(self, "sources"):
             self._begin_sources(text)
         try:
@@ -1238,6 +1317,15 @@ class Agent:
         self.messages = self.messages[:self._turn_start] + [{"role": "user", "content": text, "_id": self._cur_id},
                                                              {"role": "assistant", "content": cite.strip_sources(reply), "_id": aid}]
         _quiet(self._trace, text, body, reply, aid)
+        self._partial_turn = {
+            "question": text,
+            "tool_msgs": tool_msgs,
+            "cache": dict(getattr(self, "_turn_cache", None) or {}),
+            "trace_log": list(getattr(self, "_trace_log", None) or []),
+            "cards": list(getattr(self, "turn_cards", None) or []),
+            "groups": list(getattr(self, "_turn_groups", None) or []),
+            "used": set(getattr(self, "_used_now", ()) or ()),
+        }
         return reply
 
     @classmethod
@@ -1291,6 +1379,7 @@ class Agent:
         self._steps, self._thoughts, self._why = [], [], ""
         self._queries = []
         self._begin_sources(text)
+        cont_note = self._restore_partial(text)
         # 「深度分析 X」「该不该买 X」：直接开 Agora 辩论，不先绕一圈单 agent
         from . import debate
         if debate.wants_debate(text) and not getattr(self, "_no_debate", False):
@@ -1355,7 +1444,13 @@ class Agent:
         self.auto_skills = [a["name"] for a in auto]
         # 工具面收敛：第一轮之前按提问意图选好工具组（规则，不多一次模型请求）；上一轮用过的工具继续带上
         try:
-            self._turn_tools, self._turn_groups = toolsel.select(text, self.tools, carry=getattr(self, "_last_used", ()) or ())
+            select_text = text
+            if _CONTINUE_RE.match(text or "") and len(self.messages) > 1:
+                recent = [str(m.get("content") or "")[:1500] for m in self.messages[-8:] if m.get("role") in ("user", "assistant")]
+                select_text = "\n".join(recent + [text])
+            self._turn_tools, self._turn_groups = toolsel.select(select_text, self.tools, carry=getattr(self, "_last_used", ()) or ())
+            if cont_note:
+                content += cont_note
         except Exception:
             self._turn_tools, self._turn_groups = None, []
         self._used_now = set()
@@ -1383,6 +1478,11 @@ class Agent:
             if final is None and rounds and time.monotonic() >= getattr(self, "_soft_deadline", float("inf")):
                 final = f"本轮用时接近 {getattr(self, '_turn_T', TURN_TIMEOUT)} 秒上限"
                 self._time_final = True
+                grace = min(240, max(90, getattr(self, "_turn_T", TURN_TIMEOUT) * 0.25))
+                new_dl = max(getattr(self, "_hard_deadline", 0.0), time.monotonic() + grace)
+                self._hard_deadline = new_dl
+                if isinstance(self.llm, Router):
+                    self.llm.deadline = max(getattr(self.llm, "deadline", 0.0), new_dl)
             if final and not (self.messages[-1]["role"] == "user" and self.messages[-1]["content"].startswith("[系统：")):
                 self.messages.append({"role": "user", "content": FINAL_NUDGE.format(why=final)})
             msg = self._model_step(self.messages, None if final else "default")
@@ -1433,7 +1533,7 @@ class Agent:
                     self.messages.append({"role": "user", "content": GIVE_UP_NUDGE})
                     continue
                 v = cite.verify(reply, self.sources)
-                if not v["ok"] and not retried:  # 有无出处的数字：打回让模型修正一次
+                if not v["ok"] and not retried and not getattr(self, "_time_final", False) and time.monotonic() < getattr(self, "_soft_deadline", float("inf")):  # 有无出处的数字：打回让模型修正一次（接近整轮上限时直接由 post_check 标未核实，不再二次重生成）
                     retried, first_bad = True, v["unverified"]
                     self.messages.append({"role": "user", "content": cite.correction_prompt(v["unverified"], v.get("why"))})
                     continue
@@ -1468,6 +1568,10 @@ class Agent:
             called = [c["function"]["name"] for c in calls]
             self._used_now = set(getattr(self, "_used_now", ()) or ()) | set(called)
             self._unlock(called)  # 直接按名字调用了没下发 schema 的域工具：之后各步带上它的 schema
+            for g in toolsel.intent_groups((msg.get("content") or "") + "\n" + (msg.get("_reasoning") or "")):
+                self._unlock(toolsel.GROUPS[g][0])
+                if getattr(self, "_turn_groups", None) is not None and g not in self._turn_groups:
+                    self._turn_groups.append(g)
             results = self._run_calls(calls, on_tool)
             for c, result in zip(calls, results):
                 name = c["function"]["name"]
