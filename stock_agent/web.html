@@ -817,6 +817,9 @@
   .mpick .h{padding:4px 14px 8px;border-bottom:1px solid var(--rule);margin-bottom:4px}
   .mpick button{display:block;width:100%;border:0;background:transparent;text-align:left;padding:6px 14px;font:400 var(--fs0) var(--sans);color:var(--ink);cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .mpick button:hover,.mpick button.k{background:rgba(var(--ink-rgb),.06)}
+  .mpick .mpok{float:right;margin-left:10px;font:400 var(--fs0) var(--sans);letter-spacing:.08em;text-transform:uppercase;opacity:.55}
+  .mpick .mpnone{padding:8px 14px 10px;font:400 var(--fs0) var(--sans);color:var(--ink);opacity:.75}
+  .mpick .mpnone button{margin-top:6px;padding:4px 0;font:400 var(--fs0) var(--sans);text-decoration:underline;background:transparent;border:0;color:inherit;opacity:1}
   #mpst.bad,#sst.bad{color:var(--down,#8a3324)}
   .srcf{margin-top:14px;padding-top:6px}
   .srcb{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:12px 0 0}
@@ -2570,13 +2573,22 @@ async function probeModels(force){
 function paintPick(){
   const st = $('mpst'); if (st) { st.textContent = PROBE.msg || '自动从服务商检测'; st.className = /失败|先填/.test(PROBE.msg) ? 'bad' : ''; }
   const box = $('mpick'); if (!box) return;
-  const cur = ($('mpin') || {}).value || '', q = cur.trim().toLowerCase();
-  const L = PROBE.list, hit = L.filter(m => !q || m.toLowerCase().includes(q) || box.dataset.all);
-  box.innerHTML = L.length ? `<div class="h"><span class="label">${esc(PROBE.msg)}</span></div>` + (hit.length ? hit : L).map(m => `<button type="button" role="option" data-m="${esc(m)}" class="${m === cur ? 'k' : ''}">${esc(m)}</button>`).join('')
-    : `<div class="h"><span class="label">${esc(PROBE.msg || '没有模型列表')}</span></div>`;
+  const cur = ($('mpin') || {}).value || '', q = cur.trim().toLowerCase(), all = !!box.dataset.all;
+  const L = PROBE.list;
+  if (!L.length) { box.innerHTML = `<div class="h"><span class="label">${esc(PROBE.msg || '没有模型列表')}</span></div>`; return; }
+  const hit = q && !all ? L.filter(m => m.toLowerCase().includes(q)) : L;
+  const head = `<div class="h"><span class="label">${esc(PROBE.msg)}${q && !all ? ` · 匹配 ${hit.length}/${L.length}` : ''}</span></div>`;
+  if (!hit.length) {  // 搜不到就直说，别把整张表当成「搜索结果」端上来
+    box.innerHTML = head + `<div class="mpnone">没有名字含「${esc(cur)}」的模型<button type="button" data-all="1">看全部 ${L.length} 个</button></div>`;
+  } else {
+    const rows = [...hit].sort((a, b) => (b === cur) - (a === cur) || a.localeCompare(b));  // 当前用的排最前
+    box.innerHTML = head + rows.map(m => `<button type="button" role="option" data-m="${esc(m)}" class="${m === cur ? 'k' : ''}">${esc(m)}${m === cur ? '<i class="mpok">当前</i>' : ''}</button>`).join('');
+  }
+  const ab = box.querySelector('[data-all]');
+  if (ab) ab.onmousedown = e => { e.preventDefault(); box.dataset.all = '1'; paintPick(); };
   box.querySelectorAll('[data-m]').forEach(b => b.onmousedown = e => { e.preventDefault(); $('mpin').value = b.dataset.m; dirty.LLM_MODEL = b.dataset.m; setSt('有未保存的修改'); pickOpen(false); });
 }
-function pickOpen(on){ const b = $('mpick'); if (!b) return; if (on) { b.dataset.all = '1'; paintPick(); delete b.dataset.all; } b.classList.toggle('on', on); }
+function pickOpen(on){ const b = $('mpick'); if (!b) return; if (on) { delete b.dataset.all; paintPick(); } else delete b.dataset.all; b.classList.toggle('on', on); }
 function bindModelPane(pane){
   let t = 0;
   ['LLM_API_KEY', 'LLM_BASE_URL'].forEach(k => { const el = pane.querySelector(`[data-env="${k}"]`); if (el) el.addEventListener('input', () => { clearTimeout(t); t = setTimeout(() => probeModels(), 700); }); });
