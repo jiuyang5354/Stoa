@@ -25,8 +25,29 @@ IDLE_END = 30 * 60  # 闲置 30 分钟就结束会话并整理记忆
 LOCK = threading.Lock()
 MEM = Memory()
 SESSIONS: dict[str, dict] = {}  # channel -> {"agent": Agent, "last": ts}
-UI = (Path(__file__).parent / "web.html").read_text(encoding="utf-8")
 ASSETS = Path(__file__).parent / "assets"
+
+
+_UI = {"mtime": None, "text": ""}
+WEB_HTML = Path(__file__).parent / "web.html"  # 可替身：测试 monkeypatch 这个常量
+
+
+def ui_page() -> str:
+    """web.html 现读现用：按文件 mtime 缓存，动过就重读。
+    过去这份页面在启动时读死在模块里，改一行 UI 都得杀进程重启，
+    而且开着的窗口永远停在旧代码上——「你看到的还是旧页面」这伤病
+    就发源于此。现在：改文件 → 浏览器刷新一次，就完。"""
+    p = WEB_HTML
+    try:
+        mtime = p.stat().st_mtime_ns
+    except OSError:  # 文件被编辑器挪走的一瞬间：用缓存顶着
+        mtime = None
+    if _UI["mtime"] != mtime:
+        _UI["text"] = (p.read_text(encoding="utf-8") if p.exists() else _UI["text"])
+        _UI["mtime"] = mtime
+        log("UI 重读 web.html：文件有变动" if p.exists() else "UI web.html 暂时读不到，沿用缓存")
+    return _UI["text"]
+
 ASSET_TYPES = {"zeno.glb": "model/gltf-binary", "i18n-en.json": "application/json; charset=utf-8", "archeologicaps.woff2": "font/woff2",
                **{f: "font/woff2" for f in ("optimus-princeps.woff2", "optimus-princeps-semibold.woff2", "libertine-regular.woff2",
                                             "libertine-bold.woff2", "libertine-italic.woff2", "alte-haas-grotesk.woff2", "alte-haas-grotesk-bold.woff2")},
@@ -402,7 +423,15 @@ class Web(BaseHTTPRequestHandler):
 
     def do_GET(self):
         if self.path.split("?")[0] in ("/", "/index.html"):
-            return self._send(200, UI, "text/html")
+            # no-cache：浏览器每次都来找服务器(正本永远是盘上的 web.html)，
+            # 这样补完 UI 不用重启，开着的窗口刷新一次就是新代码
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Content-Length", str(len(ui_page().encode())))
+            self.send_header("Cache-Control", "no-cache")
+            self._cors()
+            self.end_headers()
+            return self.wfile.write(ui_page().encode())
         if self.path.split("?")[0] in ("/favicon.ico", "/favicon.svg"):
             name = self.path.split("?")[0].lstrip("/")
             f = ASSETS / name
