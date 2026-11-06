@@ -454,14 +454,61 @@ def main():
         os._exit(1)
 
 
+def _read_pid(home: Path) -> int:
+    """desktop.pid -> int；读不到/坏数据一律 0。（win32 专属模块，非 Windows 上纯文件读写）"""
+    try:
+        return int((home / "desktop.pid").read_text(encoding="utf-8").strip() or 0)
+    except Exception:
+        return 0
+
+
+def _pid_alive(pid: int) -> bool:
+    if not pid:
+        return False
+    if sys.platform != "win32":  # CI（Linux）上用 /proc 探活；桌面代码本体在 win32
+        try:
+            return Path(f"/proc/{pid}").exists()
+        except Exception:
+            return False
+    import ctypes
+    k = ctypes.windll.kernel32
+    h = k.OpenProcess(0x100000, False, pid)  # SYNCHRONIZE
+    if not h:
+        return False
+    try:
+        # 进程活着还不够：PID 可能被系统复用给了别的东西。只认起自 Stoa 自带 python
+        # 的进程，其他一律当作死锁放行——错放最坏是端口被他者占走换一个，错杀是永远起不来。
+        buf, size = ctypes.create_unicode_buffer(512), ctypes.c_uint(512)
+        if not k.QueryFullProcessImageNameW(h, 0, buf, ctypes.byref(size)):
+            return True  # 问不出名字（权限/种类罕见）：宁可按活着处理
+        exe = (buf.value or "").replace("\\", "/").lower()
+        return "stoa" in exe or "python" in exe
+    finally:
+        k.CloseHandle(h)
+
+
+def singleton(home: Path) -> None:
+    """单实例守护：命名互斥锁 + PID 探活。
+    锁着但 PID 也没了 → 锁是残留进程的（任务计划重启/强杀后的普遍现场），
+    放行接管，不再「弹个框然后整个应用无声退出」。"""
+    if sys.platform != "win32":
+        return
+    import ctypes
+    k = ctypes.windll.kernel32
+    k.CreateMutexW(None, False, "Local\\StoaDesktop")
+    if k.GetLastError() != 183:  # ERROR_ALREADY_EXISTS
+        (home / "desktop.pid").write_text(str(os.getpid()), encoding="utf-8")
+        return
+    pid = _read_pid(home)
+    if _pid_alive(pid):  # 旧实例真的还在 → 如实拒绝
+        msgbox("Stoa 已经在运行了。")
+        os._exit(0)
+    print(f"单实例锁无人认领（残留进程 pid={pid or '?'} 已不在），本进程接管", flush=True)
+    (home / "desktop.pid").write_text(str(os.getpid()), encoding="utf-8")
+
+
 def _main(home: Path):
-    if sys.platform == "win32":  # 只开一个，避免两套定时报告
-        import ctypes
-        k = ctypes.windll.kernel32
-        k.CreateMutexW(None, False, "Local\\StoaDesktop")
-        if k.GetLastError() == 183:
-            msgbox("Stoa 已经在运行了。")
-            os._exit(0)
+    singleton(home)  # 只开一个，避免两套定时报告
     os.environ["STOCK_AGENT_HOME"] = str(home)
     env = home / ".env"
     first = not env.exists()
