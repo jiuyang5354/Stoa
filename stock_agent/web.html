@@ -129,22 +129,22 @@
   header .label{display:block;padding:0 236px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}  /* 左右各让出两枚按钮的宽度，英文长串不再压到按钮上 */
   h1{font:500 var(--fs7)/1.1 var(--display);letter-spacing:.15em;margin:10px 0 8px;text-transform:uppercase;padding-left:.15em}
   header em{font:italic 400 var(--fs2) var(--serif);color:var(--mute)}
-  /* 开始对话后页眉只留 STOA：副标题和「· 股市」收起 */
-  .inner:has(#log>:not(.empty)) header>em,.inner:has(#log>:not(.empty)) h1 .h1s{display:none}
-  .inner:has(#log>:not(.empty)) header{padding-bottom:12px}
-  /* ---- 页眉随滚动收起：读长文时让位，往回滚/回到顶部自动展开 ---- */
+  /* ---- 页眉是状态性的，不是滚动性的：新开对话（空态）才有完整头图；一旦有内容，
+         就永久收成一条细栏——徽标/题记/副标题都收起，STOA 与导航留在手边。
+         靠 :has(#log>:not(.empty)) 判断对话是否已开始，不用滚动监听。 ---- */
   header{transition:padding .34s var(--ease)}
   .stoa-medallion{overflow:hidden;transition:height .34s var(--ease),margin-bottom .34s var(--ease),opacity .22s var(--ease),transform .4s var(--spring)}
   header .label{max-height:40px;transition:max-height .34s var(--ease),opacity .2s var(--ease)}
   h1{transition:font-size .34s var(--ease),margin .34s var(--ease)}
   header>em{display:block;overflow:hidden;max-height:40px;transition:max-height .34s var(--ease),opacity .2s var(--ease)}
   .gear{transition:background .25s,border-color .25s,top .34s var(--ease)}
-  header.hdr-min{padding:8px 0 !important}
-  header.hdr-min .stoa-medallion{height:0 !important;margin-bottom:0 !important;opacity:0 !important}
-  header.hdr-min .label{max-height:0 !important;opacity:0 !important}
-  header.hdr-min h1{font-size:var(--fs2) !important;margin:0 !important}
-  header.hdr-min>em{max-height:0 !important;opacity:0 !important}
-  header.hdr-min .gear{top:9px !important}
+  .inner:has(#log>:not(.empty)) header{padding:8px 0 !important}
+  .inner:has(#log>:not(.empty)) h1 .h1s{display:none}
+  .inner:has(#log>:not(.empty)) header .stoa-medallion{height:0 !important;margin-bottom:0 !important;opacity:0 !important}
+  .inner:has(#log>:not(.empty)) header .label{max-height:0 !important;opacity:0 !important}
+  .inner:has(#log>:not(.empty)) h1{font-size:var(--fs2) !important;margin:0 !important}
+  .inner:has(#log>:not(.empty)) header>em{max-height:0 !important;opacity:0 !important}
+  .inner:has(#log>:not(.empty)) header .gear{top:9px !important}
   @media (prefers-reduced-motion:reduce){header,.stoa-medallion,header .label,h1,header>em,.gear{transition:none}}
   #log{flex:1;overflow:auto;padding:26px 0 20px;}
   /* Index · 问章刻度：代替对话区的滚动条（参考 21st Message Scroller + Scroll Bars）。
@@ -3359,19 +3359,6 @@ function ixInit(){
   new MutationObserver(ixSched).observe(log, {childList: true, subtree: true, characterData: true});
 }
 function ixSched(){ if (!IX.raf) IX.raf = requestAnimationFrame(() => { IX.raf = 0; ixDraw(); }); }
-/* 页眉随滚动收起：往下读（内容上滑）过门槛 → 收成一条细栏给正文让位；
-   往回滚或回到顶部 → 展开。只动 header 自己的高度，不碰 #log 的布局。
-   不挂 rAF：后台/隐藏窗口里 rAF 会被浏览器暂停，同步处理才处处一致。 */
-(() => {
-  const hd = document.querySelector('header'); if (!hd) return;
-  let last = log.scrollTop;
-  log.addEventListener('scroll', () => {
-    const y = log.scrollTop, min = hd.classList.contains('hdr-min');
-    if (min && (y <= 48 || y < last - 4)) hd.classList.remove('hdr-min');
-    else if (!min && y > 120 && y > last + 4) hd.classList.add('hdr-min');
-    last = y;
-  }, { passive: true });
-})();
 function ixDraw(){
   const r = IX.el; if (!r) return;
   const H = log.scrollHeight, V = log.clientHeight, over = H > V + 8;
