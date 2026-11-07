@@ -1,4 +1,6 @@
 """数字强制引用：来源登记、核对器抓编造数字、不误伤换算/推导、修正一次、仍不改就标未核实、角标与来源清单。"""
+import re
+
 import pytest
 
 from stock_agent import cite
@@ -191,6 +193,388 @@ def test_data_tag_without_source_is_downgraded():
     assert lines[2] == "2. 〔推断〕估值偏贵"
     assert lines[3] == "3. 〔推断〕短线偏强" and lines[4] == "4. 〔未知〕下季度回购节奏"
     assert lines[5] == "- [Inference] valuation looks rich"
+
+
+# ---------------- SEC 结构化事实：相同数字不能证明不同事实 ----------------
+
+def sec_source(s, *, symbol="ACME", concept="us-gaap:Revenues", start="2024-01-01",
+               end="2024-12-31", unit="USD", value=123456000):
+    # 与 edgar.xbrl_facts 的真实返回结构一致；fy/fp 是申报期间，不是经济期间。
+    result = {"cik": "0000000123", "company": symbol + " Corporation",
+              "source": "SEC XBRL companyfacts", "url": "https://data.sec.gov/fixture/" + symbol,
+              "facts": {concept: {"label": concept.split(":")[-1], "values": [
+                  {"start": start, "end": end, "val": value, "unit": unit,
+                   "fy": 2025, "fp": "FY", "form": "10-K", "filed": "2025-02-01",
+                   "accn": "0000000123-25-000001"}]}}}
+    return s.add("sec_xbrl", {"symbol": symbol, "concepts": [concept]}, result)["_cite"]
+
+
+@pytest.mark.parametrize("change", [
+    {"symbol": "OTHER"}, {"concept": "us-gaap:NetIncomeLoss"},
+    {"start": "2023-01-01", "end": "2023-12-31"}, {"unit": "HKD"},
+], ids=["company", "metric", "period", "currency"])
+def test_sec_same_number_wrong_fact_is_rejected(change):
+    s = cite.Sources()
+    sid = sec_source(s, **change)
+    v = cite.verify(f"ACME 2024 年全年营收 1.23456 亿美元[{sid}]。", s)
+    assert not v["ok"], "相同数值不能掩盖 SEC 事实语义错误"
+    assert v["unverified"] == ["1.23456 亿"]
+
+
+@pytest.mark.parametrize("text", [
+    "ACME 2024 年全年营收 1.23456 亿美元[1]。",
+    "ACME 2024 年全年营业收入 12345.6 万美元。",
+    "ACME Corporation 2024 年全年营收 123,456,000 美元。",
+    "ACME FY2024 revenue 123456000 USD。",
+])
+def test_sec_correct_and_equivalent_values_pass(text):
+    s = cite.Sources()
+    sec_source(s)
+    v = cite.verify(text, s)
+    assert v["numbers"] and v["ok"], v
+    assert all(n["sids"] == [1] for n in v["numbers"])
+
+
+@pytest.mark.parametrize("text", [
+    "OTHER 2024 年全年营收 1.23456 亿美元。",
+    "ACME FY2023 revenue 123456000 USD。",
+    "ACME FY2024 revenue 123456000 HKD。",
+    "ACME 2024 年全年营收 1.23456 亿美元[2]。",
+])
+def test_sec_binding_cannot_fall_back_to_numeric_pool(text):
+    s = cite.Sources()
+    sec_source(s)
+    sec_source(s, symbol="OTHER", concept="us-gaap:NetIncomeLoss")
+    assert not cite.verify(text, s)["ok"]
+
+
+@pytest.mark.parametrize("start,end,text,ok", [
+    ("2024-07-01", "2024-09-30", "2024 年第三季度", True),
+    ("2024-01-01", "2024-09-30", "2024 年前三季度", True),
+    ("2024-01-01", "2024-09-30", "2024 年第三季度", False),
+    (None, "2024-12-31", "2024 年全年", False),
+    ("2024-10-01", "2024-12-31", "2024 年全年", False),
+    ("2024-01-01", "2024-12-31", "2025 年全年", False),
+])
+def test_sec_economic_period_is_not_filing_period(start, end, text, ok):
+    s = cite.Sources()
+    sec_source(s, start=start, end=end)
+    v = cite.verify(f"ACME {text}营收 1.23456 亿美元。", s)
+    assert v["ok"] is ok, v
+
+
+@pytest.mark.parametrize("value", [123456000, 987654000])
+def test_sec_conflicting_restatements_do_not_follow_answer(value):
+    s = cite.Sources()
+    sec_source(s)
+    sec_source(s, value=987654000)
+    assert not cite.verify(f"ACME 2024 年全年营收 {value} 美元。", s)["ok"]
+
+
+def test_sec_equivalent_disclosures_are_not_ambiguous():
+    s = cite.Sources()
+    sec_source(s)
+    sec_source(s)
+    assert cite.verify("ACME 2024 年全年营收 1.23456 亿美元。", s)["ok"]
+
+
+@pytest.mark.parametrize("text", [
+    "OTHER 2024 年全年营收 1.23456 亿美元。",
+    "ACME 2023 年营收 1.23456 亿美元。",
+    "ACME 2024 年全年营收 123456000%。",
+    "ACME 2024 年全年营收人民币 123456000。",
+    "ACME 2024-02-01 至 2024-12-31 营收 1.23456 亿美元。",
+])
+def test_sec_missing_marker_or_partial_context_does_not_erase_semantics(text):
+    s = cite.Sources()
+    sec_source(s)
+    assert not cite.verify(text, s)["ok"]
+
+
+@pytest.mark.parametrize("concept,start,text", [
+    ("us-gaap:InterestExpense", "2024-01-01", "ACME 2024 年全年 us-gaap:InterestExpense 123456000 美元。"),
+    ("us-gaap:Assets", None, "ACME 截至 2024-12-31 总资产 123456000 美元。"),
+    ("us-gaap:NetIncomeLoss", "2024-01-01", "ACME 2024 年全年净利润 123456000 美元。"),
+])
+def test_sec_exact_concepts_and_instant_facts_pass(concept, start, text):
+    s = cite.Sources()
+    sec_source(s, concept=concept, start=start)
+    v = cite.verify(text, s)
+    assert v["numbers"] and v["ok"], v
+
+
+@pytest.mark.parametrize("text,ok", [
+    ("Alpha Corp 2024 年全年营收 1.23456 亿美元[1]。", True),
+    ("Beta Corp 2024 年全年营收 1.23456 亿美元[1]。", False),
+    ("Alpha Corp 2023 年全年营收 1.23456 亿美元[1]。", False),
+    ("Alpha Corp 2024 年全年营收 1.23456 亿港元[1]。", False),
+])
+def test_sec_frames_bind_each_company_not_request_symbol(text, ok):
+    s = cite.Sources()
+    s.add("sec_xbrl", {"frame_period": "CY2024", "symbol": "Beta Corp"}, {
+        "concept": "us-gaap:Revenues", "period": "CY2024", "unit": "USD",
+        "source": "SEC XBRL frames", "url": "https://data.sec.gov/fixture/frame",
+        "data": [{"company": "Alpha Corp", "cik": "0000000001", "end": "2024-12-31", "val": 123456000, "accn": "a1"},
+                 {"company": "Beta Corp", "cik": "0000000002", "end": "2024-12-31", "val": 987654000, "accn": "b1"}]})
+    assert cite.verify(text, s)["ok"] is ok
+
+
+def test_sec_edgar_tool_result_binds_without_changing_payload(monkeypatch):
+    from copy import deepcopy
+    from stock_agent import edgar
+    monkeypatch.setattr(edgar, "_cik", lambda symbol: ("0000000123", "ACME Corporation"))
+    monkeypatch.setattr(edgar, "_facts", lambda cik: {"entityName": "ACME Corporation", "facts": {
+        "us-gaap": {"Revenues": {"label": "Revenues", "units": {"USD": [
+            {"start": "2024-01-01", "end": "2024-12-31", "val": 123456000, "fy": 2025,
+             "fp": "FY", "form": "10-K", "filed": "2025-02-01", "accn": "a1"}]}}}}})
+    args = {"symbol": "ACME", "concepts": ["us-gaap:Revenues"]}
+    raw = edgar.run_tool("sec_xbrl", args)
+    original = deepcopy(raw)
+    s = cite.Sources()
+    out = s.add("sec_xbrl", args, raw)
+    assert raw == original and out == {**original, "_cite": 1}
+    good = "ACME 2024 年全年营收 1.23456 亿美元。"
+    assert cite.verify(good, s)["ok"]
+    rendered, used = cite.finalize(good, s)
+    assert "1.23456 亿美元[1]" in rendered and used[0]["url"] == raw["url"]
+    bad, missing = cite.flag("ACME 2025 年全年营收 1.23456 亿美元[1]。", s)
+    assert missing == ["1.23456 亿"] and cite.UNVERIFIED in bad
+
+
+def test_sec_verified_number_is_not_reused_for_another_company():
+    s = cite.Sources()
+    sec_source(s)
+    v = cite.verify("ACME 2024 年全年营收 1.23456 亿美元。OTHER 2024 年全年营收 1.23456 亿美元。", s)
+    assert v["unverified"] == ["1.23456 亿"]
+
+
+@pytest.mark.parametrize("text", [
+    "ACME FY2024 revenue 123456000 USD[2]。",
+    "ACME 2024 年全年营收 123456000 EUR。",
+    "ACME 2024 年第四季度营收 1.23456 亿美元。",
+    "ACME 2024 Q4 revenue 123456000 USD。",
+    "ACME FY2024 Q1 revenue 123456000 USD。",
+])
+def test_sec_additional_unit_period_and_citation_constraints(text):
+    s = cite.Sources()
+    sec_source(s)
+    sec_source(s, symbol="OTHER")
+    assert not cite.verify(text, s)["ok"]
+
+
+def test_sec_does_not_take_over_explicit_get_financials_citation():
+    s = cite.Sources()
+    sec_source(s)
+    sid = s.add("get_financials", {"symbol": "ACME"}, {
+        "symbol": "ACME", "currency": "USD",
+        "unified": [{"period": "2024-12-31", "revenue": 876543000}]})["_cite"]
+    v = cite.verify(f"ACME 2024 年全年营收 8.76543 亿美元[{sid}]。", s)
+    assert v["ok"], v
+
+
+@pytest.mark.parametrize("text", [
+    "ACME 2024 年全年营收约 1.23 亿美元。",
+    "ACME 2024-01-01 至 2024-12-31 营收 1.23456 亿美元。",
+])
+def test_sec_rounding_and_exact_duration_are_equivalent(text):
+    s = cite.Sources()
+    sec_source(s)
+    assert cite.verify(text, s)["ok"]
+
+
+def test_sec_euro_wrong_citation_is_rejected_through_rendering():
+    s = cite.Sources()
+    sec_source(s, unit="EUR")
+    sec_source(s, symbol="OTHER", unit="EUR", value=987654000)
+    text = "ACME 2024 年全年营收 123456000 欧元[2]。"
+    assert not cite.verify(text, s)["ok"]
+    flagged, bad = cite.flag(text, s)
+    assert bad == ["123456000"]
+    rendered, used = cite.finalize(flagged, s)
+    assert cite.UNVERIFIED in rendered
+    assert not used
+
+
+@pytest.mark.parametrize("amount", ["123456000 欧元", "1.23456 亿欧元", "12345.6 万EUR"])
+def test_sec_euro_correct_citation_and_equivalent_units(amount):
+    s = cite.Sources()
+    sec_source(s, unit="EUR")
+    text = f"ACME 2024 年全年营收 {amount}[1]。"
+    assert cite.verify(text, s)["ok"]
+    _, used = cite.finalize(text, s)
+    assert [u["id"] for u in used] == [1]
+
+
+@pytest.mark.parametrize("currency", ["GBP", "英镑", "JPY", "日元", "CHF", "瑞士法郎"])
+def test_sec_explicit_other_currency_cannot_be_treated_as_unspecified(currency):
+    s = cite.Sources()
+    sec_source(s)
+    text = f"ACME 2024 年全年营收 123456000 {currency}[1]。"
+    assert not cite.verify(text, s)["ok"]
+
+
+@pytest.mark.parametrize("currency,unit", [("GBP", "GBP"), ("英镑", "GBP"), ("JPY", "JPY"), ("日元", "JPY"), ("CHF", "CHF"), ("瑞士法郎", "CHF"), ("USD", "USD")])
+def test_sec_currency_names_match_only_their_units(currency, unit):
+    s = cite.Sources()
+    sec_source(s, unit=unit)
+    text = f"ACME 2024 年全年营收 123456000 {currency}[1]。"
+    v = cite.verify(text, s)
+    assert v["ok"] and len(v["numbers"]) == 1
+    assert v["numbers"][0]["sids"] == [1]
+
+
+@pytest.mark.parametrize("period", ["2023 年全年", "FY2023 "])
+def test_sec_current_clause_year_overrides_previous_clause(period):
+    s = cite.Sources()
+    sec_source(s)
+    text = f"ACME 2024 年全年营收 123456000 USD，{period}营收 123456000 USD。"
+    v = cite.verify(text, s)
+    assert [n["sids"] for n in v["numbers"]] == [[1], None]
+
+
+@pytest.mark.parametrize("second", ["2023 年全年营收 8.76543 亿美元", "FY2023 revenue 876543000 USD"])
+def test_sec_two_clause_years_bind_to_their_own_facts(second):
+    s = cite.Sources()
+    sec_source(s)
+    sec_source(s, start="2023-01-01", end="2023-12-31", value=876543000)
+    v = cite.verify(f"ACME 2024 年全年营收 123456000 USD，{second}。", s)
+    assert v["ok"] and len(v["numbers"]) == 2
+
+
+def test_sec_english_sentence_boundary_clears_company():
+    s = cite.Sources()
+    sec_source(s)
+    text = "ACME FY2024 revenue 123456000 USD. OTHER FY2024 revenue 123456000 USD."
+    v = cite.verify(text, s)
+    assert [n["sids"] for n in v["numbers"]] == [[1], None]
+
+
+@pytest.mark.parametrize("company", ["ACME", "ACME Inc.", "ACME Corp.", "ACME Ltd.", "ACME Co.", "ACME U.S."])
+def test_sec_english_sentence_keeps_decimals_and_company_abbreviations(company):
+    s = cite.Sources()
+    sec_source(s)
+    text = f"{company} FY2024 revenue 1.23456 亿USD. ACME FY2024 revenue 123456000 USD."
+    v = cite.verify(text, s)
+    assert v["ok"] and len(v["numbers"]) == 2, v
+
+
+def test_sec_uncovered_metric_delegates_to_structured_financials():
+    s = cite.Sources()
+    sec_source(s, concept="us-gaap:NetIncomeLoss")
+    sid = s.add("get_financials", {"symbol": "ACME"}, {
+        "symbol": "ACME", "currency": "USD",
+        "unified": [{"period": "2024-12-31", "revenue": 876543000}]})["_cite"]
+    text = "ACME 2024 年全年营收 8.76543 亿美元。"
+    v = cite.verify(text, s)
+    assert v["ok"] and v["numbers"][0]["sids"] == [sid], v
+    _, used = cite.finalize(text, s)
+    assert [u["id"] for u in used] == [sid]
+
+
+@pytest.mark.parametrize("currency", ["日元", "英镑", "XYZ"])
+@pytest.mark.parametrize("placement", ["before", "after"])
+def test_sec_explicit_currency_is_preserved_without_marker(currency, placement):
+    s = cite.Sources()
+    sec_source(s)
+    amount = f"{currency} 123456000" if placement == "before" else f"123456000{currency}"
+    v = cite.verify(f"ACME 2024 年全年营收 {amount}。", s)
+    assert len(v["numbers"]) == 1 and not v["ok"], v
+
+
+@pytest.mark.parametrize("mode", ["explicit_sec", "wrong_year", "wrong_unit", "numeric_only", "covered_metric"])
+def test_sec_uncovered_metric_never_enables_numeric_or_wrong_cite_fallback(mode):
+    s = cite.Sources()
+    sec_source(s, concept="us-gaap:Revenues" if mode == "covered_metric" else "us-gaap:NetIncomeLoss")
+    if mode == "numeric_only":
+        s.add("calc", {}, {"results": {"x": 876543000}})
+    else:
+        s.add("get_financials", {"symbol": "ACME"}, {
+            "symbol": "ACME", "currency": "HKD" if mode == "wrong_unit" else "USD",
+            "unified": [{"period": "2023-12-31" if mode == "wrong_year" else "2024-12-31", "revenue": 876543000}]})
+    marker = "[1]" if mode == "explicit_sec" else ""
+    text = f"ACME 2024 年全年营收 8.76543 亿美元{marker}。"
+    assert not cite.verify(text, s)["ok"]
+    flagged, bad = cite.flag(text, s)
+    assert bad == ["8.76543 亿"]
+    _, used = cite.finalize(flagged, s)
+    assert not used
+
+
+def financial_source(s, *, symbol="ACME", field="revenue", period="2024-12-31",
+                     currency="USD", value=123456000):
+    return s.add("get_financials", {"symbol": symbol}, {
+        "symbol": symbol, "currency": currency,
+        "unified": [{"period": period, field: value}]})["_cite"]
+
+
+def assert_citation_chain(text, s, expected):
+    v = cite.verify(text, s)
+    assert [n["sids"] for n in v["numbers"]] == expected, v
+    assert v["ok"] is all(expected)
+    flagged, bad = cite.flag(text, s)
+    assert len(bad) == expected.count(None)
+    assert flagged.count(cite.UNVERIFIED) == expected.count(None)
+    for candidate in (text, flagged):
+        rendered, used = cite.finalize(candidate, s)
+        assert {u["id"] for u in used} == {sid for ids in expected if ids for sid in ids}, rendered
+        assert len(re.findall(r"\[\d+\]", cite.strip_sources(rendered))) == sum(bool(ids) for ids in expected)
+        if not any(expected):
+            assert not cite.parse_sources(rendered)
+            assert not re.search(r"\[\d+\]", rendered)
+
+
+@pytest.mark.parametrize("change,cited,ok", [
+    ({}, 2, True),
+    ({"symbol": "OTHER"}, 2, False),
+    ({"field": "net_profit"}, 2, False),
+    ({"period": "2023-12-31"}, 2, False),
+    ({"currency": "HKD"}, 2, False),
+    ({}, 3, False),
+    ({}, 99, False),
+])
+def test_cross_adapter_explicit_source_is_binding(change, cited, ok):
+    s = cite.Sources()
+    sec_source(s)
+    financial_source(s, **change)
+    financial_source(s, symbol="OTHER")
+    text = f"ACME 2024 年全年营收 123456000 美元[{cited}]。"
+    assert_citation_chain(text, s, [[2] if ok else None])
+
+
+@pytest.mark.parametrize("currency", ["USD", "美元", "GBP", "英镑", "XYZ"])
+@pytest.mark.parametrize("marker", ["", "[2]", "[3]"])
+@pytest.mark.parametrize("placement", ["before", "after"])
+def test_cross_adapter_missing_metric_preserves_currency(currency, marker, placement):
+    s = cite.Sources()
+    sec_source(s, concept="us-gaap:NetIncomeLoss")
+    financial_source(s, value=876543000)
+    financial_source(s, symbol="OTHER", value=876543000)
+    amount = f"{currency} 876543000" if placement == "before" else f"876543000 {currency}"
+    text = f"ACME 2024 年全年营收 {amount}{marker}。"
+    expected = [2] if currency in ("USD", "美元") and marker != "[3]" else None
+    assert_citation_chain(text, s, [expected])
+
+
+@pytest.mark.parametrize("currency,unit", [("GBP", "GBP"), ("英镑", "GBP"), ("XYZ", "XYZ")])
+def test_cross_adapter_other_currency_same_source_passes(currency, unit):
+    s = cite.Sources()
+    sec_source(s, concept="us-gaap:NetIncomeLoss")
+    financial_source(s, currency=unit, value=876543000)
+    assert_citation_chain(f"ACME 2024 年全年营收 876543000 {currency}[2]。", s, [[2]])
+
+
+@pytest.mark.parametrize("period", ["2023 年全年", "FY2023 ", "2023 年"])
+@pytest.mark.parametrize("marker", ["", "[2]", "[3]"])
+@pytest.mark.parametrize("covered", [False, True])
+def test_cross_adapter_current_clause_period(period, marker, covered):
+    s = cite.Sources()
+    sec_source(s, concept="us-gaap:NetIncomeLoss")
+    financial_source(s, value=876543000)
+    if covered:
+        financial_source(s, period="2023-12-31", value=876543000)
+    financial_source(s, symbol="OTHER", value=876543000)
+    text = f"ACME 2024 年全年营收 876543000 美元，{period}营收 876543000 美元{marker}。"
+    assert_citation_chain(text, s, [[2], [2] if covered and marker != "[3]" else None])
 
 
 # ---------------- 派生数字与「看起来像阈值」的数（v0.39.2） ----------------

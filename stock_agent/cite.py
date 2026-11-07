@@ -27,6 +27,24 @@ SKIP_SRC = re.compile(r"^\s?(?:个?交易日|日|天|周|个月|月|年|季度|�
 DATEISH_AFTER = set("-/:年月日号时")
 DATEISH_BEFORE = set("-/:.")
 URL_RE = re.compile(r"https?://\S+")
+CURRENCY_NAMES = {"美元": "USD", "港元": "HKD", "人民币": "CNY", "欧元": "EUR",
+                  "英镑": "GBP", "日元": "JPY", "瑞士法郎": "CHF"}
+CURRENCY_TOKEN = r"(?:" + "|".join(CURRENCY_NAMES) + r"|元|(?<![A-Za-z])[A-Z]{3}\b)"
+CITATION_SUFFIX = re.compile(r"(\s*(?:" + re.escape(UNVERIFIED) + r")?\s*(?:" + CURRENCY_TOKEN + r")?\s*)\[(\d+)\]", re.I)
+SENTENCE_BREAK = re.compile(r"[。；;\n]|(?<!\bInc)(?<!\bCorp)(?<!\bLtd)(?<!\bCo)(?<!\b[A-Z])\.(?=\s|$)", re.I)
+
+
+def claim_currencies(body: str, n: dict, clause: str) -> set[str]:
+    """保留显式币种（包括未知 ISO 代码），flag 插入标记后仍使用同一约束。"""
+    known = "|".join(CURRENCY_NAMES) + r"|\b(?:" + "|".join(CURRENCY_NAMES.values()) + r")\b"
+    currencies = {CURRENCY_NAMES.get(m[0], m[0].upper()) for m in re.finditer(known, clause, re.I)}
+    before = re.search(r"(" + CURRENCY_TOKEN + r")\s*$", clause, re.I)
+    after = re.match(r"\s*(?:" + re.escape(UNVERIFIED) + r")?\s*(" + CURRENCY_TOKEN + r")", body[n["end_num"]:], re.I)
+    for match in (before, after):
+        if match:
+            word = match[1]
+            currencies.add(CURRENCY_NAMES.get(word, word.upper()))
+    return currencies
 
 
 def today() -> str:
@@ -192,6 +210,27 @@ def report_period(text: str, basis: str = "") -> tuple | None:
 SAME_DAY_MOVE = re.compile(r"(?:今天|今日|当日|单日|盘中|收盘)\s*(?:大|暴|小|微|收|上|下)?(?:涨|跌)(?:了|幅)?|(?:单日|当日|今日|今天)涨跌幅?|收(?:涨|跌)")
 
 
+def claim_context(body: str, n: dict) -> dict:
+    """跨适配器共享小句与明确约束；当前小句的年份优先于前文。"""
+    prefix = SENTENCE_BREAK.split(body[:n["start"]])[-1]
+    clause = re.split(r"[，,|]", prefix)[-1]
+    period_text = clause if re.search(r"20\d\d", clause) else prefix
+    period = report_period(period_text)
+    fy = re.search(r"\bFY\s*(20\d\d)\b", period_text, re.I)
+    ambiguous = bool(fy and re.search(r"\bQ[1-4]\b|[一二三四]季度|财季", period_text, re.I))
+    if fy:
+        period = (fy[1], "FY")
+    year = re.search(r"20\d\d", period_text)
+    if year and re.search(r"第四季度|四季度|\bQ4\b", period_text, re.I):
+        period = (year[0], "Q4")
+    dates = re.findall(r"20\d\d-\d\d-\d\d", period_text)
+    if dates and not re.search(r"全年|年报|年度|\bFY", period_text, re.I):
+        period = None
+    return {"prefix": prefix, "clause": clause, "period": period, "fy": fy,
+            "year": year, "dates": dates, "ambiguous": ambiguous,
+            "currencies": claim_currencies(body, n, clause)}
+
+
 def name_aliases(sym: str, name: str = "") -> set[str]:
     """一只标的在回答里可能被叫的名字：数据里的名称及其简称（贵州茅台 → 茅台、腾讯控股 → 腾讯），
     加上内置常用名里指向同一代码的（茅台/贵州茅台 → 600519.SS）。只取一一对应的名字，不猜代词。"""
@@ -225,6 +264,7 @@ class Sources:
         self.dates: set[str] = set()
         self.quotes: list[dict] = []  # 保留标的、字段和日期，避免把另一只股票的数字当出处
         self.financials: list[dict] = []
+        self.sec_facts: list[dict] = []  # SEC 原始事实，不混入 get_financials 的字段/期间约定
         self.sym_of: dict[int, str] = {}  # 来源编号 → 标的（南向资金、资金流等非行情数据也能按标的核对，v0.38.1）
         self.lock = threading.Lock()
 
@@ -328,6 +368,26 @@ class Sources:
             with self.lock:
                 self.financials += [{"sid": sid, "symbol": sym, "aliases": aliases, "data": dict(row),
                                      "period": period, "currency": currency, "kind": "financial"} for row, period in rows]
+            return {**result, "_cite": sid}
+        if tool == "sec_xbrl" and isinstance(result, dict) and not result.get("error"):
+            sym = str(result.get("symbol") or args.get("symbol") or args.get("company") or "")
+            company = str(result.get("company") or "")
+            sid = self.new(f"SEC XBRL · {company or sym}", result.get("url") or "", today(), tool=tool, fetched=True, sym=sym)
+            aliases = ({sym, company} | name_aliases(sym, company)) - {""}
+            rows = [{"sid": sid, "symbol": sym, "aliases": aliases, "concept": concept, "data": dict(row)}
+                    for concept, node in (result.get("facts") or {}).items() if isinstance(node, dict)
+                    for row in node.get("values") or [] if isinstance(row, dict)]
+            if result.get("concept") and isinstance(result.get("data"), list):
+                # frames 是多家公司横截面，不能把请求 symbol 贴给所有行。
+                rows += [{"sid": sid, "symbol": str(row.get("cik") or row.get("company") or ""),
+                          "aliases": {str(row.get("cik") or ""), str(row.get("company") or "")} - {""},
+                          "concept": result["concept"], "frame_period": result.get("period"),
+                          "data": {**row, "unit": result.get("unit")}}
+                         for row in result["data"] if isinstance(row, dict)]
+            with self.lock:
+                self.sec_facts.extend(rows)
+                self.dates |= dates_in(result)
+            # XBRL 数字只能通过结构化绑定；否则未知公司/科目会退回全局数值池。
             return {**result, "_cite": sid}
         if tool in DATA_LABELS and isinstance(result, dict) and not result.get("error"):
             sym = str(result.get("symbol") or args.get("symbol") or "")
@@ -508,8 +568,102 @@ class Sources:
         symbol = max(hits)[1]
         return [q for q in quotes if q["symbol"] == symbol]
 
-    def financial_match(self, body: str, n: dict, scope: list[dict]) -> tuple[bool, list[int] | None]:
-        prefix = re.split(r"[。；;\n]", body[:n["start"]])[-1]
+    def sec_match(self, body: str, n: dict) -> tuple[bool, list[int] | None]:
+        """先绑定公司/科目/经济期间/单位，再核数；歧义不按答案数值消解。
+
+        仅识别下列指标别名/精确 XBRL 标签和明确期间；单季用日历边界，
+        非日历财季需写起止日期。未绑定的 SEC 数字不参与通用数字推导。
+        """
+        context = claim_context(body, n)
+        prefix, clause = context["prefix"], context["clause"]
+        marker = CITATION_SUFFIX.match(body[n["end_num"]:])
+        cited = int(marker[2]) if marker else None
+        if cited and (self.get(cited) or {}).get("tool") == "get_financials":
+            scope = [q for q in self.quote_scope(body, n["start"]) if q["sid"] == cited]
+            _, sids = self.financial_match(body, n, scope, constraints=context)
+            return True, sids  # 显式来源没有匹配事实时也已绑定，不能退回全局数字池
+        with self.lock:
+            facts = list(self.sec_facts)
+        hits = [(m.end(), f["symbol"]) for f in facts for alias in f["aliases"]
+                for m in re.finditer(r"(?<![A-Za-z0-9_])" + re.escape(alias) + r"(?![A-Za-z0-9_])", prefix, re.I)]
+        sec_cited = (self.get(cited) or {}).get("tool") == "sec_xbrl" if cited else False
+        if not hits and not sec_cited:
+            return False, None
+        patterns = {
+            r"营业总收入|营业收入|营收|\brevenue\b": ("us-gaap:Revenues", "us-gaap:RevenueFromContractWithCustomerExcludingAssessedTax"),
+            r"净利润|\bnet income\b": ("us-gaap:NetIncomeLoss",),
+            r"总资产|\btotal assets\b": ("us-gaap:Assets",),
+        }
+        metrics = [(m.end(), concepts) for pattern, concepts in patterns.items() for m in re.finditer(pattern, clause, re.I)]
+        metrics += [(m.end(), (m[0],)) for m in re.finditer(r"(?:us-gaap|ifrs-full|dei):[A-Za-z][A-Za-z0-9]*", clause)]
+        if not metrics:
+            return sec_cited, None
+        if not hits:
+            return True, None
+        symbol = max(hits)[1]
+        concepts = max(metrics)[1]
+        period, fy = context["period"], context["fy"]
+        claim_year, exact_dates = context["year"], context["dates"]
+        if context["ambiguous"]:
+            return True, None
+        if n["text"].rstrip().endswith(("%", "％")):
+            return True, None  # 货币事实不能为百分比作证
+        currencies = context["currencies"]
+        if len(currencies) > 1:
+            return True, None
+        currency = next(iter(currencies), None)
+        if not cited and not any(f["symbol"] == symbol and f["concept"] in concepts for f in facts):
+            # 缺覆盖只委派结构化适配器，传递已经解析的小句约束。
+            scope = [q for q in self.quote_scope(body, n["start"]) if q["symbol"] == symbol]
+            _, other_sids = self.financial_match(body, n, scope, constraints=context)
+            return True, other_sids
+        candidates = []
+        for fact in facts:
+            row = fact["data"]
+            if fact["symbol"] != symbol or fact["concept"] not in concepts or (cited and fact["sid"] != cited):
+                continue
+            if currency and row.get("unit") != currency:
+                continue
+            if exact_dates and (row.get("end") != exact_dates[-1] or (len(exact_dates) > 1 and row.get("start") != exact_dates[-2])):
+                continue
+            if claim_year and not exact_dates and str(row.get("end") or "")[:4] != claim_year[0]:
+                continue
+            if period and fact.get("frame_period"):
+                year, part = period
+                expected = "CY" + year + ("" if part == "FY" else part)
+                if fy or fact["frame_period"] != expected:
+                    continue  # CY 横截面不是公司 FY，不能替代财年证据
+            elif period:
+                try:
+                    end = datetime.fromisoformat(row.get("end") or "")
+                    start = datetime.fromisoformat(row.get("start") or "")
+                except ValueError:
+                    continue  # 没有 start 不代表全年；fy/fp 也不能补出经济期间
+                year, part = period
+                if str(end.year) != year:
+                    continue
+                if part == "FY":
+                    if not 340 <= (end - start).days <= 380:
+                        continue
+                else:
+                    bounds = {"Q1": ("01-01", "03-31"), "Q2": ("04-01", "06-30"),
+                              "Q3": ("07-01", "09-30"), "Q4": ("10-01", "12-31"),
+                              "H1": ("01-01", "06-30"), "YTD3": ("01-01", "09-30")}
+                    if (start.strftime("%Y-%m-%d"), end.strftime("%Y-%m-%d")) != tuple(year + "-" + d for d in bounds.get(part, ())):
+                        continue
+            candidates.append(fact)
+        identities = {(f["concept"], f["data"].get("start"), f["data"].get("end"), f["data"].get("unit")) for f in candidates}
+        values = {f["data"].get("val") for f in candidates}
+        if len(identities) != 1 or len(values) != 1:
+            return True, None
+        value = values.pop()
+        if not isinstance(value, (int, float)) or isinstance(value, bool):
+            return True, None
+        tol = .5 * 10 ** -n["dec"] * n["scale"] + 1e-9
+        return True, list(dict.fromkeys(f["sid"] for f in candidates)) if abs(n["value"] - value) <= tol else None
+
+    def financial_match(self, body: str, n: dict, scope: list[dict], *, constraints: dict | None = None) -> tuple[bool, list[int] | None]:
+        context = constraints if constraints is not None else claim_context(body, n)
         fields = {
             "市盈率TTM": (r"市盈率(?:TTM)?|\bPE\b", ("市盈率TTM", "pe")),
             "预期市盈率": (r"预期市盈率|预测市盈率", ("预期市盈率",)),
@@ -531,17 +685,22 @@ class Sources:
             "现金": (r"现金余额|现金总额", ("现金",)),
             "总负债": (r"总负债|债务总额", ("总负债",)),
         }
-        clause = re.split(r"[，,|]", prefix)[-1]  # 指标名要在同一小句里：「市盈率 18.6 倍，……还差 17.6」的 17.6 不是市盈率
+        clause = context["clause"]  # 指标名要在同一小句里
         hits = [(m.end(), m.end() - m.start(), key) for key, (pattern, _) in fields.items()
                 for m in re.finditer(pattern, clause, re.I)]
         if not hits or re.search(r"相比|相差|还差|假设|如果|若", clause):
             return False, None
         key = max(hits)[2]
-        period = report_period(prefix)
-        currency_text = body[n["end_num"]:n["end_num"] + 5]
-        currency = next((v for word, v in (("美元", "USD"), ("港元", "HKD"), ("人民币", "CNY")) if word in currency_text), None)
+        period, year = context["period"], context["year"]
+        if context["ambiguous"] or context["dates"]:
+            return True, None  # 财务适配器没有原始起止日期，不能验证精确区间
+        currencies = context["currencies"] - {"元", "ROE", "EPS"}  # 裸「元」未指定币种；指标缩写不是 ISO 币种
+        if len(currencies) > 1:
+            return True, None
+        currency = next(iter(currencies), None)
         out = []
         rows = [row for row in scope if row.get("kind") == "financial" and not (period and row["period"] != period)
+                and not (year and (not row["period"] or row["period"][0] != year[0]))
                 and not (currency and row.get("currency") != currency)]
         cand = fields[key][1]
         # 「营业收入」与「营业总收入」按字面区分：本轮数据里有营业收入就只认营业收入；数据源只给了营业总收入（港美股、旧数据）才退回去比
@@ -752,11 +911,12 @@ def key_numbers(text: str) -> list[dict]:
         s, e = m.start(1), m.end()
         before = masked[s - 1] if s else ""
         after = masked[m.end(1):m.end(1) + 1]
-        if before in DATEISH_BEFORE or after in DATEISH_AFTER:
+        currency_after = re.match(r"\s*" + CURRENCY_TOKEN, masked[m.end(1):], re.I)
+        if before in DATEISH_BEFORE or (after in DATEISH_AFTER and not currency_after):
             continue
-        if not unit and SKIP_AFTER.match(masked[m.end(1):m.end(1) + 6]):
+        if not unit and SKIP_AFTER.match(masked[m.end(1):m.end(1) + 6]) and not currency_after:
             continue
-        if re.match(r"^\.?[A-Za-z]", masked[m.end(1):m.end(1) + 2] or " "):  # 10-Q、5G、0700.HK 之类
+        if re.match(r"^\.?[A-Za-z]", masked[m.end(1):m.end(1) + 2] or " ") and not currency_after:  # 10-Q、5G、0700.HK 之类
             continue
         if s and re.match(r"[A-Za-z]", before):
             continue
@@ -922,7 +1082,10 @@ def verify(text: str, src: Sources) -> dict:
         p = n["text"].rstrip().endswith(("%", "％"))
         scope = src.quote_scope(body, n["start"])
         allowed = {q["sid"] for q in scope} if scope else None
-        scoped, sids = src.financial_match(body, n, scope) if scope else (False, None)
+        scoped, sids = src.sec_match(body, n)
+        sec_scoped = scoped
+        if scope and not scoped:
+            scoped, sids = src.financial_match(body, n, scope)
         if scope and not scoped:
             scoped, sids = src.quote_match(body, n, scope)
         move = p and not scope and bool(src.quotes) and src.same_day_move(body, n)
@@ -955,9 +1118,10 @@ def verify(text: str, src: Sources) -> dict:
             sids = None
         elif not sids and not flagged:
             why[n["text"]] = "数字与该标的的指标、报告期或计价不符" if scoped else "找不到出处"
-        nums.append({**n, "sids": sids, "flagged": flagged, "derived": derived, "_scoped": bool(scope) or move, "_p": p, "_allowed": allowed})
+        nums.append({**n, "sids": sids, "flagged": flagged, "derived": derived, "_scoped": bool(scope) or move or sec_scoped, "_p": p, "_allowed": allowed})
     # 第二遍：由前文已核实的数再推一步（3 万持仓 = 1 万 × 3 已核实 → 亏损 6000 = 3 万 × 20%），只用于没绑定具体标的的数
-    ok = [(x["value"], x["sids"][0]) for x in nums if x["sids"]]
+    ok = [(x["value"], x["sids"][0]) for x in nums if x["sids"]
+          and not any((src.get(s) or {}).get("tool") == "sec_xbrl" for s in x["sids"])]
     if ok and any(not x["sids"] and not x["flagged"] and not x["_scoped"] for x in nums):
         s3 = _overlay(gsrc, ok)
         for x in nums:
@@ -1104,11 +1268,14 @@ def finalize(text: str, src: Sources) -> tuple[str, list[dict]]:
         return "\ue000" + chr(0xE100 + len(codes) - 1) + "\ue000"
     body = CODE_SPAN_RE.sub(_hide, body)
     body = relabel_52w(body, src)
-    # 模型自己写的 [n]：指向不存在的来源就删掉
-    body = re.sub(r"\[(\d+)\]", lambda m: m.group(0) if src.get(int(m.group(1))) else "", body)
+    # 先核对显式指针；提前删除不存在的编号会把错引用变成自动匹配。
     v = verify(body, src)
     spans = protected_spans(body)
     for n in sorted(v["numbers"], key=lambda x: -x["end_num"]):
+        marker = CITATION_SUFFIX.match(body[n["end_num"]:])
+        if marker and not n["sids"] and (src.get(int(marker[2])) or {}).get("tool") in ("sec_xbrl", "get_financials"):
+            at = n["end_num"]
+            body = body[:at] + marker[1] + body[at + marker.end():]
         if not n["sids"] or n.get("date_only") or n.get("flagged"):  # 已标「未核实」的数不再补角标
             continue
         if in_spans(n["start"], spans):  # 公式/代码里不插角标
@@ -1139,6 +1306,7 @@ def finalize(text: str, src: Sources) -> tuple[str, list[dict]]:
         if re.search(r"\[\d+\]", near):  # 同一短语末尾模型已经标过角标（如「16.79 倍[29]」）
             continue
         body = body[:at] + "".join(f"[{s}]" for s in sids[:2]) + rest
+    body = re.sub(r"\[(\d+)\]", lambda m: m.group(0) if src.get(int(m.group(1))) else "", body)
     body = page_cites(body, src)
     body = fix_tags(body)
     order = list(dict.fromkeys(int(x) for x in re.findall(r"\[(\d+)\]", body)))

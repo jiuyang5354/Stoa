@@ -15,6 +15,7 @@ import sqlite3
 import threading
 import time
 import uuid
+from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 
 CN = timezone(timedelta(hours=8))
@@ -94,16 +95,114 @@ def run_get(rid: str) -> dict | None:
     return _q("SELECT * FROM runs WHERE run_id=?", (rid,), one=True)
 
 
+class CheckpointError(RuntimeError):
+    """Checkpoint state is unknown: pause instead of replaying possible effects."""
+
+
+class RunBusy(CheckpointError):
+    """Another executor owns the run; do not modify its status or restart it."""
+
+
+@contextmanager
+def run_lock(rid: str):
+    """Nonblocking OS lock, held through execution and status persistence.
+
+    Never unlink lock files: replacing the inode would split ownership. Closing
+    the handle (including process death) releases the lock; no stale TTL takeover.
+    """
+    import hashlib
+    import os
+    from .memory import home
+    root = home() / "data" / "run-locks"
+    try:
+        root.mkdir(parents=True, exist_ok=True)
+        path = root / (hashlib.sha256(rid.encode()).hexdigest() + ".lock")
+        handle = path.open("a+b")
+    except OSError as exc:
+        raise CheckpointError("断点执行锁无法建立；已暂停。") from exc
+    try:
+        try:
+            if os.name == "nt":
+                import msvcrt
+                # Windows permits locking a byte beyond EOF; avoid writing to
+                # a byte another process already locked.
+                handle.seek(0)
+                msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
+            else:
+                import fcntl
+                fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except OSError as exc:
+            raise RunBusy("断点运行正在由另一执行者占用；不重跑。") from exc
+        try:
+            yield
+        finally:
+            if os.name == "nt":
+                handle.seek(0)
+                msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
+            else:
+                fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+    finally:
+        handle.close()
+
+
 def step_get(rid: str, step: int) -> dict | None:
-    r = _q("SELECT kind, name, payload FROM run_steps WHERE run_id=? AND step=?", (rid, step), one=True)
-    if r:
-        r["payload"] = json.loads(r["payload"])
-    return r
+    try:
+        r = _q("SELECT kind, name, payload FROM run_steps WHERE run_id=? AND step=?", (rid, step), one=True)
+        if r:
+            r["payload"] = json.loads(r["payload"])
+        return r
+    except Exception as exc:
+        raise CheckpointError("断点读取失败，执行状态未知；已暂停，核对记录前不要重跑。") from exc
 
 
 def step_put(rid: str, step: int, kind: str, name: str, payload) -> None:
-    _x("INSERT OR REPLACE INTO run_steps VALUES(?,?,?,?,?,?)", (rid, step, kind, name, json.dumps(payload, ensure_ascii=False, default=str), now()))
-    _x("UPDATE runs SET updated=? WHERE run_id=?", (now(), rid))
+    try:
+        encoded = json.dumps(payload, ensure_ascii=False, default=str)
+        with _LOCK:
+            c = db()
+            with c:
+                inserted = c.execute("INSERT OR IGNORE INTO run_steps VALUES(?,?,?,?,?,?)",
+                                     (rid, step, kind, name, encoded, now()))
+                if not inserted.rowcount:
+                    old_kind, old_name, old_json = c.execute(
+                        "SELECT kind, name, payload FROM run_steps WHERE run_id=? AND step=?", (rid, step)).fetchone()
+                    old_payload = json.loads(old_json)
+                    args_key = "_checkpoint_args" if kind == "debate" else "args"
+                    completing = (old_kind == kind + "_pending" and old_name == name
+                                  and isinstance(payload, dict) and isinstance(old_payload, dict)
+                                  and args_key in payload and "args" in old_payload
+                                  and payload[args_key] == old_payload["args"]
+                                  and (kind == "debate" or (kind == "tool" and "result" in payload)))
+                    if completing:
+                        c.execute("UPDATE run_steps SET kind=?, payload=?, ts=? WHERE run_id=? AND step=?",
+                                  (kind, encoded, now(), rid, step))
+                    elif (old_kind, old_name, old_payload) != (kind, name, json.loads(encoded)):
+                        raise CheckpointError("断点写入冲突；不能覆盖已有执行意图或结果，已暂停。")
+                c.execute("UPDATE runs SET updated=? WHERE run_id=?", (now(), rid))
+    except Exception as exc:
+        raise CheckpointError("断点保存失败，执行结果未知；已暂停，核对记录前不要重跑。") from exc
+
+
+def step_claim(rid: str, step: int, kind: str, name: str, args: dict) -> None:
+    """Persist intent before effects. An existing intent is NOT permission to retry.
+
+    Only the insert winner may execute. A crash leaves a pending marker; this is
+    conservative at-most-one dispatch, not an atomic transaction with the effect.
+    """
+    try:
+        encoded = json.dumps({"args": args}, ensure_ascii=False, sort_keys=True)
+        with _LOCK:
+            c = db()
+            with c:
+                inserted = c.execute("INSERT OR IGNORE INTO run_steps VALUES(?,?,?,?,?,?)",
+                                     (rid, step, kind + "_pending", name, encoded, now()))
+                if not inserted.rowcount:
+                    raise CheckpointError("断点已被占用或执行结果未知；已暂停，核对记录前不要重跑。")
+                c.execute("UPDATE runs SET updated=? WHERE run_id=?", (now(), rid))
+    except CheckpointError:
+        raise
+    except Exception as exc:
+        raise CheckpointError("断点执行意图保存失败；未派发工具，已暂停。") from exc
 
 
 def steps(rid: str) -> list[dict]:
@@ -116,6 +215,14 @@ def run_finish(rid: str, status: str, reply: str | None = None, error: str | Non
 
 def run_retry(rid: str) -> None:
     _x("UPDATE runs SET status='running', attempts=attempts+1, updated=? WHERE run_id=?", (now(), rid))
+
+
+def session_paused(session: str) -> bool:
+    """Unresolved effects block task restarts, independent of recovery age limits."""
+    return bool(_q("SELECT 1 FROM runs r WHERE session=? AND (status='unknown' OR "
+                   "(status!='cancelled' AND EXISTS (SELECT 1 FROM run_steps s WHERE s.run_id=r.run_id "
+                   "AND s.kind IN ('tool_pending','debate_pending')))) LIMIT 1",
+                   (session,), one=True))
 
 
 def interrupted(max_age_hours: float = 6, stale_seconds: float = 0) -> list[dict]:
@@ -137,7 +244,10 @@ def runs_list(limit: int = 30) -> list[dict]:
 
 def prune(days: int = 7) -> int:
     cut = (datetime.now(CN) - timedelta(days=days)).strftime("%Y-%m-%d %H:%M:%S")
-    old = [r["run_id"] for r in _q("SELECT run_id FROM runs WHERE updated<?", (cut,))]
+    old = [r["run_id"] for r in _q(
+        "SELECT run_id FROM runs r WHERE updated<? AND status!='unknown' "
+        "AND (status='cancelled' OR NOT EXISTS (SELECT 1 FROM run_steps s WHERE s.run_id=r.run_id "
+        "AND s.kind IN ('tool_pending','debate_pending')))", (cut,))]
     for rid in old:
         _x("DELETE FROM run_steps WHERE run_id=?", (rid,))
         _x("DELETE FROM runs WHERE run_id=?", (rid,))
