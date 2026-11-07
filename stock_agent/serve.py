@@ -1076,15 +1076,27 @@ def task_runner(sid: str, text: str) -> str:
     t = next((x for x in tasks.load() if "task-" + x["id"] == sid), None)
     if t and not MEM.db.execute("SELECT title FROM session_meta WHERE session=? AND title IS NOT NULL", (sess,)).fetchone():
         MEM.rename_session(sess, title=f"定时 · {t['title']}")
+    if ledger.session_paused(sess):
+        raise ledger.CheckpointError("任务断点结果未知；已暂停，核对记录前不要重跑。")
     pend = [r for r in ledger.interrupted() if r["session"] == sess]
     if pend:
-        for r in pend[:-1]:
-            ledger.run_finish(r["run_id"], "superseded")
+        rid = pend[-1]["run_id"]
         try:
-            return resume_run(pend[-1]["run_id"])
+            return resume_run(rid)
+        except ledger.CheckpointError:
+            raise  # Includes RunBusy: never modify another executor's run.
         except Exception as e:
-            log("任务续跑失败，改为重跑", e)
-            ledger.run_finish(pend[-1]["run_id"], "superseded")
+            if ledger.session_paused(sess):
+                raise ledger.CheckpointError("任务断点结果未知；已暂停，不新建运行。") from e
+            # Discovery is only a snapshot: another executor may have finished
+            # before Agent.resume acquired its run lock. Never supersede or start
+            # a new run for this recovery request, even on unexpected failures.
+            current = ledger.run_get(rid)
+            if current and current["status"] == "done":
+                return current.get("reply") or "任务已完成。"
+            if current and current["status"] in ("cancelled", "partial", "superseded"):
+                return f"任务已停止（{current['status']}）。" + (current.get("reply") or "")
+            raise
     return chat("web:" + sid, text)
 
 

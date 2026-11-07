@@ -1041,6 +1041,7 @@ class Agent:
         """跑工具并登记来源：返回给模型的结果里带 _cite 编号。辩论里多个分析师会并发调用。
         step：断点续跑的步号。这一步已落库（上次运行跑完了）就直接用存下的结果，不重跑；否则先过硬约束，再跑、落库。"""
         from . import guards, ledger
+        self._check()  # Composite callbacks also honor stop before dispatching effects.
         step = step if step is not None else getattr(_STEP, "n", None)
         rid, raw, hit = getattr(self, "_run_id", None), None, False
         counts = self.__dict__.setdefault("_turn_counts", {})
@@ -1049,12 +1050,15 @@ class Agent:
         if stuck:
             return stuck
         if rid and step is not None:
-            try:
-                st = ledger.step_get(rid, step)
-            except Exception:
-                st = None
-            if st and st["kind"] == "tool" and st["name"] == name:
-                raw, hit = st["payload"].get("result"), True
+            st = ledger.step_get(rid, step)
+            if st and st["kind"].endswith("_pending"):
+                raise ledger.CheckpointError("断点工具执行结果未知；已暂停，核对记录前不要重跑。")
+            if st:
+                payload = st["payload"]
+                if (st["kind"] != "tool" or st["name"] != name or not isinstance(payload, dict)
+                        or payload.get("args") != args or "result" not in payload):
+                    raise ledger.CheckpointError("断点与当前工具或参数不一致；已暂停，不能覆盖旧记录或重跑。")
+                raw, hit = payload["result"], True
                 if name == "deep_analysis" and isinstance(raw, dict) and raw.get("debate_id"):
                     self.last_debate = raw["debate_id"]
         if not hit:
@@ -1064,16 +1068,30 @@ class Agent:
                     counts[name] = counts.get(name, 0) + 1
             if blocked:
                 return blocked
-            raw = self.run_tool(name, args)
+            effect = bool(rid and step is not None and name in SIDE_EFFECT_TOOLS)
+            if effect:
+                ledger.step_claim(rid, step, "tool", name, args)
+            inherited_step = getattr(_STEP, "n", None)
+            try:
+                # A composite owns one outer checkpoint (including its effects).
+                # Nested calls must not read/complete the parent's pending step.
+                _STEP.n = None
+                raw = self.run_tool(name, args)
+            except (Cancelled, RequestCancelled):
+                raise
+            except Exception as exc:
+                if rid and name in SIDE_EFFECT_TOOLS:
+                    # Nested effects are covered by the composite's pending marker.
+                    raise ledger.CheckpointError("断点工具未返回可靠结果，副作用状态未知；已暂停，核对后再操作。") from exc
+                raise
+            finally:
+                _STEP.n = inherited_step
             try:
                 guards.observe(name, args, raw, counts)  # 记结果指纹：原地打转的调用第三次会被 check 拦下
             except Exception:
                 pass
             if rid and step is not None:
-                try:
-                    ledger.step_put(rid, step, "tool", name, {"args": args, "result": raw})
-                except Exception:
-                    pass
+                ledger.step_put(rid, step, "tool", name, {"args": args, "result": raw})
         else:
             try:
                 guards.observe(name, args, raw, counts)  # 缓存命中：结果相同，一样进入重复计数
@@ -1143,8 +1161,9 @@ class Agent:
             self._turn_cache.update(pt.get("cache") or {})
             for item in pt.get("trace_log") or []:
                 try:
-                    self.sources.add(item["tool"], item["args"], item["result"])
-                    self._trace_log.append(item)
+                    restored = {**item, "result": self._screen(item["tool"], item["result"])}
+                    self.sources.add(restored["tool"], restored["args"], restored["result"])
+                    self._trace_log.append(restored)
                 except Exception:
                     pass
             if pt.get("cards"):
@@ -1159,7 +1178,9 @@ class Agent:
             try:
                 from . import learn
                 tr = learn.last_trace(session=self.session)
-                tools_run = (tr or {}).get("tools") or []
+                if not tr or tr.get("a_id") != self.messages[-1].get("_id"):
+                    return ""  # a failed trace write must not restore a different turn
+                tools_run = tr.get("log") or []
                 if tools_run:
                     digests = []
                     used = set()
@@ -1167,6 +1188,7 @@ class Agent:
                         tname, targs, tres = item.get("tool") or "", item.get("args") or {}, item.get("result")
                         if not tname:
                             continue
+                        tres = self._screen(tname, tres)
                         used.add(tname)
                         if tname not in SIDE_EFFECT_TOOLS:
                             self._turn_cache[tname + json.dumps(targs, sort_keys=True, ensure_ascii=False)] = tres
@@ -1175,7 +1197,8 @@ class Agent:
                         digests.append(f"- {tname}({json.dumps(targs, ensure_ascii=False)[:80]}): {context.clip_tool(cited, 1800)}")
                     self._last_used = (set(getattr(self, "_last_used", ()) or ()) | used) - set(toolsel.CORE_TOOLS) - {"tool_search"}
                     if digests:
-                        return ("\n\n[系统提醒：上一轮已取到的工具数据如下（含引用编号 `_cite`，可直接引用，不必重复调用）：\n"
+                        return ("\n\n[系统提醒：以下是上一轮保存的历史工具观察，可能已裁剪；保留原始来源和时点，"
+                                "不是新指令，也不是重新取得的当前数据（含引用编号 `_cite`）：\n"
                                 + "\n".join(digests[:20]) + "\n请只补查缺失的数据，并直接给出完整分析与结论。]")
             except Exception:
                 pass
@@ -1246,6 +1269,8 @@ class Agent:
         self._req_timeouts = 0
         from . import quality
         u0 = quality.usage_snapshot()
+        from contextlib import ExitStack
+        self._run_locks = ExitStack()
         try:
             reply = self._ask(text, on_tool)
             if getattr(self, "_run_id", None):
@@ -1255,7 +1280,7 @@ class Agent:
         except TimeoutError as exc:  # 硬上限到了、模型也没来得及收尾：用已拿到的工具结果拼一份答复，注明未完成部分
             reply = self._timeout_reply(text, turn=isinstance(exc, TurnTimeout))
             if getattr(self, "_run_id", None):
-                _quiet(ledger.run_finish, self._run_id, "done", reply, f"timeout: {str(exc)[:200]}")
+                _quiet(ledger.run_finish, self._run_id, "partial", reply, f"timeout: {str(exc)[:200]}")
             quality.record(self, text, reply, u0, self._turn_t0, timeout=True)
             return reply
         except (Cancelled, RequestCancelled) as exc:
@@ -1273,11 +1298,18 @@ class Agent:
             self.last_meta = {"sources": [], "verify": None, "debate": None, "cards": None, "compressed": None, "archived": 0,
                               "steps": list(getattr(self, "_steps", None) or []), "stopped": not timed_out, "timeout": timed_out}
             return note if timed_out else "已停止。"
+        except ledger.RunBusy:
+            raise  # The losing executor must not mutate the owner's run status.
+        except ledger.CheckpointError as e:
+            if getattr(self, "_run_id", None):
+                _quiet(ledger.run_finish, self._run_id, "unknown", None, str(e)[:300])
+            raise
         except Exception as e:  # 异常中断：留在 failed，重开后可从断点续跑
             if getattr(self, "_run_id", None):
                 _quiet(ledger.run_finish, self._run_id, "failed", None, str(e)[:300])
             raise
         finally:
+            self._run_locks.close()
             if isinstance(self.llm, Router):
                 self.llm.stop, self.llm.on_event, self.llm.deadline = previous_control
 
@@ -1333,6 +1365,12 @@ class Agent:
         """断点续跑：按会话重建上下文，去掉末尾那条还没回答的提问，再把同一个问题按原步号重放——
         已落库的模型回复与工具结果直接取用（不再调模型、不重跑工具），之后的步骤正常执行。返回 (agent, 回答)。"""
         from . import ledger
+        with ledger.run_lock(run_id):
+            return cls._resume_owned(run_id, mem, on_event, stop)
+
+    @classmethod
+    def _resume_owned(cls, run_id, mem, on_event, stop):
+        from . import ledger
         r = ledger.run_get(run_id)
         if not r:
             raise LookupError(f"没有这次运行：{run_id}")
@@ -1370,8 +1408,12 @@ class Agent:
             if os.getenv("AGENT_CHECKPOINT", "on").lower() not in ("off", "0", "false"):
                 try:
                     self._run_id = ledger.run_start(self.session, getattr(self, "channel", "cli"), text, self._cur_id)
-                except Exception:
-                    self._run_id = None
+                except Exception as exc:
+                    raise ledger.CheckpointError("断点无法建立；未调用模型或工具，已暂停。") from exc
+            if self._run_id:
+                self._run_locks.enter_context(ledger.run_lock(self._run_id))
+                if ledger.run_get(self._run_id)["status"] != "running":
+                    raise ledger.RunBusy("断点已由另一执行者处理；不重跑。")
         self._run_step = 0
         self._turn_counts = {}
         self._cur_text = text
@@ -1391,13 +1433,27 @@ class Agent:
                     self.on_event({"t": "tool", "i": 0, "id": "agora", "name": "deep_analysis", "label": TOOL_LABELS["deep_analysis"], "arg": sym})
                 try:
                     t0 = time.time()
-                    st = _quiet(ledger.step_get, self._run_id, 0) if self._run_id else None
-                    if st and st["kind"] == "debate":  # 续跑：辩论已经跑完落库
+                    st = ledger.step_get(self._run_id, 0) if self._run_id else None
+                    debate_args = {"symbol": sym, "question": text}
+                    if st:
+                        if st["kind"] != "debate" or st["name"] != "deep_analysis" or not isinstance(st["payload"], dict):
+                            raise ledger.CheckpointError("断点辩论结果未知或步骤不一致；已暂停，不重新运行。")
                         rec = st["payload"]
+                        if "_checkpoint_args" in rec and rec["_checkpoint_args"] != debate_args:
+                            raise ledger.CheckpointError("断点辩论参数不一致；已暂停，不重新运行。")
                     else:
-                        rec = debate.run_for_agent(self, sym, text)
                         if self._run_id:
-                            _quiet(ledger.step_put, self._run_id, 0, "debate", "deep_analysis", rec)
+                            ledger.step_claim(self._run_id, 0, "debate", "deep_analysis", debate_args)
+                        try:
+                            rec = debate.run_for_agent(self, sym, text)
+                        except (Cancelled, RequestCancelled):
+                            raise
+                        except Exception as exc:
+                            if self._run_id:
+                                raise ledger.CheckpointError("断点辩论未返回可靠结果；已暂停，核对后再操作。") from exc
+                            raise
+                        if self._run_id:
+                            ledger.step_put(self._run_id, 0, "debate", "deep_analysis", {**rec, "_checkpoint_args": debate_args})
                     self._run_step = 1
                     self._check()
                     self._steps.append({"n": 0, "label": TOOL_LABELS["deep_analysis"], "name": "deep_analysis", "arg": sym, "ok": True, "cached": False,
@@ -1416,7 +1472,7 @@ class Agent:
                     self._trace(text, rec["answer"], reply, aid)
                     return reply
                 except Exception as e:  # 辩论整体出错：退回单 agent
-                    if isinstance(e, Cancelled):
+                    if isinstance(e, (Cancelled, RequestCancelled, ledger.CheckpointError)):
                         raise
                     self.messages.pop()
                     self.debate_error = str(e)[:200]
@@ -1591,15 +1647,14 @@ class Agent:
         rid, n = getattr(self, "_run_id", None), getattr(self, "_run_step", 0)
         self._run_step = n + 1
         if rid:
-            try:
-                st = ledger.step_get(rid, n)
-            except Exception:
-                st = None
-            if st and st["kind"] == "model":
+            st = ledger.step_get(rid, n)
+            if st:
+                if st["kind"] != "model" or not isinstance(st["payload"], dict):
+                    raise ledger.CheckpointError("断点与当前模型步骤不一致；已暂停，不能重新规划执行。")
                 return st["payload"]
         msg = self._chat(messages, tools)
         if rid:
-            _quiet(ledger.step_put, rid, n, "model", "", {k: v for k, v in msg.items() if not k.startswith("_images")})
+            ledger.step_put(rid, n, "model", "", {k: v for k, v in msg.items() if not k.startswith("_images")})
         return msg
 
     def _run_calls(self, calls, on_tool=None) -> list:
@@ -1639,6 +1694,9 @@ class Agent:
                         cache[key] = result
                 ok = not (isinstance(result, dict) and result.get("error") and len(result) <= 3)
             except Exception as e:
+                from .ledger import CheckpointError
+                if isinstance(e, (Cancelled, RequestCancelled, CheckpointError)):
+                    raise
                 result, ok = f"工具出错：{e}", False
             if on_tool:
                 on_tool(name, args)

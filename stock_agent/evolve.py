@@ -23,12 +23,14 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import os
 import re
 import sqlite3
 import threading
 import time
 import uuid
+from collections import Counter
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -880,6 +882,9 @@ def load_tasks(sources=("cases",), only=None, sample: int | None = None) -> tupl
 def split(tasks: list[dict], ratio: float = 0.35, seed: str = "stoa") -> tuple[list[str], list[str]]:
     """按 id 的哈希稳定地分训练 / 留出（同一道题每次都在同一边；留出题的失败不给提议者看）。"""
     ids = sorted(t["id"] for t in tasks)
+    duplicates = [i for i, n in Counter(ids).items() if n > 1]
+    if duplicates:
+        raise ValueError("闸门题 ID 重复：" + ", ".join(duplicates))
     keyed = sorted(ids, key=lambda i: hashlib.sha1(f"{seed}:{i}".encode()).hexdigest())
     k = max(1, round(len(ids) * ratio)) if len(ids) > 1 else 0
     hold = sorted(keyed[:k])
@@ -1099,24 +1104,50 @@ def critic(cand: dict, tasks: list[dict], fx: dict, budget: int, cap: int, tried
     return gated + code, drop
 
 
-def gate(base: dict, cand: dict, train: list[str], hold: list[str], min_gain: float = 0.0, growth: int = 0, max_growth: int = 1500) -> dict:
-    """闸门：训练题平均分提升 > min_gain，且留出题平均分不低于基线；提示增量超过上限算太贵。"""
+# Built-in case categories, not ID prefixes: external tasks may use arbitrary IDs.
+SAFETY_CATEGORIES = frozenset({"风控", "对抗", "引用", "拒绝编造"})
+
+
+def gate(base: dict, cand: dict, train: list[str], hold: list[str], min_gain: float = 0.0, growth: int = 0, max_growth: int = 1500,
+         *, safety: list[str] | None = None) -> dict:
+    """训练均分提升，留出及显式安全题逐题不退步；必测 ID 两端齐全且分数有限。
+
+    旧调用方 / 回放 / 外部题不一定有可靠安全类别，因此所有留出题仍保守地逐题保护。
+    安全题由调用方按任务 category 指定，即使分到训练集也不能被其它题提分抵消。
+    """
+    safety = list(dict.fromkeys(safety or []))
+    errors = [f"必测 ID 重复：{i}" for i, n in Counter(train + hold).items() if n > 1]
+    required = list(dict.fromkeys(train + hold + safety))
+    for label, scores in (("基线", base), ("候选", cand)):
+        for i in required:
+            if i not in scores:
+                errors.append(f"{label}缺少结果：{i}")
+            elif not isinstance(scores[i], (int, float)) or not math.isfinite(scores[i]):
+                errors.append(f"{label}分数无效：{i}")
+    if errors:
+        return {"pass": False, "why": "评测未验证：" + "；".join(errors), "integrity_errors": errors,
+                "train": [None, None], "holdout": [None, None],
+                "holdout_regressed": [], "safety_regressed": [], "train_fixed": [], "train_broke": []}
+
     def mean(d, ids):
-        xs = [d[i] for i in ids if i in d]
+        xs = [d[i] for i in ids]
         return round(sum(xs) / len(xs), 4) if xs else None
     tb, ta, hb, ha = mean(base, train), mean(cand, train), mean(base, hold), mean(cand, hold)
-    reg = [i for i in hold if i in base and i in cand and cand[i] < base[i]]
-    fixed = [i for i in train if i in base and i in cand and cand[i] > base[i]]
-    broke = [i for i in train if i in base and i in cand and cand[i] < base[i]]
+    reg = [i for i in hold if cand[i] < base[i]]
+    safety_reg = [i for i in safety if cand[i] < base[i]]
+    fixed = [i for i in train if cand[i] > base[i]]
+    broke = [i for i in train if cand[i] < base[i]]
     why = []
     if ta is None or tb is None or not ta > tb + min_gain:
         why.append("训练题没有提升")
-    if hb is not None and (ha is None or ha < hb):
+    if reg or (hb is not None and (ha is None or ha < hb)):
         why.append("留出题退步")
+    if safety_reg:
+        why.append("安全题退步：" + ", ".join(safety_reg))
     if growth > max_growth:
         why.append(f"提示增量 {growth} 字超过上限 {max_growth}")
-    return {"pass": not why, "why": "；".join(why) or "训练题提升且留出题不退步", "train": [tb, ta], "holdout": [hb, ha],
-            "holdout_regressed": reg, "train_fixed": fixed, "train_broke": broke}
+    return {"pass": not why, "why": "；".join(why) or "训练题提升且留出及安全题不退步", "train": [tb, ta], "holdout": [hb, ha],
+            "holdout_regressed": reg, "safety_regressed": safety_reg, "train_fixed": fixed, "train_broke": broke, "integrity_errors": []}
 
 
 def _tried() -> list[str]:
@@ -1166,6 +1197,13 @@ def run(llm_kind: str = "auto", sources=("cases",), only=None, sample: int | Non
     base = {i: s for i, (s, _) in base_raw.items()}
     rep = {"id": rid, "created": now(), "model": model, "llm": repr(llm), "tasks": len(tasks), "train": train, "holdout": hold,
            "baseline": base, "baseline_info": {i: info for i, (_, info) in base_raw.items()}, "candidates": [], "applied": [], "patches": [], "dry_run": dry_run}
+    baseline_gate = gate(base, base, train, hold, -1e-9)
+    if baseline_gate["integrity_errors"]:
+        rep.update(baseline_gate=baseline_gate, failures=0, seconds=round(time.time() - t0, 1),
+                   usage=dict(U["eval"]), usage_eval=U["eval"], usage_propose=U["propose"])
+        _save_report(rep)
+        log("  基线" + baseline_gate["why"] + "；停止进化，什么都没改")
+        return rep
     log(f"  基线：训练 {_m(base, train)} · 留出 {_m(base, hold)}")
     # 失败证据：只给训练题的失败（留出题不给提议者看）+ 日常失败
     fails = [f for f in collect_failures(failure_files) if f.get("task_id") not in set(hold)]
@@ -1199,7 +1237,8 @@ def run(llm_kind: str = "auto", sources=("cases",), only=None, sample: int | Non
                 cr = ev(tasks, fx, gated, model)
                 cs = {i: s for i, (s, _) in cr.items()}
                 entry["scores"] = cs
-                entry["gate"] = gate(base, cs, train, hold, float(g["min_gain"]), growth, int(g["max_prompt_growth"]))
+                entry["gate"] = gate(base, cs, train, hold, float(g["min_gain"]), growth, int(g["max_prompt_growth"]),
+                                     safety=[t["id"] for t in tasks if t.get("category") in SAFETY_CATEGORIES])
                 log(f"  轮 {r + 1} 候选 {ci + 1}：{len(gated)} 条改动 · 训练 {_m(base, train)}→{_m(cs, train)} · 留出 {_m(base, hold)}→{_m(cs, hold)} · "
                     f"{'过闸' if entry['gate']['pass'] else '未过：' + entry['gate']['why']}")
                 if entry["gate"]["pass"] and (best is None or _gain(entry, train) > _gain(best, train)):
@@ -1264,6 +1303,8 @@ def _save_report(rep: dict):
     (d / f"{rep['id']}.json").write_text(json.dumps(rep, ensure_ascii=False, indent=1, default=str), encoding="utf-8")
     lines = [f"# Eruditio 离线进化 {rep['id']}", "", f"- 模型：{rep['model']}；题目 {rep['tasks']}（训练 {len(rep['train'])} / 留出 {len(rep['holdout'])}）；失败证据 {rep.get('failures', 0)} 条",
              f"- 基线：训练 {_m(rep['baseline'], rep['train'])} · 留出 {_m(rep['baseline'], rep['holdout'])}", ""]
+    if rep.get("baseline_gate"):
+        lines += ["- " + rep["baseline_gate"]["why"], ""]
     for i, c in enumerate(rep["candidates"], 1):
         g = c.get("gate") or {}
         lines.append(f"## 候选 {i}（轮 {c['round']}）{'· 过闸' if g.get('pass') else '· 未过'}")
@@ -1337,7 +1378,8 @@ def gate_model(target_model: str, llm_kind: str = "real", sources=("cases",), on
     base = {i: s for i, (s, _) in ev(tasks, fx, [], target_model).items()}
     for ch, e in items:
         cs = {i: s for i, (s, _) in ev(tasks, fx, [e], target_model).items()}
-        g = gate(base, cs, train, hold, -1e-9)  # 换模型：训练题不退步即可（≥ 基线），留出题不退步
+        g = gate(base, cs, train, hold, -1e-9,
+                 safety=[t["id"] for t in tasks if t.get("category") in SAFETY_CATEGORIES])  # 换模型允许同分，硬门槛不放宽
         ok = g["pass"]
         if ok:
             if e["kind"] == "skill":

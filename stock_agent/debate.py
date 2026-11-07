@@ -564,8 +564,12 @@ class Debate:
     def tool(self, name, args):
         if self.mode == "backtest" or self.tools is None:
             raise PermissionError(f"回测模式禁止调用 {name}（防未来泄漏）")
+        from .ledger import CheckpointError
+        from .agent import Cancelled, RequestCancelled
         try:
             return self.tools(name, args)
+        except (CheckpointError, Cancelled, RequestCancelled):
+            raise
         except Exception as e:
             return {"error": f"{name} 出错：{str(e)[:100]}"}
 
@@ -611,19 +615,24 @@ class Debate:
         box = {}
 
         def go():
-            for yb in (y, y - 1):
-                r = self.tool("compare_filings", {"symbol": self.symbol, "year_a": yb - 1, "year_b": yb, "section": "risk"})
-                box["r"] = r
-                if not (isinstance(r, dict) and r.get("error") and "找不到" in str(r.get("error"))):
-                    break
+            try:
+                for yb in (y, y - 1):
+                    r = self.tool("compare_filings", {"symbol": self.symbol, "year_a": yb - 1, "year_b": yb, "section": "risk"})
+                    box["r"] = r
+                    if not (isinstance(r, dict) and r.get("error") and "找不到" in str(r.get("error"))):
+                        break
+            except Exception as exc:
+                box["fatal"] = exc  # Hand control/checkpoint errors back to the caller.
 
         th = threading.Thread(target=go, daemon=True)
         th.start()
         th.join(float(os.getenv("DEBATE_FILING_TIMEOUT") or 25))
         if th.is_alive():
             return {"error": "年报对比超时（首次需下载两份年报），已跳过；后台继续缓存，下次深度分析可用"}
+        if "fatal" in box:
+            raise box["fatal"]
         r = box.get("r")
-        if isinstance(r, dict) and not r.get("error"):  # 只给分析师看关键句，控制篇幅
+        if isinstance(r, dict) and not r.get("error"):
             return {k: r.get(k) for k in ("symbol", "section_name", "year_a", "year_b", "counts", "unchanged_ratio", "_cite")} | {
                 "added": (r.get("added") or [])[:4], "removed": (r.get("removed") or [])[:3]}
         return r
@@ -847,6 +856,8 @@ class Debate:
 
     # -------------------------------------------------- 主流程
     def run(self, record: bool = True, save: bool = True) -> dict:
+        from .ledger import CheckpointError
+        from .agent import Cancelled, RequestCancelled
         t0 = time.time()
         self._quote = None
         # 1. 分析师并行
@@ -855,6 +866,8 @@ class Debate:
             for f in futs:
                 try:
                     f.result(timeout=self.budget.role_timeout * 2 + 30)
+                except (CheckpointError, Cancelled, RequestCancelled):
+                    raise
                 except Exception as e:
                     k = futs[f]
                     self._rec(k, status="degraded", error=f"{type(e).__name__}: {str(e)[:100]}", stance="中性", confidence=50,
@@ -871,6 +884,8 @@ class Debate:
                 cv = {"看多": "看涨", "看空": "看跌", "中性": "震荡"}[verdict["view"]]
                 call = self.tool("record_call", {"symbol": self.symbol, "name": self.name if self.name != self.symbol else "", "view": cv,
                                                  "horizon_days": verdict["horizon_days"], "confidence": verdict.get("confidence"), "reason": f"Agora 辩论 {self.id}：{verdict['summary'][:60]}"})
+            except (CheckpointError, Cancelled, RequestCancelled):
+                raise
             except Exception as e:
                 call = f"记账失败：{e}"
         sid = self._vsid = self.sources.new("Agora 辩论纪要 · 本次结论", "", cite.today(), kind="debate", tool="deep_analysis")

@@ -151,6 +151,467 @@ def test_checkpoint_off(home, monkeypatch):
     assert ledger.runs_list() == []
 
 
+def test_checkpoint_read_failure_stops_before_tool_execution(home, monkeypatch):
+    """An unreadable checkpoint is unknown, never evidence that an effect did not run."""
+    import sqlite3
+    from stock_agent import ledger
+
+    counter = {}
+    a = _agent(ScriptLLM(), counter)
+    original = ledger._q
+
+    def unreadable(sql, params=(), one=False):
+        if "FROM run_steps WHERE" in sql and params[1] > 0:
+            raise sqlite3.OperationalError("injected checkpoint read failure")
+        return original(sql, params, one)
+
+    monkeypatch.setattr(ledger, "_q", unreadable)
+    with pytest.raises(RuntimeError, match="断点"):
+        a.ask("英伟达现在多少？记一笔判断")
+    assert counter == {}
+    assert ledger.run_get(a._run_id)["status"] == "unknown"
+    assert ledger.interrupted() == []
+
+
+def test_effect_checkpoint_write_failure_remains_unknown(home):
+    from stock_agent import ledger
+    from stock_agent.agent import Agent
+
+    ledger.db().execute("""CREATE TRIGGER fail_effect_checkpoint BEFORE INSERT ON run_steps
+        WHEN NEW.kind='tool' AND NEW.name='record_call'
+        BEGIN SELECT RAISE(FAIL, 'injected result persistence failure'); END""")
+    counter = {}
+    a = _agent(ScriptLLM(), counter)
+    with pytest.raises(RuntimeError, match="断点"):
+        a.ask("英伟达现在多少？记一笔判断")
+    assert counter == {"get_quotes": 1, "record_call": 1}
+    rid = a._run_id
+    assert rid is not None
+    record = ledger.run_get(rid)
+    assert record is not None and record["status"] == "unknown"
+    pending = ledger.step_get(rid, 2)
+    assert pending is not None and pending["kind"] == "tool_pending"
+    assert ledger.interrupted() == []
+    with pytest.raises(ValueError, match="unknown"):
+        Agent.resume(rid)
+    b = _agent(ScriptLLM(), counter)
+    b._run_id = rid
+    with pytest.raises(RuntimeError, match="断点"):
+        b._tool("record_call", pending["payload"]["args"], step=2)
+    assert counter["record_call"] == 1
+
+
+@pytest.mark.parametrize("kind,name,payload", [
+    ("tool", "get_quotes", {"args": {"symbols": ["AAPL"]}, "result": {"ok": True}}),
+    ("tool", "get_news", {"args": {"symbols": ["NVDA"]}, "result": {"ok": True}}),
+    ("model", "", {"role": "assistant", "content": "cached model"}),
+    ("tool", "get_quotes", {"args": {"symbols": ["NVDA"]}}),
+])
+def test_checkpoint_replay_rejects_different_call(home, kind, name, payload):
+    from stock_agent import ledger
+    counter = {}
+    a = _agent(ScriptLLM(), counter)
+    a._begin_sources("行情")
+    a._run_id = ledger.run_start(a.session, "web", "行情", None)
+    ledger.step_put(a._run_id, 0, kind, name, payload)
+    with pytest.raises(RuntimeError, match="断点"):
+        a._tool("get_quotes", {"symbols": ["NVDA"]}, step=0)
+    assert counter == {}
+    assert ledger.step_get(a._run_id, 0)["payload"] == payload
+
+
+@pytest.mark.parametrize("fault", ["read", "write", "kind"])
+def test_model_checkpoint_failure_is_not_a_cache_miss(home, monkeypatch, fault):
+    from stock_agent import ledger
+    a = _agent(ScriptLLM(), {})
+    a._run_id = ledger.run_start(a.session, "web", "行情", None)
+    calls = []
+    monkeypatch.setattr(a, "_chat", lambda *a: calls.append(1) or {"role": "assistant", "content": "answer"})
+    if fault == "read":
+        def broken(*args, **kwargs):
+            raise OSError("unreadable")
+        monkeypatch.setattr(ledger, "_q", broken)
+    elif fault == "write":
+        ledger.db().execute("""CREATE TRIGGER fail_model_checkpoint BEFORE INSERT ON run_steps
+            WHEN NEW.kind='model' BEGIN SELECT RAISE(FAIL, 'injected model persistence failure'); END""")
+    else:
+        ledger.step_put(a._run_id, 0, "tool", "record_call", {"args": {}, "result": {"ok": True}})
+    with pytest.raises(RuntimeError, match="断点"):
+        a._model_step([], "default")
+    assert calls == ([1] if fault == "write" else [])
+
+
+def test_effect_exception_does_not_continue_as_normal_tool_error(home):
+    from stock_agent import ledger
+    counter = {}
+    a = _agent(ScriptLLM(), counter)
+    original = a.run_tool
+
+    def lost_response(name, args):
+        result = original(name, args)
+        if name == "record_call":
+            raise ConnectionError("effect succeeded but response lost")
+        return result
+
+    a.run_tool = lost_response
+    with pytest.raises(RuntimeError, match="断点"):
+        a.ask("英伟达现在多少？记一笔判断")
+    assert counter["record_call"] == 1
+    assert ledger.run_get(a._run_id)["status"] == "unknown"
+
+
+def test_checkpoint_start_failure_does_not_disable_durability(home, monkeypatch):
+    from stock_agent import ledger
+    counter = {}
+    a = _agent(ScriptLLM(), counter)
+
+    def unavailable(*args):
+        raise OSError("database unavailable")
+
+    monkeypatch.setattr(ledger, "run_start", unavailable)
+    with pytest.raises(RuntimeError, match="断点"):
+        a.ask("英伟达现在多少？记一笔判断")
+    assert a.llm.calls == 0 and counter == {}
+
+
+@pytest.mark.parametrize("stage", ["before_effect", "after_effect"])
+def test_process_exit_leaves_effect_unknown_without_replay(home, stage):
+    """Real child process exit; only the effect itself is a local synthetic append."""
+    import os
+    from pathlib import Path
+    import subprocess
+    import sys
+    from stock_agent import ledger
+    from stock_agent.agent import Agent
+
+    script = r'''
+import os, runpy
+from pathlib import Path
+from stock_agent import ledger
+ns = runpy.run_path("tests/test_longrun.py")
+a = ns["_agent"](ns["ScriptLLM"](), {}, session="web-process-exit")
+root = Path(os.environ["STOCK_AGENT_HOME"])
+start, claim, tool = ledger.run_start, ledger.step_claim, a.run_tool
+def start_run(*args):
+    rid = start(*args)
+    (root / "rid.txt").write_text(rid, encoding="utf-8")
+    return rid
+def claim_step(*args):
+    claim(*args)
+    if os.environ["CRASH_STAGE"] == "before_effect":
+        os._exit(71)
+def run_tool(name, args):
+    if name == "record_call":
+        with (root / "effect.txt").open("a", encoding="utf-8") as f:
+            f.write("effect\n")
+            f.flush()
+            os.fsync(f.fileno())
+        os._exit(72)
+    return tool(name, args)
+ledger.run_start, ledger.step_claim, a.run_tool = start_run, claim_step, run_tool
+a.ask("英伟达现在多少？记一笔判断")
+'''
+    root = Path(__file__).resolve().parents[1]
+    result = subprocess.run([sys.executable, "-c", script], cwd=root,
+                            env={**os.environ, "CRASH_STAGE": stage}, capture_output=True, timeout=30)
+    assert result.returncode == (71 if stage == "before_effect" else 72), result.stderr.decode(errors="replace")
+    rid = (home / "rid.txt").read_text(encoding="utf-8")
+    pending = ledger.step_get(rid, 2)
+    assert pending is not None and pending["kind"] == "tool_pending"
+    before = (home / "effect.txt").read_text(encoding="utf-8") if (home / "effect.txt").exists() else ""
+    assert before == ("effect\n" if stage == "after_effect" else "")
+    with pytest.raises(RuntimeError, match="断点"):
+        Agent.resume(rid)
+    record = ledger.run_get(rid)
+    assert record is not None and record["status"] == "unknown"
+    after = (home / "effect.txt").read_text(encoding="utf-8") if (home / "effect.txt").exists() else ""
+    assert after == before
+
+
+def test_step_claim_has_one_winner_and_rolls_back_on_failure(home):
+    from concurrent.futures import ThreadPoolExecutor
+    from stock_agent import ledger
+    rid = ledger.run_start("web-race", "web", "test", None)
+
+    def claim(_):
+        try:
+            ledger.step_claim(rid, 1, "tool", "record_call", {"symbol": "NVDA"})
+            return True
+        except ledger.CheckpointError:
+            return False
+
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        assert sum(pool.map(claim, range(8))) == 1
+    ledger.db().execute("""CREATE TRIGGER fail_run_touch BEFORE UPDATE ON runs
+        BEGIN SELECT RAISE(FAIL, 'injected run timestamp failure'); END""")
+    with pytest.raises(ledger.CheckpointError):
+        ledger.step_claim(rid, 2, "tool", "record_call", {})
+    assert ledger.step_get(rid, 2) is None
+    with pytest.raises(ledger.CheckpointError):
+        ledger.step_put(rid, 1, "tool", "record_call", {"args": {}, "result": {"ok": True}})
+    pending = ledger.step_get(rid, 1)
+    assert pending is not None and pending["kind"] == "tool_pending"
+
+
+@pytest.mark.parametrize("fault", ["read", "write", "pending", "lost_response"])
+def test_direct_debate_checkpoint_fault_never_falls_back(home, monkeypatch, fault):
+    from stock_agent import debate, ledger
+    a = _agent(ScriptLLM(), {})
+    dispatched = []
+    monkeypatch.setattr(debate, "wants_debate", lambda text: True)
+    monkeypatch.setattr(debate, "resolve_symbol", lambda *args: "NVDA")
+
+    def run(*args):
+        dispatched.append(1)
+        if fault == "lost_response":
+            raise ConnectionError("debate output unknown")
+        return {"id": "synthetic-debate", "answer": "结论完成"}
+
+    monkeypatch.setattr(debate, "run_for_agent", run)
+    if fault == "read":
+        original = ledger._q
+        def unreadable(sql, params=(), one=False):
+            if "FROM run_steps WHERE" in sql:
+                raise OSError("unreadable")
+            return original(sql, params, one)
+        monkeypatch.setattr(ledger, "_q", unreadable)
+    elif fault == "write":
+        ledger.db().execute("""CREATE TRIGGER fail_debate_checkpoint BEFORE INSERT ON run_steps
+            WHEN NEW.kind='debate' BEGIN SELECT RAISE(FAIL, 'injected debate persistence failure'); END""")
+    elif fault == "pending":
+        original_start = ledger.run_start
+        def started(*args):
+            rid = original_start(*args)
+            ledger.step_claim(rid, 0, "debate", "deep_analysis", {"symbol": "NVDA", "question": args[2]})
+            return rid
+        monkeypatch.setattr(ledger, "run_start", started)
+    with pytest.raises(RuntimeError, match="断点"):
+        a.ask("深度分析英伟达")
+    assert dispatched == ([1] if fault in ("write", "lost_response") else [])
+    assert a.llm.calls == 0
+    assert ledger.run_get(a._run_id)["status"] == "unknown"
+
+
+def _nested_debate_agent(counter):
+    from stock_agent.agent import Agent
+    from stock_agent.debate import MockRoleLLM
+
+    class NestedLLM(ScriptLLM):
+        def chat(self, messages, tools=None, **kw):
+            if "[ROLE:" in messages[0]["content"]:
+                return MockRoleLLM().chat(messages, tools)
+            self.calls += 1
+            if self.calls == 1:
+                return {"role": "assistant", "content": "", "tool_calls": [{"id": "deep", "type": "function",
+                        "function": {"name": "deep_analysis", "arguments": '{"symbol":"NVDA"}'}}]}
+            return {"role": "assistant", "content": "研究完成。"}
+
+    a = _agent(NestedLLM(), counter)
+    a._no_debate = True
+    original = a.run_tool
+
+    def tool(name, args):
+        if name == "deep_analysis":
+            return Agent.run_tool(a, name, args)
+        return original(name, args)
+
+    a.run_tool = tool
+    return a
+
+
+def test_tool_debate_nested_record_belongs_to_outer_checkpoint(home):
+    from stock_agent import ledger
+    counter = {}
+    a = _nested_debate_agent(counter)
+    a.ask("研究一下")
+    assert counter.get("record_call") == 1
+    rows = ledger.steps(a._run_id)
+    assert [(r["kind"], r["name"]) for r in rows] == [("model", ""), ("tool", "deep_analysis"), ("model", "")]
+    assert ledger.run_get(a._run_id)["status"] == "done"
+
+
+@pytest.mark.parametrize("tool", ["record_call", "get_quotes", "compare_filings"])
+def test_nested_debate_checkpoint_error_is_fatal(home, tool):
+    from stock_agent import ledger
+    a = _nested_debate_agent({})
+    original = a.run_tool
+
+    def broken(name, args):
+        if name == tool:
+            raise ledger.CheckpointError("断点内部故障")
+        return original(name, args)
+
+    a.run_tool = broken
+    with pytest.raises(ledger.CheckpointError):
+        a.ask("研究一下")
+    assert ledger.run_get(a._run_id)["status"] == "unknown"
+    assert ledger.step_get(a._run_id, 1)["kind"] == "tool_pending"
+
+
+def test_nested_debate_lost_effect_ack_keeps_outer_pending(home):
+    from stock_agent import ledger
+    counter = {}
+    a = _nested_debate_agent(counter)
+    original = a.run_tool
+
+    def lost(name, args):
+        result = original(name, args)
+        if name == "record_call":
+            raise ConnectionError("effect committed but ack lost")
+        return result
+
+    a.run_tool = lost
+    with pytest.raises(ledger.CheckpointError):
+        a.ask("研究一下")
+    assert counter["record_call"] == 1
+    assert ledger.run_get(a._run_id)["status"] == "unknown"
+    assert ledger.step_get(a._run_id, 1)["kind"] == "tool_pending"
+
+
+@pytest.mark.parametrize("path", ["tool", "direct"])
+def test_debate_user_cancel_is_not_unknown(home, monkeypatch, path):
+    from stock_agent import debate, ledger
+    from stock_agent.agent import Cancelled
+    a = _nested_debate_agent({})
+    if path == "direct":
+        a._no_debate = False
+        monkeypatch.setattr(debate, "wants_debate", lambda text: True)
+        monkeypatch.setattr(debate, "resolve_symbol", lambda *args: "NVDA")
+    original = a.run_tool
+
+    def stopped(name, args):
+        if name == "record_call":
+            raise Cancelled()
+        return original(name, args)
+
+    a.run_tool = stopped
+    assert a.ask("研究一下") == "已停止。"
+    assert ledger.run_get(a._run_id)["status"] == "cancelled"
+
+
+@pytest.mark.parametrize("entry", ["ask", "resume"])
+def test_run_owner_excludes_other_process_and_crash_releases(home, monkeypatch, entry):
+    import os
+    from pathlib import Path
+    import subprocess
+    import sys
+    import time
+    from stock_agent import agent as AG, ledger
+
+    rid = ledger.run_start("web-owner", "web", "行情", None) if entry == "resume" else ""
+    script = r'''
+import os, runpy, time
+from pathlib import Path
+from stock_agent import agent as AG, ledger
+ns = runpy.run_path("tests/test_longrun.py")
+class HoldingLLM(ns["ScriptLLM"]):
+    def chat(self, *args, **kwargs):
+        rid = ledger.runs_list()[0]["run_id"]
+        (Path(os.environ["STOCK_AGENT_HOME"]) / "owner-ready").write_text(rid)
+        time.sleep(60)
+        raise RuntimeError("test owner was not killed")
+AG.Agent.__init__ = ns["_patched_init"](AG.Agent.__init__, HoldingLLM(), {})
+if os.environ["TEST_RID"]:
+    AG.Agent.resume(os.environ["TEST_RID"])
+else:
+    AG.Agent(channel="web", session="web-owner").ask("行情")
+'''
+    p = subprocess.Popen([sys.executable, "-c", script], cwd=Path(__file__).resolve().parents[1],
+                         env={**os.environ, "TEST_RID": rid}, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    try:
+        deadline = time.monotonic() + 20
+        ready = home / "owner-ready"
+        while not ready.exists() and p.poll() is None and time.monotonic() < deadline:
+            time.sleep(.05)
+        assert ready.exists(), f"owner failed: {p.poll()}"
+        rid = ready.read_text()
+        before = ledger.run_get(rid)
+        counter, llm = {}, ScriptLLM()
+        monkeypatch.setattr(AG.Agent, "__init__", _patched_init(AG.Agent.__init__, llm, counter))
+        with pytest.raises(ledger.CheckpointError, match="执行|占用"):
+            AG.Agent.resume(rid)
+        assert llm.calls == 0 and counter == {}
+        assert ledger.run_get(rid) == before
+        p.kill()
+        p.wait(timeout=10)
+        _, reply = AG.Agent.resume(rid)
+        assert reply and counter["record_call"] == 1
+        assert ledger.run_get(rid)["status"] == "done"
+    finally:
+        if p.poll() is None:
+            p.kill()
+        p.communicate(timeout=10)
+
+
+def test_late_readonly_cannot_replace_pending_then_repeat_effect(home):
+    from stock_agent import ledger
+    counter = {}
+    a = _agent(ScriptLLM(), counter)
+    a._begin_sources("行情")
+    a._run_id = ledger.run_start(a.session, "web", "行情", None)
+    a._run_step = 0
+    args = {"symbol": "NVDA", "view": "看涨", "horizon_days": 5, "reason": "测试用判断理由"}
+    original = a.run_tool
+
+    def late(name, params):
+        if name == "get_quotes":
+            # B has already read a miss. A now claims the same step, commits
+            # its effect and loses the ack before B's readonly result arrives.
+            ledger.step_claim(a._run_id, 0, "tool", "record_call", args)
+            original("record_call", args)
+        return original(name, params)
+
+    a.run_tool = late
+    calls = [{"id": "read", "function": {"name": "get_quotes", "arguments": '{"symbols":["NVDA"]}'}},
+             {"id": "effect", "function": {"name": "record_call", "arguments": json.dumps(args)}}]
+    with pytest.raises(ledger.CheckpointError):
+        a._run_calls(calls)
+    assert counter["record_call"] == 1
+    assert ledger.step_get(a._run_id, 0) == {"kind": "tool_pending", "name": "record_call", "payload": {"args": args}}
+    assert ledger.step_get(a._run_id, 1) is None
+
+
+@pytest.mark.parametrize("existing", ["model", "pending"])
+def test_late_model_plan_cannot_replace_existing_step(home, monkeypatch, existing):
+    from stock_agent import ledger
+    a = _agent(ScriptLLM(), {})
+    a._run_id = ledger.run_start(a.session, "web", "行情", None)
+    a._run_step = 0
+    old = {"role": "assistant", "content": "old plan"}
+
+    def late(*args):
+        if existing == "model":
+            ledger.step_put(a._run_id, 0, "model", "", old)
+        else:
+            ledger.step_claim(a._run_id, 0, "tool", "record_call", {})
+        return {"role": "assistant", "content": "different plan"}
+
+    monkeypatch.setattr(a, "_chat", late)
+    with pytest.raises(ledger.CheckpointError):
+        a._model_step([], [])
+    saved = ledger.step_get(a._run_id, 0)
+    assert saved["payload"] == (old if existing == "model" else {"args": {}})
+
+
+def test_nested_debate_stop_event_prevents_later_effect(home):
+    from stock_agent import ledger
+    counter = {}
+    a = _nested_debate_agent(counter)
+    a._stop = threading.Event()
+    original = a.run_tool
+
+    def stop_during_read(name, args):
+        result = original(name, args)
+        if name == "get_quotes":
+            a._stop.set()
+        return result
+
+    a.run_tool = stop_during_read
+    assert a.ask("研究一下") == "已停止。"
+    assert counter.get("record_call", 0) == 0
+    assert ledger.run_get(a._run_id)["status"] == "cancelled"
+
+
 # ------------------------------------------------------------------ (b) 推送幂等 + (d) 新渠道确认
 class Sent:
     def __init__(self):
@@ -402,6 +863,161 @@ def test_serve_auto_resume_and_task_runner(home, monkeypatch):
     monkeypatch.setattr(serve, "chat", lambda ch, text: calls.append(("chat", ch)) or "新跑")
     assert serve.task_runner("task-t1", "[定时任务…") == "续上了" and calls[-1] == r2
     assert serve.task_runner("task-t1", "[定时任务…") == "新跑"
+
+
+@pytest.mark.parametrize("terminal", ["done", "cancelled", "partial"])
+def test_task_runner_stale_terminal_snapshot_never_restarts(home, monkeypatch, terminal):
+    from stock_agent import agent as AG, ledger, serve
+    counter = {}
+    a = _agent(ScriptLLM(crash_at=2), counter, session="web-task-terminal")
+    with pytest.raises(RuntimeError):
+        a.ask("查行情并记判断")
+    rid = a._run_id
+    monkeypatch.setattr(serve, "MEM", a.mem)
+    monkeypatch.setattr(serve, "SESSIONS", {})
+    monkeypatch.setattr(AG.Agent, "__init__", _patched_init(AG.Agent.__init__, ScriptLLM(), counter))
+    original = ledger.interrupted
+    settled = {}
+
+    def stale_snapshot(*args, **kwargs):
+        snapshot = original(*args, **kwargs)
+        # Deterministic second executor: real resume completes and releases its lock
+        # after discovery, before task_runner's own real resume acquires that lock.
+        settled["reply"] = serve.resume_run(rid)
+        if terminal != "done":
+            ledger.run_finish(rid, terminal, "已停止的部分结果")
+        settled["run"] = ledger.run_get(rid)
+        return snapshot
+
+    monkeypatch.setattr(ledger, "interrupted", stale_snapshot)
+    reply = serve.task_runner("task-terminal", "查行情并记判断")
+    assert counter == {"get_quotes": 1, "record_call": 1}
+    assert ledger.run_get(rid) == settled["run"]
+    assert len(ledger.runs_list()) == 1
+    if terminal == "done":
+        assert reply == settled["reply"]
+    else:
+        assert terminal in reply and "已停止的部分结果" in reply
+    # A subsequent scheduled invocation must not be blocked by the prior terminal.
+    monkeypatch.setattr(ledger, "interrupted", original)
+    serve.task_runner("task-terminal", "下一计划：查行情并记判断")
+    assert len(ledger.runs_list()) == 2
+    assert ledger.run_get(rid) == settled["run"]
+    assert counter == {"get_quotes": 2, "record_call": 2}
+
+
+@pytest.mark.parametrize("busy", [False, True])
+def test_task_runner_resume_error_does_not_restart(home, monkeypatch, busy):
+    from stock_agent import agent as AG, ledger, serve
+    counter = {}
+    a = _agent(ScriptLLM(crash_at=2), counter, session="web-task-error")
+    with pytest.raises(RuntimeError):
+        a.ask("查行情并记判断")
+    rid = a._run_id
+    monkeypatch.setattr(serve, "MEM", a.mem)
+    monkeypatch.setattr(serve, "SESSIONS", {})
+    llm = ScriptLLM(crash_at=1)
+    monkeypatch.setattr(AG.Agent, "__init__", _patched_init(AG.Agent.__init__, llm, counter))
+    chats = []
+    monkeypatch.setattr(serve, "chat", lambda *args: chats.append(args) or "unsafe restart")
+    if busy:
+        # Simulate a different executor owning the actual ledger lock.
+        from concurrent.futures import ThreadPoolExecutor
+        with ledger.run_lock(rid), ThreadPoolExecutor(max_workers=1) as pool:
+            with pytest.raises(ledger.RunBusy):
+                pool.submit(serve.task_runner, "task-error", "retry").result()
+    else:
+        for _ in range(2):
+            llm.calls = 0
+            with pytest.raises(RuntimeError, match="进程被杀"):
+                serve.task_runner("task-error", "retry")
+    assert ledger.run_get(rid)["status"] == "failed"
+    assert len(ledger.runs_list()) == 1
+    assert chats == []
+    assert counter == {"get_quotes": 1, "record_call": 1}
+
+
+def test_task_runner_checkpoint_failure_stays_paused_on_later_calls(home, monkeypatch):
+    from stock_agent import agent as AG, ledger, serve
+    counter = {}
+    a = _agent(ScriptLLM(crash_at=2), counter, session="web-task-paused")
+    with pytest.raises(RuntimeError):
+        a.ask("查行情并记判断")
+    rid = a._run_id
+    monkeypatch.setattr(serve, "MEM", a.mem)
+    monkeypatch.setattr(AG.Agent, "__init__", _patched_init(AG.Agent.__init__, ScriptLLM(), counter))
+    chats = []
+    monkeypatch.setattr(serve, "chat", lambda *args: chats.append(args) or "unsafe replay")
+    original = ledger.step_get
+
+    def unreadable(run, step):
+        if run == rid:
+            raise ledger.CheckpointError("断点不可读")
+        return original(run, step)
+
+    monkeypatch.setattr(ledger, "step_get", unreadable)
+    for _ in range(2):
+        with pytest.raises(ledger.CheckpointError):
+            serve.task_runner("task-paused", "查行情并记判断")
+        assert ledger.run_get(rid)["status"] == "unknown"
+        assert chats == []
+    assert counter == {"get_quotes": 1, "record_call": 1}
+
+
+@pytest.mark.parametrize("status", ["running", "failed"])
+def test_task_runner_old_pending_is_not_superseded(home, monkeypatch, status):
+    from stock_agent import ledger, serve
+    rid = ledger.run_start("web-task-old", "web", "old", None)
+    ledger.step_claim(rid, 0, "tool", "record_call", {})
+    ledger.run_finish(rid, status)
+    ledger._x("UPDATE runs SET started='2000-01-01 00:00:00' WHERE run_id=?", (rid,))
+    newer = ledger.run_start("web-task-old", "web", "new", None)
+    chats = []
+    monkeypatch.setattr(serve, "chat", lambda *args: chats.append(args))
+    monkeypatch.setattr(serve, "resume_run", lambda *args: chats.append(args))
+    for _ in range(2):
+        with pytest.raises(ledger.CheckpointError):
+            serve.task_runner("task-old", "old")
+    assert chats == []
+    assert ledger.run_get(rid)["status"] == status
+    assert ledger.run_get(newer)["status"] == "running"
+
+
+def test_task_runner_status_changes_to_unknown_before_resume(home, monkeypatch):
+    from stock_agent import ledger, serve
+    rid = ledger.run_start("web-task-race", "web", "test", None)
+    original = serve.resume_run
+
+    def changed(run):
+        ledger.run_finish(run, "unknown")
+        return original(run)
+
+    monkeypatch.setattr(serve, "resume_run", changed)
+    chats = []
+    monkeypatch.setattr(serve, "chat", lambda *args: chats.append(args))
+    with pytest.raises(ledger.CheckpointError):
+        serve.task_runner("task-race", "test")
+    assert chats == []
+    assert ledger.run_get(rid)["status"] == "unknown"
+
+
+@pytest.mark.parametrize("status", ["unknown", "running"])
+def test_startup_prune_does_not_forget_unresolved_task(home, monkeypatch, status):
+    from stock_agent import ledger, serve
+    rid = ledger.run_start("web-task-retained", "web", "test", None)
+    if status == "running":
+        ledger.step_claim(rid, 0, "tool", "record_call", {})
+    ledger.run_finish(rid, status)
+    ledger._x("UPDATE runs SET started='2000-01-01 00:00:00', updated='2000-01-01 00:00:00' WHERE run_id=?", (rid,))
+    monkeypatch.setattr(serve.time, "sleep", lambda _: None)
+    monkeypatch.setenv("RUN_RESUME", "off")
+    serve.auto_resume()
+    chats = []
+    monkeypatch.setattr(serve, "chat", lambda *args: chats.append(args))
+    with pytest.raises(ledger.CheckpointError):
+        serve.task_runner("task-retained", "test")
+    assert chats == []
+    assert ledger.run_get(rid)["status"] == status
 
 
 def test_agent_confirm_tools_respect_consent(home):

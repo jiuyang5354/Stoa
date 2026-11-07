@@ -57,6 +57,162 @@ def test_gate_needs_train_gain_and_no_holdout_regression():
     assert not gate(base, {"a": 1, "b": .5, "h": 1.0}, ["a", "b"], ["h"], growth=5000, max_growth=1500)["pass"]  # 太贵
 
 
+def test_gate_holdout_regression_cannot_be_offset_by_another_gain():
+    from stock_agent.evolve import gate
+    base = {"train": .5, "safety": .8, "ordinary": 0.0}
+    # Deliberately reverse mapping order: comparisons must use case IDs.
+    cand = {"ordinary": 1.0, "safety": .7, "train": 1.0}
+    g = gate(base, cand, ["train"], ["safety", "ordinary"])
+    assert not g["pass"]
+    assert g["holdout_regressed"] == ["safety"]
+    assert g["holdout"][1] > g["holdout"][0]
+    assert "留出题退步" in g["why"]
+
+
+@pytest.mark.parametrize("side", ["base", "cand"])
+@pytest.mark.parametrize("case_id", ["train-b", "hold-b"])
+@pytest.mark.parametrize("bad", ["missing", float("nan"), float("inf"), -float("inf")])
+def test_gate_requires_complete_finite_results_on_both_sides(side, case_id, bad):
+    from stock_agent.evolve import gate
+    base = {"train-a": .2, "train-b": .2, "hold-a": .5, "hold-b": .5}
+    cand = {"hold-b": .5, "hold-a": .5, "train-b": .8, "train-a": .8}
+    scores = base if side == "base" else cand
+    if bad == "missing":
+        scores.pop(case_id)
+    else:
+        scores[case_id] = bad
+    g = gate(base, cand, ["train-a", "train-b"], ["hold-a", "hold-b"])
+    assert not g["pass"]
+    assert case_id in g["why"]
+    assert g["integrity_errors"]
+
+
+@pytest.mark.parametrize("train,hold", [(["a", "a"], ["h"]), (["a"], ["h", "h"]), (["a", "h"], ["h"])])
+def test_gate_rejects_duplicate_or_overlapping_required_ids(train, hold):
+    from stock_agent.evolve import gate
+    g = gate({"a": .2, "h": .5}, {"a": .8, "h": .5}, train, hold)
+    assert not g["pass"]
+    assert "重复" in g["why"]
+    assert g["integrity_errors"]
+
+
+@pytest.mark.parametrize("entrypoint", ["run", "gate_model"])
+def test_duplicate_task_ids_rejected_before_evaluator_can_overwrite_them(home, monkeypatch, entrypoint):
+    from stock_agent import evolve
+    tasks = [{"id": "same", "category": "风控"}, {"id": "same", "category": "报价准确性"}]
+    monkeypatch.setattr(evolve, "load_tasks", lambda *a: (tasks, {}))
+    calls = []
+    evaluator = lambda *a: calls.append(a) or {"same": (1.0, {})}
+    with pytest.raises(ValueError, match="重复.*same"):
+        if entrypoint == "run":
+            evolve.run("mock", evaluator=evaluator, proposer=lambda *a: [], log=lambda *a: None)
+        else:
+            evolve.gate_model("other-model", "mock", evaluator=evaluator, log=lambda *a: None)
+    assert not calls
+
+
+@pytest.mark.parametrize("category", ["风控", "对抗", "引用", "拒绝编造"])
+@pytest.mark.parametrize("entrypoint", ["run", "gate_model"])
+def test_safety_category_regression_in_training_blocks_both_promotion_paths(home, monkeypatch, category, entrypoint):
+    from stock_agent import evolve, skills
+    # Opaque IDs deliberately do not encode the category; metadata is authoritative.
+    tasks = [{"id": "case-guard", "category": category, "turns": []},
+             {"id": "case-normal", "category": "报价准确性", "turns": []},
+             {"id": "case-hold", "category": "报价准确性", "turns": []}]
+    monkeypatch.setattr(evolve, "load_tasks", lambda *a: (tasks, {}))
+    monkeypatch.setattr(evolve, "split", lambda *a: (["case-guard", "case-normal"], ["case-hold"]))
+    baseline = {"case-guard": .8, "case-normal": 0.0, "case-hold": .5}
+    candidate = {"case-hold": .5, "case-normal": 1.0, "case-guard": .7}
+    ev = fake_eval(lambda i, text, model: (candidate if text else baseline)[i])
+    if entrypoint == "run":
+        prop = lambda *a: [{"why": "取数", "edits": [{"kind": "skill", "target": "source-way", "op": "create", "text": "先取官方序列"}]}]
+        rep = evolve.run("mock", evaluator=ev, proposer=prop, model="model-a", log=lambda *a: None)
+        g = rep["candidates"][0]["gate"]
+        assert not rep["applied"]
+        assert skills.read_raw("source-way") is None
+        assert evolve.changes() == []
+    else:
+        evolve.propose_change("skill", "source-way", evolve.render_skill("source-way", "取数", "先取官方序列"), "evolve", "model-a")
+        rep = evolve.gate_model("model-b", "mock", evaluator=ev, log=lambda *a: None)
+        g = rep["checked"][0]["gate"]
+        assert not rep["checked"][0]["applied"]
+        assert skills.meta("source-way")["models"] == ["model-a"]
+    assert not g["pass"]
+    assert g["safety_regressed"] == ["case-guard"]
+    assert "安全题退步" in g["why"]
+    assert g["train"][1] > g["train"][0]
+
+
+@pytest.mark.parametrize("phase", ["baseline", "candidate"])
+@pytest.mark.parametrize("bad", ["missing", float("nan"), float("inf"), -float("inf")])
+@pytest.mark.parametrize("entrypoint", ["run", "gate_model"])
+def test_incomplete_evaluation_cannot_promote_or_extend_model_scope(home, monkeypatch, phase, bad, entrypoint):
+    from stock_agent import evolve, skills
+    tasks = [{"id": i, "category": "报价准确性", "turns": []} for i in ("a", "b", "h")]
+    monkeypatch.setattr(evolve, "load_tasks", lambda *a: (tasks, {}))
+    monkeypatch.setattr(evolve, "split", lambda *a: (["a", "b"], ["h"]))
+
+    def evaluator(tasks, fx, edits, model):
+        scores = {i: (1.0 if edits else .5, {}) for i in ("a", "b", "h")}
+        if bool(edits) == (phase == "candidate"):
+            if bad == "missing":
+                scores.pop("b")
+            else:
+                scores["b"] = (bad, {})
+        return scores
+
+    if entrypoint == "run":
+        proposer_calls = []
+
+        def proposer(*a):
+            proposer_calls.append(a)
+            return [{"why": "取数", "edits": [{"kind": "skill", "target": "source-way", "op": "create", "text": "先取官方序列"}]}]
+
+        rep = evolve.run("mock", evaluator=evaluator, proposer=proposer, log=lambda *a: None)
+        assert not rep["applied"]
+        assert skills.read_raw("source-way") is None
+        if phase == "baseline":
+            assert not proposer_calls, "基线未验证，不应继续提议与评测候选"
+            g = rep["baseline_gate"]
+            report = home / "data" / "evolve" / "runs" / rep["id"]
+            assert json.loads(report.with_suffix(".json").read_text(encoding="utf-8"))["baseline_gate"]["pass"] is False
+            assert "评测未验证" in report.with_suffix(".md").read_text(encoding="utf-8")
+        else:
+            g = rep["candidates"][0]["gate"]
+    else:
+        evolve.propose_change("skill", "source-way", evolve.render_skill("source-way", "取数", "先取官方序列"), "evolve", "model-a")
+        rep = evolve.gate_model("model-b", "mock", evaluator=evaluator, log=lambda *a: None)
+        g = rep["checked"][0]["gate"]
+        assert not rep["checked"][0]["applied"]
+        assert skills.meta("source-way")["models"] == ["model-a"]
+    assert not g["pass"] and g["integrity_errors"]
+    assert "b" in g["why"]
+
+
+@pytest.mark.parametrize("min_gain,improved", [(0.0, True), (-1e-9, False)])
+def test_gate_aligns_reordered_results_and_keeps_gain_or_model_equivalence(min_gain, improved):
+    from stock_agent.evolve import gate
+    base = {"a": .2, "b": .7, "safety": .8, "hold": .4}
+    # Ordinary training trade-offs remain allowed; safety and holdout stay equal.
+    cand = {"hold": .4, "safety": .8, "b": .6 if improved else .7, "a": .9 if improved else .2}
+    g = gate(base, cand, ["a", "b", "safety"], ["hold"], min_gain, safety=["safety"])
+    assert g["pass"]
+    assert not g["holdout_regressed"] and not g["safety_regressed"] and not g["integrity_errors"]
+    assert g["train_fixed"] == (["a"] if improved else [])
+    assert g["train_broke"] == (["b"] if improved else [])
+
+
+@pytest.mark.parametrize("protected", ["hold", "safety"])
+def test_gate_hard_checks_use_unrounded_scores(protected):
+    from stock_agent.evolve import gate
+    base = {"a": 0, "safety": .8, "hold": .8}
+    cand = {"a": 1, "safety": .8, "hold": .8}
+    cand[protected] = .79999999
+    g = gate(base, cand, ["a", "safety"], ["hold"], safety=["safety"])
+    assert not g["pass"]
+    assert g["holdout_regressed" if protected == "hold" else "safety_regressed"] == [protected]
+
+
 def test_split_is_stable_and_holdout_failures_hidden_from_proposer(home):
     from stock_agent import evolve
     tasks, _ = evolve.load_tasks(("cases",), IDS)
