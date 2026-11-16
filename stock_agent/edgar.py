@@ -538,6 +538,7 @@ def _yahoo_daily(symbol: str, d0: str, d1: str) -> tuple[list[dict], dict]:
     splits = sorted(((datetime.fromtimestamp(v["date"], tz).strftime("%Y-%m-%d"), v["numerator"] / v["denominator"])
                      for v in ((r.get("events") or {}).get("splits") or {}).values() if v.get("denominator")), key=lambda x: x[0])
     return rows, {"symbol": sym, "name": meta.get("longName") or meta.get("shortName"), "currency": meta.get("currency"),
+                  "source": "Yahoo Finance 日线", "url": f"https://finance.yahoo.com/quote/{sym}/history",
                   "exchange": meta.get("fullExchangeName") or meta.get("exchangeName"), "splits": [{"date": d, "ratio": k} for d, k in splits],
                   "first_trade_date": datetime.fromtimestamp(meta["firstTradeDate"], timezone.utc).strftime("%Y-%m-%d") if meta.get("firstTradeDate") else None}
 
