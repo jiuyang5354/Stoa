@@ -639,6 +639,32 @@ def _summarize(rows, meta, dates, start, end, period, full, warns):
     return out
 
 
+def _daily_rows(symbol: str, d0: str, d1: str, raw: bool = False):
+    """日线取数：A 股且配了同花顺 Key 时用官方日线，其余市场或失败一律回落 Yahoo。
+
+    raw=True（问具体某一天的成交价）取不复权口径，和当时的实际成交价一致；
+    区间统计/涨跌幅取前复权口径，避免除权除息被算成假暴跌。
+    """
+    try:
+        from . import hithink
+        code = hithink.thscode(symbol)
+        if code:
+            bars = hithink.historical(symbol, d0, d1, adjust="none" if raw else "forward")
+            if bars:
+                return bars, {
+                    "symbol": code, "name": None, "currency": "CNY",
+                    "exchange": {"SH": "上海证券交易所", "SZ": "深圳证券交易所", "BJ": "北京证券交易所"}.get(code.split(".")[-1], ""),
+                    "source": "同花顺金融数据服务 · 官方日线",
+                    "url": f"https://stockpage.10jqka.com.cn/{code.split('.')[0]}/",
+                    "splits": [],
+                    "note": ("不复权口径：等于当时的实际成交价。" if raw else "前复权口径：已按分红送转调整，涨跌幅与回撤可比；问「当时实际价格」请改用具体日期查。")
+                            + "数据来自同花顺官方 A 股行情。",
+                }
+    except Exception:
+        pass
+    return _yahoo_daily(symbol, d0, d1)
+
+
 def price_history(symbol: str, dates=None, start: str | None = None, end: str | None = None, period: str = "", full: bool = False) -> dict:
     """日线 OHLC。dates 查具体日子；start/end 给区间统计（最高/最低价及日期、最大单日/单周涨跌、最大回撤）；period=week/month/year 聚合。"""
     if isinstance(dates, str):
@@ -652,7 +678,7 @@ def price_history(symbol: str, dates=None, start: str | None = None, end: str | 
     hi_f = (datetime.fromisoformat(hi) + timedelta(days=10)).strftime("%Y-%m-%d")
     warns = []
     try:
-        rows, meta = _yahoo_daily(symbol, lo_f, hi_f)
+        rows, meta = _daily_rows(symbol, lo_f, hi_f, raw=bool(dates))
         if rows and rows[-1]["date"] < (datetime.fromisoformat(lo) - timedelta(days=20)).strftime("%Y-%m-%d"):
             warns.append(f"Yahoo 返回的最新数据停在 {rows[-1]['date']}，早于所查日期（代码可能已退市或被复用），已改用备用来源")
             raise LookupError("stale")
@@ -663,18 +689,21 @@ def price_history(symbol: str, dates=None, start: str | None = None, end: str | 
         if alt is None:
             raise
         return alt
-    try:  # 之后所有拆股（窗口外的也要），用于还原当时实际成交价
-        p1 = int(datetime.fromisoformat(lo_f).replace(tzinfo=timezone.utc).timestamp())
-        j = _fetch(f"https://query1.finance.yahoo.com/v8/finance/chart/{meta['symbol']}", params={"period1": p1, "period2": int(time.time()), "interval": "3mo", "events": "splits"}, ttl=86400)
-        ev = ((((j.get("chart") or {}).get("result") or [{}])[0].get("events") or {}).get("splits") or {}).values()
-        meta["splits"] = sorted(({"date": datetime.fromtimestamp(v["date"], timezone.utc).strftime("%Y-%m-%d"), "ratio": v["numerator"] / v["denominator"]}
-                                 for v in ev if v.get("denominator")), key=lambda x: x["date"])
-    except Exception:
-        pass
+    if meta.get("splits"):  # 只有 Yahoo 需要补拆股表；同花顺日线已按口径处理好
+        try:
+            p1 = int(datetime.fromisoformat(lo_f).replace(tzinfo=timezone.utc).timestamp())
+            j = _fetch(f"https://query1.finance.yahoo.com/v8/finance/chart/{meta['symbol']}", params={"period1": p1, "period2": int(time.time()), "interval": "3mo", "events": "splits"}, ttl=86400)
+            ev = ((((j.get("chart") or {}).get("result") or [{}])[0].get("events") or {}).get("splits") or {}).values()
+            meta["splits"] = sorted(({"date": datetime.fromtimestamp(v["date"], timezone.utc).strftime("%Y-%m-%d"), "ratio": v["numerator"] / v["denominator"]}
+                                     for v in ev if v.get("denominator")), key=lambda x: x["date"])
+        except Exception:
+            pass
     _unadjust(rows, meta.get("splits"))
-    out = {**meta, "source": "Yahoo Finance 日线", "url": f"https://finance.yahoo.com/quote/{meta['symbol']}/history",
-           "note": "open/high/low/close 已按拆股调整、未按分红调整；有 raw_* 时那是当时实际成交价（不复权）。题目问「当时的股价/历史最高价」且有拆股/送转时用 raw_*；"
-                   "问涨跌幅用 close。A股送转不在 Yahoo 拆股记录里时，绝对价位可能与交易所不复权价不同，要说明。"}
+    out = dict(meta)
+    out.setdefault("source", "Yahoo Finance 日线")
+    out.setdefault("url", f"https://finance.yahoo.com/quote/{meta.get('symbol')}/history")
+    out.setdefault("note", "open/high/low/close 已按拆股调整、未按分红调整；有 raw_* 时那是当时实际成交价（不复权）。题目问「当时的股价/历史最高价」且有拆股/送转时用 raw_*；"
+                           "问涨跌幅用 close。A股送转不在 Yahoo 拆股记录里时，绝对价位可能与交易所不复权价不同，要说明。")
     if dates:
         by = {r["date"]: r for r in rows}
         res = []
