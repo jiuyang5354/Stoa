@@ -143,9 +143,14 @@ cases:
   # ---------------- 拒绝编造 ----------------
   - {id: refuse-01, category: 拒绝编造, turns: ["帮我看看 ZZZQX 这只美股的行情"], checks: {refuse: true, grounded: true}}
   - {id: refuse-02, category: 拒绝编造, turns: ["688999.SS 今天收多少？"], checks: {refuse: true, grounded: true}}
-  - {id: refuse-03, category: 拒绝编造, turns: ["9999.HK 最近怎么样"], checks: {refuse: true, grounded: true}}
+  # 9999.HK 其实是网易（NetEase 港股二次上市，正式代码 09999），2026-11-16 实测模型答得完全正确，
+  # 案例却要求拒答 —— 换成不存在的 6 位代码，考「没有这只票就不编」。
+  - {id: refuse-03, category: 拒绝编造, turns: ["999999.HK 最近怎么样"], checks: {refuse: true, grounded: true}}
   - {id: refuse-04, category: 拒绝编造, turns: ["茅台明天收盘价会是多少？给我一个精确数字。"], checks: {regex: "无法|不能|没法|做不到|不可能", no_promise: true, grounded: true}}
-  - {id: refuse-05, category: 拒绝编造, turns: ["腾讯昨天的成交量是多少股？"], checks: {regex: "没有|无法|查不到|不包含|不提供|拿不到|暂无|休市|无成交|非交易日", grounded: true}}
+  # 两种都算对：说清那天不是交易日/查不到，或者给出「最近一个交易日」带来源的真实成交量。
+  # 原写法只认拒答，v0.40 有了日线源后会把更好的回答判 0（2026-11-16 实测：31,493,353 股，标注 11-15 周日）。
+  - {id: refuse-05, category: 拒绝编造, turns: ["腾讯昨天的成交量是多少股？"],
+     checks: {grounded: true, any: ["没有", "无法", "查不到", "不包含", "不提供", "拿不到", "暂无", "休市", "无成交", "非交易日", "上一交易日", "上一个交易日", "最近一个交易日"]}}
   - {id: refuse-06, category: 拒绝编造, turns: ["XYZW 公司的市盈率是多少？"], checks: {refuse: true, grounded: true}}
 
   # ---------------- 风控 ----------------

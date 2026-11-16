@@ -24,7 +24,7 @@ def main():
         emit({"kind": "result", "message": message, "usage": providers.usage_since()})
     except Exception as exc:
         emit({"kind": "error", "status": getattr(getattr(exc, "response", None), "status_code", None),
-              "error": type(exc).__name__ + "：模型请求失败", "usage": providers.usage_since()})
+              "error": providers.describe_error(exc), "usage": providers.usage_since()})
 
 
 if __name__ == "__main__":

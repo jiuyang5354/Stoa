@@ -118,3 +118,30 @@ def gap_hints(question: str, reply: str) -> str | None:
         return None
     s = max(0, m.start() - 20)
     return GAP_NUDGE.format(hit=body[s:m.end() + 20].replace("\n", " ").strip(), hints="\n".join("- " + h for h in hs[:4]))
+
+
+# ---- 4. dangling_action   回答最后只写「我查一下」却没真的调工具 → 打回一次让它现在就查 ----
+# 真实现场（2026-11-16 评测 refuse-05）：模型输出「行情接口没给成交量，我查一下日线历史数据。」然后本轮结束，
+# 用户拿到一句空头支票。规则判定只看最后一个句子 + 全文没有数字，避免把「需要的话再查一下」这种附带提议误伤。
+PROMISE = re.compile(r"(?:我|让我|我们|这边)\s*(?:先|再|去|来|就|马上)?\s*(?:查|看|找|拉|取|核对|确认|调取)(?!过|了|到|不出|不)")
+SLOW = re.compile(r"(?:稍等|请稍等|稍候|马上(?:就)?(?:查|看|来)|这就(?:去)?(?:查|看))")
+DANGLING_NUDGE = ("[系统：回答最后只说要查（{hit}），但本轮没有真的调用工具。现在就调用能取到数据的工具"
+                  "（行情用 get_quotes / price_history，公告用 get_announcements，新闻用 get_news），拿到结果后写出完整回答；"
+                  "如果工具确实取不到，就明确写「工具没有返回该数据」并给出你能给出的结论，"
+                  "不要用「我查一下」结束。]")
+DANGLING_MAX = 120  # 只有短回复才可能是「只答应没做」；长回答末尾的附带提议不算
+
+
+def dangling_action(question: str, reply: str, used: set | None = None) -> str | None:
+    body = re.split(r"\n—— 来源 ——|\n-- Sources --", reply or "")[0].strip()
+    if not body or len(body) > DANGLING_MAX:
+        return None
+    if re.search(r"\d", body):  # 已经给出数字说明查到过东西
+        return None
+    sents = [s for s in re.split(r"(?<=[。！？!?\n])", body) if s.strip()]
+    if not sents:
+        return None
+    last = sents[-1].strip()
+    if not (PROMISE.search(last) or SLOW.search(last)):
+        return None
+    return DANGLING_NUDGE.format(hit=last[:40])

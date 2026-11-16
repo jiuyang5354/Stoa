@@ -169,6 +169,19 @@ def cached_tokens(u: dict) -> int:
         return 0
 
 
+def describe_error(exc: BaseException) -> str:
+    """传输层异常的一句话说明：保留短原因（主机名、连接被重置、读超时），不带请求体或凭证。
+
+    真实案例（2026-11-16）：一次 proxy 抖动让评测整题作废，界面只显示
+    `ConnectionError：模型请求失败`，看不出是连接被掐断还是密钥/网关问题。
+    """
+    name = type(exc).__name__
+    detail = " ".join(str(exc).split())[:150]
+    if isinstance(exc, requests.HTTPError):
+        return detail or "模型请求失败"  # 已经把 4xx/5xx 翻成人话，别再加类名前缀
+    return f"{name}：{detail}" if detail else f"{name}：模型请求失败"
+
+
 def explain_http(e: requests.HTTPError) -> str:
     """把上游的 4xx/5xx 换成人能照着做的说明。
 
@@ -423,6 +436,19 @@ class LLM:
                 callback = getattr(self, "on_retry", None)
                 if callback:
                     callback({"t": "model", "status": "retry", "seconds": round(delay, 1), "attempt": attempt + 1})
+                time.sleep(delay)
+            except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as e:
+                # 传输层中断（连接被重置 / 读超时）：不是模型给的答案，退避重试而不是整轮作废
+                if attempt >= retries:
+                    record_usage(error=True)
+                    raise
+                with _USAGE_LOCK:
+                    USAGE["retries"] += 1
+                delay = _backoff(None, attempt)
+                callback = getattr(self, "on_retry", None)
+                if callback:
+                    callback({"t": "model", "status": "retry", "seconds": round(delay, 1),
+                              "attempt": attempt + 1, "reason": type(e).__name__})
                 time.sleep(delay)
             except Exception:
                 record_usage(error=True)

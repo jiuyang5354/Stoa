@@ -1576,6 +1576,8 @@ class Agent:
                             nudge, kind = gates.code_issues(text, reply, gates.sandbox_runner()), "code"
                         if not nudge and "gap" not in gated and n_tools:
                             nudge, kind = gates.gap_hints(text, reply), "gap"
+                        if not nudge and "dangling" not in gated:  # 只答应了「我查一下」却没调工具
+                            nudge, kind = gates.dangling_action(text, reply, set(getattr(self, "_used_now", ()) or ())), "dangling"
                     except Exception:
                         nudge = None
                     if nudge:
