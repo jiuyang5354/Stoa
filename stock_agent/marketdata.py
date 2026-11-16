@@ -207,19 +207,39 @@ def _yahoo_meta(p) -> dict | None:
             "date": t.strftime("%Y-%m-%d"), "time": t.strftime("%H:%M"), "currency": m.get("currency")}
 
 
+def _hithink_quotes(p) -> dict | None:
+    """官方 A 股快照（只在配了 HITHINK_API_KEY 时出现，见 _sources()）。"""
+    from . import hithink
+    return hithink.quote(p)
+
+
 RT_SOURCES = {"新浪财经": (_sina_quotes, lambda p: f"https://finance.sina.com.cn/realstock/company/{p['sina']}/nc.shtml" if p["market"] == "A" else "https://finance.sina.com.cn/stock/"),
               "腾讯证券": (_tencent_quotes, lambda p: f"https://gu.qq.com/{p['tencent']}"),
               "Yahoo Finance": (_yahoo_meta, lambda p: f"https://finance.yahoo.com/quote/{p['yahoo']}")}
 
 
+def _sources() -> dict:
+    """当前可用的实时报价源。同花顺只在配了 Key 时加入，且排最前（官方源优先）；
+    调用方逐个取、失败各自记错，所以多一个源不会让报价整体失败。"""
+    out = dict(RT_SOURCES)
+    try:
+        from . import hithink
+        if hithink.ready():
+            out = {"同花顺": (_hithink_quotes, hithink.quote_url), **out}
+    except Exception:
+        pass
+    return out
+
+
 def realtime(symbol: str, names=None) -> dict:
     """各源实时报价（并行，单源最多 T 秒）。"""
     p = parse(symbol)
-    names = names or list(RT_SOURCES)
+    srcs = _sources()
+    names = names or list(srcs)
     out = {}
 
     def one(n):
-        f, u = RT_SOURCES[n]
+        f, u = srcs[n]
         try:
             q = f(p)
             return n, (q, u(p), None if q else "无数据")
@@ -236,7 +256,7 @@ def quote_check(symbol: str, close: float | None, date: str | None, primary: str
                 rt: dict | None = None) -> dict:
     """日线收盘 vs 实时报价源。同一天比现价；日线日期早于实时源日期时比实时源的昨收。"""
     thr = QUOTE_DIFF_PCT if threshold is None else threshold
-    rt = rt if rt is not None else realtime(symbol, [n for n in RT_SOURCES if n != primary])
+    rt = rt if rt is not None else realtime(symbol, [n for n in _sources() if n != primary])
     vals, used, sources = {}, {}, []
     if close is not None:
         vals[primary] = float(close)

@@ -227,7 +227,8 @@ def trading_now(t: datetime | None = None) -> bool:
 
 
 def market_metadata(symbol: str, is_index: bool = False, at: datetime | None = None) -> dict:
-    """交易时段仅按工作日/本地钟点判断，不冒充已核验的交易所节假日日历。"""
+    """交易时段：A 股在配了同花顺 Key 时用官方交易日历核验（节假日不再靠工作日猜）；
+    其它市场仍按工作日/本地钟点判断，并如实标 `calendar_verified: false`。"""
     if symbol.endswith(".HK") or symbol in ("^HSI", "HSTECH.HK"):
         zone, currency, windows = "Asia/Hong_Kong", "HKD", [((9, 30), (12, 0)), ((13, 0), (16, 0))]
     elif symbol.endswith((".SS", ".SZ", ".BJ")):
@@ -236,8 +237,20 @@ def market_metadata(symbol: str, is_index: bool = False, at: datetime | None = N
         zone, currency, windows = "America/New_York", "USD", [((9, 30), (16, 0))]
     local = (at or datetime.now(CN_TZ)).astimezone(ZoneInfo(zone))
     opened = local.weekday() < 5 and any(a <= (local.hour, local.minute) < b for a, b in windows)
-    return {"currency": "points" if is_index else currency, "timezone": zone,
-            "market_state": "schedule_open" if opened else "schedule_closed", "calendar_verified": False}
+    verified, closed_reason = False, None
+    if symbol.endswith((".SS", ".SZ", ".BJ")):  # 官方日历只覆盖 A 股
+        try:
+            from . import hithink
+            st = hithink.session_state(symbol, at)
+        except Exception:
+            st = None
+        if st:
+            opened, verified, closed_reason = st["in_session"], True, st["reason"]
+    out = {"currency": "points" if is_index else currency, "timezone": zone,
+           "market_state": "schedule_open" if opened else "schedule_closed", "calendar_verified": verified}
+    if closed_reason:
+        out["closed_reason"] = closed_reason
+    return out
 
 
 def indices() -> list[dict]:
